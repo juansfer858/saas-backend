@@ -24,12 +24,7 @@ model User {
   rol       String   @default("ADMIN")
   creadoEn  DateTime @default(now())
 
-  tenant Tenant @relation(
-    fields: [tenantId],
-    references: [id],
-    onDelete: Restrict,
-    onUpdate: Cascade
-  )
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([tenantId, email])
   @@index([tenantId, rol])
