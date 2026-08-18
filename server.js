@@ -1,53 +1,7 @@
-const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
+require('dotenv').config();
 
-const app = express();
-
-if (!process.env.DATABASE_URL) {
-  console.error('FATAL: DATABASE_URL no está configurada');
-  process.exit(1);
-}
-
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL
-});
-
-const prisma = new PrismaClient({ adapter });
-
-app.use(express.json());
-
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'API funcionando correctamente'
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    service: 'saas-backend'
-  });
-});
-
-app.get('/db-test', async (req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-
-    res.json({
-      status: 'success',
-      message: 'Conexión a PostgreSQL EXITOSA'
-    });
-  } catch (error) {
-    console.error('DB TEST ERROR:', error);
-
-    res.status(500).json({
-      status: 'error',
-      error: error.message
-    });
-  }
-});
+const { app } = require('./src/app');
+const { prisma } = require('./src/config/prisma');
 
 const PORT = process.env.PORT || 3000;
 
