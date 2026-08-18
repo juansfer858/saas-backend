@@ -1,54 +1,36 @@
 ﻿const express = require('express');
-const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
 const app = express();
 const prisma = new PrismaClient();
 
-app.use(cors());
 app.use(express.json());
 
+// Endpoint raíz
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'SaaS Core API activa' });
+  res.json({ status: 'ok', message: 'API funcionando correctamente' });
 });
 
-app.post('/api/auth/register-tenant', async (req, res) => {
+// Endpoint de diagnóstico para verificar DB
+app.get('/db-test', async (req, res) => {
   try {
-    const { nombreEmpresa, subdomain, nicho, nombreAdmin, emailAdmin, passwordAdmin } = req.body;
-    
-    const tenantExistente = await prisma.tenant.findUnique({ where: { subdomain } });
-    if (tenantExistente) {
-      return res.status(400).json({ error: 'El subdominio ya está registrado.' });
-    }
-
-    const hashedPassword = await bcrypt.hash(passwordAdmin, 10);
-
-    const nuevoTenant = await prisma.tenant.create({
-      data: {
-        nombreEmpresa,
-        subdomain,
-        nicho,
-        users: {
-          create: {
-            nombre: nombreAdmin,
-            email: emailAdmin,
-            password: hashedPassword,
-            rol: 'ADMIN'
-          }
-        }
-      },
-      include: { users: true }
-    });
-
-    res.status(201).json({ message: 'Empresa registrada con éxito', tenant: nuevoTenant });
+    await prisma.$connect();
+    res.json({ status: 'success', message: 'Conexión a PostgreSQL EXITOSA' });
   } catch (error) {
-    res.status(500).json({ error: 'Error al registrar empresa: ' + error.message });
+    res.status(500).json({ status: 'error', error: error.message });
   }
 });
 
+// Capturar errores no controlados para que Node NO SE APAGUE
+process.on('uncaughtException', (err) => {
+  console.error('Error no capturado:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Promesa rechazada no capturada:', reason);
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Servidor activo en el puerto ${PORT}`);
 });
