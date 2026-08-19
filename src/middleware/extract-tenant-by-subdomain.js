@@ -33,6 +33,11 @@ function subdomainFromHost(host) {
   return labels.length >= 3 ? labels[0] : null;
 }
 
+/**
+ * Resuelve el tenant antes de cualquier autenticación o consulta empresarial.
+ * El header x-tenant-subdomain se admite para clientes API, pero si el host ya
+ * identifica un tenant ambos valores deben coincidir.
+ */
 async function extractTenantBySubdomain(req, _res, next) {
   try {
     const customSubdomain = normalizeSubdomain(req.headers['x-tenant-subdomain']);
@@ -61,12 +66,19 @@ async function extractTenantBySubdomain(req, _res, next) {
       select: {
         id: true,
         subdomain: true,
-        nombreEmpresa: true
+        nombreEmpresa: true,
+        pais: true,
+        moneda: true,
+        activo: true
       }
     });
 
     if (!tenant) {
       throw new AppError(404, 'Empresa no encontrada', 'TENANT_NOT_FOUND');
+    }
+
+    if (!tenant.activo) {
+      throw new AppError(403, 'Empresa inactiva', 'TENANT_INACTIVE');
     }
 
     req.tenantId = tenant.id;
@@ -77,4 +89,4 @@ async function extractTenantBySubdomain(req, _res, next) {
   }
 }
 
-module.exports = { extractTenantBySubdomain };
+module.exports = { extractTenantBySubdomain, normalizeSubdomain, subdomainFromHost };
