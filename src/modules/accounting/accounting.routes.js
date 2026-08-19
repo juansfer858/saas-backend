@@ -1,11 +1,16 @@
 const express = require('express');
 const controller = require('./accounting.controller');
+const integrationController = require('./accounting-integration.controller');
 const { partidaDobleMiddleware } = require('../../middleware/partida-doble-middleware');
 
 const router = express.Router();
 
 router.get('/cuentas', controller.listAccounts);
 router.post('/cuentas', controller.createAccount);
+
+router.get('/mapeos', integrationController.listMappings);
+router.put('/mapeos/:clave', integrationController.updateMapping);
+router.get('/integracion/estado', integrationController.getIntegrationStatus);
 
 router.get('/tipos-comprobante', controller.listVoucherTypes);
 router.post('/tipos-comprobante', controller.createVoucherType);
