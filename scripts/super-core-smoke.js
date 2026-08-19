@@ -166,6 +166,7 @@ async function main() {
       })
     });
     assert.equal(registerB.status, 201, JSON.stringify(registerB.body));
+    const adminEmailB = registerB.body.data.admin.email;
 
     const crossTenant = await request('/api/v1/auth/session', {
       headers: {
@@ -190,17 +191,46 @@ async function main() {
     assert.equal(unbalanced.status, 400, JSON.stringify(unbalanced.body));
     assert.equal(unbalanced.body.error.code, 'ACCOUNTING_UNBALANCED');
 
+    const invalidAmount = await request('/api/v1/contabilidad/asientos', {
+      method: 'POST',
+      headers: authA,
+      body: JSON.stringify({
+        concepto: 'Prueba importe inválido',
+        detalles: [
+          { cuentaId: accounts.body.data.find((a) => a.codigo === '110505').id, debito: 'NO_ES_NUMERO', credito: 0 },
+          { cuentaId: accounts.body.data.find((a) => a.codigo === '413505').id, debito: 0, credito: 100 }
+        ]
+      })
+    });
+    assert.equal(invalidAmount.status, 400, JSON.stringify(invalidAmount.body));
+    assert.equal(invalidAmount.body.error.code, 'ACCOUNTING_AMOUNT_INVALID');
+
+    await prisma.tenant.update({
+      where: { subdomain: tenantB },
+      data: { activo: false }
+    });
+
+    const inactiveTenantLogin = await request('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { ...jsonHeaders, 'x-tenant-subdomain': tenantB },
+      body: JSON.stringify({ email: adminEmailB, password })
+    });
+    assert.equal(inactiveTenantLogin.status, 403, JSON.stringify(inactiveTenantLogin.body));
+    assert.equal(inactiveTenantLogin.body.error.code, 'TENANT_INACTIVE');
+
     console.log('SUPER CORE SMOKE OK');
     console.log(JSON.stringify({
       tenantSeed: true,
       auth: true,
       tenantIsolation: true,
+      inactiveTenantBlock: true,
       thirdParties: true,
       inventoryWeightedAverage: true,
       purchaseAutomation: true,
       saleAutomation: true,
       cartera: true,
-      doubleEntry: true
+      doubleEntry: true,
+      invalidAccountingAmountBlock: true
     }, null, 2));
   } finally {
     await new Promise((resolve) => server.close(resolve));
