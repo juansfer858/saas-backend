@@ -1,5 +1,5 @@
 const service = require('./treasury.service');
-const { cajaBancoSchema, aperturaSchema, cierreSchema } = require('./treasury.schemas');
+const { cajaBancoSchema, aperturaSchema, cierreSchema, paymentSchema } = require('./treasury.schemas');
 const { AppError } = require('../../utils/app-error');
 
 function parse(schema, value) {
@@ -20,6 +20,11 @@ async function listCajaBanco(req, res, next) {
   catch (error) { next(error); }
 }
 
+async function deactivateCajaBanco(req, res, next) {
+  try { res.json({ ok: true, data: await service.deactivateCajaBanco(req.tenantId, req.params.id) }); }
+  catch (error) { next(error); }
+}
+
 async function openCashSession(req, res, next) {
   try {
     const data = await service.openCashSession(req.tenantId, req.userId, req.params.cajaBancoId, parse(aperturaSchema, req.body));
@@ -36,10 +41,33 @@ async function closeCashSession(req, res, next) {
 
 async function listCartera(req, res, next) {
   try {
-    const data = await service.listCartera(req.tenantId, {
+    const result = await service.listCartera(req.tenantId, {
       tipo: req.query.tipo,
       estado: req.query.estado,
       terceroId: req.query.terceroId,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+      montoMin: req.query.montoMin,
+      montoMax: req.query.montoMax,
+      page: req.query.page,
+      pageSize: req.query.pageSize || req.query.limit
+    });
+    res.json({ ok: true, data: result.items, meta: result.meta });
+  } catch (error) { next(error); }
+}
+
+async function registerPayment(req, res, next) {
+  try {
+    const data = await service.registerPayment(req.tenantId, req.userId, parse(paymentSchema, req.body));
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function listPayments(req, res, next) {
+  try {
+    const data = await service.listPayments(req.tenantId, {
+      documentoId: req.query.documentoId,
+      cajaBancoId: req.query.cajaBancoId,
       limit: req.query.limit
     });
     res.json({ ok: true, data });
@@ -49,7 +77,10 @@ async function listCartera(req, res, next) {
 module.exports = {
   createCajaBanco,
   listCajaBanco,
+  deactivateCajaBanco,
   openCashSession,
   closeCashSession,
-  listCartera
+  listCartera,
+  registerPayment,
+  listPayments
 };
