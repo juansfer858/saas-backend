@@ -12,5 +12,8 @@ router.post('/turnos/:sessionId/cerrar', controller.closeCashSession);
 router.get('/cartera', controller.listCartera);
 router.get('/pagos', controller.listPayments);
 router.post('/pagos', controller.registerPayment);
+router.post('/pagos/aplicar-multiples', controller.registerPaymentBatch);
+router.post('/transferencias', controller.transferOwnFunds);
+router.post('/gastos-directos', controller.directExpense);
 
 module.exports = { treasuryRouter: router };
