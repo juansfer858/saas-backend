@@ -1,0 +1,69 @@
+model ConsumptionRecipe {
+  id              String   @id @default(uuid())
+  tenantId        String
+  code            String
+  name            String
+  outputProductId String?
+  active          Boolean  @default(true)
+  version         Int      @default(1)
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  items           ConsumptionRecipeItem[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, outputProductId])
+  @@index([tenantId, active])
+}
+
+model ConsumptionRecipeItem {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  recipeId            String
+  ingredientProductId String
+  quantity            Decimal  @db.Decimal(18, 6)
+  unitLabel           String?
+  creadoEn            DateTime @default(now())
+  actualizadoEn       DateTime @updatedAt
+
+  recipe              ConsumptionRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, ingredientProductId])
+  @@index([tenantId, ingredientProductId])
+}
+
+model ConsumptionRun {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  sourceType          String
+  sourceId            String
+  reference           String?
+  state               String   @default("COMPLETED")
+  totalCost           Decimal  @default(0) @db.Decimal(18, 2)
+  accountingJournalId String?
+  recipeSnapshot      Json?
+  creadoEn            DateTime @default(now())
+  reversedAt          DateTime?
+
+  items               ConsumptionRunItem[]
+
+  @@unique([tenantId, sourceType, sourceId])
+  @@index([tenantId, creadoEn])
+}
+
+model ConsumptionRunItem {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  runId               String
+  ingredientProductId String
+  movementId          String?
+  quantity            Decimal  @db.Decimal(18, 6)
+  unitCost            Decimal  @db.Decimal(18, 4)
+  totalCost           Decimal  @db.Decimal(18, 2)
+  creadoEn            DateTime @default(now())
+
+  run                 ConsumptionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, ingredientProductId])
+  @@index([movementId])
+}
