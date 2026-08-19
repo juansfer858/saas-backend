@@ -79,6 +79,7 @@ const taxCalculationSchema = z.object({
   terceroId: z.string().uuid().optional().nullable(),
   tipoOperacion: z.enum(['COMPRA', 'VENTA']),
   base: z.coerce.number().min(0),
+  ivaValue: z.coerce.number().min(0).optional(),
   tarifaIvaId: z.string().uuid().optional().nullable(),
   conceptosRetencionIds: z.array(z.string().uuid()).optional()
 });
