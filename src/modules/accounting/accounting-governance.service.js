@@ -44,8 +44,9 @@ async function validateConfigAccounts(tx, tenantId, input) {
     input.cuentaPerdidaEjercicioId
   ].filter(Boolean);
   if (!ids.length) return;
-  const count = await tx.cuentaPUC.count({ where: { tenantId, id: { in: [...new Set(ids)] }, activa: true, permiteMovimiento: true } });
-  if (count !== new Set(ids).size) throw new AppError(400, 'Una cuenta de configuración no pertenece al tenant o no acepta movimientos', 'ACCOUNTING_CONFIG_ACCOUNT_INVALID');
+  const unique = [...new Set(ids)];
+  const count = await tx.cuentaPUC.count({ where: { tenantId, id: { in: unique }, activa: true, permiteMovimiento: true } });
+  if (count !== unique.length) throw new AppError(400, 'Una cuenta de configuración no pertenece al tenant o no acepta movimientos', 'ACCOUNTING_CONFIG_ACCOUNT_INVALID');
 }
 
 async function updateConfig(tenantId, userId, input) {
@@ -56,11 +57,7 @@ async function updateConfig(tenantId, userId, input) {
       if (Object.prototype.hasOwnProperty.call(input, key)) data[key] = input[key] || null;
     }
     if (Object.prototype.hasOwnProperty.call(input, 'tasaImpuestoRenta')) data.tasaImpuestoRenta = input.tasaImpuestoRenta;
-    const cfg = await tx.configuracionContable.upsert({
-      where: { tenantId },
-      create: { tenantId, ...data },
-      update: data
-    });
+    const cfg = await tx.configuracionContable.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
     await auditInTx(tx, { tenantId, userId, entidad: 'CONFIGURACION_CONTABLE', entidadId: cfg.id, accion: 'ACTUALIZAR', metadata: data });
     return cfg;
   });
@@ -152,6 +149,8 @@ async function closePeriod(tenantId, userId, anio, mes) {
     }
 
     if (detalles.length) {
+      // No usamos sourceId estable para el cierre: tras una reapertura, un nuevo
+      // cierre debe generar un asiento nuevo y conservar todo el historial.
       closingJournal = await accounting.createJournalInTx(tx, {
         tenantId,
         userId,
@@ -159,7 +158,6 @@ async function closePeriod(tenantId, userId, anio, mes) {
         concepto: `Cierre contable ${anio}-${String(mes).padStart(2, '0')}`,
         origen: 'CIERRE',
         codigoTipo: 'CC',
-        sourceId: `CLOSE-${tenantId}-${anio}-${mes}`,
         detalles
       });
     }
@@ -202,17 +200,18 @@ async function reopenPeriod(tenantId, userId, userRole, anio, mes) {
         sourceId: `REOPEN-${tenantId}-${anio}-${mes}-${Date.now()}`,
         motivo: 'Reapertura de periodo'
       });
+      // La reversión sigue ligada al cierre y usa numeración RV, pero se marca
+      // con origen CIERRE para que los reportes de resultados excluyan tanto el
+      // cierre como su reversión y no dupliquen el P&G tras una reapertura.
+      reversal = await tx.asientoContable.update({
+        where: { id: reversal.id },
+        data: { origen: 'CIERRE' },
+        include: { detalles: true, tipoComprobante: true }
+      });
     }
     await auditInTx(tx, { tenantId, userId, entidad: 'PERIODO', entidadId: period.id, accion: 'REABRIR', metadata: { anio, mes, reversoCierreId: reversal?.id || null } });
     return { periodo: period, reversoCierre: reversal };
   }, { timeout: 30000 });
 }
 
-module.exports = {
-  periodBounds,
-  listPeriods,
-  getConfig,
-  updateConfig,
-  closePeriod,
-  reopenPeriod
-};
+module.exports = { periodBounds, listPeriods, getConfig, updateConfig, closePeriod, reopenPeriod };
