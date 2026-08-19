@@ -26,13 +26,14 @@ async function main() {
   assert.equal(Number(ledger.saldoFinal), 30000);
 
   const trial = await accounting.getTrialBalance(tenant.id, {});
-  assert.equal(trial.balanceado, true);
-  assert.equal(Number(trial.totals.debitos), Number(trial.totals.creditos));
+  assert.equal(trial.cuadra, true);
+  assert.equal(Number(trial.totalDebito), Number(trial.totalCredito));
 
   const pnl = await accounting.getProfitAndLoss(tenant.id, {});
-  assert.equal(Number(pnl.totales.totalIngresos), 70000);
-  assert.equal(Number(pnl.totales.totalCostos), 40000);
-  assert.equal(Number(pnl.totales.utilidad), 30000);
+  assert.equal(Number(pnl.ingresosOperacionales), 70000);
+  assert.equal(Number(pnl.costoVentas), 40000);
+  assert.equal(Number(pnl.utilidadBruta), 30000);
+  assert.equal(Number(pnl.utilidadNeta), 30000);
 
   const product = await prisma.producto.findUnique({
     where: { tenantId_sku: { tenantId: tenant.id, sku: 'DEMO-CONT-001' } }
@@ -45,7 +46,6 @@ async function main() {
   });
   assert.equal(Number(cash.saldoActual), 30000, 'Tesorería debe reflejar el recibo de caja');
 
-  // Idempotencia: re-ejecutar no debe duplicar documentos, Kardex ni asientos.
   await seedDemoAccountingOperations();
   const journalsAfter = await prisma.asientoContable.count({
     where: {
@@ -57,7 +57,7 @@ async function main() {
   const productAfter = await prisma.producto.findUnique({ where: { id: product.id } });
   assert.equal(Number(productAfter.stockActual), 8);
 
-  console.log('ACCOUNTING SUITE E2E OK');
+  console.log('ACCOUNTING SUITE E2E V2 COMPAT OK');
 }
 
 main()
