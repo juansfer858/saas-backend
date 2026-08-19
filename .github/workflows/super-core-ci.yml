@@ -15,6 +15,7 @@ on:
       - panel-demo-view-v1
       - production-demo-tenant-v1
       - accounting-suite-v1
+      - accounting-core-complete-v2
   pull_request:
     branches:
       - main
@@ -48,7 +49,7 @@ jobs:
       - name: Load complete application graph
         run: node -e "require('./src/app'); console.log('SUPER CORE LOAD OK')"
 
-      - name: Validate Accounting operational UI
+      - name: Validate Accounting V2 operational UI
         run: node scripts/accounting-ui-smoke.js
 
       - name: Validate global Panel and Sales UI
@@ -116,5 +117,8 @@ jobs:
       - name: Validate permanent production demo tenant bootstrap
         run: node scripts/production-demo-tenant-smoke.js
 
-      - name: Validate accounting suite end-to-end
+      - name: Validate Accounting Suite compatibility
         run: node scripts/accounting-suite-smoke.js
+
+      - name: Validate Accounting Core V2 governance and fiscal workflows
+        run: node scripts/accounting-core-v2-smoke.js
