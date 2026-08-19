@@ -71,6 +71,7 @@ async function main() {
     });
     assert.equal(product.status, 201, JSON.stringify(product.body));
     const productId = product.body.data.id;
+    const productoId = productId;
 
     const purchase = await request('/api/v1/comercial/compras', {
       method: 'POST', headers: auth,
