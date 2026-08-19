@@ -11,6 +11,7 @@ on:
       - super-core-step4-api-v2
       - super-core-integral-hardening-v1
       - accounting-ui-v1
+      - web-panel-sales-v1
   pull_request:
     branches:
       - main
@@ -46,6 +47,9 @@ jobs:
 
       - name: Validate Accounting visual module
         run: node scripts/accounting-ui-smoke.js
+
+      - name: Validate global Panel and Sales UI
+        run: node scripts/panel-ui-smoke.js
 
   integration:
     needs: validate

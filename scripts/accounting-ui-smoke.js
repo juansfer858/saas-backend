@@ -11,11 +11,11 @@ async function main() {
     const html = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /VantixGC/);
-    assert.match(html, /Contabilidad/);
-    assert.match(html, /Plan de cuentas/);
-    assert.match(html, /Asientos contables/);
-    assert.match(html, /Conectar empresa/);
+    assert.match(html, /VantixGC Super Core/);
+    assert.match(html, /Contabilidad PUC/);
+    assert.match(html, /Panel administrativo/);
+    assert.match(html, /\/api\/v1\/contabilidad\/cuentas/);
+    assert.match(html, /x-tenant-subdomain/);
 
     console.log('ACCOUNTING UI SMOKE OK');
   } finally {
