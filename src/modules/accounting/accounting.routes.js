@@ -1,5 +1,8 @@
 const express = require('express');
 const controller = require('./accounting.controller');
+const taxes = require('./accounting-tax.service');
+const { fiscalJournalSchema } = require('./accounting.schemas');
+const { AppError } = require('../../utils/app-error');
 const { partidaDobleMiddleware } = require('../../middleware/partida-doble-middleware');
 
 const router = express.Router();
@@ -14,6 +17,13 @@ router.patch('/tipos-comprobante/:id', controller.updateVoucherType);
 router.get('/asientos', controller.listJournals);
 router.post('/asientos', partidaDobleMiddleware, controller.createJournal);
 router.post('/asientos/borrador', partidaDobleMiddleware, controller.createDraftJournal);
+router.post('/asientos/fiscal', async (req, res, next) => {
+  try {
+    const parsed = fiscalJournalSchema.safeParse(req.body);
+    if (!parsed.success) throw new AppError(400, 'Datos fiscales inválidos', 'VALIDATION_ERROR', parsed.error.flatten());
+    res.status(201).json({ ok: true, data: await taxes.createFiscalJournal(req.tenantId, req.userId, parsed.data) });
+  } catch (error) { next(error); }
+});
 router.post('/asientos/:id/contabilizar', controller.postDraftJournal);
 router.post('/asientos/:id/anular', controller.reverseJournal);
 router.post('/asientos/:id/soportes', controller.addSupport);
