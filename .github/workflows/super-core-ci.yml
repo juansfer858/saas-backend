@@ -5,6 +5,10 @@ on:
     branches:
       - super-core-v1
       - super-core-tests
+      - super-core-step1-schema-v2
+      - super-core-step2-middlewares-v2
+      - super-core-step3-seed-v2
+      - super-core-step4-api-v2
   pull_request:
     branches:
       - main
@@ -82,3 +86,6 @@ jobs:
 
       - name: Run Super Core smoke test
         run: node scripts/super-core-smoke.js
+
+      - name: Run tenant welcome seed smoke test
+        run: node scripts/step3-seed-smoke.js
