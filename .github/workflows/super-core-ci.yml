@@ -18,6 +18,7 @@ on:
       - accounting-core-complete-v2
       - accounting-qa-blockers-v2
       - core-accounting-integration-v1-work2
+      - platform-core-dian-rbac-print-saas-v1
   pull_request:
     branches:
       - main
@@ -59,6 +60,9 @@ jobs:
 
       - name: Validate operational Purchases UI
         run: node scripts/purchases-ui-smoke.js
+
+      - name: Validate Platform Core tenant and SaaS UIs
+        run: node scripts/platform-core-ui-smoke.js
 
       - name: Validate read-only demo panel
         run: node scripts/demo-ui-smoke.js
@@ -136,3 +140,6 @@ jobs:
 
       - name: Validate Purchases operational acceptance criteria
         run: node scripts/purchases-operational-smoke.js
+
+      - name: Validate Platform Core DIAN, payroll, RBAC, printing and SaaS admin
+        run: node scripts/platform-core-v1-smoke.js

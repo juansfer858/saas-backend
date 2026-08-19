@@ -1,6 +1,7 @@
 const express = require('express');
 const controller = require('./commercial.controller');
 const purchaseController = require('./purchase.controller');
+const fiscalSalesController = require('./sales-fiscal.controller');
 
 const router = express.Router();
 
@@ -14,13 +15,13 @@ router.post('/comprobantes/:id/emitir', controller.emitDocument);
 router.post('/comprobantes/:id/anular', controller.cancelDocument);
 router.post('/comprobantes/:id/reemplazar', controller.replaceDocument);
 
-// Ventas: mismo motor, tipo fijo FACTURA_VENTA.
+// Ventas: creación/emisión fiscal-aware. Si DIAN está habilitado, la venta emitida y el outbox fiscal nacen juntos.
 router.get('/ventas', controller.listSales);
-router.post('/ventas', controller.createSale);
+router.post('/ventas', fiscalSalesController.create);
 router.get('/ventas/:id', controller.getSale);
 router.patch('/ventas/:id', controller.updateDocument);
 router.put('/ventas/:id', controller.updateDocument);
-router.post('/ventas/:id/emitir', controller.emitDocument);
+router.post('/ventas/:id/emitir', fiscalSalesController.emit);
 router.post('/ventas/:id/anular', controller.cancelDocument);
 router.post('/ventas/:id/reemplazar', controller.replaceDocument);
 

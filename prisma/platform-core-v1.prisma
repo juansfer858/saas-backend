@@ -1,0 +1,411 @@
+enum DianEnvironment {
+  HABILITACION
+  PRODUCCION
+}
+
+enum DianDocumentType {
+  FACTURA_ELECTRONICA
+  DOCUMENTO_EQUIVALENTE_POS
+  DOCUMENTO_SOPORTE
+  NOMINA_ELECTRONICA
+  NOTA_AJUSTE
+}
+
+enum DianDocumentState {
+  GENERADO
+  PENDIENTE_ENVIO
+  ENVIANDO
+  ACEPTADO
+  RECHAZADO
+  CONTINGENCIA
+  CORREGIDO
+  CANCELADO
+}
+
+enum DianTransmissionResult {
+  EXITO
+  ERROR_REINTENTABLE
+  ERROR_DEFINITIVO
+}
+
+enum PayrollPeriodState {
+  BORRADOR
+  GENERADO
+  TRANSMITIDO
+  CERRADO
+  ANULADO
+}
+
+enum PrintFormat {
+  TERMICA_58
+  TERMICA_80
+  CARTA
+  MEDIA_CARTA
+  PDF_CARTA
+  PDF_MEDIA_CARTA
+}
+
+enum PrinterTransport {
+  NAVEGADOR
+  LAN
+}
+
+enum PermissionEffect {
+  ALLOW
+  DENY
+}
+
+enum RolloutChannel {
+  ESTABLE
+  PILOTO
+  PAUSADO
+}
+
+model DianTenantConfig {
+  id                         String          @id @default(uuid())
+  tenantId                   String          @unique
+  providerCode               String
+  providerName               String
+  environment                DianEnvironment @default(HABILITACION)
+  habilitacionBaseUrl        String?
+  produccionBaseUrl          String?
+  credentialCiphertext       String?
+  certificateAlias           String?
+  certificateExpiresAt       DateTime?
+  certificateFingerprint     String?
+  invoiceEnabled             Boolean         @default(false)
+  payrollEnabled             Boolean         @default(false)
+  contingencyEnabled         Boolean         @default(true)
+  habilitacionChecklist      Json?
+  updatedByUserId            String?
+  creadoEn                   DateTime        @default(now())
+  actualizadoEn              DateTime        @updatedAt
+
+  @@index([providerCode, environment])
+}
+
+model DianNumberingRange {
+  id                   String           @id @default(uuid())
+  tenantId             String
+  documentType         DianDocumentType
+  prefix               String
+  rangeFrom            Int
+  rangeTo              Int
+  nextNumber           Int
+  authorizationNumber  String?
+  validFrom            DateTime?
+  validUntil           DateTime?
+  active               Boolean          @default(true)
+  creadoEn             DateTime         @default(now())
+  actualizadoEn        DateTime         @updatedAt
+
+  @@unique([tenantId, documentType, prefix])
+  @@index([tenantId, documentType, active])
+}
+
+model DianDocument {
+  id                    String            @id @default(uuid())
+  tenantId              String
+  documentType          DianDocumentType
+  state                 DianDocumentState @default(GENERADO)
+  environment           DianEnvironment
+  originType            String
+  originId              String
+  internalNumber        String?
+  fiscalNumber          String?
+  uniqueCode            String?
+  uniqueCodeType        String?
+  xmlPayload            String?
+  providerRequestId     String?
+  providerResponse      Json?
+  contingencyReason     String?
+  retryCount            Int               @default(0)
+  nextRetryAt           DateTime?
+  lastError             String?
+  generatedAt           DateTime           @default(now())
+  sentAt                DateTime?
+  acceptedAt            DateTime?
+  rejectedAt            DateTime?
+  correctedFromId       String?
+  creadoEn              DateTime           @default(now())
+  actualizadoEn         DateTime           @updatedAt
+
+  attempts              DianTransmissionAttempt[]
+
+  @@unique([tenantId, documentType, originType, originId])
+  @@unique([tenantId, fiscalNumber])
+  @@index([tenantId, state, nextRetryAt])
+  @@index([tenantId, generatedAt])
+}
+
+model DianTransmissionAttempt {
+  id             String                 @id @default(uuid())
+  dianDocumentId String
+  attempt        Int
+  result         DianTransmissionResult
+  httpStatus     Int?
+  providerCode   String?
+  providerBody   Json?
+  errorMessage   String?
+  durationMs     Int?
+  creadoEn       DateTime               @default(now())
+
+  document       DianDocument           @relation(fields: [dianDocumentId], references: [id], onDelete: Cascade)
+
+  @@unique([dianDocumentId, attempt])
+  @@index([result, creadoEn])
+}
+
+model PayrollEmployee {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  terceroId          String
+  employeeCode       String
+  contractType       String
+  baseSalary         Decimal  @db.Decimal(18, 2)
+  startDate          DateTime
+  endDate            DateTime?
+  paymentMethod      String?
+  bankAccountMasked  String?
+  active             Boolean  @default(true)
+  creadoEn           DateTime @default(now())
+  actualizadoEn      DateTime @updatedAt
+
+  @@unique([tenantId, employeeCode])
+  @@unique([tenantId, terceroId])
+  @@index([tenantId, active])
+}
+
+model PayrollConfig {
+  id                         String   @id @default(uuid())
+  tenantId                   String   @unique
+  expenseAccountId           String?
+  payableAccountId           String?
+  contributionAccountId      String?
+  transmissionReminderDays   Int      @default(5)
+  updatedByUserId            String?
+  creadoEn                   DateTime @default(now())
+  actualizadoEn              DateTime @updatedAt
+}
+
+model PayrollPeriod {
+  id                   String             @id @default(uuid())
+  tenantId             String
+  year                 Int
+  month                Int
+  frequency            String             @default("MENSUAL")
+  state                PayrollPeriodState @default(BORRADOR)
+  generatedByUserId    String?
+  accountingJournalId  String?
+  generatedAt          DateTime?
+  closedAt             DateTime?
+  creadoEn             DateTime           @default(now())
+  actualizadoEn        DateTime           @updatedAt
+
+  lines                PayrollLine[]
+
+  @@unique([tenantId, year, month, frequency])
+  @@index([tenantId, state])
+}
+
+model PayrollLine {
+  id             String   @id @default(uuid())
+  payrollPeriodId String
+  tenantId       String
+  employeeId     String
+  devengados     Json
+  deducciones    Json
+  totalDevengado Decimal  @db.Decimal(18, 2)
+  totalDeducido  Decimal  @db.Decimal(18, 2)
+  netoPagar      Decimal  @db.Decimal(18, 2)
+  dianDocumentId String?
+  creadoEn       DateTime @default(now())
+
+  period         PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollPeriodId, employeeId])
+  @@index([tenantId, employeeId])
+}
+
+model RbacRole {
+  id          String   @id @default(uuid())
+  tenantId    String
+  code        String
+  name        String
+  description String?
+  vertical    String?
+  system      Boolean  @default(false)
+  active      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  permissions RbacRolePermission[]
+  assignments RbacUserRole[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active, vertical])
+}
+
+model RbacPermission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  module      String
+  action      String
+  description String?
+  creadoEn    DateTime @default(now())
+
+  roles       RbacRolePermission[]
+  overrides   RbacUserPermissionOverride[]
+
+  @@index([module, action])
+}
+
+model RbacRolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  creadoEn     DateTime @default(now())
+
+  role         RbacRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   RbacPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model RbacUserRole {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  roleId    String
+  creadoEn  DateTime @default(now())
+
+  role      RbacRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, roleId])
+  @@index([tenantId, userId])
+}
+
+model RbacUserPermissionOverride {
+  id           String           @id @default(uuid())
+  tenantId     String
+  userId       String
+  permissionId String
+  effect       PermissionEffect @default(ALLOW)
+  grantedByUserId String
+  reason       String?
+  creadoEn     DateTime         @default(now())
+  actualizadoEn DateTime        @updatedAt
+
+  permission   RbacPermission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, permissionId])
+  @@index([tenantId, userId])
+}
+
+model RbacAudit {
+  id          String   @id @default(uuid())
+  tenantId    String
+  actorUserId String
+  targetUserId String?
+  action      String
+  metadata    Json?
+  creadoEn    DateTime @default(now())
+
+  @@index([tenantId, targetUserId, creadoEn])
+  @@index([tenantId, actorUserId, creadoEn])
+}
+
+model PrintTenantConfig {
+  id                 String      @id @default(uuid())
+  tenantId           String      @unique
+  defaultFormat      PrintFormat @default(TERMICA_80)
+  invoicePdfFormat   PrintFormat @default(PDF_CARTA)
+  logoUrl            String?
+  headerText         String?
+  footerText         String?
+  qrMinimumMm        Int         @default(20)
+  showLegalLegend    Boolean     @default(true)
+  updatedByUserId    String?
+  creadoEn           DateTime    @default(now())
+  actualizadoEn      DateTime    @updatedAt
+
+  printers           PrinterEndpoint[]
+}
+
+model PrinterEndpoint {
+  id             String           @id @default(uuid())
+  printConfigId  String
+  tenantId       String
+  name           String
+  transport      PrinterTransport @default(NAVEGADOR)
+  role           String           @default("DOCUMENTOS")
+  host           String?
+  port           Int?
+  format         PrintFormat?
+  active         Boolean          @default(true)
+  creadoEn       DateTime         @default(now())
+  actualizadoEn  DateTime         @updatedAt
+
+  config         PrintTenantConfig @relation(fields: [printConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, role, active])
+}
+
+model PlatformSuperAdmin {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  active        Boolean  @default(true)
+  lastLoginAt   DateTime?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+}
+
+model PlatformTenantControl {
+  id                   String         @id @default(uuid())
+  tenantId             String         @unique
+  planCode             String         @default("CORE")
+  currentVersion       String?
+  targetVersion        String?
+  rolloutChannel       RolloutChannel @default(ESTABLE)
+  maxUsers             Int?
+  maxDocumentsMonthly  Int?
+  maxStorageMb         Int?
+  softLimitPercent     Int            @default(80)
+  lastAccessAt         DateTime?
+  lastHealthState      String?
+  recurrentErrorCount Int            @default(0)
+  suspendReason        String?
+  creadoEn             DateTime       @default(now())
+  actualizadoEn        DateTime       @updatedAt
+
+  @@index([rolloutChannel])
+}
+
+model PlatformUsageMetric {
+  id           String   @id @default(uuid())
+  tenantId     String
+  metric       String
+  periodKey    String
+  value        Decimal  @default(0) @db.Decimal(20, 4)
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([tenantId, metric, periodKey])
+  @@index([metric, periodKey])
+}
+
+model PlatformAudit {
+  id            String   @id @default(uuid())
+  superAdminId  String
+  tenantId      String?
+  action        String
+  entity        String
+  entityId      String?
+  metadata      Json?
+  creadoEn      DateTime @default(now())
+
+  @@index([superAdminId, creadoEn])
+  @@index([tenantId, creadoEn])
+}
