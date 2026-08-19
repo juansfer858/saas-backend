@@ -216,6 +216,7 @@ async function updateDraft(tenantId, userId, id, input) {
   const current = await commercial.getDocument(tenantId, id);
   if (current.tipo !== 'FACTURA_VENTA') throw new AppError(404, 'Venta no encontrada', 'SALE_NOT_FOUND');
   if (current.estado !== 'BORRADOR') throw new AppError(409, 'Una venta emitida no puede editarse', 'SALE_IMMUTABLE');
+  if (!input || Object.keys(input).length === 0) throw new AppError(400, 'Debe enviar al menos un cambio', 'VALIDATION_ERROR');
   const meta = unpackMeta(current.observaciones);
   const updated = await commercial.updateDraftDocument(tenantId, userId, id, {
     tipo: 'FACTURA_VENTA',
@@ -245,7 +246,26 @@ async function cancel(tenantId, userId, id, motivo) {
     throw new AppError(409, 'La venta ya fue aceptada fiscalmente. Debe generarse el documento electrónico de ajuste correspondiente antes de anularla.', 'SALE_DIAN_ADJUSTMENT_REQUIRED');
   }
   const result = await commercial.cancelDocument(tenantId, userId, id, motivo);
-  await prisma.consumptionRun.updateMany({ where: { tenantId, sourceType: 'SALE', sourceId: id, state: 'COMPLETED' }, data: { state: 'REVERSED', reversedAt: new Date() } });
+  await prisma.$transaction(async (tx) => {
+    await tx.consumptionRun.updateMany({
+      where: { tenantId, sourceType: 'SALE', sourceId: id, state: 'COMPLETED' },
+      data: { state: 'REVERSED', reversedAt: new Date() }
+    });
+    await tx.dianDocument.updateMany({
+      where: {
+        tenantId,
+        originType: 'COMPROBANTE_COMERCIAL',
+        originId: id,
+        state: { in: ['GENERADO', 'PENDIENTE_ENVIO', 'CONTINGENCIA', 'RECHAZADO'] }
+      },
+      data: {
+        state: 'CANCELADO',
+        nextRetryAt: null,
+        lastError: 'Documento comercial anulado antes de transmisión fiscal',
+        contingencyReason: null
+      }
+    });
+  });
   return result;
 }
 
