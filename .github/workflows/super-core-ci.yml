@@ -17,6 +17,7 @@ on:
       - accounting-suite-v1
       - accounting-core-complete-v2
       - accounting-qa-blockers-v2
+      - core-accounting-integration-v3
   pull_request:
     branches:
       - main
@@ -55,6 +56,9 @@ jobs:
 
       - name: Validate global Panel and Sales UI
         run: node scripts/panel-ui-smoke.js
+
+      - name: Validate Core Integration V3 UI JavaScript
+        run: node -e "const fs=require('fs');const s=fs.readFileSync('src/web/core-integration-v3.js','utf8');new Function(s);if(!s.includes('Parametrización contable única')||!s.includes('Nueva compra')||!s.includes('Aplicar pago / recaudo a cartera'))process.exit(1);console.log('CORE INTEGRATION V3 UI OK')"
 
       - name: Validate read-only demo panel
         run: node scripts/demo-ui-smoke.js
@@ -124,5 +128,11 @@ jobs:
       - name: Validate Accounting Core V2 governance and fiscal workflows
         run: node scripts/accounting-core-v2-smoke.js
 
+      - name: Validate automatic fiscal retentions for purchases and sales
+        run: node scripts/accounting-fiscal-automation-smoke.js
+
       - name: Validate Accounting QA blocker endpoints and resilient loading
         run: node scripts/accounting-qa-blockers-smoke.js
+
+      - name: Validate Core Accounting Integration V3 full cycle
+        run: node scripts/core-accounting-integration-v3-smoke.js
