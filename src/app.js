@@ -10,11 +10,11 @@ const { errorHandler } = require('./middleware/error-handler');
 const app = express();
 const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
 const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
+const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
+const coreIntegrationUiPath = path.join(__dirname, 'web', 'core-integration-v3.js');
 
 app.disable('x-powered-by');
 app.use(cors());
-// Soportes contables se envían en base64 y están limitados a 5 MB en servicio.
-// 8 MB permite el overhead de base64 sin abrir cargas arbitrariamente grandes.
 app.use(express.json({ limit: '8mb' }));
 
 app.get('/', (_req, res) => {
@@ -38,27 +38,30 @@ app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
 });
 
-// Guard de resiliencia del módulo contable. Se sirve como recurso separado para
-// corregir carga/errores sin reescribir la suite existente.
 app.get('/app/accounting-runtime-guard.js', (_req, res) => {
   res.type('application/javascript').sendFile(accountingGuardPath);
+});
+
+app.get('/app/core-integration-v3.js', (_req, res) => {
+  res.type('application/javascript').sendFile(coreIntegrationUiPath);
 });
 
 app.get('/app/contabilidad', async (_req, res, next) => {
   try {
     const html = await fs.promises.readFile(accountingHtmlPath, 'utf8');
     const guardTag = '<script src="/app/accounting-runtime-guard.js?v=qa-blockers-v2"></script>';
-    const rendered = html.includes('</body>')
-      ? html.replace('</body>', `${guardTag}</body>`)
-      : `${html}${guardTag}`;
+    const rendered = html.includes('</body>') ? html.replace('</body>', `${guardTag}</body>`) : `${html}${guardTag}`;
     res.type('html').send(rendered);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
-app.use('/app', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'web', 'panel.html'));
+app.use('/app', async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(panelHtmlPath, 'utf8');
+    const integrationTag = '<script src="/app/core-integration-v3.js?v=3"></script>';
+    const rendered = html.includes('</body>') ? html.replace('</body>', `${integrationTag}</body>`) : `${html}${integrationTag}`;
+    res.type('html').send(rendered);
+  } catch (error) { next(error); }
 });
 
 app.get('/api/v1/status', async (_req, res) => {
@@ -78,6 +81,7 @@ app.get('/api/v1/status', async (_req, res) => {
         commercialLifecycle: 'READY',
         accounting: 'READY',
         accountingSuite: 'V2',
+        coreAccountingIntegration: 'V3',
         financialStatements: 'READY',
         accountingGovernance: 'READY',
         taxes: 'READY',
@@ -85,7 +89,11 @@ app.get('/api/v1/status', async (_req, res) => {
         bankReconciliation: 'READY',
         adminPanel: 'READY',
         demoPanel: 'READY',
-        salesUi: 'READY'
+        salesUi: 'READY',
+        purchasesUi: 'READY',
+        treasuryUi: 'READY',
+        carteraUi: 'READY',
+        inventoryUi: 'READY'
       }
     });
   } catch (_error) {
@@ -95,11 +103,7 @@ app.get('/api/v1/status', async (_req, res) => {
 
 app.get('/status', async (_req, res) => {
   let database = 'ERROR';
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    database = 'OK';
-  } catch (_error) {}
-
+  try { await prisma.$queryRaw`SELECT 1`; database = 'OK'; } catch (_error) {}
   const ready = database === 'OK';
   res.status(ready ? 200 : 503).type('html').send(`<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -108,16 +112,14 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <body><div class="wrap"><h1>VantixGC Super Core</h1><div class="muted">Núcleo universal SaaS multitenant ERP/Contable</div>
 <div class="card"><div class="grid"><span>PostgreSQL</span><span class="${ready ? 'ok' : 'bad'}">${database}</span></div>
 <div class="grid"><span>Auth & Multitenancy</span><span class="ok">READY</span></div>
-<div class="grid"><span>Terceros</span><span class="ok">READY</span></div>
-<div class="grid"><span>Inventario / Kardex</span><span class="ok">READY</span></div>
-<div class="grid"><span>Tesorería / Cartera</span><span class="ok">READY</span></div>
-<div class="grid"><span>Pagos / Abonos</span><span class="ok">READY</span></div>
-<div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
-<div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
+<div class="grid"><span>Terceros compartidos</span><span class="ok">READY</span></div>
+<div class="grid"><span>Inventario / Kardex · Promedio + PEPS</span><span class="ok">READY</span></div>
+<div class="grid"><span>Tesorería / Cartera / Aplicaciones</span><span class="ok">READY</span></div>
+<div class="grid"><span>Ventas / Compras → Contabilidad AU</span><span class="ok">READY</span></div>
+<div class="grid"><span>Reversos / periodos / trazabilidad</span><span class="ok">READY</span></div>
 <div class="grid"><span>Contabilidad V2 — PUC + Diario + Mayor + Estados + Cierres + Impuestos</span><span class="ok">READY</span></div>
-<div class="grid"><span>Activos fijos + Conciliación + Auditoría</span><span class="ok">READY</span></div>
-<div class="grid"><span>Panel Web</span><span class="ok">READY</span></div>
-<a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
+<div class="grid"><span>Integración contable transversal</span><span class="ok">V3</span></div>
+<a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/compras">Abrir Compras</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
 <div class="muted">Despliegue automático GitHub → Coolify</div></div></body></html>`);
 });
 
