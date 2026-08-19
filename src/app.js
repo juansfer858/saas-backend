@@ -13,6 +13,7 @@ const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
 const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
 const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
 const panelIntegrationExtrasPath = path.join(__dirname, 'web', 'panel-integration-extras.js');
+const salesHtmlPath = path.join(__dirname, 'web', 'sales.html');
 const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
 const platformCoreConfigHtmlPath = path.join(__dirname, 'web', 'platform-core-config.html');
 const platformAdminHtmlPath = path.join(__dirname, 'web', 'platform-admin.html');
@@ -56,6 +57,10 @@ app.get('/app/accounting-runtime-guard.js', (_req, res) => {
 
 app.get('/app/panel-integration-extras.js', (_req, res) => {
   res.type('application/javascript').sendFile(panelIntegrationExtrasPath);
+});
+
+app.get('/app/ventas', (_req, res) => {
+  res.sendFile(salesHtmlPath);
 });
 
 app.get('/app/compras', (_req, res) => {
@@ -116,13 +121,15 @@ app.get('/api/v1/status', async (_req, res) => {
         bankReconciliation: 'READY',
         adminPanel: 'READY',
         demoPanel: 'READY',
-        salesUi: 'READY',
+        salesUi: 'OPERATIONAL_V1',
         purchasesUi: 'OPERATIONAL_V1',
         crossModuleAccounting: 'V1',
-        dianCore: 'V1_PROVIDER_NEUTRAL_PT_ADAPTER_REQUIRED_FOR_REAL_TRANSMISSION',
+        consumptionProductionEngine: 'V1_DEV_VALIDATION_REQUIRED',
+        dianCore: 'V1_REAL_HKA_ADAPTER_CODED_EXTERNAL_CREDENTIALS_AND_DIAN_HABILITATION_REQUIRED',
         electronicPayrollCore: 'V1_PROVIDER_NEUTRAL_PT_ADAPTER_REQUIRED_FOR_REAL_TRANSMISSION',
         tenantRbac: 'V1',
         printingConfiguration: 'V1',
+        localEscPosSpooler: 'V1_EDGE_AGENT_DEV_VALIDATION_REQUIRED',
         saasPlatformAdmin: 'V1'
       }
     });
@@ -149,17 +156,17 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Terceros</span><span class="ok">READY</span></div>
 <div class="grid"><span>Inventario / Kardex</span><span class="ok">READY</span></div>
 <div class="grid"><span>Tesorería / Cartera</span><span class="ok">READY</span></div>
-<div class="grid"><span>Pagos / Abonos</span><span class="ok">READY</span></div>
-<div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
+<div class="grid"><span>Ventas operativas</span><span class="ok">V1</span></div>
 <div class="grid"><span>Compras operativas</span><span class="ok">V1</span></div>
+<div class="grid"><span>Motor consumo/producción</span><span class="warn">V1 · VALIDACIÓN FASE 1</span></div>
 <div class="grid"><span>Contabilidad V2 + integración AU</span><span class="ok">READY</span></div>
-<div class="grid"><span>Núcleo DIAN + cola + contingencia</span><span class="warn">V1 · PT REAL PENDIENTE</span></div>
+<div class="grid"><span>Núcleo DIAN + adaptador real HKA</span><span class="warn">CÓDIGO V1 · CREDENCIALES/HABILITACIÓN EXTERNAS PENDIENTES</span></div>
 <div class="grid"><span>Nómina electrónica mínima + AU</span><span class="warn">V1 · PT REAL PENDIENTE</span></div>
 <div class="grid"><span>Roles y permisos por acción</span><span class="ok">V1</span></div>
-<div class="grid"><span>Impresión 58/80/Carta + LAN config</span><span class="ok">V1</span></div>
+<div class="grid"><span>Impresión 58/80/Carta + agente ESC/POS LAN</span><span class="warn">V1 · PRUEBA FÍSICA PENDIENTE</span></div>
 <div class="grid"><span>Panel Super-Administración SaaS</span><span class="ok">V1</span></div>
-<a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/platform">Panel SaaS</a></div>
-<div class="muted">La transmisión fiscal real exige el adaptador/API contractual del Proveedor Tecnológico elegido.</div></div></body></html>`);
+<a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/platform">Panel SaaS</a></div>
+<div class="muted">FASE 2 Restaurante permanece bloqueada hasta verificar los cuatro prerrequisitos de FASE 1 en producción y completar las dependencias externas reales.</div></div></body></html>`);
 });
 
 app.use('/api/v1/auth', authRouter);
