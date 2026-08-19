@@ -1,6 +1,6 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
-const { money, qty } = require('../../utils/decimal');
+const { money } = require('../../utils/decimal');
 const accountingService = require('../accounting/accounting.service');
 const supportService = require('../accounting/accounting-supports.service');
 const inventoryService = require('../inventory/inventory.service');
@@ -212,7 +212,7 @@ async function createInventoryAdjustment(tenantId, userId, input) {
         ];
     const journal = await accountingService.createJournalInTx(tx, {
       tenantId, userId, sourceId: `ACC-${reference}`, fecha: input.fecha || new Date(),
-      concepto: `Ajuste de inventario ${input.tipo} · ${product.nombre}`, referencia: reference, detalles
+      concepto: `Ajuste de inventario ${input.tipo} · ${product.nombre}`, referencia: reference, detalles: details
     });
     let support = null;
     if (input.soporte) support = await supportService.addSupportInTx(tx, tenantId, userId, journal.id, input.soporte);
@@ -323,7 +323,10 @@ async function applyMultiplePayments(tenantId, userId, input) {
             { cuentaId: thirdAccount.id, terceroId: document.terceroId, debito: amount, credito: 0, concepto: receipt.numero },
             { cuentaId: cash.account.id, debito: 0, credito: amount, concepto: receipt.numero }
           ];
-      const journal = await accountingService.createJournalInTx(tx, { tenantId, userId, comprobanteId: receipt.id, sourceId: `PAYMULT-${receipt.id}`, fecha: receipt.fecha, concepto: `${receiptType} ${receipt.numero}`, referencia: receipt.numero, detalles });
+      const journal = await accountingService.createJournalInTx(tx, {
+        tenantId, userId, comprobanteId: receipt.id, sourceId: `PAYMULT-${receipt.id}`, fecha: receipt.fecha,
+        concepto: `${receiptType} ${receipt.numero}`, referencia: receipt.numero, detalles: details
+      });
       const payment = await tx.pago.create({
         data: { tenantId, documentoId: document.id, carteraId: cartera.id, comprobanteTesoreriaId: receipt.id, cajaBancoId: cash.cash.id, userId, sourceId: `MULT-${receipt.id}`, metodoPago: input.metodoPago, monto: amount, referencia: input.referencia || null }
       });
