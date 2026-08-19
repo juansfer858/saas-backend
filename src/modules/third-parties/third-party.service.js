@@ -54,4 +54,9 @@ async function update(tenantId, id, input) {
   }
 }
 
-module.exports = { create, list, getById, update };
+async function deactivate(tenantId, id) {
+  await getById(tenantId, id);
+  return prisma.tercero.update({ where: { id }, data: { activo: false } });
+}
+
+module.exports = { create, list, getById, update, deactivate };
