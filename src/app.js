@@ -12,6 +12,7 @@ const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
 const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
 const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
 const panelIntegrationExtrasPath = path.join(__dirname, 'web', 'panel-integration-extras.js');
+const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -26,6 +27,7 @@ app.get('/', (_req, res) => {
     adminApp: '/app/dashboard',
     demoApp: '/app/demo',
     salesApp: '/app/ventas',
+    purchasesApp: '/app/compras',
     accountingApp: '/app/contabilidad'
   });
 });
@@ -44,6 +46,10 @@ app.get('/app/accounting-runtime-guard.js', (_req, res) => {
 
 app.get('/app/panel-integration-extras.js', (_req, res) => {
   res.type('application/javascript').sendFile(panelIntegrationExtrasPath);
+});
+
+app.get('/app/compras', (_req, res) => {
+  res.sendFile(purchasesHtmlPath);
 });
 
 app.get('/app/contabilidad', async (_req, res, next) => {
@@ -97,6 +103,7 @@ app.get('/api/v1/status', async (_req, res) => {
         adminPanel: 'READY',
         demoPanel: 'READY',
         salesUi: 'READY',
+        purchasesUi: 'OPERATIONAL_V1',
         crossModuleAccounting: 'V1'
       }
     });
@@ -125,12 +132,13 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Tesorería / Cartera</span><span class="ok">READY</span></div>
 <div class="grid"><span>Pagos / Abonos</span><span class="ok">READY</span></div>
 <div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
+<div class="grid"><span>Compras operativas</span><span class="ok">V1</span></div>
 <div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
 <div class="grid"><span>Contabilidad V2 — PUC + Diario + Mayor + Estados + Cierres + Impuestos</span><span class="ok">READY</span></div>
 <div class="grid"><span>Integración contable transversal AU</span><span class="ok">V1</span></div>
 <div class="grid"><span>Activos fijos + Conciliación + Auditoría</span><span class="ok">READY</span></div>
 <div class="grid"><span>Panel Web</span><span class="ok">READY</span></div>
-<a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
+<a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/compras">Abrir Compras</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
 <div class="muted">Despliegue automático GitHub → Coolify</div></div></body></html>`);
 });
 
