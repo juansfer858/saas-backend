@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const cors = require('cors');
@@ -7,6 +8,8 @@ const { coreRouter } = require('./routes/core.routes');
 const { errorHandler } = require('./middleware/error-handler');
 
 const app = express();
+const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
+const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -35,8 +38,23 @@ app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
 });
 
-app.get('/app/contabilidad', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'web', 'accounting.html'));
+// Guard de resiliencia del módulo contable. Se sirve como recurso separado para
+// corregir carga/errores sin reescribir la suite existente.
+app.get('/app/accounting-runtime-guard.js', (_req, res) => {
+  res.type('application/javascript').sendFile(accountingGuardPath);
+});
+
+app.get('/app/contabilidad', async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(accountingHtmlPath, 'utf8');
+    const guardTag = '<script src="/app/accounting-runtime-guard.js?v=qa-blockers-v2"></script>';
+    const rendered = html.includes('</body>')
+      ? html.replace('</body>', `${guardTag}</body>`)
+      : `${html}${guardTag}`;
+    res.type('html').send(rendered);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use('/app', (_req, res) => {
