@@ -16,6 +16,7 @@ on:
       - production-demo-tenant-v1
       - accounting-suite-v1
       - accounting-core-complete-v2
+      - accounting-core-v2-fiscal-automation
   pull_request:
     branches:
       - main
@@ -122,3 +123,6 @@ jobs:
 
       - name: Validate Accounting Core V2 governance and fiscal workflows
         run: node scripts/accounting-core-v2-smoke.js
+
+      - name: Validate automatic commercial fiscal settlement
+        run: node scripts/accounting-fiscal-automation-smoke.js
