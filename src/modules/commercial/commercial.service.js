@@ -5,6 +5,7 @@ const inventoryService = require('../inventory/inventory.service');
 const treasuryService = require('../treasury/treasury.service');
 const treasuryReversalService = require('../treasury/treasury-reversal.service');
 const accountingService = require('../accounting/accounting.service');
+const accountingTaxService = require('../accounting/accounting-tax.service');
 
 const PREFIX = {
   COTIZACION: 'COT',
@@ -127,11 +128,11 @@ async function settlementAccount(tx, tenantId, type, formaPago, cajaBancoId) {
   return accountingService.getMappedAccount(tx, tenantId, caja.tipo === 'BANCO' ? 'BANCO_GENERAL' : 'CAJA_GENERAL');
 }
 
-function addLine(lines, cuentaId, debito, credito, terceroId, concepto) {
+function addLine(lines, cuentaId, debito, credito, terceroId, concepto, extra = {}) {
   const d = money(debito || 0);
   const c = money(credito || 0);
   if (d.eq(0) && c.eq(0)) return;
-  lines.push({ cuentaId, terceroId: terceroId || null, concepto, debito: d, credito: c });
+  lines.push({ cuentaId, terceroId: terceroId || null, concepto, debito: d, credito: c, ...extra });
 }
 
 async function createAccountingForDocument(tx, params) {
@@ -147,11 +148,13 @@ async function createAccountingForDocument(tx, params) {
     impoconsumoTotal,
     inventoryBase,
     expenseBase,
-    costOfSales
+    costOfSales,
+    fiscal
   } = params;
 
   const lines = [];
   const settlement = await settlementAccount(tx, tenantId, comprobante.tipo, formaPago, cajaBancoId);
+  const netSettlement = money(fiscal?.neto ?? comprobante.total);
 
   if (comprobante.tipo === 'FACTURA_VENTA') {
     const sales = await accountingService.getMappedAccount(tx, tenantId, 'VENTAS');
@@ -160,7 +163,18 @@ async function createAccountingForDocument(tx, params) {
       ? await accountingService.getMappedAccount(tx, tenantId, 'IMPOCONSUMO_VENTA')
       : null;
 
-    addLine(lines, settlement.id, comprobante.total, 0, tercero?.id, `Cobro/cliente ${comprobante.numero}`);
+    addLine(lines, settlement.id, netSettlement, 0, tercero?.id, `Cobro/cliente neto ${comprobante.numero}`);
+    for (const retention of fiscal?.retenciones || []) {
+      addLine(
+        lines,
+        retention.cuentaId,
+        retention.debito,
+        retention.credito,
+        tercero?.id,
+        `${retention.codigo} ${retention.porcentaje}% ${comprobante.numero}`,
+        { conceptoRetencionId: retention.conceptoId }
+      );
+    }
     addLine(lines, sales.id, 0, subtotal, tercero?.id, `Venta ${comprobante.numero}`);
     if (vat) addLine(lines, vat.id, 0, ivaTotal, tercero?.id, `IVA ${comprobante.numero}`);
     if (consumption) addLine(lines, consumption.id, 0, impoconsumoTotal, tercero?.id, `Impoconsumo ${comprobante.numero}`);
@@ -192,7 +206,18 @@ async function createAccountingForDocument(tx, params) {
       addLine(lines, consumption.id, impoconsumoTotal, 0, tercero?.id, `Impoconsumo compra ${comprobante.numero}`);
     }
 
-    addLine(lines, settlement.id, 0, comprobante.total, tercero?.id, `Pago/proveedor ${comprobante.numero}`);
+    for (const retention of fiscal?.retenciones || []) {
+      addLine(
+        lines,
+        retention.cuentaId,
+        retention.debito,
+        retention.credito,
+        tercero?.id,
+        `${retention.codigo} ${retention.porcentaje}% ${comprobante.numero}`,
+        { conceptoRetencionId: retention.conceptoId }
+      );
+    }
+    addLine(lines, settlement.id, 0, netSettlement, tercero?.id, `Pago/proveedor neto ${comprobante.numero}`);
   }
 
   return accountingService.createJournalInTx(tx, {
@@ -219,6 +244,29 @@ function lineInputFromStored(detail) {
   };
 }
 
+function enrichDocumentFiscal(document) {
+  if (!document) return document;
+  const retentionLines = (document.asiento?.detalles || []).filter((line) => line.conceptoRetencionId && line.conceptoRetencion);
+  const retenciones = retentionLines.map((line) => ({
+    detalleAsientoId: line.id,
+    conceptoId: line.conceptoRetencionId,
+    codigo: line.conceptoRetencion.codigo,
+    nombre: line.conceptoRetencion.nombre,
+    tipo: line.conceptoRetencion.tipo,
+    porcentajeConfiguradoActual: line.conceptoRetencion.porcentaje,
+    valor: money(decimal(line.debito).plus(line.credito)),
+    debito: line.debito,
+    credito: line.credito
+  }));
+  const retencionTotal = money(retenciones.reduce((acc, x) => acc.plus(x.valor), decimal(0)));
+  return {
+    ...document,
+    retenciones,
+    retencionTotal,
+    netoPagar: money(decimal(document.total || 0).minus(retencionTotal))
+  };
+}
+
 async function getDocumentInTx(tx, tenantId, id) {
   const document = await tx.comprobanteComercial.findFirst({
     where: { id, tenantId },
@@ -230,14 +278,24 @@ async function getDocumentInTx(tx, tenantId, id) {
       movimientosTesoreria: true,
       cartera: { include: { movimientos: true } },
       pagosRecibidos: { include: { comprobanteTesoreria: true, cajaBanco: true } },
-      asiento: { include: { detalles: { include: { cuenta: true, tercero: true } } } },
+      asiento: {
+        include: {
+          detalles: {
+            include: {
+              cuenta: true,
+              tercero: true,
+              conceptoRetencion: { select: { id: true, codigo: true, nombre: true, tipo: true, porcentaje: true, naturaleza: true } }
+            }
+          }
+        }
+      },
       ajustes: true,
       documentoOrigen: true
     }
   });
 
   if (!document) throw new AppError(404, 'Comprobante no encontrado', 'COMMERCIAL_DOCUMENT_NOT_FOUND');
-  return document;
+  return enrichDocumentFiscal(document);
 }
 
 async function createDocumentRecordInTx(tx, tenantId, userId, input) {
@@ -338,10 +396,20 @@ async function emitDocumentEffectsInTx(tx, tenantId, userId, documentData) {
     }
   }
 
+  const fiscal = await accountingTaxService.calculateCommercialRetentionsInTx(tx, tenantId, {
+    tercero,
+    tipoOperacion: comprobante.tipo === 'COMPRA' ? 'COMPRA' : 'VENTA',
+    subtotal,
+    ivaTotal,
+    total
+  });
+
   await treasuryService.applyCommercialSettlement(tx, {
     tenantId,
     userId,
-    comprobante,
+    // Tesorería/Cartera recibe el valor neto después de retenciones. El
+    // comprobante persiste el total bruto y el asiento conserva el desglose.
+    comprobante: { ...comprobante, total: fiscal.neto },
     terceroId: tercero?.id || null,
     formaPago: comprobante.formaPago,
     cajaBancoId: comprobante.cajaBancoId || null
@@ -359,7 +427,8 @@ async function emitDocumentEffectsInTx(tx, tenantId, userId, documentData) {
     impoconsumoTotal,
     inventoryBase,
     expenseBase,
-    costOfSales
+    costOfSales,
+    fiscal
   });
 
   await tx.comprobanteComercial.update({
@@ -367,7 +436,7 @@ async function emitDocumentEffectsInTx(tx, tenantId, userId, documentData) {
     data: {
       estado: 'EMITIDO',
       emitidoEn: new Date(),
-      saldo: comprobante.formaPago === 'CREDITO' ? total : 0
+      saldo: comprobante.formaPago === 'CREDITO' ? fiscal.neto : 0
     }
   });
 
