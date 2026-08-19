@@ -10,6 +10,7 @@ function readiness(config, credentials) {
   if (!credentials?.tokenPassword) missing.push('tokenPassword');
   if (!credentials?.documentEquivalentSendUrl) missing.push('documentEquivalentSendUrl');
   if (!credentials?.facturaTemplate || typeof credentials.facturaTemplate !== 'object') missing.push('facturaTemplate');
+  if (credentials?.autoBuildDetails === true && (!credentials?.detailTemplate || typeof credentials.detailTemplate !== 'object')) missing.push('detailTemplate');
   return {
     providerCode: PROVIDER_CODE,
     installed: true,
@@ -17,7 +18,7 @@ function readiness(config, credentials) {
     missing,
     supportedDocumentTypes: ['DOCUMENTO_EQUIVALENTE_POS'],
     officialBases: { demo: OFFICIAL_DEMO_BASE, habilitacionAndProduction: OFFICIAL_PRODUCTION_BASE },
-    note: 'La URL completa del método EnviarRequest y la plantilla FacturaGeneral deben provenir del onboarding técnico del PT; VantixGC no inventa rutas ni campos fiscales.'
+    note: 'La URL completa del método EnviarRequest y las plantillas FacturaGeneral/detalle deben provenir del onboarding técnico del PT; VantixGC no inventa rutas ni campos fiscales.'
   };
 }
 
@@ -53,6 +54,9 @@ async function buildInvoice({ document, origin, credentials }) {
   const template = credentials.facturaTemplate;
   if (!template || typeof template !== 'object') throw new AppError(409, 'Configure facturaTemplate entregada/validada con The Factory HKA', 'HKA_FACTURA_TEMPLATE_REQUIRED');
   if (!origin) throw new AppError(409, 'No fue posible cargar la venta origen para transmitir a HKA', 'HKA_ORIGIN_REQUIRED');
+  if (credentials.autoBuildDetails === true && (!credentials.detailTemplate || typeof credentials.detailTemplate !== 'object')) {
+    throw new AppError(409, 'autoBuildDetails requiere detailTemplate validada con The Factory HKA', 'HKA_DETAIL_TEMPLATE_REQUIRED');
+  }
 
   const vars = {
     fiscalNumber: document.fiscalNumber,
@@ -73,18 +77,16 @@ async function buildInvoice({ document, origin, credentials }) {
   if (!factura.tipoDocumento) factura.tipoDocumento = '20';
 
   if (credentials.autoBuildDetails === true) {
-    factura.detalleDeFactura = (origin.detalles || []).map((line, index) => ({
-      ...(credentials.detailTemplate ? replaceTemplate(deepClone(credentials.detailTemplate), {
-        lineNumber: index + 1,
-        sku: line.producto?.sku || '',
-        description: line.descripcion || line.producto?.nombre || '',
-        quantity: String(Number(line.cantidad || 0)),
-        unitPrice: decimalString(line.precioUnitario),
-        lineSubtotal: decimalString(line.subtotalLinea),
-        lineTax: decimalString(line.ivaValor),
-        lineTotal: decimalString(line.totalLinea),
-        ivaPct: String(Number(line.ivaPct || 0))
-      }) : {})
+    factura.detalleDeFactura = (origin.detalles || []).map((line, index) => replaceTemplate(deepClone(credentials.detailTemplate), {
+      lineNumber: index + 1,
+      sku: line.producto?.sku || '',
+      description: line.descripcion || line.producto?.nombre || '',
+      quantity: String(Number(line.cantidad || 0)),
+      unitPrice: decimalString(line.precioUnitario),
+      lineSubtotal: decimalString(line.subtotalLinea),
+      lineTax: decimalString(line.ivaValor),
+      lineTotal: decimalString(line.totalLinea),
+      ivaPct: String(Number(line.ivaPct || 0))
     }));
   }
 
