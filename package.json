@@ -1,18 +1,19 @@
 {
   "name": "saas-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "VantixGC Super Core multitenant ERP/Accounting backend",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js",
-    "build": "npx prisma generate"
+    "start": "npx prisma db push && node server.js",
+    "build": "npx prisma generate",
+    "db:push": "npx prisma db push"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/juansfer858/saas-backend.git"
   },
-  "keywords": [],
+  "keywords": ["saas", "multitenant", "erp", "accounting", "prisma"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
