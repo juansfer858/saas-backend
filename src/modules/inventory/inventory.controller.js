@@ -1,5 +1,6 @@
 const service = require('./inventory.service');
-const { productSchema, updateProductSchema, movementSchema } = require('./inventory.schemas');
+const accountingService = require('./inventory-accounting.service');
+const { productSchema, updateProductSchema, movementSchema, accountedAdjustmentSchema } = require('./inventory.schemas');
 const { AppError } = require('../../utils/app-error');
 
 function parse(schema, value) {
@@ -53,6 +54,17 @@ async function createMovement(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function createAccountedAdjustment(req, res, next) {
+  try {
+    const data = await accountingService.createAccountedAdjustment(
+      req.tenantId,
+      req.userId,
+      parse(accountedAdjustmentSchema, req.body)
+    );
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
 async function listMovements(req, res, next) {
   try {
     const data = await service.listMovements(req.tenantId, {
@@ -73,5 +85,6 @@ module.exports = {
   updateProduct,
   deactivateProduct,
   createMovement,
+  createAccountedAdjustment,
   listMovements
 };
