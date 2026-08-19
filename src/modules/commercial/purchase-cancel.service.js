@@ -74,16 +74,18 @@ async function cancelPurchase(tenantId, userId, id, motivo) {
       return { documentoId: original.id, notaId: null, yaAnulada: false };
     }
 
-    if (original.estado !== 'EMITIDO') {
-      throw new AppError(409, 'Solo una compra emitida y sin pagos puede anularse', 'PURCHASE_CANCEL_STATE_INVALID');
-    }
-
+    // Un pago cambia el estado técnico a PAGADO_PARCIAL/PAGADO_TOTAL. La regla
+    // de negocio más específica debe ganar y explicar cómo corregirlo.
     if (original.pagosRecibidos.length > 0) {
       throw new AppError(
         409,
         'No se puede anular una compra con pagos aplicados. Reverse los pagos desde Tesorería primero.',
         'PURCHASE_HAS_PAYMENTS'
       );
+    }
+
+    if (original.estado !== 'EMITIDO') {
+      throw new AppError(409, 'Solo una compra emitida y sin pagos puede anularse', 'PURCHASE_CANCEL_STATE_INVALID');
     }
 
     const note = await createCancellationNoteInTx(tx, tenantId, userId, original, motivo);
