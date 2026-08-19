@@ -97,6 +97,17 @@ async function main() {
     });
     assert.equal(providerA.status, 201, JSON.stringify(providerA.body));
 
+    const customerA = await request('/api/v1/terceros', {
+      method: 'POST',
+      headers: tenantA.headers,
+      body: JSON.stringify({
+        tipo: 'CLIENTE', tipoDocumento: 'CC', identificacion: `CA-${Date.now()}`,
+        nombre: 'Cliente A', cupoCredito: 1000000, diasPlazo: 30
+      })
+    });
+    assert.equal(customerA.status, 201, JSON.stringify(customerA.body));
+    const customerAId = customerA.body.data.id;
+
     const purchaseA = await request('/api/v1/comercial/compras', {
       method: 'POST',
       headers: tenantA.headers,
@@ -114,7 +125,7 @@ async function main() {
       method: 'POST',
       headers: tenantA.headers,
       body: JSON.stringify({
-        estado: 'EMITIDO', formaPago: 'CREDITO',
+        estado: 'EMITIDO', terceroId: customerAId, formaPago: 'CREDITO',
         detalles: [{ productoId: productB.id, cantidad: 1, precioUnitario: 100 }]
       })
     });
@@ -133,7 +144,7 @@ async function main() {
       headers: tenantA.headers,
       body: JSON.stringify({
         sourceId: failedSource,
-        estado: 'EMITIDO', formaPago: 'CREDITO',
+        estado: 'EMITIDO', terceroId: customerAId, formaPago: 'CREDITO',
         detalles: [{ productoId: productA.id, cantidad: 999, precioUnitario: 100 }]
       })
     });
@@ -147,7 +158,7 @@ async function main() {
       method: 'POST',
       headers: tenantA.headers,
       body: JSON.stringify({
-        estado: 'BORRADOR', formaPago: 'CREDITO', fecha: lockedDate.toISOString(),
+        estado: 'BORRADOR', terceroId: customerAId, formaPago: 'CREDITO', fecha: lockedDate.toISOString(),
         detalles: [{ productoId: productA.id, cantidad: 2, precioUnitario: 100 }]
       })
     });
@@ -186,7 +197,7 @@ async function main() {
     const documentSource = `DOC-IDEM-${Date.now()}`;
     const salePayload = {
       sourceId: documentSource,
-      estado: 'EMITIDO', formaPago: 'CREDITO',
+      estado: 'EMITIDO', terceroId: customerAId, formaPago: 'CREDITO',
       detalles: [{ productoId: productA.id, cantidad: 2, precioUnitario: 250 }]
     };
     const sale1 = await request('/api/v1/comercial/ventas', {
@@ -296,6 +307,7 @@ async function main() {
     console.log('SUPER CORE INTEGRAL HARDENING OK');
     console.log(JSON.stringify({
       crossTenantReferences: true,
+      explicitSaleThirdParty: true,
       atomicRollbackOnInsufficientStock: true,
       atomicRollbackOnClosedPeriod: true,
       documentIdempotency: true,

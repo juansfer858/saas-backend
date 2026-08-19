@@ -83,6 +83,20 @@ async function main() {
     });
     assert.equal(provider.status, 201, JSON.stringify(provider.body));
 
+    const customer = await request('/api/v1/terceros', {
+      method: 'POST',
+      headers: authA,
+      body: JSON.stringify({
+        tipo: 'CLIENTE',
+        tipoDocumento: 'CC',
+        identificacion: `CLI-${Date.now()}`,
+        nombre: 'Cliente QA',
+        cupoCredito: 1000000,
+        diasPlazo: 30
+      })
+    });
+    assert.equal(customer.status, 201, JSON.stringify(customer.body));
+
     const product = await request('/api/v1/inventario/productos', {
       method: 'POST',
       headers: authA,
@@ -129,6 +143,7 @@ async function main() {
       headers: authA,
       body: JSON.stringify({
         tipo: 'FACTURA_VENTA',
+        terceroId: customer.body.data.id,
         formaPago: 'CREDITO',
         detalles: [{ productoId: productId, cantidad: 2, precioUnitario: 200 }]
       })
@@ -205,10 +220,7 @@ async function main() {
     assert.equal(invalidAmount.status, 400, JSON.stringify(invalidAmount.body));
     assert.equal(invalidAmount.body.error.code, 'ACCOUNTING_AMOUNT_INVALID');
 
-    await prisma.tenant.update({
-      where: { subdomain: tenantB },
-      data: { activo: false }
-    });
+    await prisma.tenant.update({ where: { subdomain: tenantB }, data: { activo: false } });
 
     const inactiveTenantLogin = await request('/api/v1/auth/login', {
       method: 'POST',
@@ -225,6 +237,7 @@ async function main() {
       tenantIsolation: true,
       inactiveTenantBlock: true,
       thirdParties: true,
+      explicitSaleCustomer: true,
       inventoryWeightedAverage: true,
       purchaseAutomation: true,
       saleAutomation: true,

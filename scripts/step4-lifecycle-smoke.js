@@ -21,32 +21,18 @@ async function main() {
 
   try {
     const register = await request('/api/v1/auth/register-tenant', {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        nombreEmpresa: 'QA Lifecycle',
-        nicho: 'ERP',
-        subdomain,
-        pais: 'CO',
-        moneda: 'COP',
-        admin: { nombre: 'Admin Lifecycle', email: `lifecycle-${suffix}@qa.local`, password }
-      })
+      method: 'POST', headers: jsonHeaders,
+      body: JSON.stringify({ nombreEmpresa: 'QA Lifecycle', nicho: 'ERP', subdomain, pais: 'CO', moneda: 'COP', admin: { nombre: 'Admin Lifecycle', email: `lifecycle-${suffix}@qa.local`, password } })
     });
     assert.equal(register.status, 201, JSON.stringify(register.body));
 
     const login = await request('/api/v1/auth/login', {
-      method: 'POST',
-      headers: { ...jsonHeaders, 'x-tenant-subdomain': subdomain },
+      method: 'POST', headers: { ...jsonHeaders, 'x-tenant-subdomain': subdomain },
       body: JSON.stringify({ email: register.body.data.admin.email, password })
     });
     assert.equal(login.status, 200, JSON.stringify(login.body));
 
-    const auth = {
-      ...jsonHeaders,
-      Authorization: `Bearer ${login.body.data.token}`,
-      'x-tenant-subdomain': subdomain
-    };
-
+    const auth = { ...jsonHeaders, Authorization: `Bearer ${login.body.data.token}`, 'x-tenant-subdomain': subdomain };
     const cashList = await request('/api/v1/tesoreria/cajas-bancos', { headers: auth });
     assert.equal(cashList.status, 200, JSON.stringify(cashList.body));
     const cash = cashList.body.data.find((row) => row.nombre === 'Caja General');
@@ -54,20 +40,20 @@ async function main() {
 
     const provider = await request('/api/v1/terceros', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        tipo: 'PROVEEDOR', tipoDocumento: 'NIT', identificacion: `PRV-${suffix}`,
-        nombre: 'Proveedor Lifecycle', diasPlazo: 30
-      })
+      body: JSON.stringify({ tipo: 'PROVEEDOR', tipoDocumento: 'NIT', identificacion: `PRV-${suffix}`, nombre: 'Proveedor Lifecycle', diasPlazo: 30 })
     });
     assert.equal(provider.status, 201, JSON.stringify(provider.body));
 
+    const customer = await request('/api/v1/terceros', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ tipo: 'CLIENTE', tipoDocumento: 'CC', identificacion: `CLI-${suffix}`, nombre: 'Cliente Lifecycle', cupoCredito: 1000000, diasPlazo: 30 })
+    });
+    assert.equal(customer.status, 201, JSON.stringify(customer.body));
+    const customerId = customer.body.data.id;
+
     const product = await request('/api/v1/inventario/productos', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        tipo: 'PRODUCTO', sku: `LC-${suffix}`, nombre: 'Producto Lifecycle',
-        controlaInventario: true, stockActual: 0, costoPromedio: 0,
-        precio1: 300, ivaPct: 0, impoconsumoPct: 0
-      })
+      body: JSON.stringify({ tipo: 'PRODUCTO', sku: `LC-${suffix}`, nombre: 'Producto Lifecycle', controlaInventario: true, stockActual: 0, costoPromedio: 0, precio1: 300, ivaPct: 0, impoconsumoPct: 0 })
     });
     assert.equal(product.status, 201, JSON.stringify(product.body));
     const productId = product.body.data.id;
@@ -75,10 +61,7 @@ async function main() {
 
     const purchase = await request('/api/v1/comercial/compras', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        estado: 'EMITIDO', terceroId: provider.body.data.id, formaPago: 'CREDITO',
-        detalles: [{ productoId, cantidad: 20, precioUnitario: 100 }]
-      })
+      body: JSON.stringify({ estado: 'EMITIDO', terceroId: provider.body.data.id, formaPago: 'CREDITO', detalles: [{ productoId, cantidad: 20, precioUnitario: 100 }] })
     });
     assert.equal(purchase.status, 201, JSON.stringify(purchase.body));
     assert.equal(purchase.body.data.estado, 'EMITIDO');
@@ -88,10 +71,7 @@ async function main() {
 
     const draft = await request('/api/v1/comercial/ventas', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        estado: 'BORRADOR', formaPago: 'CREDITO',
-        detalles: [{ productoId, cantidad: 4, precioUnitario: 200 }]
-      })
+      body: JSON.stringify({ estado: 'BORRADOR', terceroId: customerId, formaPago: 'CREDITO', detalles: [{ productoId, cantidad: 4, precioUnitario: 200 }] })
     });
     assert.equal(draft.status, 201, JSON.stringify(draft.body));
     assert.equal(draft.body.data.estado, 'BORRADOR');
@@ -108,9 +88,7 @@ async function main() {
     assert.equal(edited.status, 200, JSON.stringify(edited.body));
     assert.equal(Number(edited.body.data.total), 1000);
 
-    const emitted = await request(`/api/v1/comercial/ventas/${draft.body.data.id}/emitir`, {
-      method: 'POST', headers: auth
-    });
+    const emitted = await request(`/api/v1/comercial/ventas/${draft.body.data.id}/emitir`, { method: 'POST', headers: auth });
     assert.equal(emitted.status, 200, JSON.stringify(emitted.body));
     assert.equal(emitted.body.data.estado, 'EMITIDO');
     assert.equal(Number(emitted.body.data.saldo), 1000);
@@ -128,10 +106,7 @@ async function main() {
 
     const payment1 = await request('/api/v1/pagos', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        documentoId: draft.body.data.id, monto: 400, metodoPago: 'EFECTIVO',
-        cajaBancoId: cash.id, sourceId: `PAY-1-${suffix}`
-      })
+      body: JSON.stringify({ documentoId: draft.body.data.id, monto: 400, metodoPago: 'EFECTIVO', cajaBancoId: cash.id, sourceId: `PAY-1-${suffix}` })
     });
     assert.equal(payment1.status, 201, JSON.stringify(payment1.body));
     assert.equal(Number(payment1.body.data.cartera.saldo), 600);
@@ -139,10 +114,7 @@ async function main() {
 
     const payment2 = await request('/api/v1/pagos', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        documentoId: draft.body.data.id, monto: 600, metodoPago: 'EFECTIVO',
-        cajaBancoId: cash.id, sourceId: `PAY-2-${suffix}`
-      })
+      body: JSON.stringify({ documentoId: draft.body.data.id, monto: 600, metodoPago: 'EFECTIVO', cajaBancoId: cash.id, sourceId: `PAY-2-${suffix}` })
     });
     assert.equal(payment2.status, 201, JSON.stringify(payment2.body));
     assert.equal(Number(payment2.body.data.cartera.saldo), 0);
@@ -167,10 +139,7 @@ async function main() {
 
     const cashSale = await request('/api/v1/comercial/ventas', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        estado: 'EMITIDO', formaPago: 'EFECTIVO', cajaBancoId: cash.id,
-        detalles: [{ productoId, cantidad: 2, precioUnitario: 300 }]
-      })
+      body: JSON.stringify({ estado: 'EMITIDO', terceroId: customerId, formaPago: 'EFECTIVO', cajaBancoId: cash.id, detalles: [{ productoId, cantidad: 2, precioUnitario: 300 }] })
     });
     assert.equal(cashSale.status, 201, JSON.stringify(cashSale.body));
     cashAfter = await request('/api/v1/tesoreria/cajas-bancos', { headers: auth });
@@ -186,19 +155,13 @@ async function main() {
 
     const saleForReplace = await request('/api/v1/comercial/ventas', {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        estado: 'EMITIDO', formaPago: 'CREDITO',
-        detalles: [{ productoId, cantidad: 1, precioUnitario: 200 }]
-      })
+      body: JSON.stringify({ estado: 'EMITIDO', terceroId: customerId, formaPago: 'CREDITO', detalles: [{ productoId, cantidad: 1, precioUnitario: 200 }] })
     });
     assert.equal(saleForReplace.status, 201, JSON.stringify(saleForReplace.body));
 
     const replacement = await request(`/api/v1/comercial/ventas/${saleForReplace.body.data.id}/reemplazar`, {
       method: 'POST', headers: auth,
-      body: JSON.stringify({
-        motivo: 'Corrección de precio QA',
-        detalles: [{ productoId, cantidad: 1, precioUnitario: 300 }]
-      })
+      body: JSON.stringify({ motivo: 'Corrección de precio QA', detalles: [{ productoId, cantidad: 1, precioUnitario: 300 }] })
     });
     assert.equal(replacement.status, 201, JSON.stringify(replacement.body));
     assert.equal(replacement.body.data.anulacion.documento.estado, 'ANULADO');
@@ -212,17 +175,7 @@ async function main() {
     assert.equal(filtered.body.meta.page, 1);
 
     console.log('STEP 4 LIFECYCLE SMOKE OK');
-    console.log(JSON.stringify({
-      draftNoEffects: true,
-      issueAtomicEffects: true,
-      immutableIssuedDocument: true,
-      partialAndFullPayments: true,
-      paymentAccounting: true,
-      paidCancellationReversal: true,
-      cashCancellationReversal: true,
-      replacementWithReentry: true,
-      filtersAndPagination: true
-    }, null, 2));
+    console.log(JSON.stringify({ draftNoEffects: true, issueAtomicEffects: true, explicitSaleThirdParty: true, immutableIssuedDocument: true, partialAndFullPayments: true, paymentAccounting: true, paidCancellationReversal: true, cashCancellationReversal: true, replacementWithReentry: true, filtersAndPagination: true }, null, 2));
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await prisma.$disconnect();

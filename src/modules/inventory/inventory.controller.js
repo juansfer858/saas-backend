@@ -1,5 +1,5 @@
 const service = require('./inventory.service');
-const { productSchema, updateProductSchema, movementSchema } = require('./inventory.schemas');
+const { productSchema, updateProductSchema } = require('./inventory.schemas');
 const { AppError } = require('../../utils/app-error');
 
 function parse(schema, value) {
@@ -46,11 +46,16 @@ async function deactivateProduct(req, res, next) {
   } catch (error) { next(error); }
 }
 
-async function createMovement(req, res, next) {
-  try {
-    const data = await service.createManualMovement(req.tenantId, parse(movementSchema, req.body));
-    res.status(201).json({ ok: true, data });
-  } catch (error) { next(error); }
+async function createMovement(_req, _res, next) {
+  // Un movimiento manual de Kardex no puede saltarse Contabilidad. Las entradas
+  // y salidas normales nacen en Compras/Ventas; los ajustes deben pasar por el
+  // servicio integrado, que crea Kardex + AU + soporte dentro de una transacción.
+  next(new AppError(
+    409,
+    'Los movimientos manuales de Kardex deben registrarse desde Ajuste de inventario para generar su asiento contable.',
+    'INVENTORY_ACCOUNTING_INTEGRATION_REQUIRED',
+    { endpoint: '/api/v1/integracion/inventario/ajustes' }
+  ));
 }
 
 async function listMovements(req, res, next) {

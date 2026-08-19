@@ -95,17 +95,43 @@ function thirdPartyApplies(tercero, tipo) {
   return false;
 }
 
-async function calculateTaxes(tenantId, input) {
+function natureApplies(tipoOperacion, naturaleza) {
+  return (tipoOperacion === 'COMPRA' && naturaleza === 'PAGAR') ||
+    (tipoOperacion === 'VENTA' && naturaleza === 'COBRAR');
+}
+
+function retentionBase(concept, base, ivaValue) {
+  return concept.tipo === 'RETEIVA' ? money(ivaValue || 0) : money(base);
+}
+
+async function saleResponsibleToWithhold(client, tenantId, tercero) {
+  if (!tercero) return null;
+  try {
+    const rows = await client.$queryRawUnsafe(
+      `SELECT "responsableRetener" FROM "TerceroOperacion" WHERE "tenantId"=$1 AND "terceroId"=$2 LIMIT 1`,
+      tenantId,
+      tercero.id
+    );
+    return rows.length ? Boolean(rows[0].responsableRetener) : null;
+  } catch (error) {
+    // Compatibilidad: tenants/entornos que aún no han ejecutado el bootstrap V3
+    // continúan usando la bandera fiscal existente hasta crear TerceroOperacion.
+    if (error?.code === '42P01' || error?.meta?.code === '42P01' || /TerceroOperacion.*does not exist/i.test(error?.message || '')) return null;
+    return null;
+  }
+}
+
+async function calculateTaxesWithClient(client, tenantId, input) {
   const base = money(input.base);
   if (base.lt(0)) throw new AppError(400, 'La base no puede ser negativa', 'ACCOUNTING_TAX_BASE_INVALID');
-  const tercero = input.terceroId
-    ? await prisma.tercero.findFirst({ where: { id: input.terceroId, tenantId, activo: true } })
-    : null;
+  const tercero = input.tercero || (input.terceroId
+    ? await client.tercero.findFirst({ where: { id: input.terceroId, tenantId, activo: true } })
+    : null);
   if (input.terceroId && !tercero) throw new AppError(400, 'Tercero inválido', 'ACCOUNTING_THIRD_PARTY_INVALID');
 
   let iva = null;
   if (input.tarifaIvaId) {
-    const rate = await prisma.tarifaIVA.findFirst({ where: { id: input.tarifaIvaId, tenantId, activa: true } });
+    const rate = await client.tarifaIVA.findFirst({ where: { id: input.tarifaIvaId, tenantId, activa: true } });
     if (!rate) throw new AppError(400, 'Tarifa IVA inválida', 'ACCOUNTING_VAT_INVALID');
     const amount = rate.categoria === 'GRAVADO' ? money(base.mul(rate.porcentaje).div(100)) : money(0);
     const accountId = input.tipoOperacion === 'COMPRA' ? rate.cuentaDescontableId : rate.cuentaGeneradoId;
@@ -123,17 +149,24 @@ async function calculateTaxes(tenantId, input) {
   }
 
   const where = { tenantId, activo: true };
-  if (Array.isArray(input.conceptosRetencionIds) && input.conceptosRetencionIds.length) {
-    where.id = { in: input.conceptosRetencionIds };
-  } else {
-    where.automatico = true;
-  }
-  const concepts = await prisma.conceptoRetencion.findMany({ where, include: { cuenta: true } });
+  const explicit = Array.isArray(input.conceptosRetencionIds) && input.conceptosRetencionIds.length > 0;
+  if (explicit) where.id = { in: input.conceptosRetencionIds };
+  else where.automatico = true;
+  const concepts = await client.conceptoRetencion.findMany({ where, include: { cuenta: true } });
   const retenciones = [];
+  const ivaValue = input.ivaValue !== undefined && input.ivaValue !== null ? money(input.ivaValue) : money(iva?.valor || 0);
+  const saleRetainer = input.tipoOperacion === 'VENTA' ? await saleResponsibleToWithhold(client, tenantId, tercero) : null;
+
   for (const c of concepts) {
-    if (!Array.isArray(input.conceptosRetencionIds) && !thirdPartyApplies(tercero, c.tipo)) continue;
-    if (base.lt(c.baseMinima)) continue;
-    const value = money(base.mul(c.porcentaje).div(100));
+    if (!natureApplies(input.tipoOperacion, c.naturaleza)) continue;
+    if (!explicit) {
+      let applies = thirdPartyApplies(tercero, c.tipo);
+      if (input.tipoOperacion === 'VENTA' && c.tipo === 'RETEFUENTE' && saleRetainer !== null) applies = saleRetainer;
+      if (!applies) continue;
+    }
+    const baseAplicada = retentionBase(c, base, ivaValue);
+    if (baseAplicada.lt(c.baseMinima)) continue;
+    const value = money(baseAplicada.mul(c.porcentaje).div(100));
     if (value.eq(0)) continue;
     const payable = c.naturaleza === 'PAGAR';
     retenciones.push({
@@ -143,6 +176,8 @@ async function calculateTaxes(tenantId, input) {
       tipo: c.tipo,
       porcentaje: c.porcentaje,
       baseMinima: c.baseMinima,
+      baseAplicada,
+      naturaleza: c.naturaleza,
       valor: value,
       cuentaId: c.cuentaId,
       debito: payable ? money(0) : value,
@@ -150,7 +185,77 @@ async function calculateTaxes(tenantId, input) {
     });
   }
   const totalRetenciones = money(retenciones.reduce((a, r) => a.plus(r.valor), decimal(0)));
-  return { base, iva, retenciones, totalRetenciones };
+  return { base, iva, retenciones, totalRetenciones, tercero };
+}
+
+async function calculateTaxes(tenantId, input) {
+  return calculateTaxesWithClient(prisma, tenantId, input);
+}
+
+async function calculateCommercialRetentionsInTx(tx, tenantId, params) {
+  const result = await calculateTaxesWithClient(tx, tenantId, {
+    tercero: params.tercero,
+    terceroId: params.tercero?.id || null,
+    tipoOperacion: params.tipoOperacion,
+    base: params.subtotal,
+    ivaValue: params.ivaTotal,
+    conceptosRetencionIds: undefined
+  });
+  const gross = money(params.total);
+  const neto = money(gross.minus(result.totalRetenciones));
+  if (neto.lt(0)) {
+    throw new AppError(409, 'Las retenciones configuradas superan el total del documento', 'ACCOUNTING_RETENTION_EXCEEDS_TOTAL', {
+      total: gross.toString(),
+      retenciones: result.totalRetenciones.toString()
+    });
+  }
+  return { ...result, totalBruto: gross, neto };
+}
+
+async function createFiscalJournal(tenantId, userId, input) {
+  const accounting = require('./accounting.service');
+  return prisma.$transaction(async (tx) => {
+    const [baseAccount, settlementAccount] = await Promise.all([
+      tx.cuentaPUC.findFirst({ where: { id: input.cuentaBaseId, tenantId, activa: true, permiteMovimiento: true } }),
+      tx.cuentaPUC.findFirst({ where: { id: input.cuentaContrapartidaId, tenantId, activa: true, permiteMovimiento: true } })
+    ]);
+    if (!baseAccount || !settlementAccount) throw new AppError(400, 'Cuenta base/contrapartida inválida', 'ACCOUNTING_FISCAL_ACCOUNT_INVALID');
+
+    const tax = await calculateTaxesWithClient(tx, tenantId, input);
+    const details = [];
+    const base = money(input.base);
+    if (input.tipoOperacion === 'COMPRA') details.push({ cuentaId: baseAccount.id, terceroId: input.terceroId || null, debito: base, credito: 0, concepto: 'Base compra' });
+    else details.push({ cuentaId: baseAccount.id, terceroId: input.terceroId || null, debito: 0, credito: base, concepto: 'Base venta' });
+    if (tax.iva && money(tax.iva.valor).gt(0)) {
+      details.push({
+        cuentaId: tax.iva.cuentaId,
+        terceroId: input.terceroId || null,
+        tarifaIvaId: tax.iva.tarifaId,
+        debito: tax.iva.debito,
+        credito: tax.iva.credito,
+        concepto: `${tax.iva.codigo} ${tax.iva.porcentaje}%`
+      });
+    }
+    for (const r of tax.retenciones) {
+      details.push({ cuentaId: r.cuentaId, terceroId: input.terceroId || null, conceptoRetencionId: r.conceptoId, debito: r.debito, credito: r.credito, concepto: `${r.codigo} ${r.porcentaje}%` });
+    }
+    let debit = decimal(0), credit = decimal(0);
+    for (const line of details) { debit = debit.plus(line.debito || 0); credit = credit.plus(line.credito || 0); }
+    const delta = money(debit.minus(credit));
+    if (delta.eq(0)) throw new AppError(409, 'El asiento fiscal no requiere contrapartida', 'ACCOUNTING_FISCAL_SETTLEMENT_ZERO');
+    if (delta.gt(0)) details.push({ cuentaId: settlementAccount.id, terceroId: input.terceroId || null, debito: 0, credito: delta, concepto: 'Contrapartida neta fiscal' });
+    else details.push({ cuentaId: settlementAccount.id, terceroId: input.terceroId || null, debito: delta.abs(), credito: 0, concepto: 'Contrapartida neta fiscal' });
+
+    return accounting.createJournalInTx(tx, {
+      tenantId,
+      userId,
+      fecha: input.fecha || new Date(),
+      concepto: input.concepto,
+      tipoComprobanteId: input.tipoComprobanteId || null,
+      origen: 'MANUAL',
+      detalles: details
+    });
+  });
 }
 
 module.exports = {
@@ -158,5 +263,11 @@ module.exports = {
   upsertVatRate,
   listRetentions,
   upsertRetention,
-  calculateTaxes
+  thirdPartyApplies,
+  natureApplies,
+  retentionBase,
+  calculateTaxesWithClient,
+  calculateTaxes,
+  calculateCommercialRetentionsInTx,
+  createFiscalJournal
 };
