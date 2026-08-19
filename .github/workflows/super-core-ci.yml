@@ -68,6 +68,9 @@ jobs:
       - name: Validate Platform Core tenant and SaaS UIs
         run: node scripts/platform-core-ui-smoke.js
 
+      - name: Validate Restaurant Phase1 surfaces and gate
+        run: node scripts/phase1-prereqs-ui-smoke.js
+
       - name: Validate read-only demo panel
         run: node scripts/demo-ui-smoke.js
 
