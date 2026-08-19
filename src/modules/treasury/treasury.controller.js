@@ -1,5 +1,6 @@
 const service = require('./treasury.service');
 const integrationService = require('./treasury-integration.service');
+const carteraReport = require('./cartera-report.service');
 const {
   cajaBancoSchema,
   aperturaSchema,
@@ -65,6 +66,24 @@ async function listCartera(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function carteraAging(req, res, next) {
+  try {
+    res.json({ ok: true, data: await carteraReport.aging(req.tenantId, { tipo: req.query.tipo, terceroId: req.query.terceroId, corte: req.query.corte }) });
+  } catch (error) { next(error); }
+}
+
+async function carteraThirdPartyDetail(req, res, next) {
+  try {
+    res.json({ ok: true, data: await carteraReport.thirdPartyDetail(req.tenantId, req.params.terceroId, { tipo: req.query.tipo }) });
+  } catch (error) { next(error); }
+}
+
+async function carteraAccountingReconciliation(req, res, next) {
+  try {
+    res.json({ ok: true, data: await carteraReport.accountingReconciliation(req.tenantId, String(req.query.tipo || 'CXC').toUpperCase()) });
+  } catch (error) { next(error); }
+}
+
 async function registerPayment(req, res, next) {
   try {
     const data = await service.registerPayment(req.tenantId, req.userId, parse(paymentSchema, req.body));
@@ -111,6 +130,9 @@ module.exports = {
   openCashSession,
   closeCashSession,
   listCartera,
+  carteraAging,
+  carteraThirdPartyDetail,
+  carteraAccountingReconciliation,
   registerPayment,
   registerPaymentBatch,
   transferOwnFunds,
