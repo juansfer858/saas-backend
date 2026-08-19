@@ -7,9 +7,8 @@ const ENTRY_TYPES = new Set(['COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_VENTA']);
 const EXIT_TYPES = new Set(['VENTA', 'AJUSTE_SALIDA', 'MERMA', 'DEVOLUCION_COMPRA']);
 
 async function createProduct(tenantId, input) {
-  try {
-    return await prisma.producto.create({ data: { tenantId, ...input } });
-  } catch (error) {
+  try { return await prisma.producto.create({ data: { tenantId, ...input } }); }
+  catch (error) {
     if (error?.code === 'P2002') throw new AppError(409, 'El SKU ya existe en esta empresa', 'PRODUCT_SKU_EXISTS');
     throw error;
   }
@@ -48,12 +47,11 @@ async function deactivateProduct(tenantId, id) {
 }
 
 function consumeLayers(layers, quantity) {
-  let remaining = qty(quantity);
-  let total = decimal(0);
+  let remaining = qty(quantity), total = decimal(0);
   for (const layer of layers) {
     if (remaining.lte(0)) break;
     if (layer.qty.lte(0)) continue;
-    const take = decimal.min(layer.qty, remaining);
+    const take = layer.qty.lt(remaining) ? layer.qty : remaining;
     total = total.plus(take.mul(layer.cost));
     layer.qty = layer.qty.minus(take);
     remaining = remaining.minus(take);
@@ -88,17 +86,12 @@ function remainingAverage(layers) {
 
 async function applyMovement(tx, params) {
   const product = await getProduct(params.tenantId, params.productoId, tx);
-  if (product.tipo === 'SERVICIO' || !product.controlaInventario) {
-    return { movement: null, product, costOfMovement: money(0), metodoCosteo: null };
-  }
-
+  if (product.tipo === 'SERVICIO' || !product.controlaInventario) return { movement: null, product, costOfMovement: money(0), metodoCosteo: null };
   const quantity = qty(params.cantidad);
   if (quantity.lte(0)) throw new AppError(400, 'La cantidad debe ser mayor que cero', 'INVENTORY_INVALID_QTY');
-
   const config = await getIntegrationConfig(params.tenantId, tx);
   const metodoCosteo = config?.metodoCosteo || 'PROMEDIO_PONDERADO';
-  const oldStock = qty(product.stockActual);
-  const oldAvg = decimal(product.costoPromedio);
+  const oldStock = qty(product.stockActual), oldAvg = decimal(product.costoPromedio);
   let newStock, newAvg, unitCost, costOfMovement;
 
   if (ENTRY_TYPES.has(params.tipo)) {
@@ -109,20 +102,12 @@ async function applyMovement(tx, params) {
     newAvg = newStock.gt(0) ? oldValue.plus(incomingValue).div(newStock).toDecimalPlaces(4) : unitCost;
     costOfMovement = money(quantity.mul(unitCost));
   } else if (EXIT_TYPES.has(params.tipo)) {
-    if (oldStock.lt(quantity)) {
-      throw new AppError(409, `Stock insuficiente para ${product.nombre}`, 'INVENTORY_INSUFFICIENT_STOCK', {
-        productoId: product.id, stockActual: oldStock.toString(), solicitado: quantity.toString()
-      });
-    }
+    if (oldStock.lt(quantity)) throw new AppError(409, `Stock insuficiente para ${product.nombre}`, 'INVENTORY_INSUFFICIENT_STOCK', { productoId: product.id, stockActual: oldStock.toString(), solicitado: quantity.toString() });
     newStock = oldStock.minus(quantity).toDecimalPlaces(4);
     if (metodoCosteo === 'PEPS') {
       const layers = await buildFifoLayers(tx, params.tenantId, product.id);
       const consumed = consumeLayers(layers, quantity);
-      if (consumed.remaining.gt(0)) {
-        throw new AppError(409, `Las capas PEPS no cubren el stock de ${product.nombre}`, 'INVENTORY_FIFO_LAYERS_INCONSISTENT', {
-          productoId: product.id, faltante: consumed.remaining.toString()
-        });
-      }
+      if (consumed.remaining.gt(0)) throw new AppError(409, `Las capas PEPS no cubren el stock de ${product.nombre}`, 'INVENTORY_FIFO_LAYERS_INCONSISTENT', { productoId: product.id, faltante: consumed.remaining.toString() });
       costOfMovement = money(consumed.total);
       unitCost = decimal(costOfMovement).div(quantity).toDecimalPlaces(4);
       newAvg = remainingAverage(layers);
@@ -133,43 +118,25 @@ async function applyMovement(tx, params) {
     }
   } else throw new AppError(400, 'Tipo de movimiento de inventario inválido', 'INVENTORY_INVALID_MOVEMENT');
 
-  const updatedProduct = await tx.producto.update({
-    where: { id: product.id }, data: { stockActual: newStock, costoPromedio: newAvg }
-  });
+  const updatedProduct = await tx.producto.update({ where: { id: product.id }, data: { stockActual: newStock, costoPromedio: newAvg } });
   const movement = await tx.movimientoInventario.create({
     data: {
-      tenantId: params.tenantId,
-      productoId: product.id,
-      comprobanteId: params.comprobanteId || null,
-      tipo: params.tipo,
-      cantidad: quantity,
-      costoUnitario: unitCost,
-      costoTotal: costOfMovement,
-      stockAnterior: oldStock,
-      stockNuevo: newStock,
-      costoPromedioAnterior: oldAvg,
-      costoPromedioNuevo: newAvg,
-      referencia: params.referencia || null
+      tenantId: params.tenantId, productoId: product.id, comprobanteId: params.comprobanteId || null, tipo: params.tipo,
+      cantidad: quantity, costoUnitario: unitCost, costoTotal: costOfMovement, stockAnterior: oldStock, stockNuevo: newStock,
+      costoPromedioAnterior: oldAvg, costoPromedioNuevo: newAvg, referencia: params.referencia || null
     }
   });
   return { movement, product: updatedProduct, costOfMovement, metodoCosteo };
 }
 
 async function reverseDocumentMovementsInTx(tx, params) {
-  const originals = await tx.movimientoInventario.findMany({
-    where: { tenantId: params.tenantId, comprobanteId: params.comprobanteId, tipo: { in: ['VENTA', 'COMPRA'] } },
-    orderBy: { creadoEn: 'asc' }
-  });
+  const originals = await tx.movimientoInventario.findMany({ where: { tenantId: params.tenantId, comprobanteId: params.comprobanteId, tipo: { in: ['VENTA', 'COMPRA'] } }, orderBy: { creadoEn: 'asc' } });
   const reversals = [];
   for (const movement of originals) {
     const reverseType = movement.tipo === 'VENTA' ? 'DEVOLUCION_VENTA' : 'DEVOLUCION_COMPRA';
     const result = await applyMovement(tx, {
-      tenantId: params.tenantId,
-      productoId: movement.productoId,
-      comprobanteId: params.reversalDocumentId || null,
-      tipo: reverseType,
-      cantidad: movement.cantidad,
-      costoUnitario: movement.tipo === 'VENTA' ? movement.costoUnitario : undefined,
+      tenantId: params.tenantId, productoId: movement.productoId, comprobanteId: params.reversalDocumentId || null,
+      tipo: reverseType, cantidad: movement.cantidad, costoUnitario: movement.tipo === 'VENTA' ? movement.costoUnitario : undefined,
       referencia: params.referencia || `REV-${movement.referencia || params.comprobanteId}`
     });
     if (result.movement) reversals.push(result.movement);
@@ -177,9 +144,7 @@ async function reverseDocumentMovementsInTx(tx, params) {
   return reversals;
 }
 
-async function createManualMovement(tenantId, input) {
-  return prisma.$transaction((tx) => applyMovement(tx, { tenantId, ...input }));
-}
+async function createManualMovement(tenantId, input) { return prisma.$transaction((tx) => applyMovement(tx, { tenantId, ...input })); }
 
 async function listMovements(tenantId, filters = {}) {
   const where = { tenantId };
@@ -190,16 +155,7 @@ async function listMovements(tenantId, filters = {}) {
     if (filters.desde) where.creadoEn.gte = new Date(filters.desde);
     if (filters.hasta) where.creadoEn.lte = new Date(filters.hasta);
   }
-  return prisma.movimientoInventario.findMany({
-    where,
-    include: { producto: { select: { id: true, sku: true, nombre: true } } },
-    orderBy: { creadoEn: 'desc' },
-    take: Math.min(Number(filters.limit) || 100, 500)
-  });
+  return prisma.movimientoInventario.findMany({ where, include: { producto: { select: { id: true, sku: true, nombre: true } } }, orderBy: { creadoEn: 'desc' }, take: Math.min(Number(filters.limit) || 100, 500) });
 }
 
-module.exports = {
-  createProduct, listProducts, getProduct, updateProduct, deactivateProduct,
-  applyMovement, reverseDocumentMovementsInTx, createManualMovement, listMovements,
-  buildFifoLayers
-};
+module.exports = { createProduct, listProducts, getProduct, updateProduct, deactivateProduct, applyMovement, reverseDocumentMovementsInTx, createManualMovement, listMovements, buildFifoLayers };
