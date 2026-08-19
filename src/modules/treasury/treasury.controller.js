@@ -1,5 +1,6 @@
 const service = require('./treasury.service');
 const integrationService = require('./treasury-integration.service');
+const bankMappingService = require('./treasury-bank-mapping.service');
 const carteraReport = require('./cartera-report.service');
 const {
   cajaBancoSchema,
@@ -28,6 +29,14 @@ async function createCajaBanco(req, res, next) {
 async function listCajaBanco(req, res, next) {
   try { res.json({ ok: true, data: await service.listCajaBanco(req.tenantId) }); }
   catch (error) { next(error); }
+}
+
+async function setCajaBancoAccounting(req, res, next) {
+  try {
+    const cuentaContableId = String(req.body?.cuentaContableId || '').trim();
+    if (!cuentaContableId) throw new AppError(400, 'Seleccione una cuenta PUC', 'TREASURY_ACCOUNTING_ACCOUNT_REQUIRED');
+    res.json({ ok: true, data: await bankMappingService.setAccountingAccount(req.tenantId, req.userId, req.params.id, cuentaContableId) });
+  } catch (error) { next(error); }
 }
 
 async function deactivateCajaBanco(req, res, next) {
@@ -126,6 +135,7 @@ async function listPayments(req, res, next) {
 module.exports = {
   createCajaBanco,
   listCajaBanco,
+  setCajaBancoAccounting,
   deactivateCajaBanco,
   openCashSession,
   closeCashSession,
