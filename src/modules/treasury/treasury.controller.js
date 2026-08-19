@@ -1,5 +1,14 @@
 const service = require('./treasury.service');
-const { cajaBancoSchema, aperturaSchema, cierreSchema, paymentSchema } = require('./treasury.schemas');
+const integrationService = require('./treasury-integration.service');
+const {
+  cajaBancoSchema,
+  aperturaSchema,
+  cierreSchema,
+  paymentSchema,
+  transferSchema,
+  directExpenseSchema,
+  batchPaymentSchema
+} = require('./treasury.schemas');
 const { AppError } = require('../../utils/app-error');
 
 function parse(schema, value) {
@@ -63,6 +72,27 @@ async function registerPayment(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function registerPaymentBatch(req, res, next) {
+  try {
+    const data = await integrationService.allocatePaymentBatch(req.tenantId, req.userId, parse(batchPaymentSchema, req.body));
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function transferOwnFunds(req, res, next) {
+  try {
+    const data = await integrationService.transferOwnFunds(req.tenantId, req.userId, parse(transferSchema, req.body));
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function directExpense(req, res, next) {
+  try {
+    const data = await integrationService.directExpense(req.tenantId, req.userId, parse(directExpenseSchema, req.body));
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
 async function listPayments(req, res, next) {
   try {
     const data = await service.listPayments(req.tenantId, {
@@ -82,5 +112,8 @@ module.exports = {
   closeCashSession,
   listCartera,
   registerPayment,
+  registerPaymentBatch,
+  transferOwnFunds,
+  directExpense,
   listPayments
 };
