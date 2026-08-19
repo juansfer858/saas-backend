@@ -1,11 +1,34 @@
 const service = require('./commercial.service');
-const { commercialDocumentSchema } = require('./commercial.schemas');
+const {
+  commercialDocumentSchema,
+  updateDraftSchema,
+  cancelDocumentSchema,
+  replaceDocumentSchema
+} = require('./commercial.schemas');
 const { AppError } = require('../../utils/app-error');
 
 function parse(schema, value) {
   const result = schema.safeParse(value);
   if (!result.success) throw new AppError(400, 'Datos del comprobante inválidos', 'VALIDATION_ERROR', result.error.flatten());
   return result.data;
+}
+
+function filtersFromQuery(query, forcedType) {
+  return {
+    tipo: forcedType || query.tipo,
+    estado: query.estado,
+    terceroId: query.terceroId,
+    desde: query.desde,
+    hasta: query.hasta,
+    montoMin: query.montoMin,
+    montoMax: query.montoMax,
+    page: query.page,
+    pageSize: query.pageSize || query.limit
+  };
+}
+
+function responsePage(res, result) {
+  return res.json({ ok: true, data: result.items, meta: result.meta });
 }
 
 async function createDocument(req, res, next) {
@@ -17,13 +40,7 @@ async function createDocument(req, res, next) {
 
 async function listDocuments(req, res, next) {
   try {
-    const data = await service.listDocuments(req.tenantId, {
-      tipo: req.query.tipo,
-      estado: req.query.estado,
-      terceroId: req.query.terceroId,
-      limit: req.query.limit
-    });
-    res.json({ ok: true, data });
+    responsePage(res, await service.listDocuments(req.tenantId, filtersFromQuery(req.query)));
   } catch (error) { next(error); }
 }
 
@@ -33,4 +50,85 @@ async function getDocument(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { createDocument, listDocuments, getDocument };
+async function updateDocument(req, res, next) {
+  try {
+    const data = await service.updateDraftDocument(req.tenantId, req.userId, req.params.id, parse(updateDraftSchema, req.body));
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function emitDocument(req, res, next) {
+  try {
+    const data = await service.emitDocument(req.tenantId, req.userId, req.params.id);
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function cancelDocument(req, res, next) {
+  try {
+    const input = parse(cancelDocumentSchema, req.body);
+    const data = await service.cancelDocument(req.tenantId, req.userId, req.params.id, input.motivo);
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function replaceDocument(req, res, next) {
+  try {
+    const data = await service.replaceIssuedDocument(
+      req.tenantId,
+      req.userId,
+      req.params.id,
+      parse(replaceDocumentSchema, req.body)
+    );
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+function createTyped(type) {
+  return async (req, res, next) => {
+    try {
+      const input = parse(commercialDocumentSchema, { ...req.body, tipo: type });
+      const data = await service.createDocument(req.tenantId, req.userId, input);
+      res.status(201).json({ ok: true, data });
+    } catch (error) { next(error); }
+  };
+}
+
+function listTyped(type) {
+  return async (req, res, next) => {
+    try {
+      responsePage(res, await service.listDocuments(req.tenantId, filtersFromQuery(req.query, type)));
+    } catch (error) { next(error); }
+  };
+}
+
+async function getTyped(req, res, next, type) {
+  try {
+    const data = await service.getDocument(req.tenantId, req.params.id);
+    if (data.tipo !== type) throw new AppError(404, 'Documento no encontrado', 'COMMERCIAL_DOCUMENT_NOT_FOUND');
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+const createSale = createTyped('FACTURA_VENTA');
+const listSales = listTyped('FACTURA_VENTA');
+const getSale = (req, res, next) => getTyped(req, res, next, 'FACTURA_VENTA');
+const createPurchase = createTyped('COMPRA');
+const listPurchases = listTyped('COMPRA');
+const getPurchase = (req, res, next) => getTyped(req, res, next, 'COMPRA');
+
+module.exports = {
+  createDocument,
+  listDocuments,
+  getDocument,
+  updateDocument,
+  emitDocument,
+  cancelDocument,
+  replaceDocument,
+  createSale,
+  listSales,
+  getSale,
+  createPurchase,
+  listPurchases,
+  getPurchase
+};
