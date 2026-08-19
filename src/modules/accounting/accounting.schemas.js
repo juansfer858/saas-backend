@@ -83,6 +83,19 @@ const taxCalculationSchema = z.object({
   conceptosRetencionIds: z.array(z.string().uuid()).optional()
 });
 
+const fiscalJournalSchema = z.object({
+  fecha: z.coerce.date().optional(),
+  concepto: z.string().trim().min(2).max(300),
+  tipoComprobanteId: z.string().uuid().optional().nullable(),
+  terceroId: z.string().uuid().optional().nullable(),
+  tipoOperacion: z.enum(['COMPRA', 'VENTA']),
+  cuentaBaseId: z.string().uuid(),
+  cuentaContrapartidaId: z.string().uuid(),
+  base: z.coerce.number().positive(),
+  tarifaIvaId: z.string().uuid().optional().nullable(),
+  conceptosRetencionIds: z.array(z.string().uuid()).optional()
+});
+
 const assetSchema = z.object({
   codigo: z.string().trim().min(1).max(40),
   nombre: z.string().trim().min(2).max(180),
@@ -133,6 +146,7 @@ module.exports = {
   vatSchema,
   retentionSchema,
   taxCalculationSchema,
+  fiscalJournalSchema,
   assetSchema,
   depreciationSchema,
   reconciliationSchema,
