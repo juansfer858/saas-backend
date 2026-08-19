@@ -32,7 +32,7 @@ const updateSchema = z.object({
   documentType: documentTypeSchema.optional(),
   notas: z.string().trim().max(1000).optional().nullable(),
   detalles: z.array(detailSchema).min(1).optional()
-}).refine((value) => Object.keys(value).length > 0, { message: 'Debe enviar al menos un cambio' });
+});
 
 const cancelSchema = z.object({ motivo: z.string().trim().min(3).max(500) });
 
@@ -53,8 +53,10 @@ async function get(req, res, next) {
 }
 
 async function update(req, res, next) {
-  try { res.json({ ok: true, data: await service.updateDraft(req.tenantId, req.userId, req.params.id, parse(updateSchema, req.body)) }); }
-  catch (error) { next(error); }
+  try {
+    const input = parse(updateSchema, req.body);
+    res.json({ ok: true, data: await service.updateDraft(req.tenantId, req.userId, req.params.id, input) });
+  } catch (error) { next(error); }
 }
 
 async function emit(req, res, next) {
