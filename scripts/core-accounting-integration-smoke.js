@@ -40,6 +40,8 @@ async function main() {
 
   const bankAccount = await account('111005');
   const cashAccount = await account('110505');
+  const retentionPayable = await account('236540');
+  const retentionFavor = await account('135515');
   const bank = await treasury.createCajaBanco(tenant.id, {
     tipo: 'BANCO', nombre: `Banco QA ${stamp}`, banco: 'Banco QA', numeroCuenta: String(stamp), cuentaContableId: bankAccount.id, saldoActual: 1000000, activo: true
   });
@@ -48,30 +50,40 @@ async function main() {
   });
 
   const supplier = await prisma.tercero.create({
-    data: { tenantId: tenant.id, tipo: 'PROVEEDOR', tipoDocumento: 'NIT', identificacion: `SUP-${stamp}`, nombre: 'Proveedor Integración', razonSocial: 'Proveedor Integración SAS', cupoCredito: 10000000, diasPlazo: 30 }
+    data: { tenantId: tenant.id, tipo: 'PROVEEDOR', tipoDocumento: 'NIT', identificacion: `SUP-${stamp}`, nombre: 'Proveedor Integración', razonSocial: 'Proveedor Integración SAS', cupoCredito: 10000000, diasPlazo: 30, sujetoRetefuente: true }
   });
   const customer = await prisma.tercero.create({
-    data: { tenantId: tenant.id, tipo: 'CLIENTE', tipoDocumento: 'NIT', identificacion: `CLI-${stamp}`, nombre: 'Cliente Integración', razonSocial: 'Cliente Integración SAS', cupoCredito: 10000000, diasPlazo: 30 }
+    data: { tenantId: tenant.id, tipo: 'CLIENTE', tipoDocumento: 'NIT', identificacion: `CLI-${stamp}`, nombre: 'Cliente Integración', razonSocial: 'Cliente Integración SAS', cupoCredito: 10000000, diasPlazo: 30, sujetoRetefuente: true }
   });
+
+  const purchaseRetention = await prisma.conceptoRetencion.findFirst({ where: { tenantId: tenant.id, tipo: 'RETEFUENTE', naturaleza: 'PAGAR' } });
+  assert.ok(purchaseRetention, 'Seed debe incluir plantilla de retefuente por pagar');
+  await prisma.conceptoRetencion.update({ where: { id: purchaseRetention.id }, data: { porcentaje: 2.5, baseMinima: 0, cuentaId: retentionPayable.id, automatico: true, activo: true } });
+  await prisma.conceptoRetencion.create({
+    data: { tenantId: tenant.id, codigo: `RTF-VENTAS-${stamp}`, nombre: 'Retefuente clientes QA', tipo: 'RETEFUENTE', porcentaje: 1, baseMinima: 0, cuentaId: retentionFavor.id, naturaleza: 'COBRAR', automatico: true, activo: true }
+  });
+
   const product = await inventory.createProduct(tenant.id, {
     tipo: 'PRODUCTO', sku: `INT-${stamp}`, nombre: 'Producto Integración', unidadMedida: 'UND', controlaInventario: true,
     costoPromedio: 0, stockActual: 0, precio1: 35000, ivaPct: 19, impoconsumoPct: 0, activo: true
   });
 
-  // 1-2. Compra a crédito -> Kardex + CxP + AU.
+  // 1-2. Compra crédito: Inventario + IVA / Retención + Proveedor neto.
   const purchase = await commercial.createDocument(tenant.id, user.id, {
     tipo: 'COMPRA', estado: 'EMITIDO', terceroId: supplier.id, formaPago: 'CREDITO', sourceId: `INT-PUR-${stamp}`,
     fechaVencimiento: new Date(Date.now() + 30 * 86400000),
     detalles: [{ productoId: product.id, cantidad: 10, precioUnitario: 20000, ivaPct: 19 }]
   });
   assert.equal(purchase.tipo, 'COMPRA');
-  assert.ok(purchase.asiento, 'Compra debe crear asiento');
-  assert.ok(balanced(purchase.asiento), 'Asiento compra debe cuadrar');
+  assert.ok(purchase.asiento && balanced(purchase.asiento), 'Asiento compra debe cuadrar');
   assert.equal(purchase.asiento.tipoComprobante?.codigo, 'AU');
+  assert.equal(n(purchase.retencionTotal), 5000);
+  assert.equal(n(purchase.netoPagar), 233000);
+  assert.ok(purchase.asiento.detalles.some((d) => d.cuenta.codigo === '236540' && n(d.credito) === 5000));
   let stocked = await inventory.getProduct(tenant.id, product.id);
   assert.equal(n(stocked.stockActual), 10);
   assert.equal(n(stocked.costoPromedio), 20000);
-  assert.equal(n(purchase.saldo), 238000);
+  assert.equal(n(purchase.saldo), 233000);
 
   // 3. Pago parcial proveedor -> CxP + banco + AU.
   const supplierPayment = await treasuryIntegration.allocatePaymentBatch(tenant.id, user.id, {
@@ -80,9 +92,9 @@ async function main() {
   });
   assert.equal(supplierPayment.aplicaciones.length, 1);
   assert.ok(balanced(supplierPayment.aplicaciones[0].asiento));
-  assert.equal(n(supplierPayment.aplicaciones[0].saldo), 208000);
+  assert.equal(n(supplierPayment.aplicaciones[0].saldo), 203000);
 
-  // 4-5. Venta a crédito -> CxC + ingreso/IVA + costo/inventario + AU.
+  // 4-5. Venta crédito: Cliente neto + retención a favor / Ingreso + IVA; además COGS/Inventario.
   const sale = await commercial.createDocument(tenant.id, user.id, {
     tipo: 'FACTURA_VENTA', estado: 'EMITIDO', terceroId: customer.id, formaPago: 'CREDITO', sourceId: `INT-SALE-${stamp}`,
     fechaVencimiento: new Date(Date.now() + 30 * 86400000),
@@ -90,9 +102,12 @@ async function main() {
   });
   assert.ok(sale.asiento && balanced(sale.asiento), 'Venta debe crear AU cuadrado');
   assert.equal(sale.asiento.tipoComprobante?.codigo, 'AU');
+  assert.equal(n(sale.retencionTotal), 700);
+  assert.equal(n(sale.netoPagar), 82600);
+  assert.ok(sale.asiento.detalles.some((d) => d.cuenta.codigo === '135515' && n(d.debito) === 700));
   stocked = await inventory.getProduct(tenant.id, product.id);
   assert.equal(n(stocked.stockActual), 8);
-  assert.equal(n(sale.saldo), 83300);
+  assert.equal(n(sale.saldo), 82600);
   const saleCogsDebit = sale.asiento.detalles.filter((d) => d.cuenta.codigo === '613505').reduce((a, d) => a + n(d.debito), 0);
   assert.equal(saleCogsDebit, 40000, 'Costo de venta debe usar costo del Kardex');
 
@@ -102,15 +117,14 @@ async function main() {
     aplicaciones: [{ documentoId: sale.id, monto: 50000 }]
   });
   assert.ok(balanced(collection.aplicaciones[0].asiento));
-  assert.equal(n(collection.aplicaciones[0].saldo), 33300);
+  assert.equal(n(collection.aplicaciones[0].saldo), 32600);
 
-  // Cartera es la misma información conciliada con auxiliares contables.
   const cxc = await carteraReport.accountingReconciliation(tenant.id, 'CXC');
   const cxp = await carteraReport.accountingReconciliation(tenant.id, 'CXP');
   assert.equal(cxc.cuadra, true, `CxC debe cuadrar: ${JSON.stringify(cxc)}`);
   assert.equal(cxp.cuadra, true, `CxP debe cuadrar: ${JSON.stringify(cxp)}`);
   const aging = await carteraReport.aging(tenant.id, {});
-  assert.equal(n(aging.totales.TOTAL), 241300);
+  assert.equal(n(aging.totales.TOTAL), 235600);
 
   // Ajuste manual de inventario -> AU propio y justificación.
   const adjustment = await inventoryAccounting.createAccountedAdjustment(tenant.id, user.id, {
@@ -121,7 +135,6 @@ async function main() {
   stocked = await inventory.getProduct(tenant.id, product.id);
   assert.equal(n(stocked.stockActual), 9);
 
-  // Tesorería patrimonial: transferencia no toca resultados.
   const transfer = await treasuryIntegration.transferOwnFunds(tenant.id, user.id, {
     origenCajaBancoId: bank.id, destinoCajaBancoId: cash.id, monto: 10000,
     concepto: 'Traslado QA', sourceId: `INT-TR-${stamp}`
@@ -130,21 +143,20 @@ async function main() {
   const transferCodes = new Set(transfer.asiento.detalles.map((d) => d.cuenta.codigo));
   assert.ok(transferCodes.has('111005') && transferCodes.has('110505'));
 
-  // Gasto directo -> gasto DR / banco CR.
   const expense = await treasuryIntegration.directExpense(tenant.id, user.id, {
     cajaBancoId: bank.id, monto: 5000, concepto: 'Gasto menor QA', sourceId: `INT-GD-${stamp}`
   });
   assert.ok(balanced(expense.asiento));
   assert.ok(expense.asiento.detalles.some((d) => d.cuenta.codigo === '519595' && n(d.debito) === 5000));
 
-  // 7. Estados financieros deben seguir matemáticamente balanceados.
+  // 7. Estados financieros siguen matemáticamente balanceados.
   const today = new Date().toISOString().slice(0, 10);
   const bs = await accounting.getBalanceSheet(tenant.id, { corte: today });
   assert.ok(Math.abs(n(bs.diferencia)) < 0.01, `Balance General descuadrado: ${bs.diferencia}`);
   const pl = await accounting.getProfitAndLoss(tenant.id, { desde: `${new Date().getUTCFullYear()}-01-01`, hasta: today });
   assert.ok(pl, 'P&G debe responder');
 
-  // 8. Cierre bloquea la operación origen y revierte toda la transacción.
+  // 8. Cierre bloquea la operación origen y la transacción completa hace rollback.
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth() + 1;
@@ -169,9 +181,11 @@ async function main() {
   console.log(JSON.stringify({
     tenant: tenant.subdomain,
     compra: purchase.numero,
-    saldoProveedor: 208000,
+    retencionCompra: 5000,
+    saldoProveedor: 203000,
     venta: sale.numero,
-    saldoCliente: 33300,
+    retencionVenta: 700,
+    saldoCliente: 32600,
     stockFinal: n(afterProduct.stockActual),
     carteraCuadra: cxc.cuadra && cxp.cuadra,
     balanceGeneralDiferencia: n(bs.diferencia),
