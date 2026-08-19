@@ -169,6 +169,7 @@ async function reverseJournalInTx(tx, params) {
   const reversed = await createJournalInTx(tx, {
     tenantId: params.tenantId,
     userId: params.userId,
+    comprobanteId: params.comprobanteId || null,
     fecha: params.fecha || new Date(),
     concepto: params.concepto || `Reverso: ${original.concepto}`,
     referencia: params.referencia || `REV-${original.referencia || original.id}`,
