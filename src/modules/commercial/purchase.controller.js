@@ -1,4 +1,5 @@
 const service = require('./purchase.service');
+const cancelService = require('./purchase-cancel.service');
 const { purchaseDraftSchema, purchaseUpdateSchema, purchaseCancelSchema } = require('./purchase.schemas');
 const { AppError } = require('../../utils/app-error');
 
@@ -49,7 +50,9 @@ async function emit(req, res, next) {
 async function cancel(req, res, next) {
   try {
     const input = parse(purchaseCancelSchema, req.body);
-    res.json({ ok: true, data: await service.cancel(req.tenantId, req.userId, req.params.id, input.motivo) });
+    const result = await cancelService.cancelPurchase(req.tenantId, req.userId, req.params.id, input.motivo);
+    const documento = await service.get(req.tenantId, result.documentoId);
+    res.json({ ok: true, data: { documento, notaId: result.notaId, yaAnulada: result.yaAnulada } });
   } catch (error) { next(error); }
 }
 
