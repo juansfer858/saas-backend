@@ -76,7 +76,7 @@ async function buildLines(tx, tenantId, type, inputDetails) {
       descripcion: input.descripcion || product?.nombre || 'Concepto comercial',
       cantidad: quantity,
       precioUnitario: price,
-      descuentoPct,
+      descuentoPct: discountPct,
       ivaPct,
       impoconsumoPct,
       gross,
