@@ -1,6 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const service = require('./dian.service');
+const transmission = require('./dian-transmission.service');
 const { AppError } = require('../../../utils/app-error');
 const { requirePermission } = require('../../../middleware/require-permission');
 
@@ -51,7 +52,7 @@ router.put('/configuracion', requirePermission('DIAN.ADMINISTRAR'), async (req, 
 });
 
 router.get('/readiness', requirePermission('DIAN.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.readiness(req.tenantId) }); }
+  try { res.json({ ok: true, data: await transmission.readiness(req.tenantId) }); }
   catch (error) { next(error); }
 });
 
@@ -71,7 +72,7 @@ router.get('/documentos', requirePermission('DIAN.VER'), async (req, res, next) 
 });
 
 router.post('/documentos/:id/reintentar', requirePermission('DIAN.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.processDocument(req.params.id) }); }
+  try { res.json({ ok: true, data: await transmission.processDocument(req.params.id) }); }
   catch (error) { next(error); }
 });
 
