@@ -14,6 +14,15 @@ function normalizeSubdomain(value) {
   return normalized || null;
 }
 
+function platformSubdomains() {
+  return new Set(
+    String(process.env.TENANT_PLATFORM_SUBDOMAINS || 'core')
+      .split(',')
+      .map((value) => normalizeSubdomain(value))
+      .filter(Boolean)
+  );
+}
+
 function subdomainFromHost(host) {
   const normalizedHost = normalizeSubdomain(host);
   if (!normalizedHost) return null;
@@ -22,7 +31,8 @@ function subdomainFromHost(host) {
 
   if (baseDomain && normalizedHost.endsWith(`.${baseDomain}`)) {
     const candidate = normalizedHost.slice(0, -(baseDomain.length + 1));
-    return candidate && !candidate.includes('.') ? candidate : null;
+    if (!candidate || candidate.includes('.') || platformSubdomains().has(candidate)) return null;
+    return candidate;
   }
 
   if (normalizedHost === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(normalizedHost)) {
@@ -30,13 +40,16 @@ function subdomainFromHost(host) {
   }
 
   const labels = normalizedHost.split('.');
-  return labels.length >= 3 ? labels[0] : null;
+  const candidate = labels.length >= 3 ? labels[0] : null;
+  return candidate && !platformSubdomains().has(candidate) ? candidate : null;
 }
 
 /**
  * Resuelve el tenant antes de cualquier autenticación o consulta empresarial.
- * El header x-tenant-subdomain se admite para clientes API, pero si el host ya
- * identifica un tenant ambos valores deben coincidir.
+ * En dominios de tenant, el host manda y cualquier header debe coincidir.
+ * En el host de plataforma (por defecto `core`) se permite seleccionar el tenant
+ * explícitamente con x-tenant-subdomain; esto habilita el panel administrativo
+ * central sin relajar el aislamiento por tenantId.
  */
 async function extractTenantBySubdomain(req, _res, next) {
   try {
@@ -89,4 +102,4 @@ async function extractTenantBySubdomain(req, _res, next) {
   }
 }
 
-module.exports = { extractTenantBySubdomain, normalizeSubdomain, subdomainFromHost };
+module.exports = { extractTenantBySubdomain, normalizeSubdomain, subdomainFromHost, platformSubdomains };
