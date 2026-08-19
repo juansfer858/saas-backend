@@ -1,6 +1,7 @@
 const express = require('express');
 const { extractTenantBySubdomain } = require('../middleware/extract-tenant-by-subdomain');
 const { authMiddleware } = require('../middleware/auth-middleware');
+const { userRouter } = require('../modules/users/user.routes');
 const { thirdPartyRouter } = require('../modules/third-parties/third-party.routes');
 const { inventoryRouter } = require('../modules/inventory/inventory.routes');
 const { treasuryRouter } = require('../modules/treasury/treasury.routes');
@@ -12,6 +13,7 @@ const router = express.Router();
 router.use(extractTenantBySubdomain);
 router.use(authMiddleware);
 
+router.use('/usuarios', userRouter);
 router.use('/terceros', thirdPartyRouter);
 router.use('/inventario', inventoryRouter);
 router.use('/tesoreria', treasuryRouter);
