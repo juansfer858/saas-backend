@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VantixGC · Contabilidad</title>
+  <style>
+    :root{--bg:#f4f4f5;--card:#fff;--line:#e4e4e7;--text:#18221d;--muted:#61706a;--green:#0d6b43;--green2:#118a57;--gold:#d4a62a;--soft:#ddf3e8;--danger:#b91c1c}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+    button,input{font:inherit}.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{background:#fff;border-right:1px solid var(--line);padding:22px 16px;position:sticky;top:0;height:100vh}.brand{font-size:21px;font-weight:800;letter-spacing:-.4px}.brand span{color:var(--green)}.caption{font-size:12px;color:var(--muted);margin-top:3px}.nav{display:grid;gap:6px;margin-top:26px}.nav button{border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;color:#3f4a45;cursor:pointer}.nav button.active{background:var(--soft);color:var(--green);font-weight:700}.nav button:disabled{opacity:.45;cursor:not-allowed}.foot{position:absolute;left:16px;right:16px;bottom:18px;border-top:1px solid var(--line);padding-top:14px;font-size:12px;color:var(--muted)}
+    .main{padding:28px}.top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.title h1{font-size:27px;margin:0}.title p{margin:5px 0 0;color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 13px;cursor:pointer}.btn.primary{background:var(--green);border-color:var(--green);color:#fff}.btn.danger{color:var(--danger)}
+    .notice{margin:18px 0;padding:12px 14px;border:1px solid #ead9a0;background:#fffaf0;border-radius:12px;font-size:13px}.notice strong{color:#805b00}.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.metric,.card{background:var(--card);border:1px solid var(--line);border-radius:14px}.metric{padding:16px}.metric .k{font-size:12px;color:var(--muted)}.metric .v{font-size:24px;font-weight:800;margin-top:4px}.metric .s{font-size:12px;color:var(--muted);margin-top:2px}.card{padding:18px;margin-top:14px}.card h2{font-size:17px;margin:0 0 14px}.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}.toolbar input{border:1px solid var(--line);border-radius:9px;padding:9px 10px;background:#fff;min-width:220px}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:11px}table{width:100%;border-collapse:collapse;min-width:720px;background:#fff}th,td{padding:11px 12px;border-bottom:1px solid #eee;text-align:left;font-size:13px}th{font-size:12px;color:var(--muted);background:#fafafa;font-weight:700}tr:last-child td{border-bottom:0}.pill{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.pill.ok{background:var(--soft);color:var(--green)}.pill.gray{background:#f1f1f2;color:#52525b}.pill.gold{background:#fff5d6;color:#7a5900}.empty{padding:28px;text-align:center;color:var(--muted)}
+    .loginLayer{position:fixed;inset:0;background:rgba(24,34,29,.46);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}.loginLayer.show{display:flex}.login{width:min(440px,100%);background:#fff;border-radius:16px;border:1px solid var(--line);padding:22px}.login h2{margin:0 0 4px}.login p{margin:0 0 16px;color:var(--muted);font-size:13px}.field{display:grid;gap:6px;margin:11px 0}.field label{font-size:12px;font-weight:700}.field input{border:1px solid var(--line);border-radius:9px;padding:10px}.loginBtns{display:flex;gap:8px;margin-top:16px}.error{color:var(--danger);font-size:12px;margin-top:10px;min-height:16px}.hidden{display:none!important}
+    @media(max-width:900px){.app{grid-template-columns:1fr}.side{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.nav{grid-template-columns:repeat(4,minmax(0,1fr));overflow:auto}.foot{display:none}.main{padding:18px}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}.top{flex-direction:column}.nav button{white-space:nowrap}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">Vantix<span>GC</span></div>
+    <div class="caption">Super Core · Contabilidad</div>
+    <div class="nav">
+      <button class="active" data-view="resumen">Resumen</button>
+      <button data-view="puc">Plan de cuentas</button>
+      <button data-view="asientos">Asientos contables</button>
+      <button data-view="periodos">Periodos</button>
+    </div>
+    <div class="foot"><div id="tenantLabel">Modo demostración</div><div id="userLabel">Datos simulados, sin acceso a empresa real</div></div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="title"><h1>Contabilidad</h1><p>PUC, asientos, periodos y trazabilidad del Super Core.</p></div>
+      <div class="actions"><button class="btn" id="demoBtn">Vista demo</button><button class="btn primary" id="loginBtn">Conectar empresa</button><button class="btn danger hidden" id="logoutBtn">Salir</button></div>
+    </div>
+
+    <div class="notice" id="demoNotice"><strong>Vista demostrativa.</strong> Lo que ves ahora usa datos de ejemplo para mostrar la interfaz. Al conectar una empresa se cargan sus cuentas y asientos reales, aislados por tenant.</div>
+
+    <section id="view-resumen" class="view">
+      <div class="grid4">
+        <div class="metric"><div class="k">Cuentas PUC</div><div class="v" id="mAccounts">49</div><div class="s">catálogo base activo</div></div>
+        <div class="metric"><div class="k">Asientos</div><div class="v" id="mJournals">3</div><div class="s">últimos movimientos</div></div>
+        <div class="metric"><div class="k">Débitos</div><div class="v" id="mDebit">$ 1.666.000</div><div class="s">muestra actual</div></div>
+        <div class="metric"><div class="k">Créditos</div><div class="v" id="mCredit">$ 1.666.000</div><div class="s">partida doble validada</div></div>
+      </div>
+      <div class="card"><h2>Últimos asientos</h2><div id="summaryTable"></div></div>
+    </section>
+
+    <section id="view-puc" class="view hidden">
+      <div class="card"><h2>Plan Único de Cuentas</h2><div class="toolbar"><input id="accountSearch" placeholder="Buscar código o nombre" /><button class="btn" id="accountRefresh">Actualizar</button></div><div id="accountsTable"></div></div>
+    </section>
+
+    <section id="view-asientos" class="view hidden">
+      <div class="card"><h2>Asientos contables</h2><div class="toolbar"><input id="journalSearch" placeholder="Buscar concepto o referencia" /><button class="btn" id="journalRefresh">Actualizar</button></div><div id="journalsTable"></div></div>
+    </section>
+
+    <section id="view-periodos" class="view hidden">
+      <div class="card"><h2>Periodos contables</h2><p style="color:var(--muted);margin-top:0">El motor ya bloquea contabilizaciones sobre periodos cerrados. La gestión visual de apertura/cierre se habilitará en esta misma pantalla en la siguiente iteración.</p><div class="tablewrap"><table><thead><tr><th>Periodo</th><th>Estado</th><th>Regla</th></tr></thead><tbody><tr><td>Periodo actual</td><td><span class="pill ok">ABIERTO</span></td><td>Permite contabilizar y reversar</td></tr><tr><td>Periodo cerrado</td><td><span class="pill gray">CERRADO</span></td><td>Bloquea nuevos asientos</td></tr></tbody></table></div></div>
+    </section>
+  </main>
+</div>
+
+<div class="loginLayer" id="loginLayer">
+  <form class="login" id="loginForm">
+    <h2>Conectar empresa</h2><p>Usa el subdominio y las credenciales del tenant que quieras consultar.</p>
+    <div class="field"><label>Subdominio</label><input id="subdomain" autocomplete="organization" placeholder="miempresa" required /></div>
+    <div class="field"><label>Correo</label><input id="email" type="email" autocomplete="username" required /></div>
+    <div class="field"><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" required /></div>
+    <div class="loginBtns"><button class="btn primary" type="submit">Entrar a Contabilidad</button><button class="btn" type="button" id="cancelLogin">Cancelar</button></div>
+    <div class="error" id="loginError"></div>
+  </form>
+</div>
+
+<script>
+const state={mode:'demo',token:null,subdomain:null,user:null,tenant:null,accounts:[],journals:[]};
+const demoAccounts=[
+ {codigo:'110505',nombre:'Caja general',nivel:'SUBCUENTA',naturaleza:'DEBITO',permiteMovimiento:true,activa:true},
+ {codigo:'111005',nombre:'Bancos - moneda nacional',nivel:'SUBCUENTA',naturaleza:'DEBITO',permiteMovimiento:true,activa:true},
+ {codigo:'130505',nombre:'Clientes nacionales',nivel:'SUBCUENTA',naturaleza:'DEBITO',permiteMovimiento:true,activa:true},
+ {codigo:'143505',nombre:'Inventario de mercancías',nivel:'SUBCUENTA',naturaleza:'DEBITO',permiteMovimiento:true,activa:true},
+ {codigo:'220505',nombre:'Proveedores nacionales',nivel:'SUBCUENTA',naturaleza:'CREDITO',permiteMovimiento:true,activa:true},
+ {codigo:'240805',nombre:'IVA generado',nivel:'SUBCUENTA',naturaleza:'CREDITO',permiteMovimiento:true,activa:true},
+ {codigo:'413505',nombre:'Ventas de mercancías y servicios',nivel:'SUBCUENTA',naturaleza:'CREDITO',permiteMovimiento:true,activa:true},
+ {codigo:'613505',nombre:'Costo de mercancías vendidas',nivel:'SUBCUENTA',naturaleza:'DEBITO',permiteMovimiento:true,activa:true}
+];
+const demoJournals=[
+ {fecha:'2026-08-18T14:20:00Z',referencia:'FV-1001',concepto:'Factura de venta FV-1001',estado:'CONTABILIZADO',totalDebito:476000,totalCredito:476000},
+ {fecha:'2026-08-18T13:02:00Z',referencia:'CP-0204',concepto:'Compra CP-0204',estado:'CONTABILIZADO',totalDebito:1190000,totalCredito:1190000},
+ {fecha:'2026-08-18T11:35:00Z',referencia:'RC-0045',concepto:'Recibo de caja RC-0045',estado:'CONTABILIZADO',totalDebito:400000,totalCredito:400000}
+];
+function money(v){return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(v||0))}
+function date(v){return new Intl.DateTimeFormat('es-CO',{dateStyle:'medium',timeStyle:'short'}).format(new Date(v))}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function rowsTable(headers,rows){return '<div class="tablewrap"><table><thead><tr>'+headers.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'}
+function renderAccounts(){const q=document.querySelector('#accountSearch').value.trim().toLowerCase();const src=state.mode==='demo'?demoAccounts:state.accounts;const data=src.filter(a=>!q||String(a.codigo).toLowerCase().includes(q)||String(a.nombre).toLowerCase().includes(q));document.querySelector('#accountsTable').innerHTML=data.length?rowsTable(['Código','Cuenta','Nivel','Naturaleza','Movimiento','Estado'],data.map(a=>'<tr><td><strong>'+esc(a.codigo)+'</strong></td><td>'+esc(a.nombre)+'</td><td>'+esc(a.nivel)+'</td><td>'+esc(a.naturaleza)+'</td><td>'+(a.permiteMovimiento?'<span class="pill ok">Sí</span>':'<span class="pill gray">No</span>')+'</td><td>'+(a.activa!==false?'<span class="pill ok">Activa</span>':'<span class="pill gray">Inactiva</span>')+'</td></tr>')):'<div class="empty">No hay cuentas para mostrar.</div>'}
+function renderJournals(){const q=document.querySelector('#journalSearch').value.trim().toLowerCase();const src=state.mode==='demo'?demoJournals:state.journals;const data=src.filter(j=>!q||String(j.concepto).toLowerCase().includes(q)||String(j.referencia||'').toLowerCase().includes(q));const html=data.length?rowsTable(['Fecha','Referencia','Concepto','Estado','Débito','Crédito'],data.map(j=>'<tr><td>'+date(j.fecha)+'</td><td>'+esc(j.referencia||'—')+'</td><td>'+esc(j.concepto)+'</td><td><span class="pill '+(j.estado==='CONTABILIZADO'?'ok':'gray')+'">'+esc(j.estado)+'</span></td><td>'+money(j.totalDebito)+'</td><td>'+money(j.totalCredito)+'</td></tr>')):'<div class="empty">No hay asientos para mostrar.</div>';document.querySelector('#journalsTable').innerHTML=html;document.querySelector('#summaryTable').innerHTML=html}
+function renderMetrics(){const accounts=state.mode==='demo'?49:state.accounts.length;const journals=state.mode==='demo'?demoJournals:state.journals;const d=journals.reduce((a,j)=>a+Number(j.totalDebito||0),0),c=journals.reduce((a,j)=>a+Number(j.totalCredito||0),0);document.querySelector('#mAccounts').textContent=accounts;document.querySelector('#mJournals').textContent=journals.length;document.querySelector('#mDebit').textContent=money(d);document.querySelector('#mCredit').textContent=money(c)}
+function render(){renderAccounts();renderJournals();renderMetrics();const real=state.mode==='real';document.querySelector('#demoNotice').classList.toggle('hidden',real);document.querySelector('#logoutBtn').classList.toggle('hidden',!real);document.querySelector('#loginBtn').classList.toggle('hidden',real);document.querySelector('#tenantLabel').textContent=real?(state.tenant?.nombreEmpresa||state.subdomain):'Modo demostración';document.querySelector('#userLabel').textContent=real?(state.user?.email||'Sesión conectada'):'Datos simulados, sin acceso a empresa real'}
+async function api(path,options={}){const headers={...(options.headers||{}),'x-tenant-subdomain':state.subdomain};if(state.token)headers.Authorization='Bearer '+state.token;const r=await fetch(path,{...options,headers});const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body?.error?.message||'Error '+r.status);return body}
+async function loadReal(){const [session,accounts,journals]=await Promise.all([api('/api/v1/auth/session'),api('/api/v1/contabilidad/cuentas?limit=2000'),api('/api/v1/contabilidad/asientos?limit=500')]);state.tenant=session.data.tenant;state.user=session.data.user;state.accounts=accounts.data||[];state.journals=journals.data||[];render()}
+function useDemo(){state.mode='demo';state.token=null;state.subdomain=null;state.user=null;state.tenant=null;localStorage.removeItem('vantixgc_core_accounting_session');render()}
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));document.querySelector('#view-'+b.dataset.view).classList.remove('hidden')}));
+document.querySelector('#loginBtn').onclick=()=>document.querySelector('#loginLayer').classList.add('show');document.querySelector('#cancelLogin').onclick=()=>document.querySelector('#loginLayer').classList.remove('show');document.querySelector('#demoBtn').onclick=useDemo;document.querySelector('#logoutBtn').onclick=useDemo;document.querySelector('#accountSearch').addEventListener('input',renderAccounts);document.querySelector('#journalSearch').addEventListener('input',renderJournals);document.querySelector('#accountRefresh').onclick=()=>state.mode==='real'?loadReal():renderAccounts();document.querySelector('#journalRefresh').onclick=()=>state.mode==='real'?loadReal():renderJournals();
+document.querySelector('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const err=document.querySelector('#loginError');err.textContent='';try{state.subdomain=document.querySelector('#subdomain').value.trim().toLowerCase();const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json','x-tenant-subdomain':state.subdomain},body:JSON.stringify({email:document.querySelector('#email').value.trim(),password:document.querySelector('#password').value})});const body=await r.json().catch(()=>({}));if(!r.ok)throw new Error(body?.error?.message||'No fue posible iniciar sesión');state.token=body.data.token;state.mode='real';localStorage.setItem('vantixgc_core_accounting_session',JSON.stringify({token:state.token,subdomain:state.subdomain}));await loadReal();document.querySelector('#loginLayer').classList.remove('show');document.querySelector('#password').value=''}catch(ex){err.textContent=ex.message;state.mode='demo';state.token=null}});
+try{const saved=JSON.parse(localStorage.getItem('vantixgc_core_accounting_session')||'null');if(saved?.token&&saved?.subdomain){state.token=saved.token;state.subdomain=saved.subdomain;state.mode='real';loadReal().catch(useDemo)}else render()}catch(_){render()}
+</script>
+</body>
+</html>
