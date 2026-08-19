@@ -29,13 +29,16 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'saas-backend' });
 });
 
-// Vista pública y de solo lectura para revisar la estructura del Super Core.
 app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
 });
 
-// SPA administrativa del Super Core. El mismo layout atiende rutas profundas
-// como /app/ventas/nueva y /app/ventas/:id; la navegación se resuelve en cliente.
+// Suite contable operativa dedicada. Conserva la sesión del panel global y
+// consume únicamente endpoints protegidos/multitenant del Accounting Core.
+app.get('/app/contabilidad', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'accounting.html'));
+});
+
 app.use('/app', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'panel.html'));
 });
@@ -56,6 +59,7 @@ app.get('/api/v1/status', async (_req, res) => {
         receivablesPayables: 'READY',
         commercialLifecycle: 'READY',
         accounting: 'READY',
+        accountingSuite: 'READY',
         adminPanel: 'READY',
         demoPanel: 'READY',
         salesUi: 'READY'
@@ -87,7 +91,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Pagos / Abonos</span><span class="ok">READY</span></div>
 <div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
 <div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
-<div class="grid"><span>Contabilidad PUC</span><span class="ok">READY</span></div>
+<div class="grid"><span>Contabilidad PUC + Diario + Mayor + Reportes</span><span class="ok">READY</span></div>
 <div class="grid"><span>Panel Web</span><span class="ok">READY</span></div>
 <a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
 <div class="muted">Despliegue automático GitHub → Coolify</div></div></body></html>`);

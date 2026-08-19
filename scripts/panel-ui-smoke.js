@@ -8,7 +8,7 @@ async function main() {
 
   try {
     let canonicalHtml = '';
-    for (const route of ['/app/dashboard', '/app/ventas', '/app/ventas/nueva', '/app/ventas/00000000-0000-0000-0000-000000000000', '/app/contabilidad']) {
+    for (const route of ['/app/dashboard', '/app/ventas', '/app/ventas/nueva', '/app/ventas/00000000-0000-0000-0000-000000000000']) {
       const response = await fetch(base + route);
       const html = await response.text();
       assert.equal(response.status, 200, route);
@@ -19,9 +19,14 @@ async function main() {
       canonicalHtml = html;
     }
 
+    const accounting = await fetch(base + '/app/contabilidad');
+    const accountingHtml = await accounting.text();
+    assert.equal(accounting.status, 200);
+    assert.match(accountingHtml, /Libro Diario/);
+    assert.match(accountingHtml, /Libro Mayor/);
+
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
-    // Compila el JavaScript sin ejecutarlo para detectar errores de sintaxis antes del deploy.
     new Function(script);
 
     console.log('SUPER CORE PANEL UI SMOKE OK');

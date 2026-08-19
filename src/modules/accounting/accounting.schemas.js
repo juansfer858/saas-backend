@@ -7,6 +7,7 @@ const accountSchema = z.object({
   naturaleza: z.enum(['DEBITO', 'CREDITO']),
   parentId: z.string().uuid().optional().nullable(),
   permiteMovimiento: z.boolean().default(false),
+  requiereTercero: z.boolean().default(false),
   activa: z.boolean().default(true)
 });
 
@@ -25,4 +26,4 @@ const journalSchema = z.object({
   detalles: z.array(journalLineSchema).min(2)
 });
 
-module.exports = { accountSchema, journalSchema };
+module.exports = { accountSchema, journalSchema, journalLineSchema };
