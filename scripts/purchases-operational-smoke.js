@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const { seedTenantDefaults } = require('../src/services/tenant-seed.service');
 const purchase = require('../src/modules/commercial/purchase.service');
+const purchaseCancel = require('../src/modules/commercial/purchase-cancel.service');
 const treasury = require('../src/modules/treasury/treasury.service');
 const governance = require('../src/modules/accounting/accounting-governance.service');
 
@@ -74,7 +75,7 @@ async function main() {
   const emitted = await purchase.emit(tenant.id, user.id, draft.id);
   assert.equal(emitted.estado, 'EMITIDO');
   assert.ok(emitted.asiento, 'La compra emitida debe tener asiento');
-  assert.equal(emitted.asiento.tipoComprobante?.codigo, 'AU');
+  assert.ok(String(emitted.asiento.numeroComprobante || '').startsWith('AU-'), 'La compra debe recibir consecutivo AU');
   assert.ok(balanced(emitted.asiento), 'El AU debe cuadrar');
   assert.equal(emitted.movimientosInventario.length, 1);
   assert.equal(emitted.cartera.length, 1);
@@ -88,7 +89,7 @@ async function main() {
   assert.equal(emitted.asiento.referencia, emitted.numero);
 
   // Criterio 4: anular sin pagos revierte asiento, Kardex y CxP exactamente.
-  await purchase.cancel(tenant.id, user.id, emitted.id, 'Error de factura proveedor QA');
+  await purchaseCancel.cancelPurchase(tenant.id, user.id, emitted.id, 'Error de factura proveedor QA');
   const cancelled = await prisma.comprobanteComercial.findUnique({ where: { id: emitted.id }, include: { asiento: true, cartera: true } });
   assert.equal(cancelled.estado, 'ANULADO');
   assert.equal(n(cancelled.saldo), 0);
@@ -129,7 +130,7 @@ async function main() {
     sourceId: `PUR-PAY-${stamp}`
   });
   let paymentBlocked = null;
-  try { await purchase.cancel(tenant.id, user.id, paidPurchase.id, 'No debe permitir'); }
+  try { await purchaseCancel.cancelPurchase(tenant.id, user.id, paidPurchase.id, 'No debe permitir'); }
   catch (error) { paymentBlocked = error; }
   assert.ok(paymentBlocked);
   assert.equal(paymentBlocked.code, 'PURCHASE_HAS_PAYMENTS');
