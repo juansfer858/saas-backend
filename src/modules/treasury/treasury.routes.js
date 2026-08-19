@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get('/cajas-bancos', controller.listCajaBanco);
 router.post('/cajas-bancos', controller.createCajaBanco);
+router.patch('/cajas-bancos/:id/cuenta-contable', controller.setCajaBancoAccounting);
 router.delete('/cajas-bancos/:id', controller.deactivateCajaBanco);
 router.post('/cajas-bancos/:cajaBancoId/abrir', controller.openCashSession);
 router.post('/turnos/:sessionId/cerrar', controller.closeCashSession);
