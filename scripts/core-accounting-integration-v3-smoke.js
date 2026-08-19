@@ -45,7 +45,7 @@ async function main() {
   assert.equal(n(purchase.detalles[0].producto.stockActual), 10);
   assert.ok(purchase.asiento?.numeroComprobante?.startsWith('AU-'), 'Compra debe generar AU');
   assert.equal(n(purchase.asiento.totalDebito), n(purchase.asiento.totalCredito));
-  assert.equal(n(purchase.cartera?.saldo), 1190);
+  assert.equal(n(purchase.cartera?.[0]?.saldo), 1190);
 
   // 3. Pago parcial proveedor => Proveedores / Banco y CxP actualizada.
   const supplierPayment = await treasury.registerPayment(tenant.id, user.id, { documentoId: purchase.id, cajaBancoId: bank.id, metodoPago: 'TRANSFERENCIA', monto: 500, referencia: 'PAGO-PARCIAL-V3', sourceId: `pay-${suffix}` });
@@ -57,7 +57,7 @@ async function main() {
   await integration.preflightCommercialInput(tenant.id, 'FACTURA_VENTA', { estado: 'EMITIDO', terceroId: customer.id, formaPago: 'CREDITO', fecha: DATE, detalles: [{ productoId: product.id, cantidad: 4, precioUnitario: 200, ivaPct: 19 }] });
   const sale = await commercial.createDocument(tenant.id, user.id, { tipo: 'FACTURA_VENTA', estado: 'EMITIDO', terceroId: customer.id, formaPago: 'CREDITO', fecha: DATE, fechaVencimiento: new Date('2026-09-09T12:00:00.000Z'), detalles: [{ productoId: product.id, cantidad: 4, precioUnitario: 200, ivaPct: 19 }] });
   assert.equal(n(sale.total), 952);
-  assert.equal(n(sale.cartera.saldo), 952);
+  assert.equal(n(sale.cartera?.[0]?.saldo), 952);
   assert.ok(sale.asiento.numeroComprobante.startsWith('AU-'));
   assert.equal(n(sale.asiento.totalDebito), n(sale.asiento.totalCredito));
   assert.ok(sale.asiento.detalles.some((x) => x.cuenta.codigo === '613505' && n(x.debito) === 400), 'Debe reconocer costo de venta');
@@ -100,7 +100,7 @@ async function main() {
   const retainedPurchase = await commercial.createDocument(tenant.id, user.id, { tipo: 'COMPRA', estado: 'EMITIDO', terceroId: supplier.id, formaPago: 'CREDITO', fecha: DATE, detalles: [{ descripcion: 'Servicio con retención', cantidad: 1, precioUnitario: 100, ivaPct: 19 }] });
   assert.equal(n(retainedPurchase.total), 119);
   assert.equal(n(retainedPurchase.retencionTotal), 2.5);
-  assert.equal(n(retainedPurchase.cartera.saldo), 116.5);
+  assert.equal(n(retainedPurchase.cartera?.[0]?.saldo), 116.5);
   assert.ok(retainedPurchase.asiento.detalles.some((x) => x.conceptoRetencionId));
 
   // Aplicación múltiple atómica: dos ventas del mismo cliente y un solo comando.
