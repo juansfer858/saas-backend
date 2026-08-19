@@ -101,8 +101,24 @@ function natureApplies(tipoOperacion, naturaleza) {
 }
 
 function retentionBase(concept, base, ivaValue) {
-  // ReteIVA se calcula sobre el IVA. Retefuente y ReteICA usan la base antes de IVA.
   return concept.tipo === 'RETEIVA' ? money(ivaValue || 0) : money(base);
+}
+
+async function saleResponsibleToWithhold(client, tenantId, tercero) {
+  if (!tercero) return null;
+  try {
+    const rows = await client.$queryRawUnsafe(
+      `SELECT "responsableRetener" FROM "TerceroOperacion" WHERE "tenantId"=$1 AND "terceroId"=$2 LIMIT 1`,
+      tenantId,
+      tercero.id
+    );
+    return rows.length ? Boolean(rows[0].responsableRetener) : null;
+  } catch (error) {
+    // Compatibilidad: tenants/entornos que aún no han ejecutado el bootstrap V3
+    // continúan usando la bandera fiscal existente hasta crear TerceroOperacion.
+    if (error?.code === '42P01' || error?.meta?.code === '42P01' || /TerceroOperacion.*does not exist/i.test(error?.message || '')) return null;
+    return null;
+  }
 }
 
 async function calculateTaxesWithClient(client, tenantId, input) {
@@ -139,10 +155,15 @@ async function calculateTaxesWithClient(client, tenantId, input) {
   const concepts = await client.conceptoRetencion.findMany({ where, include: { cuenta: true } });
   const retenciones = [];
   const ivaValue = input.ivaValue !== undefined && input.ivaValue !== null ? money(input.ivaValue) : money(iva?.valor || 0);
+  const saleRetainer = input.tipoOperacion === 'VENTA' ? await saleResponsibleToWithhold(client, tenantId, tercero) : null;
 
   for (const c of concepts) {
     if (!natureApplies(input.tipoOperacion, c.naturaleza)) continue;
-    if (!explicit && !thirdPartyApplies(tercero, c.tipo)) continue;
+    if (!explicit) {
+      let applies = thirdPartyApplies(tercero, c.tipo);
+      if (input.tipoOperacion === 'VENTA' && c.tipo === 'RETEFUENTE' && saleRetainer !== null) applies = saleRetainer;
+      if (!applies) continue;
+    }
     const baseAplicada = retentionBase(c, base, ivaValue);
     if (baseAplicada.lt(c.baseMinima)) continue;
     const value = money(baseAplicada.mul(c.porcentaje).div(100));
@@ -203,11 +224,8 @@ async function createFiscalJournal(tenantId, userId, input) {
     const tax = await calculateTaxesWithClient(tx, tenantId, input);
     const details = [];
     const base = money(input.base);
-    if (input.tipoOperacion === 'COMPRA') {
-      details.push({ cuentaId: baseAccount.id, terceroId: input.terceroId || null, debito: base, credito: 0, concepto: 'Base compra' });
-    } else {
-      details.push({ cuentaId: baseAccount.id, terceroId: input.terceroId || null, debito: 0, credito: base, concepto: 'Base venta' });
-    }
+    if (input.tipoOperacion === 'COMPRA') details.push({ cuentaId: baseAccount.id, terceroId: input.terceroId || null, debito: base, credito: 0, concepto: 'Base compra' });
+    else details.push({ cuentaId: baseAccount.id, terceroId: input.terceroId || null, debito: 0, credito: base, concepto: 'Base venta' });
     if (tax.iva && money(tax.iva.valor).gt(0)) {
       details.push({
         cuentaId: tax.iva.cuentaId,
@@ -219,22 +237,10 @@ async function createFiscalJournal(tenantId, userId, input) {
       });
     }
     for (const r of tax.retenciones) {
-      details.push({
-        cuentaId: r.cuentaId,
-        terceroId: input.terceroId || null,
-        conceptoRetencionId: r.conceptoId,
-        debito: r.debito,
-        credito: r.credito,
-        concepto: `${r.codigo} ${r.porcentaje}%`
-      });
+      details.push({ cuentaId: r.cuentaId, terceroId: input.terceroId || null, conceptoRetencionId: r.conceptoId, debito: r.debito, credito: r.credito, concepto: `${r.codigo} ${r.porcentaje}%` });
     }
-
-    let debit = decimal(0);
-    let credit = decimal(0);
-    for (const line of details) {
-      debit = debit.plus(line.debito || 0);
-      credit = credit.plus(line.credito || 0);
-    }
+    let debit = decimal(0), credit = decimal(0);
+    for (const line of details) { debit = debit.plus(line.debito || 0); credit = credit.plus(line.credito || 0); }
     const delta = money(debit.minus(credit));
     if (delta.eq(0)) throw new AppError(409, 'El asiento fiscal no requiere contrapartida', 'ACCOUNTING_FISCAL_SETTLEMENT_ZERO');
     if (delta.gt(0)) details.push({ cuentaId: settlementAccount.id, terceroId: input.terceroId || null, debito: 0, credito: delta, concepto: 'Contrapartida neta fiscal' });
