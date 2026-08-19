@@ -13,11 +13,13 @@ function parse(schema, value) {
   return result.data;
 }
 
+// Compras exige proveedor. Ventas conserva la compatibilidad existente con el
+// cliente genérico cuando no se envía tercero; esta fase no modifica Ventas.
 function requireBusinessThirdParty(input) {
-  if (['FACTURA_VENTA', 'COMPRA'].includes(input.tipo) && !input.terceroId) {
+  if (input.tipo === 'COMPRA' && !input.terceroId) {
     throw new AppError(
       400,
-      input.tipo === 'FACTURA_VENTA' ? 'La venta requiere seleccionar un cliente' : 'La compra requiere seleccionar un proveedor',
+      'La compra requiere seleccionar un proveedor',
       'COMMERCIAL_THIRD_PARTY_REQUIRED',
       { tipo: input.tipo }
     );
