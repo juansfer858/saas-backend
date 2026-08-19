@@ -22,6 +22,8 @@ function rangeWhere(desde, hasta) {
 }
 
 function postedJournalFilter(extra = {}) {
+  // Un asiento ANULADO conserva su efecto histórico y queda neutralizado por
+  // su asiento de reversión. Excluir el original dejaría solo el reverso.
   return { estado: { in: ['CONTABILIZADO', 'ANULADO'] }, ...extra };
 }
 
@@ -29,6 +31,13 @@ function normalBalance(account, debit, credit) {
   return account.naturaleza === 'DEBITO'
     ? money(decimal(debit).minus(credit))
     : money(decimal(credit).minus(debit));
+}
+
+function statementBalance(account, debit, credit) {
+  const c = account.clasificacionESF || '';
+  if (c.startsWith('ACTIVO')) return money(decimal(debit).minus(credit));
+  if (c.startsWith('PASIVO') || c === 'PATRIMONIO') return money(decimal(credit).minus(debit));
+  return normalBalance(account, debit, credit);
 }
 
 function absNumber(v) {
@@ -53,9 +62,7 @@ function compareValue(actual, previous) {
 }
 
 async function loadDetailRows(tenantId, { desde, hasta, corte, excludeClosing = false, accountWhere = {} } = {}) {
-  const fecha = corte
-    ? { lte: parseDate(corte, true) }
-    : rangeWhere(desde, hasta);
+  const fecha = corte ? { lte: parseDate(corte, true) } : rangeWhere(desde, hasta);
   const asiento = postedJournalFilter({});
   if (fecha) asiento.fecha = fecha;
   if (excludeClosing) asiento.origen = { not: 'CIERRE' };
@@ -164,9 +171,7 @@ async function profitAndLoss(tenantId, filters = {}) {
   const impuestoContabilizado = sum('IMPUESTO_RENTA');
   const tasa = decimal(config?.tasaImpuestoRenta || 0);
   const usarEstimado = impuestoContabilizado.eq(0) && tasa.gt(0) && utilidadAntesImpuestos.gt(0);
-  const impuestoRenta = usarEstimado
-    ? money(utilidadAntesImpuestos.mul(tasa).div(100))
-    : impuestoContabilizado;
+  const impuestoRenta = usarEstimado ? money(utilidadAntesImpuestos.mul(tasa).div(100)) : impuestoContabilizado;
   const utilidadNeta = money(utilidadAntesImpuestos.minus(impuestoRenta));
 
   const result = {
@@ -223,7 +228,14 @@ async function balanceSheet(tenantId, filters = {}) {
     corte: filters.corte,
     accountWhere: { clasificacionESF: { in: ['ACTIVO_CORRIENTE', 'ACTIVO_NO_CORRIENTE', 'PASIVO_CORRIENTE', 'PASIVO_NO_CORRIENTE', 'PATRIMONIO'] } }
   });
-  const accounts = aggregateByAccount(rows);
+  const baseAccounts = aggregateByAccount(rows);
+  // Para ESF el signo lo define el lado del estado, no la naturaleza de la
+  // cuenta individual. Esto presenta correctamente contra-activos y cuentas
+  // puente con naturaleza contraria (depreciación acumulada, IVA descontable).
+  const accounts = baseAccounts.map((x) => ({
+    ...x,
+    saldo: statementBalance(x.cuenta, x.debito, x.credito)
+  }));
   const groups = {
     ACTIVO_CORRIENTE: [], ACTIVO_NO_CORRIENTE: [], PASIVO_CORRIENTE: [], PASIVO_NO_CORRIENTE: [], PATRIMONIO: []
   };
@@ -286,6 +298,7 @@ module.exports = {
   rangeWhere,
   postedJournalFilter,
   normalBalance,
+  statementBalance,
   aggregateByAccount,
   loadDetailRows,
   trialBalance,
