@@ -1,0 +1,9 @@
+{
+  "name": "vantixgc-local-print-spooler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local RAW ESC-POS bridge for VantixGC restaurant LAN printers",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22" }
+}
