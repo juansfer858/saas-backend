@@ -263,7 +263,7 @@ async function balanceSheet(tenantId, filters = {}) {
 
   const result = {
     corte: filters.corte,
-    grupos,
+    grupos: groups,
     activoCorriente,
     activoNoCorriente,
     totalActivo,
