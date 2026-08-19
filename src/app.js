@@ -10,11 +10,11 @@ const { errorHandler } = require('./middleware/error-handler');
 const app = express();
 const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
 const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
+const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
+const panelIntegrationExtrasPath = path.join(__dirname, 'web', 'panel-integration-extras.js');
 
 app.disable('x-powered-by');
 app.use(cors());
-// Soportes contables se envían en base64 y están limitados a 5 MB en servicio.
-// 8 MB permite el overhead de base64 sin abrir cargas arbitrariamente grandes.
 app.use(express.json({ limit: '8mb' }));
 
 app.get('/', (_req, res) => {
@@ -38,10 +38,12 @@ app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
 });
 
-// Guard de resiliencia del módulo contable. Se sirve como recurso separado para
-// corregir carga/errores sin reescribir la suite existente.
 app.get('/app/accounting-runtime-guard.js', (_req, res) => {
   res.type('application/javascript').sendFile(accountingGuardPath);
+});
+
+app.get('/app/panel-integration-extras.js', (_req, res) => {
+  res.type('application/javascript').sendFile(panelIntegrationExtrasPath);
 });
 
 app.get('/app/contabilidad', async (_req, res, next) => {
@@ -57,8 +59,17 @@ app.get('/app/contabilidad', async (_req, res, next) => {
   }
 });
 
-app.use('/app', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'web', 'panel.html'));
+app.use('/app', async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(panelHtmlPath, 'utf8');
+    const integrationTag = '<script src="/app/panel-integration-extras.js?v=core-accounting-integration-v1"></script>';
+    const rendered = html.includes('</body>')
+      ? html.replace('</body>', `${integrationTag}</body>`)
+      : `${html}${integrationTag}`;
+    res.type('html').send(rendered);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/v1/status', async (_req, res) => {
@@ -85,7 +96,8 @@ app.get('/api/v1/status', async (_req, res) => {
         bankReconciliation: 'READY',
         adminPanel: 'READY',
         demoPanel: 'READY',
-        salesUi: 'READY'
+        salesUi: 'READY',
+        crossModuleAccounting: 'V1'
       }
     });
   } catch (_error) {
@@ -115,6 +127,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
 <div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
 <div class="grid"><span>Contabilidad V2 — PUC + Diario + Mayor + Estados + Cierres + Impuestos</span><span class="ok">READY</span></div>
+<div class="grid"><span>Integración contable transversal AU</span><span class="ok">V1</span></div>
 <div class="grid"><span>Activos fijos + Conciliación + Auditoría</span><span class="ok">READY</span></div>
 <div class="grid"><span>Panel Web</span><span class="ok">READY</span></div>
 <a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
