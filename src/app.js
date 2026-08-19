@@ -19,6 +19,7 @@ app.get('/', (_req, res) => {
     api: '/api/v1',
     statusPage: '/status',
     adminApp: '/app/dashboard',
+    demoApp: '/app/demo',
     salesApp: '/app/ventas',
     accountingApp: '/app/contabilidad'
   });
@@ -26,6 +27,11 @@ app.get('/', (_req, res) => {
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'saas-backend' });
+});
+
+// Vista pública y de solo lectura para revisar la estructura del Super Core.
+app.get('/app/demo', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'web', 'demo.html'));
 });
 
 // SPA administrativa del Super Core. El mismo layout atiende rutas profundas
@@ -51,6 +57,7 @@ app.get('/api/v1/status', async (_req, res) => {
         commercialLifecycle: 'READY',
         accounting: 'READY',
         adminPanel: 'READY',
+        demoPanel: 'READY',
         salesUi: 'READY'
       }
     });
@@ -82,7 +89,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
 <div class="grid"><span>Contabilidad PUC</span><span class="ok">READY</span></div>
 <div class="grid"><span>Panel Web</span><span class="ok">READY</span></div>
-<a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
+<a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
 <div class="muted">Despliegue automático GitHub → Coolify</div></div></body></html>`);
 });
 
