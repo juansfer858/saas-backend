@@ -11,6 +11,9 @@ router.put('/productos/:id', controller.updateProduct);
 router.delete('/productos/:id', controller.deactivateProduct);
 
 router.get('/kardex', controller.listMovements);
+// Compatibilidad interna/QA. Los ajustes de usuario deben usar /ajustes para
+// garantizar justificación + asiento AU en la misma transacción.
 router.post('/kardex', controller.createMovement);
+router.post('/ajustes', controller.createAccountedAdjustment);
 
 module.exports = { inventoryRouter: router };
