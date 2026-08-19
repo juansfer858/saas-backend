@@ -50,6 +50,22 @@ enum EstadoCartera {
   ANULADA
 }
 
+enum TipoMovimientoCartera {
+  CARGO
+  ABONO
+  AJUSTE_DEBITO
+  AJUSTE_CREDITO
+  ANULACION
+}
+
+enum TipoMovimientoTesoreria {
+  INGRESO
+  EGRESO
+  TRASLADO_ENTRADA
+  TRASLADO_SALIDA
+  AJUSTE
+}
+
 enum TipoComprobanteComercial {
   COTIZACION
   FACTURA_VENTA
@@ -89,6 +105,17 @@ enum EstadoAsiento {
   ANULADO
 }
 
+enum OrigenAsiento {
+  MANUAL
+  AUTOMATICO
+  REVERSO
+}
+
+enum EstadoPeriodoContable {
+  ABIERTO
+  CERRADO
+}
+
 model Tenant {
   id            String   @id @default(uuid())
   nit           String?
@@ -107,10 +134,13 @@ model Tenant {
   movimientosInventario MovimientoInventario[]
   cajasBancos           CajaBanco[]
   aperturasCierres      AperturaCierreCaja[]
+  movimientosTesoreria  MovimientoTesoreria[]
   cartera               Cartera[]
+  movimientosCartera    MovimientoCartera[]
   comprobantes          ComprobanteComercial[]
   detallesComprobante   DetalleComprobante[]
   cuentasPUC            CuentaPUC[]
+  periodosContables     PeriodoContable[]
   asientos              AsientoContable[]
   detallesAsiento       DetalleAsiento[]
   mapeosContables       MapeoContable[]
@@ -132,6 +162,7 @@ model User {
   asientos     AsientoContable[]
 
   @@unique([tenantId, email])
+  @@unique([tenantId, id])
   @@index([tenantId, rol])
 }
 
@@ -151,12 +182,13 @@ model Tercero {
   activo          Boolean     @default(true)
   creadoEn        DateTime    @default(now())
 
-  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  comprobantes  ComprobanteComercial[]
-  cartera       Cartera[]
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  comprobantes    ComprobanteComercial[]
+  cartera         Cartera[]
   detallesAsiento DetalleAsiento[]
 
   @@unique([tenantId, identificacion])
+  @@unique([tenantId, id])
   @@index([tenantId, tipo])
   @@index([tenantId, nombre])
 }
@@ -186,6 +218,7 @@ model Producto {
   detalles    DetalleComprobante[]
 
   @@unique([tenantId, sku])
+  @@unique([tenantId, id])
   @@index([tenantId, codigoBarras])
   @@index([tenantId, nombre])
 }
@@ -206,32 +239,35 @@ model MovimientoInventario {
   referencia            String?
   creadoEn              DateTime                  @default(now())
 
-  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  producto     Producto               @relation(fields: [productoId], references: [id], onDelete: Restrict)
-  comprobante  ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  producto    Producto               @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  comprobante ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, id])
   @@index([tenantId, productoId, creadoEn])
   @@index([tenantId, comprobanteId])
 }
 
 model CajaBanco {
-  id                String        @id @default(uuid())
-  tenantId          String
-  tipo              TipoCajaBanco
-  nombre            String
-  banco             String?
-  numeroCuenta      String?
-  cuentaContableId  String?
-  saldoActual       Decimal       @default(0) @db.Decimal(18, 2)
-  activo            Boolean       @default(true)
-  creadoEn          DateTime      @default(now())
+  id               String        @id @default(uuid())
+  tenantId         String
+  tipo             TipoCajaBanco
+  nombre           String
+  banco            String?
+  numeroCuenta     String?
+  cuentaContableId String?
+  saldoActual      Decimal       @default(0) @db.Decimal(18, 2)
+  activo           Boolean       @default(true)
+  creadoEn         DateTime      @default(now())
 
-  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  cuentaContable  CuentaPUC?             @relation(fields: [cuentaContableId], references: [id], onDelete: Restrict)
-  aperturas       AperturaCierreCaja[]
-  comprobantes    ComprobanteComercial[]
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  cuentaContable       CuentaPUC?             @relation(fields: [cuentaContableId], references: [id], onDelete: Restrict)
+  aperturas            AperturaCierreCaja[]
+  comprobantes         ComprobanteComercial[]
+  movimientosTesoreria MovimientoTesoreria[]
 
   @@unique([tenantId, nombre])
+  @@unique([tenantId, id])
   @@index([tenantId, tipo])
 }
 
@@ -251,34 +287,81 @@ model AperturaCierreCaja {
   abiertoEn        DateTime        @default(now())
   cerradoEn        DateTime?
 
-  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  cajaBanco  CajaBanco @relation(fields: [cajaBancoId], references: [id], onDelete: Restrict)
-  user       User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  cajaBanco CajaBanco @relation(fields: [cajaBancoId], references: [id], onDelete: Restrict)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
   @@index([tenantId, cajaBancoId, estado])
   @@index([tenantId, userId, abiertoEn])
 }
 
+model MovimientoTesoreria {
+  id            String                  @id @default(uuid())
+  tenantId      String
+  cajaBancoId   String
+  comprobanteId String?
+  tipo          TipoMovimientoTesoreria
+  monto         Decimal                 @db.Decimal(18, 2)
+  saldoAnterior Decimal                 @db.Decimal(18, 2)
+  saldoNuevo    Decimal                 @db.Decimal(18, 2)
+  referencia    String?
+  concepto      String?
+  creadoEn      DateTime                @default(now())
+
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  cajaBanco   CajaBanco              @relation(fields: [cajaBancoId], references: [id], onDelete: Restrict)
+  comprobante ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, cajaBancoId, creadoEn])
+  @@index([tenantId, comprobanteId])
+}
+
 model Cartera {
-  id             String        @id @default(uuid())
-  tenantId       String
-  terceroId      String
-  comprobanteId  String?
-  tipo           TipoCartera
-  estado         EstadoCartera @default(PENDIENTE)
-  valorOriginal  Decimal       @db.Decimal(18, 2)
-  saldo          Decimal       @db.Decimal(18, 2)
-  fechaEmision   DateTime      @default(now())
+  id               String        @id @default(uuid())
+  tenantId         String
+  terceroId        String
+  comprobanteId    String?
+  tipo             TipoCartera
+  estado           EstadoCartera @default(PENDIENTE)
+  valorOriginal    Decimal       @db.Decimal(18, 2)
+  saldo            Decimal       @db.Decimal(18, 2)
+  fechaEmision     DateTime      @default(now())
   fechaVencimiento DateTime?
-  referencia     String?
-  creadoEn       DateTime      @default(now())
+  referencia       String?
+  creadoEn         DateTime      @default(now())
 
   tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   tercero      Tercero                @relation(fields: [terceroId], references: [id], onDelete: Restrict)
   comprobante  ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
+  movimientos  MovimientoCartera[]
 
+  @@unique([tenantId, id])
   @@index([tenantId, tipo, estado])
   @@index([tenantId, terceroId])
+}
+
+model MovimientoCartera {
+  id            String                @id @default(uuid())
+  tenantId      String
+  carteraId     String
+  comprobanteId String?
+  tipo          TipoMovimientoCartera
+  valor         Decimal               @db.Decimal(18, 2)
+  saldoAnterior Decimal               @db.Decimal(18, 2)
+  saldoNuevo    Decimal               @db.Decimal(18, 2)
+  referencia    String?
+  concepto      String?
+  creadoEn      DateTime              @default(now())
+
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  cartera     Cartera                @relation(fields: [carteraId], references: [id], onDelete: Restrict)
+  comprobante ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, carteraId, creadoEn])
+  @@index([tenantId, comprobanteId])
 }
 
 model ComprobanteComercial {
@@ -286,6 +369,7 @@ model ComprobanteComercial {
   tenantId           String
   tipo               TipoComprobanteComercial
   numero             String
+  sourceId           String?
   estado             EstadoComprobante         @default(CONFIRMADO)
   terceroId          String?
   cajaBancoId        String?
@@ -308,59 +392,68 @@ model ComprobanteComercial {
   creadoPor             User                    @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
   detalles              DetalleComprobante[]
   movimientosInventario MovimientoInventario[]
+  movimientosTesoreria  MovimientoTesoreria[]
   cartera               Cartera[]
+  movimientosCartera    MovimientoCartera[]
   asiento               AsientoContable?
 
   @@unique([tenantId, tipo, numero])
+  @@unique([tenantId, sourceId])
+  @@unique([tenantId, id])
   @@index([tenantId, fecha])
   @@index([tenantId, terceroId])
 }
 
 model DetalleComprobante {
-  id                String   @id @default(uuid())
-  tenantId          String
-  comprobanteId     String
-  productoId        String?
-  descripcion       String
-  cantidad          Decimal  @default(1) @db.Decimal(18, 4)
-  precioUnitario    Decimal  @default(0) @db.Decimal(18, 2)
-  descuentoPct      Decimal  @default(0) @db.Decimal(7, 4)
-  ivaPct            Decimal  @default(0) @db.Decimal(7, 4)
-  impoconsumoPct    Decimal  @default(0) @db.Decimal(7, 4)
-  subtotalLinea     Decimal  @default(0) @db.Decimal(18, 2)
-  ivaValor          Decimal  @default(0) @db.Decimal(18, 2)
-  impoconsumoValor  Decimal  @default(0) @db.Decimal(18, 2)
-  totalLinea        Decimal  @default(0) @db.Decimal(18, 2)
-  costoUnitario     Decimal  @default(0) @db.Decimal(18, 4)
+  id               String  @id @default(uuid())
+  tenantId         String
+  comprobanteId    String
+  productoId       String?
+  descripcion      String
+  cantidad         Decimal @default(1) @db.Decimal(18, 4)
+  precioUnitario   Decimal @default(0) @db.Decimal(18, 2)
+  descuentoPct     Decimal @default(0) @db.Decimal(7, 4)
+  ivaPct           Decimal @default(0) @db.Decimal(7, 4)
+  impoconsumoPct   Decimal @default(0) @db.Decimal(7, 4)
+  subtotalLinea    Decimal @default(0) @db.Decimal(18, 2)
+  ivaValor         Decimal @default(0) @db.Decimal(18, 2)
+  impoconsumoValor Decimal @default(0) @db.Decimal(18, 2)
+  totalLinea       Decimal @default(0) @db.Decimal(18, 2)
+  costoUnitario    Decimal @default(0) @db.Decimal(18, 4)
 
-  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  comprobante  ComprobanteComercial @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
-  producto     Producto?             @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  comprobante ComprobanteComercial @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+  producto    Producto?             @relation(fields: [productoId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
   @@index([tenantId, comprobanteId])
   @@index([tenantId, productoId])
 }
 
 model CuentaPUC {
-  id               String            @id @default(uuid())
-  tenantId         String
-  codigo           String
-  nombre           String
-  nivel            NivelCuentaPUC
-  naturaleza       NaturalezaCuenta
-  parentId         String?
-  permiteMovimiento Boolean          @default(false)
-  activa           Boolean           @default(true)
-  creadoEn         DateTime          @default(now())
+  id                 String           @id @default(uuid())
+  tenantId           String
+  codigo             String
+  codigoReferencia   String?
+  nombre             String
+  nivel              NivelCuentaPUC
+  naturaleza         NaturalezaCuenta
+  parentId           String?
+  permiteMovimiento  Boolean          @default(false)
+  requiereTercero    Boolean          @default(false)
+  versionCatalogo    String           @default("CO-1")
+  activa             Boolean          @default(true)
+  creadoEn           DateTime         @default(now())
 
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  parent           CuentaPUC?        @relation("CuentaJerarquia", fields: [parentId], references: [id], onDelete: Restrict)
-  children         CuentaPUC[]       @relation("CuentaJerarquia")
-  cajasBancos      CajaBanco[]
-  detallesAsiento  DetalleAsiento[]
-  mapeos           MapeoContable[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  parent          CuentaPUC?       @relation("CuentaJerarquia", fields: [parentId], references: [id], onDelete: Restrict)
+  children        CuentaPUC[]      @relation("CuentaJerarquia")
+  cajasBancos     CajaBanco[]
+  detallesAsiento DetalleAsiento[]
+  mapeos          MapeoContable[]
 
   @@unique([tenantId, codigo])
+  @@unique([tenantId, id])
   @@index([tenantId, parentId])
   @@index([tenantId, nivel])
 }
@@ -376,47 +469,76 @@ model MapeoContable {
   cuenta CuentaPUC @relation(fields: [cuentaId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, clave])
+  @@unique([tenantId, id])
   @@index([tenantId, cuentaId])
 }
 
+model PeriodoContable {
+  id        String                 @id @default(uuid())
+  tenantId  String
+  anio      Int
+  mes       Int
+  estado    EstadoPeriodoContable @default(ABIERTO)
+  cerradoEn DateTime?
+  creadoEn  DateTime               @default(now())
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  asientos AsientoContable[]
+
+  @@unique([tenantId, anio, mes])
+  @@unique([tenantId, id])
+  @@index([tenantId, estado])
+}
+
 model AsientoContable {
-  id             String        @id @default(uuid())
-  tenantId       String
-  comprobanteId  String?       @unique
-  creadoPorId    String
-  fecha           DateTime      @default(now())
-  concepto        String
-  referencia      String?
-  estado          EstadoAsiento @default(CONTABILIZADO)
-  totalDebito     Decimal       @default(0) @db.Decimal(18, 2)
-  totalCredito    Decimal       @default(0) @db.Decimal(18, 2)
-  creadoEn        DateTime      @default(now())
+  id            String        @id @default(uuid())
+  tenantId      String
+  comprobanteId String?       @unique
+  periodoId     String?
+  reversoDeId   String?
+  creadoPorId   String
+  sourceId      String?
+  fecha         DateTime      @default(now())
+  concepto      String
+  referencia    String?
+  origen        OrigenAsiento @default(AUTOMATICO)
+  estado        EstadoAsiento @default(CONTABILIZADO)
+  totalDebito   Decimal       @default(0) @db.Decimal(18, 2)
+  totalCredito  Decimal       @default(0) @db.Decimal(18, 2)
+  creadoEn      DateTime      @default(now())
 
-  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  comprobante  ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
-  creadoPor    User                   @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
-  detalles     DetalleAsiento[]
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  comprobante ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
+  periodo     PeriodoContable?      @relation(fields: [periodoId], references: [id], onDelete: Restrict)
+  reversoDe   AsientoContable?      @relation("ReversosAsiento", fields: [reversoDeId], references: [id], onDelete: Restrict)
+  reversos    AsientoContable[]     @relation("ReversosAsiento")
+  creadoPor   User                   @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
+  detalles    DetalleAsiento[]
 
+  @@unique([tenantId, sourceId])
+  @@unique([tenantId, id])
   @@index([tenantId, fecha])
   @@index([tenantId, referencia])
+  @@index([tenantId, periodoId])
 }
 
 model DetalleAsiento {
-  id         String   @id @default(uuid())
-  tenantId   String
-  asientoId  String
-  cuentaId   String
-  terceroId  String?
-  concepto   String?
-  debito     Decimal  @default(0) @db.Decimal(18, 2)
-  credito    Decimal  @default(0) @db.Decimal(18, 2)
-  creadoEn   DateTime @default(now())
+  id        String   @id @default(uuid())
+  tenantId  String
+  asientoId String
+  cuentaId  String
+  terceroId String?
+  concepto  String?
+  debito    Decimal  @default(0) @db.Decimal(18, 2)
+  credito   Decimal  @default(0) @db.Decimal(18, 2)
+  creadoEn  DateTime @default(now())
 
-  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  asiento   AsientoContable @relation(fields: [asientoId], references: [id], onDelete: Cascade)
-  cuenta    CuentaPUC       @relation(fields: [cuentaId], references: [id], onDelete: Restrict)
-  tercero   Tercero?        @relation(fields: [terceroId], references: [id], onDelete: Restrict)
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  asiento AsientoContable @relation(fields: [asientoId], references: [id], onDelete: Cascade)
+  cuenta  CuentaPUC       @relation(fields: [cuentaId], references: [id], onDelete: Restrict)
+  tercero Tercero?        @relation(fields: [terceroId], references: [id], onDelete: Restrict)
 
+  @@unique([tenantId, id])
   @@index([tenantId, asientoId])
   @@index([tenantId, cuentaId])
   @@index([tenantId, terceroId])
