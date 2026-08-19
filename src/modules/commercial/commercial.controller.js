@@ -13,6 +13,18 @@ function parse(schema, value) {
   return result.data;
 }
 
+function requireBusinessThirdParty(input) {
+  if (['FACTURA_VENTA', 'COMPRA'].includes(input.tipo) && !input.terceroId) {
+    throw new AppError(
+      400,
+      input.tipo === 'FACTURA_VENTA' ? 'La venta requiere seleccionar un cliente' : 'La compra requiere seleccionar un proveedor',
+      'COMMERCIAL_THIRD_PARTY_REQUIRED',
+      { tipo: input.tipo }
+    );
+  }
+  return input;
+}
+
 function filtersFromQuery(query, forcedType) {
   return {
     tipo: forcedType || query.tipo,
@@ -33,7 +45,8 @@ function responsePage(res, result) {
 
 async function createDocument(req, res, next) {
   try {
-    const data = await service.createDocument(req.tenantId, req.userId, parse(commercialDocumentSchema, req.body));
+    const input = requireBusinessThirdParty(parse(commercialDocumentSchema, req.body));
+    const data = await service.createDocument(req.tenantId, req.userId, input);
     res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
 }
@@ -59,6 +72,8 @@ async function updateDocument(req, res, next) {
 
 async function emitDocument(req, res, next) {
   try {
+    const current = await service.getDocument(req.tenantId, req.params.id);
+    requireBusinessThirdParty(current);
     const data = await service.emitDocument(req.tenantId, req.userId, req.params.id);
     res.json({ ok: true, data });
   } catch (error) { next(error); }
@@ -87,7 +102,7 @@ async function replaceDocument(req, res, next) {
 function createTyped(type) {
   return async (req, res, next) => {
     try {
-      const input = parse(commercialDocumentSchema, { ...req.body, tipo: type });
+      const input = requireBusinessThirdParty(parse(commercialDocumentSchema, { ...req.body, tipo: type }));
       const data = await service.createDocument(req.tenantId, req.userId, input);
       res.status(201).json({ ok: true, data });
     } catch (error) { next(error); }
