@@ -6,7 +6,13 @@ const router = express.Router();
 
 router.get('/cuentas', controller.listAccounts);
 router.post('/cuentas', controller.createAccount);
+
 router.get('/asientos', controller.listJournals);
 router.post('/asientos', partidaDobleMiddleware, controller.createJournal);
+router.get('/asientos/:id', controller.getJournal);
+
+router.get('/mayor', controller.getLedger);
+router.get('/reportes/balance-prueba', controller.getTrialBalance);
+router.get('/reportes/estado-resultados', controller.getProfitAndLoss);
 
 module.exports = { accountingRouter: router };
