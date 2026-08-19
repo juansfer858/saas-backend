@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const { app } = require('./src/app');
 const { prisma } = require('./src/config/prisma');
-const dianService = require('./src/modules/platform/dian/dian.service');
+const dianTransmission = require('./src/modules/platform/dian/dian-transmission.service');
 
 const PORT = process.env.PORT || 3000;
 const DIAN_QUEUE_INTERVAL_MS = Math.max(Number(process.env.DIAN_QUEUE_INTERVAL_MS) || 60000, 10000);
@@ -16,7 +16,7 @@ async function runDianQueue() {
   if (dianWorkerBusy) return;
   dianWorkerBusy = true;
   try {
-    const processed = await dianService.processQueue(Number(process.env.DIAN_QUEUE_BATCH_SIZE) || 25);
+    const processed = await dianTransmission.processQueue(Number(process.env.DIAN_QUEUE_BATCH_SIZE) || 25);
     if (processed.length) console.log(`DIAN_QUEUE processed=${processed.length}`);
   } catch (error) {
     console.error(`DIAN_QUEUE_ERROR: ${error.message}`);
