@@ -9,6 +9,7 @@ on:
       - super-core-step2-middlewares-v2
       - super-core-step3-seed-v2
       - super-core-step4-api-v2
+      - super-core-integral-hardening-v1
   pull_request:
     branches:
       - main
@@ -92,3 +93,6 @@ jobs:
 
       - name: Run transactional lifecycle smoke test
         run: node scripts/step4-lifecycle-smoke.js
+
+      - name: Run integral hardening matrix
+        run: node scripts/integral-hardening-smoke.js
