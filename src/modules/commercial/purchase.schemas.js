@@ -11,7 +11,7 @@ const purchaseDraftSchema = z.object({
   proveedorId: z.string().uuid(),
   fecha: z.coerce.date(),
   referenciaExterna: z.string().trim().min(1).max(120),
-  condicionPagoDias: z.coerce.number().int().min(0).max(3650).default(0),
+  condicionPagoDias: z.coerce.number().int().min(0).max(3650).optional(),
   notas: z.string().trim().max(1000).optional().nullable(),
   detalles: z.array(purchaseLineSchema).min(1)
 });
