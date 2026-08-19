@@ -6,31 +6,46 @@ const { auditInTx } = require('./accounting-audit.service');
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
 
-async function addSupport(tenantId, userId, journalId, input) {
-  const journal = await prisma.asientoContable.findFirst({ where: { id: journalId, tenantId } });
-  if (!journal) throw new AppError(404, 'Asiento no encontrado', 'ACCOUNTING_JOURNAL_NOT_FOUND');
-  if (!ALLOWED.has(input.mimeType)) throw new AppError(400, 'Tipo de archivo no permitido', 'ACCOUNTING_SUPPORT_MIME_INVALID');
+function validateSupportInput(input) {
+  if (!input || !ALLOWED.has(input.mimeType)) throw new AppError(400, 'Tipo de archivo no permitido', 'ACCOUNTING_SUPPORT_MIME_INVALID');
   let buffer;
-  try { buffer = Buffer.from(input.base64, 'base64'); } catch (_error) { throw new AppError(400, 'Archivo inválido', 'ACCOUNTING_SUPPORT_INVALID'); }
+  try { buffer = Buffer.from(input.base64, 'base64'); }
+  catch (_error) { throw new AppError(400, 'Archivo inválido', 'ACCOUNTING_SUPPORT_INVALID'); }
   if (!buffer.length || buffer.length > MAX_BYTES) throw new AppError(400, 'El soporte debe pesar entre 1 byte y 5 MB', 'ACCOUNTING_SUPPORT_SIZE_INVALID');
+  return buffer;
+}
+
+async function addSupportInTx(tx, tenantId, userId, journalId, input) {
+  const journal = await tx.asientoContable.findFirst({ where: { id: journalId, tenantId } });
+  if (!journal) throw new AppError(404, 'Asiento no encontrado', 'ACCOUNTING_JOURNAL_NOT_FOUND');
+  const buffer = validateSupportInput(input);
   const hashSha256 = crypto.createHash('sha256').update(buffer).digest('hex');
-  return prisma.$transaction(async (tx) => {
-    const support = await tx.soporteAsiento.create({
-      data: {
-        tenantId,
-        asientoId: journalId,
-        subidoPorId: userId,
-        nombre: input.nombre,
-        mimeType: input.mimeType,
-        tamano: buffer.length,
-        hashSha256,
-        contenido: buffer
-      },
-      select: { id: true, asientoId: true, nombre: true, mimeType: true, tamano: true, hashSha256: true, creadoEn: true }
-    });
-    await auditInTx(tx, { tenantId, userId, entidad: 'ASIENTO', entidadId: journalId, accion: 'ADJUNTAR_SOPORTE', metadata: { soporteId: support.id, nombre: support.nombre, hashSha256 } });
-    return support;
+  const support = await tx.soporteAsiento.create({
+    data: {
+      tenantId,
+      asientoId: journalId,
+      subidoPorId: userId,
+      nombre: input.nombre,
+      mimeType: input.mimeType,
+      tamano: buffer.length,
+      hashSha256,
+      contenido: buffer
+    },
+    select: { id: true, asientoId: true, nombre: true, mimeType: true, tamano: true, hashSha256: true, creadoEn: true }
   });
+  await auditInTx(tx, {
+    tenantId,
+    userId,
+    entidad: 'ASIENTO',
+    entidadId: journalId,
+    accion: 'ADJUNTAR_SOPORTE',
+    metadata: { soporteId: support.id, nombre: support.nombre, hashSha256 }
+  });
+  return support;
+}
+
+async function addSupport(tenantId, userId, journalId, input) {
+  return prisma.$transaction((tx) => addSupportInTx(tx, tenantId, userId, journalId, input));
 }
 
 async function getSupport(tenantId, id) {
@@ -39,4 +54,4 @@ async function getSupport(tenantId, id) {
   return support;
 }
 
-module.exports = { addSupport, getSupport, MAX_BYTES, ALLOWED };
+module.exports = { addSupport, addSupportInTx, getSupport, validateSupportInput, MAX_BYTES, ALLOWED };
