@@ -52,6 +52,10 @@ adminRouter.get('/tenants', async (_req, res, next) => {
   try { res.json({ ok: true, data: await service.listTenants() }); }
   catch (error) { next(error); }
 });
+adminRouter.get('/tenants/:tenantId/users', async (req, res, next) => {
+  try { res.json({ ok: true, data: await service.listTenantUsers(req.params.tenantId) }); }
+  catch (error) { next(error); }
+});
 adminRouter.put('/tenants/:tenantId/estado', async (req, res, next) => {
   try {
     const input = parse(activeSchema, req.body);
