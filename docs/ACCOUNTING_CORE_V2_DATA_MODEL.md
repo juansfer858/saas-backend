@@ -87,6 +87,32 @@ Por tenant:
 
 Los impuestos son configurables; el motor puede calcular líneas automáticas en comprobantes manuales a partir de base + tarifa/concepto.
 
+### Liquidación fiscal automática de comprobantes comerciales
+Para que compras/ventas automáticas puedan aplicar retenciones sin alterar el valor bruto documental:
+
+#### ComprobanteComercial (extensión)
+- `retencionTotal`: suma de retenciones aplicadas al documento.
+- `netoPagar`: valor realmente pagado/cobrado o llevado a cartera después de retenciones.
+
+#### RetencionComprobante
+Una fila por concepto de retención aplicado a un documento:
+- tenant.
+- comprobante.
+- concepto de retención parametrizado.
+- tercero.
+- base de cálculo.
+- porcentaje congelado al momento del documento.
+- valor calculado.
+- naturaleza `PAGAR`/`COBRAR` congelada.
+
+Relación: `ComprobanteComercial 1—N RetencionComprobante` y `ConceptoRetencion 1—N RetencionComprobante`.
+
+Regla transaccional:
+- Venta: si una retención `COBRAR` aplica, se debita la cuenta de retención a favor y solo el neto queda en Caja/Banco/CxC.
+- Compra: si una retención `PAGAR` aplica, se acredita la cuenta de retención por pagar y solo el neto se paga o queda en CxP.
+- `total` siempre conserva el valor bruto fiscal del documento; `netoPagar = total - retencionTotal`.
+- El motor comercial y contable usan la misma colección congelada de retenciones dentro de la misma transacción; no recalculan después de emitido.
+
 ## 6. Activos fijos y depreciación
 
 ### ActivoFijo
@@ -139,7 +165,7 @@ Reglas:
 
 Se implementa una capa de exportación sin alterar los cálculos:
 - Excel compatible: descarga `.xls` tabular generada desde el dataset del reporte.
-- PDF: versión HTML imprimible desde el mismo dataset, consumida por el navegador para Guardar como PDF.
+- PDF: archivo PDF derivado del mismo dataset del reporte.
 
 ## 11. Integridad
 
@@ -150,3 +176,4 @@ Se implementa una capa de exportación sin alterar los cálculos:
 - Numeración asignada dentro de transacción.
 - Periodo cerrado bloquea nuevos asientos.
 - Toda acción sensible deja `AuditoriaContable`.
+- Las retenciones de documentos emitidos quedan congeladas en `RetencionComprobante`; cambios posteriores de tarifas no alteran documentos históricos.
