@@ -51,4 +51,13 @@ async function update(req, res, next) {
   }
 }
 
-module.exports = { create, list, getById, update };
+async function deactivate(req, res, next) {
+  try {
+    const data = await service.deactivate(req.tenantId, req.params.id);
+    res.json({ ok: true, data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { create, list, getById, update, deactivate };
