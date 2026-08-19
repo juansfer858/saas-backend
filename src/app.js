@@ -36,7 +36,9 @@ app.get('/api/v1/status', async (_req, res) => {
         thirdParties: 'READY',
         inventory: 'READY',
         treasury: 'READY',
-        commercial: 'READY',
+        payments: 'READY',
+        receivablesPayables: 'READY',
+        commercialLifecycle: 'READY',
         accounting: 'READY'
       }
     });
@@ -63,7 +65,9 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Terceros</span><span class="ok">READY</span></div>
 <div class="grid"><span>Inventario / Kardex</span><span class="ok">READY</span></div>
 <div class="grid"><span>Tesorería / Cartera</span><span class="ok">READY</span></div>
-<div class="grid"><span>Motor Comercial</span><span class="ok">READY</span></div>
+<div class="grid"><span>Pagos / Abonos</span><span class="ok">READY</span></div>
+<div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
+<div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
 <div class="grid"><span>Contabilidad PUC</span><span class="ok">READY</span></div></div>
 <div class="muted">Despliegue automático GitHub → Coolify</div></div></body></html>`);
 });
