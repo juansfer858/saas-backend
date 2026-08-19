@@ -5,6 +5,7 @@ const inventoryService = require('../inventory/inventory.service');
 const treasuryService = require('../treasury/treasury.service');
 const treasuryReversalService = require('../treasury/treasury-reversal.service');
 const accountingService = require('../accounting/accounting.service');
+const accountingTaxService = require('../accounting/accounting-tax.service');
 
 const PREFIX = {
   COTIZACION: 'COT',
@@ -127,11 +128,11 @@ async function settlementAccount(tx, tenantId, type, formaPago, cajaBancoId) {
   return accountingService.getMappedAccount(tx, tenantId, caja.tipo === 'BANCO' ? 'BANCO_GENERAL' : 'CAJA_GENERAL');
 }
 
-function addLine(lines, cuentaId, debito, credito, terceroId, concepto) {
+function addLine(lines, cuentaId, debito, credito, terceroId, concepto, extra = {}) {
   const d = money(debito || 0);
   const c = money(credito || 0);
   if (d.eq(0) && c.eq(0)) return;
-  lines.push({ cuentaId, terceroId: terceroId || null, concepto, debito: d, credito: c });
+  lines.push({ cuentaId, terceroId: terceroId || null, concepto, debito: d, credito: c, ...extra });
 }
 
 async function createAccountingForDocument(tx, params) {
@@ -147,11 +148,13 @@ async function createAccountingForDocument(tx, params) {
     impoconsumoTotal,
     inventoryBase,
     expenseBase,
-    costOfSales
+    costOfSales,
+    fiscal
   } = params;
 
   const lines = [];
   const settlement = await settlementAccount(tx, tenantId, comprobante.tipo, formaPago, cajaBancoId);
+  const netSettlement = money(fiscal?.neto ?? comprobante.total);
 
   if (comprobante.tipo === 'FACTURA_VENTA') {
     const sales = await accountingService.getMappedAccount(tx, tenantId, 'VENTAS');
@@ -160,7 +163,10 @@ async function createAccountingForDocument(tx, params) {
       ? await accountingService.getMappedAccount(tx, tenantId, 'IMPOCONSUMO_VENTA')
       : null;
 
-    addLine(lines, settlement.id, comprobante.total, 0, tercero?.id, `Cobro/cliente ${comprobante.numero}`);
+    addLine(lines, settlement.id, netSettlement, 0, tercero?.id, `Cobro/cliente neto ${comprobante.numero}`);
+    for (const retention of fiscal?.retenciones || []) {
+      addLine(lines, retention.cuentaId, retention.debito, retention.credito, tercero?.id, `${retention.codigo} ${retention.porcentaje}% ${comprobante.numero}`, { conceptoRetencionId: retention.conceptoId });
+    }
     addLine(lines, sales.id, 0, subtotal, tercero?.id, `Venta ${comprobante.numero}`);
     if (vat) addLine(lines, vat.id, 0, ivaTotal, tercero?.id, `IVA ${comprobante.numero}`);
     if (consumption) addLine(lines, consumption.id, 0, impoconsumoTotal, tercero?.id, `Impoconsumo ${comprobante.numero}`);
@@ -192,7 +198,10 @@ async function createAccountingForDocument(tx, params) {
       addLine(lines, consumption.id, impoconsumoTotal, 0, tercero?.id, `Impoconsumo compra ${comprobante.numero}`);
     }
 
-    addLine(lines, settlement.id, 0, comprobante.total, tercero?.id, `Pago/proveedor ${comprobante.numero}`);
+    for (const retention of fiscal?.retenciones || []) {
+      addLine(lines, retention.cuentaId, retention.debito, retention.credito, tercero?.id, `${retention.codigo} ${retention.porcentaje}% ${comprobante.numero}`, { conceptoRetencionId: retention.conceptoId });
+    }
+    addLine(lines, settlement.id, 0, netSettlement, tercero?.id, `Pago/proveedor neto ${comprobante.numero}`);
   }
 
   return accountingService.createJournalInTx(tx, {
@@ -219,6 +228,24 @@ function lineInputFromStored(detail) {
   };
 }
 
+function enrichDocumentFiscal(document) {
+  if (!document) return document;
+  const retentionLines = (document.asiento?.detalles || []).filter((line) => line.conceptoRetencionId && line.conceptoRetencion);
+  const retenciones = retentionLines.map((line) => ({
+    detalleAsientoId: line.id,
+    conceptoId: line.conceptoRetencionId,
+    codigo: line.conceptoRetencion.codigo,
+    nombre: line.conceptoRetencion.nombre,
+    tipo: line.conceptoRetencion.tipo,
+    porcentajeConfiguradoActual: line.conceptoRetencion.porcentaje,
+    valor: money(decimal(line.debito).plus(line.credito)),
+    debito: line.debito,
+    credito: line.credito
+  }));
+  const retencionTotal = money(retenciones.reduce((acc, x) => acc.plus(x.valor), decimal(0)));
+  return { ...document, retenciones, retencionTotal, netoPagar: money(decimal(document.total || 0).minus(retencionTotal)) };
+}
+
 async function getDocumentInTx(tx, tenantId, id) {
   const document = await tx.comprobanteComercial.findFirst({
     where: { id, tenantId },
@@ -230,14 +257,14 @@ async function getDocumentInTx(tx, tenantId, id) {
       movimientosTesoreria: true,
       cartera: { include: { movimientos: true } },
       pagosRecibidos: { include: { comprobanteTesoreria: true, cajaBanco: true } },
-      asiento: { include: { detalles: { include: { cuenta: true, tercero: true } } } },
+      asiento: { include: { detalles: { include: { cuenta: true, tercero: true, conceptoRetencion: { select: { id: true, codigo: true, nombre: true, tipo: true, porcentaje: true, naturaleza: true } } } } } },
       ajustes: true,
       documentoOrigen: true
     }
   });
 
   if (!document) throw new AppError(404, 'Comprobante no encontrado', 'COMMERCIAL_DOCUMENT_NOT_FOUND');
-  return document;
+  return enrichDocumentFiscal(document);
 }
 
 async function createDocumentRecordInTx(tx, tenantId, userId, input) {
@@ -301,16 +328,11 @@ async function emitDocumentEffectsInTx(tx, tenantId, userId, documentData) {
   const { comprobante, tercero, lines, subtotal, ivaTotal, impoconsumoTotal, total } = documentData;
 
   if (!TRANSACTIONAL_TYPES.has(comprobante.tipo)) {
-    const updated = await tx.comprobanteComercial.update({
-      where: { id: comprobante.id },
-      data: { estado: 'EMITIDO', emitidoEn: new Date() }
-    });
+    const updated = await tx.comprobanteComercial.update({ where: { id: comprobante.id }, data: { estado: 'EMITIDO', emitidoEn: new Date() } });
     return getDocumentInTx(tx, tenantId, updated.id);
   }
 
-  if (!comprobante.formaPago) {
-    throw new AppError(400, 'Factura/Compra requiere forma de pago', 'PAYMENT_METHOD_REQUIRED');
-  }
+  if (!comprobante.formaPago) throw new AppError(400, 'Factura/Compra requiere forma de pago', 'PAYMENT_METHOD_REQUIRED');
 
   let costOfSales = money(0);
   let inventoryBase = money(0);
@@ -327,21 +349,25 @@ async function emitDocumentEffectsInTx(tx, tenantId, userId, documentData) {
         costoUnitario: comprobante.tipo === 'COMPRA' ? line.purchaseNetUnit : undefined,
         referencia: comprobante.numero
       });
-
-      if (comprobante.tipo === 'FACTURA_VENTA') {
-        costOfSales = money(costOfSales.plus(movementResult.costOfMovement));
-      } else {
-        inventoryBase = money(inventoryBase.plus(line.subtotal));
-      }
+      if (comprobante.tipo === 'FACTURA_VENTA') costOfSales = money(costOfSales.plus(movementResult.costOfMovement));
+      else inventoryBase = money(inventoryBase.plus(line.subtotal));
     } else if (comprobante.tipo === 'COMPRA') {
       expenseBase = money(expenseBase.plus(line.subtotal));
     }
   }
 
+  const fiscal = await accountingTaxService.calculateCommercialRetentionsInTx(tx, tenantId, {
+    tercero,
+    tipoOperacion: comprobante.tipo === 'COMPRA' ? 'COMPRA' : 'VENTA',
+    subtotal,
+    ivaTotal,
+    total
+  });
+
   await treasuryService.applyCommercialSettlement(tx, {
     tenantId,
     userId,
-    comprobante,
+    comprobante: { ...comprobante, total: fiscal.neto },
     terceroId: tercero?.id || null,
     formaPago: comprobante.formaPago,
     cajaBancoId: comprobante.cajaBancoId || null
@@ -359,16 +385,13 @@ async function emitDocumentEffectsInTx(tx, tenantId, userId, documentData) {
     impoconsumoTotal,
     inventoryBase,
     expenseBase,
-    costOfSales
+    costOfSales,
+    fiscal
   });
 
   await tx.comprobanteComercial.update({
     where: { id: comprobante.id },
-    data: {
-      estado: 'EMITIDO',
-      emitidoEn: new Date(),
-      saldo: comprobante.formaPago === 'CREDITO' ? total : 0
-    }
+    data: { estado: 'EMITIDO', emitidoEn: new Date(), saldo: comprobante.formaPago === 'CREDITO' ? fiscal.neto : 0 }
   });
 
   return getDocumentInTx(tx, tenantId, comprobante.id);
@@ -381,9 +404,7 @@ async function createDocumentInTx(tx, tenantId, userId, input) {
   }
 
   const record = await createDocumentRecordInTx(tx, tenantId, userId, input);
-  if (requestedState(input) === 'EMITIDO') {
-    return emitDocumentEffectsInTx(tx, tenantId, userId, record);
-  }
+  if (requestedState(input) === 'EMITIDO') return emitDocumentEffectsInTx(tx, tenantId, userId, record);
   return getDocumentInTx(tx, tenantId, record.comprobante.id);
 }
 
@@ -394,10 +415,7 @@ async function createDocument(tenantId, userId, input) {
 async function emitDocument(tenantId, userId, id) {
   return prisma.$transaction(async (tx) => {
     const document = await getDocumentInTx(tx, tenantId, id);
-    if (document.estado !== 'BORRADOR') {
-      throw new AppError(409, 'Solo un borrador puede emitirse', 'COMMERCIAL_NOT_DRAFT');
-    }
-
+    if (document.estado !== 'BORRADOR') throw new AppError(409, 'Solo un borrador puede emitirse', 'COMMERCIAL_NOT_DRAFT');
     const lines = await buildLines(tx, tenantId, document.tipo, document.detalles.map(lineInputFromStored));
     return emitDocumentEffectsInTx(tx, tenantId, userId, {
       comprobante: document,
@@ -416,11 +434,7 @@ async function updateDraftDocument(tenantId, userId, id, input) {
   return prisma.$transaction(async (tx) => {
     const current = await getDocumentInTx(tx, tenantId, id);
     if (current.estado !== 'BORRADOR') {
-      throw new AppError(
-        409,
-        'Un documento emitido no se edita directamente; use reemplazar para generar reverso y nueva versión',
-        'COMMERCIAL_IMMUTABLE_USE_REPLACE'
-      );
+      throw new AppError(409, 'Un documento emitido no se edita directamente; use reemplazar para generar reverso y nueva versión', 'COMMERCIAL_IMMUTABLE_USE_REPLACE');
     }
 
     const type = input.tipo || current.tipo;
@@ -446,12 +460,7 @@ async function updateDraftDocument(tenantId, userId, id, input) {
         fecha: input.fecha || current.fecha,
         fechaVencimiento: Object.prototype.hasOwnProperty.call(input, 'fechaVencimiento') ? input.fechaVencimiento : current.fechaVencimiento,
         observaciones: Object.prototype.hasOwnProperty.call(input, 'observaciones') ? input.observaciones : current.observaciones,
-        subtotal,
-        descuentoTotal,
-        ivaTotal,
-        impoconsumoTotal,
-        total,
-        saldo: 0
+        subtotal, descuentoTotal, ivaTotal, impoconsumoTotal, total, saldo: 0
       }
     });
 
@@ -521,22 +530,15 @@ async function createCancellationNoteInTx(tx, tenantId, userId, original, motivo
       }))
     });
   }
-
   return note;
 }
 
 async function cancelDocumentInTx(tx, tenantId, userId, id, motivo) {
   const original = await getDocumentInTx(tx, tenantId, id);
-
-  if (original.estado === 'ANULADO') {
-    return { documento: original, ajuste: original.ajustes?.[0] || null, yaAnulado: true };
-  }
+  if (original.estado === 'ANULADO') return { documento: original, ajuste: original.ajustes?.[0] || null, yaAnulado: true };
 
   if (original.estado === 'BORRADOR') {
-    await tx.comprobanteComercial.update({
-      where: { id: original.id },
-      data: { estado: 'ANULADO', anuladoEn: new Date(), motivoAnulacion: motivo }
-    });
+    await tx.comprobanteComercial.update({ where: { id: original.id }, data: { estado: 'ANULADO', anuladoEn: new Date(), motivoAnulacion: motivo } });
     return { documento: await getDocumentInTx(tx, tenantId, original.id), ajuste: null };
   }
 
@@ -545,37 +547,10 @@ async function cancelDocumentInTx(tx, tenantId, userId, id, motivo) {
   }
 
   const note = await createCancellationNoteInTx(tx, tenantId, userId, original, motivo);
-
-  await treasuryService.reversePaymentsForDocumentInTx(tx, {
-    tenantId,
-    userId,
-    documentoId: original.id,
-    motivo
-  });
-
-  await treasuryReversalService.reverseDirectDocumentSettlementInTx(tx, {
-    tenantId,
-    userId,
-    documentoId: original.id,
-    reversalDocumentId: note.id,
-    referencia: note.numero,
-    motivo
-  });
-
-  await treasuryService.cancelCarteraForDocumentInTx(tx, {
-    tenantId,
-    documentoId: original.id,
-    reversalDocumentId: note.id,
-    referencia: note.numero,
-    motivo
-  });
-
-  await inventoryService.reverseDocumentMovementsInTx(tx, {
-    tenantId,
-    comprobanteId: original.id,
-    reversalDocumentId: note.id,
-    referencia: note.numero
-  });
+  await treasuryService.reversePaymentsForDocumentInTx(tx, { tenantId, userId, documentoId: original.id, motivo });
+  await treasuryReversalService.reverseDirectDocumentSettlementInTx(tx, { tenantId, userId, documentoId: original.id, reversalDocumentId: note.id, referencia: note.numero, motivo });
+  await treasuryService.cancelCarteraForDocumentInTx(tx, { tenantId, documentoId: original.id, reversalDocumentId: note.id, referencia: note.numero, motivo });
+  await inventoryService.reverseDocumentMovementsInTx(tx, { tenantId, comprobanteId: original.id, reversalDocumentId: note.id, referencia: note.numero });
 
   if (original.asiento) {
     await accountingService.reverseJournalInTx(tx, {
@@ -589,20 +564,8 @@ async function cancelDocumentInTx(tx, tenantId, userId, id, motivo) {
     });
   }
 
-  await tx.comprobanteComercial.update({
-    where: { id: original.id },
-    data: {
-      estado: 'ANULADO',
-      saldo: 0,
-      anuladoEn: new Date(),
-      motivoAnulacion: motivo
-    }
-  });
-
-  return {
-    documento: await getDocumentInTx(tx, tenantId, original.id),
-    ajuste: await getDocumentInTx(tx, tenantId, note.id)
-  };
+  await tx.comprobanteComercial.update({ where: { id: original.id }, data: { estado: 'ANULADO', saldo: 0, anuladoEn: new Date(), motivoAnulacion: motivo } });
+  return { documento: await getDocumentInTx(tx, tenantId, original.id), ajuste: await getDocumentInTx(tx, tenantId, note.id) };
 }
 
 async function cancelDocument(tenantId, userId, id, motivo) {
@@ -616,14 +579,7 @@ async function replaceIssuedDocument(tenantId, userId, id, input) {
       throw new AppError(409, 'Solo un documento emitido puede reemplazarse', 'COMMERCIAL_REPLACE_REQUIRES_ISSUED');
     }
 
-    const cancellation = await cancelDocumentInTx(
-      tx,
-      tenantId,
-      userId,
-      original.id,
-      input.motivo || 'Reemplazo de documento emitido'
-    );
-
+    const cancellation = await cancelDocumentInTx(tx, tenantId, userId, original.id, input.motivo || 'Reemplazo de documento emitido');
     const replacementInput = {
       tipo: original.tipo,
       estado: 'EMITIDO',
@@ -662,13 +618,7 @@ async function listDocuments(tenantId, filters = {}) {
   const page = Math.max(Number(filters.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(filters.pageSize || filters.limit) || 50, 1), 200);
   const [items, total] = await Promise.all([
-    prisma.comprobanteComercial.findMany({
-      where,
-      include: { tercero: true },
-      orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }],
-      skip: (page - 1) * pageSize,
-      take: pageSize
-    }),
+    prisma.comprobanteComercial.findMany({ where, include: { tercero: true }, orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }], skip: (page - 1) * pageSize, take: pageSize }),
     prisma.comprobanteComercial.count({ where })
   ]);
 
