@@ -61,6 +61,17 @@ async function listTenants() {
   return tenants.map((tenant) => ({ ...tenant, control: byControl.get(tenant.id) || null, usage: { activeUsers: users.get(tenant.id) || 0, documents: docs.get(tenant.id) || 0, dianDocuments: dian.get(tenant.id) || 0 } }));
 }
 
+async function listTenantUsers(tenantId) {
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true, nombreEmpresa: true, subdomain: true } });
+  if (!tenant) throw new AppError(404, 'Tenant no encontrado', 'PLATFORM_TENANT_NOT_FOUND');
+  const users = await prisma.user.findMany({
+    where: { tenantId },
+    select: { id: true, nombre: true, email: true, rol: true, activo: true, creadoEn: true },
+    orderBy: [{ activo: 'desc' }, { nombre: 'asc' }]
+  });
+  return { tenant, users };
+}
+
 async function setTenantActive(superAdminId, tenantId, active, reason = null) {
   return prisma.$transaction(async (tx) => {
     const tenant = await tx.tenant.findUnique({ where: { id: tenantId } });
@@ -117,4 +128,4 @@ async function listAudit(limit = 200) {
   return prisma.platformAudit.findMany({ orderBy: { creadoEn: 'desc' }, take: Math.min(Number(limit) || 200, 1000) });
 }
 
-module.exports = { verifyPlatformToken, login, bootstrapSuperAdmin, audit, ensureTenantControl, listTenants, setTenantActive, setUserActive, setTenantControl, metrics, listAudit };
+module.exports = { verifyPlatformToken, login, bootstrapSuperAdmin, audit, ensureTenantControl, listTenants, listTenantUsers, setTenantActive, setUserActive, setTenantControl, metrics, listAudit };
