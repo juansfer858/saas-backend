@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { signAccessToken } = require('../../utils/jwt');
+const { seedTenantDefaults } = require('../../services/tenant-seed.service');
 
 async function registerTenant(input) {
   const passwordHash = await bcrypt.hash(input.admin.password, 12);
@@ -10,15 +11,23 @@ async function registerTenant(input) {
     return await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: {
+          nit: input.nit || null,
           nombreEmpresa: input.nombreEmpresa,
           nicho: input.nicho,
-          subdomain: input.subdomain
+          subdomain: input.subdomain,
+          logoUrl: input.logoUrl || null,
+          pais: input.pais,
+          moneda: input.moneda
         },
         select: {
           id: true,
+          nit: true,
           nombreEmpresa: true,
           nicho: true,
           subdomain: true,
+          logoUrl: true,
+          pais: true,
+          moneda: true,
           creadoEn: true
         }
       });
@@ -41,11 +50,13 @@ async function registerTenant(input) {
         }
       });
 
+      await seedTenantDefaults(tx, tenant);
+
       return { tenant, admin };
     });
   } catch (error) {
     if (error && error.code === 'P2002') {
-      throw new AppError(409, 'El subdominio ya está registrado', 'TENANT_SUBDOMAIN_EXISTS');
+      throw new AppError(409, 'El subdominio o dato único ya está registrado', 'TENANT_UNIQUE_CONFLICT');
     }
     throw error;
   }
@@ -65,11 +76,12 @@ async function login(tenantId, input) {
       nombre: true,
       email: true,
       password: true,
-      rol: true
+      rol: true,
+      activo: true
     }
   });
 
-  if (!user) {
+  if (!user || !user.activo) {
     throw new AppError(401, 'Credenciales inválidas', 'AUTH_INVALID_CREDENTIALS');
   }
 
