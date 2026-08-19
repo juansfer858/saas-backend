@@ -11,23 +11,39 @@ async function main() {
     const html = await response.text();
 
     assert.equal(response.status, 200);
-    assert.match(html, /VantixGC/);
-    assert.match(html, /Plan de Cuentas \(PUC\)/);
-    assert.match(html, /Libro Diario/);
-    assert.match(html, /Comprobante Manual/);
-    assert.match(html, /Libro Mayor \/ Auxiliar/);
-    assert.match(html, /Reportes Financieros/);
-    assert.match(html, /Balance de Prueba/);
-    assert.match(html, /Estado de Resultados \(P&G\)/);
-    assert.match(html, /\/api\/v1\/contabilidad\/asientos/);
-    assert.match(html, /\/api\/v1\/contabilidad\/mayor/);
-    assert.match(html, /x-tenant-subdomain/);
+    for (const marker of [
+      'VantixGC',
+      'Plan de Cuentas',
+      'Libro Diario',
+      'Comprobante Manual',
+      'Libro Mayor',
+      'Reportes',
+      'Terceros',
+      'Periodos',
+      'Impuestos',
+      'Activos Fijos',
+      'Conciliación',
+      'Balance de Prueba',
+      'Estado de Resultados',
+      'Balance General / Situación Financiera',
+      'Anular asiento',
+      'Exportar a Excel',
+      'Exportar a PDF',
+      '/api/v1/contabilidad/reportes/balance-general',
+      '/api/v1/contabilidad/periodos/',
+      '/api/v1/contabilidad/impuestos/',
+      '/api/v1/contabilidad/activos-fijos',
+      '/api/v1/contabilidad/conciliaciones',
+      'x-tenant-subdomain'
+    ]) {
+      assert.match(html, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
 
     const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El módulo contable debe contener su controlador web');
     new Function(script);
 
-    console.log('ACCOUNTING OPERATIONAL UI SMOKE OK');
+    console.log('ACCOUNTING V2 OPERATIONAL UI SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
