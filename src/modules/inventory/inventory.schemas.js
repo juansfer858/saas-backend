@@ -36,4 +36,15 @@ const movementSchema = z.object({
   referencia: z.string().trim().max(150).optional()
 });
 
-module.exports = { productSchema, updateProductSchema, movementSchema };
+const accountedAdjustmentSchema = z.object({
+  productoId: z.string().uuid(),
+  tipo: z.enum(['AJUSTE_ENTRADA', 'AJUSTE_SALIDA', 'MERMA']),
+  cantidad: z.coerce.number().positive(),
+  costoUnitario: z.coerce.number().min(0).optional(),
+  fecha: z.coerce.date().optional(),
+  referencia: z.string().trim().max(150).optional(),
+  justificacion: z.string().trim().min(5).max(1000),
+  sourceId: z.string().trim().min(3).max(160).optional()
+});
+
+module.exports = { productSchema, updateProductSchema, movementSchema, accountedAdjustmentSchema };
