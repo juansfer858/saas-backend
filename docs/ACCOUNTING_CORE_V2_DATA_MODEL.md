@@ -1,179 +1,117 @@
-# VantixGC Accounting Core V2 — Modelo de datos propuesto
+# VantixGC Accounting Core V2 — Modelo de datos y reglas
 
-Este documento precede la implementación y conserva el núcleo existente de `CuentaPUC`, `AsientoContable`, `DetalleAsiento`, `PeriodoContable`, `Tercero`, `CajaBanco`, `MovimientoTesoreria` y partida doble.
+Este diseño se definió antes de la implementación y conserva el núcleo existente de `CuentaPUC`, `AsientoContable`, `DetalleAsiento`, `PeriodoContable`, `Tercero`, `CajaBanco`, `MovimientoTesoreria`, `Cartera` y partida doble.
 
-## 1. Estados financieros y clasificación contable
+## 1. Estados financieros
 
-### CuentaPUC (extensión)
-- `clasificacionESF`: `ACTIVO_CORRIENTE | ACTIVO_NO_CORRIENTE | PASIVO_CORRIENTE | PASIVO_NO_CORRIENTE | PATRIMONIO | RESULTADO | ORDEN | null`.
-- `categoriaResultado`: `INGRESO_OPERACIONAL | COSTO_VENTAS | GASTO_ADMINISTRACION | GASTO_VENTAS | INGRESO_NO_OPERACIONAL | GASTO_NO_OPERACIONAL | IMPUESTO_RENTA | null`.
-
-Estas dos clasificaciones permiten generar Balance General y P&G sin hardcodear la presentación por nombre de cuenta. Para cuentas estándar se inicializan desde el catálogo colombiano; las cuentas personalizadas pueden configurarlas.
+### CuentaPUC
+Se amplía con:
+- `clasificacionESF`: Activo Corriente, Activo No Corriente, Pasivo Corriente, Pasivo No Corriente, Patrimonio, Resultado u Orden.
+- `categoriaResultado`: Ingreso Operacional, Costo de Ventas, Gasto Administración, Gasto Ventas, Ingreso No Operacional, Gasto No Operacional o Impuesto de Renta.
 
 ### ConfiguracionContable
-Una fila por tenant:
-- tasa de impuesto de renta parametrizable.
-- cuenta de impuesto de renta.
-- cuenta de utilidad del ejercicio.
+Una fila por tenant con:
+- tasa de impuesto de renta parametrizable;
+- cuenta de gasto de renta;
+- cuenta de renta por pagar;
+- cuenta de utilidad del ejercicio;
 - cuenta de pérdida del ejercicio.
 
-Relación: `Tenant 1—1 ConfiguracionContable` y referencias opcionales a `CuentaPUC`.
+Los estados se calculan desde `DetalleAsiento`; no se guardan saldos derivados.
 
-## 2. Tipos de comprobante y consecutivos
+## 2. Comprobantes y consecutivos
 
 ### TipoComprobanteContable
-Por tenant:
-- código (`CI`, `CE`, `CA`, `ND`, `NC`, `NM`, etc.).
-- nombre.
-- activo.
-- `consecutivoPorPeriodo` (mensual por defecto).
-- flag de sistema para proteger tipos base.
+Por tenant: código, nombre, activo, `consecutivoPorPeriodo` y bandera de sistema.
 
 ### ConsecutivoContable
-Clave única: `tenantId + tipoComprobanteId + anio + mes`.
-- `ultimoNumero`.
+Clave única `tenantId + tipoComprobanteId + año + mes`, con `ultimoNumero`.
 
-El número se asigna dentro de la misma transacción que contabiliza el asiento. Nunca se recibe como dato editable del cliente.
+### AsientoContable
+Se amplía con `tipoComprobanteId`, `numeroConsecutivo` y `numeroComprobante`. El número se asigna dentro de la transacción al contabilizar; un borrador no consume consecutivo.
 
-### AsientoContable (extensión)
-- `tipoComprobanteId`.
-- `numeroConsecutivo`.
-- `numeroComprobante` (ej. `CA-202608-000001`).
-- mantiene `reversoDeId` existente para reversión.
-- origen adicional `CIERRE`.
+## 3. Cierre, reversión y auditoría
 
-## 3. Cierre y auditoría
-
-### PeriodoContable (extensión)
-- `cerradoEn`, `cerradoPorId`.
-- `reabiertoEn`, `reabiertoPorId`.
-- `asientoCierreId`.
+### PeriodoContable
+Se amplía con `cerradoEn/cerradoPorId`, `reabiertoEn/reabiertoPorId` y `asientoCierreId`.
 
 ### AuditoriaContable
-Registro append-only:
-- tenant, usuario, entidad (`ASIENTO`, `PERIODO`, `CUENTA`, `IMPUESTO`, `ACTIVO`, `CONCILIACION`).
-- entidadId.
-- acción (`CREAR`, `CONTABILIZAR`, `ANULAR`, `CERRAR`, `REABRIR`, etc.).
-- metadatos JSON.
-- fecha/hora.
+Registro append-only: tenant, usuario, entidad, entidadId, acción, metadata y fecha/hora.
 
-La reapertura exige `ADMIN` y genera auditoría. El cierre genera un asiento `CIERRE`; la reapertura genera su reversión y vuelve a abrir el periodo.
+Reglas:
+- asiento contabilizado: inmutable;
+- corrección: reversión + nuevo asiento;
+- cierre: asiento `CIERRE` y bloqueo del periodo;
+- reapertura: solo ADMIN, reversión del cierre y auditoría.
 
 ## 4. Terceros
 
-Se reutiliza `Tercero`, ampliando el enum con `OTRO` y campos de contacto ya existentes. El Comprobante Manual usa `terceroId` real por línea; no se persiste texto libre como sustituto del tercero.
+Se reutiliza `Tercero`, se agrega tipo `OTRO` y banderas fiscales: responsable IVA, sujeto Retefuente, ReteICA y ReteIVA. Todo asiento usa `terceroId` real por línea.
 
 ## 5. IVA y retenciones
 
 ### TarifaIVA
-Por tenant:
-- nombre, porcentaje, categoría (`GRAVADO`, `EXENTO`, `EXCLUIDO`).
-- cuenta de IVA generado.
-- cuenta de IVA descontable.
-- activa.
+Por tenant: código, nombre, porcentaje, categoría (gravado/exento/excluido), cuenta IVA generado, cuenta IVA descontable y estado.
 
 ### ConceptoRetencion
-Por tenant:
-- tipo (`RETEFUENTE`, `RETEICA`, `RETEIVA`).
-- código/nombre.
-- porcentaje y base mínima.
-- cuenta contable de retención.
-- naturaleza de aplicación (`PAGAR`/`COBRAR`).
-- activa.
+Por tenant: código, nombre, tipo (Retefuente/ReteICA/ReteIVA), porcentaje, base mínima, cuenta contable, naturaleza `PAGAR/COBRAR`, automático y estado.
 
-### DetalleAsiento (extensión)
-- `tarifaIvaId` opcional.
-- `conceptoRetencionId` opcional.
+### DetalleAsiento
+Conserva `tarifaIvaId` y `conceptoRetencionId` para trazabilidad del impuesto que originó cada línea.
 
-Los impuestos son configurables; el motor puede calcular líneas automáticas en comprobantes manuales a partir de base + tarifa/concepto.
+### Liquidación fiscal automática
+No se agrega una tabla de saldos fiscales duplicados. El documento comercial conserva su valor bruto en `total`; el valor neto se materializa en Tesorería/Cartera y las retenciones quedan congeladas en las líneas del asiento (`DetalleAsiento`) con el concepto y monto contabilizado. Así, cambiar una tarifa después no reescribe documentos históricos.
 
-### Liquidación fiscal automática de comprobantes comerciales
-Para que compras/ventas automáticas puedan aplicar retenciones sin alterar el valor bruto documental:
+Reglas:
+- compra: conceptos automáticos `PAGAR` aplicables al tercero reducen Caja/Banco/CxP y acreditan la cuenta de retención;
+- venta: conceptos automáticos `COBRAR` aplicables al tercero reducen Caja/Banco/CxC y debitan la cuenta de retención a favor;
+- ReteIVA usa como base el IVA del documento; Retefuente/ReteICA usan el subtotal antes de IVA;
+- base mínima y porcentaje siempre salen de la configuración del tenant;
+- si no hay conceptos activos/automáticos, el flujo comercial anterior queda idéntico.
 
-#### ComprobanteComercial (extensión)
-- `retencionTotal`: suma de retenciones aplicadas al documento.
-- `netoPagar`: valor realmente pagado/cobrado o llevado a cartera después de retenciones.
+Para el Comprobante Manual se agrega un servicio de “asiento fiscal”: recibe operación, cuenta base, contrapartida, tercero, base, IVA y conceptos; el backend construye las líneas impositivas y solo contabiliza si el resultado queda exactamente balanceado.
 
-#### RetencionComprobante
-Una fila por concepto de retención aplicado a un documento:
-- tenant.
-- comprobante.
-- concepto de retención parametrizado.
-- tercero.
-- base de cálculo.
-- porcentaje congelado al momento del documento.
-- valor calculado.
-- naturaleza `PAGAR`/`COBRAR` congelada.
-
-Relación: `ComprobanteComercial 1—N RetencionComprobante` y `ConceptoRetencion 1—N RetencionComprobante`.
-
-Regla transaccional:
-- Venta: si una retención `COBRAR` aplica, se debita la cuenta de retención a favor y solo el neto queda en Caja/Banco/CxC.
-- Compra: si una retención `PAGAR` aplica, se acredita la cuenta de retención por pagar y solo el neto se paga o queda en CxP.
-- `total` siempre conserva el valor bruto fiscal del documento; `netoPagar = total - retencionTotal`.
-- El motor comercial y contable usan la misma colección congelada de retenciones dentro de la misma transacción; no recalculan después de emitido.
-
-## 6. Activos fijos y depreciación
+## 6. Activos fijos
 
 ### ActivoFijo
-- identificación, nombre, tercero/proveedor opcional.
-- valor de adquisición, valor residual, fecha de compra, fecha de inicio de depreciación.
-- vida útil en meses.
-- método (`LINEA_RECTA`).
-- cuenta del activo, depreciación acumulada y gasto de depreciación.
-- estado.
+Código, nombre, proveedor, valor, residual, fechas, vida útil, método línea recta, cuenta activo, depreciación acumulada, gasto y estado.
 
 ### DepreciacionActivo
-Clave única `activoFijoId + anio + mes`.
-- valor depreciado.
-- `asientoId` generado.
-- fecha de generación.
+Clave única por activo+año+mes; guarda valor, asiento y usuario. La depreciación genera un asiento normal y respeta periodo cerrado.
 
 ## 7. Conciliación bancaria
 
 ### ConciliacionBancaria
-- tenant, cajaBanco tipo BANCO, periodo/corte, saldo extracto, estado.
+Tenant, cuenta tipo BANCO, fecha de corte, saldo extracto y estado.
 
 ### PartidaExtractoBancario
-- conciliación, fecha, descripción, referencia, valor, tipo débito/crédito.
-- `movimientoTesoreriaId` opcional.
-- estado `PENDIENTE | CONCILIADA`.
+Fecha, descripción, referencia, valor, débito/crédito, movimiento de tesorería vinculado y estado pendiente/conciliada.
 
-Esto conserva el movimiento contable/tesorería como fuente de verdad y el extracto como evidencia externa.
-
-## 8. Soportes documentales
+## 8. Soportes
 
 ### SoporteAsiento
-- asiento, nombre, MIME, tamaño, hash.
-- contenido binario (`Bytes`) para la primera versión, limitado por API.
-- usuario y fecha.
-
-No modifica el asiento; agrega evidencia enlazada.
+Asiento, nombre, MIME, tamaño, SHA-256, contenido binario, usuario y fecha. No modifica el asiento; agrega evidencia.
 
 ## 9. Reportes y comparativos
 
-No se crean tablas de saldos derivados. Balance de Prueba, P&G, Balance General, Libro Mayor y comparativos se calculan desde `DetalleAsiento` de asientos contabilizados/reversiones, excluyendo asientos de cierre cuando el reporte necesita mostrar la operación del periodo.
-
-Reglas:
-- Balance General a fecha de corte.
-- P&G por rango con subtotales hasta Utilidad Neta.
-- En periodo abierto, la utilidad neta se presenta de forma sintética dentro de Patrimonio.
-- En periodo cerrado, la utilidad ya está trasladada a la cuenta de resultado del ejercicio y no se duplica.
-- Comparativo: mismo reporte contra periodo anterior equivalente, con variación absoluta y porcentual.
+- Balance General: a fecha de corte.
+- P&G: rango de fechas y subtotales hasta Utilidad Neta.
+- Balance de Prueba y Mayor: desde movimientos reales.
+- Periodo abierto: utilidad neta se presenta sintéticamente dentro de Patrimonio.
+- Periodo cerrado: utilidad ya trasladada por asiento de cierre y no se duplica.
+- Comparativos: periodo anterior equivalente, con variación absoluta y porcentual.
 
 ## 10. Exportación
 
-Se implementa una capa de exportación sin alterar los cálculos:
-- Excel compatible: descarga `.xls` tabular generada desde el dataset del reporte.
-- PDF: archivo PDF derivado del mismo dataset del reporte.
+La misma fuente de datos de cada reporte genera Excel-compatible `.xls` y PDF, evitando cálculos paralelos.
 
-## 11. Integridad
+## 11. Integridad transversal
 
-- Todo acceso conserva `tenantId` obligatorio.
+- Toda consulta conserva `tenantId`.
 - Todo asiento contabilizado es inmutable.
-- Corrección: reversión + nuevo asiento.
-- Partida doble validada antes de persistir un asiento contabilizado, incluidos impuestos, cierre y depreciación.
-- Numeración asignada dentro de transacción.
-- Periodo cerrado bloquea nuevos asientos.
-- Toda acción sensible deja `AuditoriaContable`.
-- Las retenciones de documentos emitidos quedan congeladas en `RetencionComprobante`; cambios posteriores de tarifas no alteran documentos históricos.
+- Toda corrección usa reversión.
+- Partida doble se valida antes de persistir cualquier asiento, incluidos cierre, depreciación e impuestos.
+- Consecutivos se asignan dentro de transacción.
+- Periodo cerrado bloquea contabilización.
+- Tarifas fiscales son configurables; las plantillas de retención se crean inactivas y a 0%, nunca como supuesta tarifa legal vigente.
+- Toda acción sensible deja auditoría.
