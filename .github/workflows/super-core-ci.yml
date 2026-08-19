@@ -19,6 +19,7 @@ on:
       - accounting-qa-blockers-v2
       - core-accounting-integration-v1-work2
       - platform-core-dian-rbac-print-saas-v1
+      - restaurant-prereqs-core-v1
   pull_request:
     branches:
       - main
@@ -57,6 +58,9 @@ jobs:
 
       - name: Validate global Panel and Sales UI
         run: node scripts/panel-ui-smoke.js
+
+      - name: Validate operational Sales V1 UI
+        run: node scripts/sales-operational-ui-smoke.js
 
       - name: Validate operational Purchases UI
         run: node scripts/purchases-ui-smoke.js
@@ -143,3 +147,12 @@ jobs:
 
       - name: Validate Platform Core DIAN, payroll, RBAC, printing and SaaS admin
         run: node scripts/platform-core-v1-smoke.js
+
+      - name: Validate Restaurant Phase1 consumption and Sales prerequisites
+        run: node scripts/restaurant-prereqs-phase1-smoke.js
+
+      - name: Validate The Factory HKA real HTTP adapter contract
+        run: node scripts/hka-provider-adapter-smoke.js
+
+      - name: Validate offline RAW ESC-POS local spooler
+        run: node scripts/escpos-spooler-smoke.js
