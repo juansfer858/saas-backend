@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./commercial.controller');
+const purchaseController = require('./purchase.controller');
 
 const router = express.Router();
 
@@ -23,14 +24,13 @@ router.post('/ventas/:id/emitir', controller.emitDocument);
 router.post('/ventas/:id/anular', controller.cancelDocument);
 router.post('/ventas/:id/reemplazar', controller.replaceDocument);
 
-// Compras: mismo motor, tipo fijo COMPRA.
-router.get('/compras', controller.listPurchases);
-router.post('/compras', controller.createPurchase);
-router.get('/compras/:id', controller.getPurchase);
-router.patch('/compras/:id', controller.updateDocument);
-router.put('/compras/:id', controller.updateDocument);
-router.post('/compras/:id/emitir', controller.emitDocument);
-router.post('/compras/:id/anular', controller.cancelDocument);
-router.post('/compras/:id/reemplazar', controller.replaceDocument);
+// Compras: controlador operativo especializado sobre el mismo motor comercial.
+router.get('/compras', purchaseController.list);
+router.post('/compras', purchaseController.createDraft);
+router.get('/compras/:id', purchaseController.get);
+router.patch('/compras/:id', purchaseController.updateDraft);
+router.put('/compras/:id', purchaseController.updateDraft);
+router.post('/compras/:id/emitir', purchaseController.emit);
+router.post('/compras/:id/anular', purchaseController.cancel);
 
 module.exports = { commercialRouter: router };
