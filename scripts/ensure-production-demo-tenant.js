@@ -72,13 +72,15 @@ async function main() {
   console.log('DEMO TENANT READY', JSON.stringify(result));
 }
 
-main()
-  .catch((error) => {
-    console.error('DEMO TENANT BOOTSTRAP ERROR', error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error('DEMO TENANT BOOTSTRAP ERROR', error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
 
-module.exports = { ensureDemoTenant };
+module.exports = { DEMO, ensureDemoTenant };
