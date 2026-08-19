@@ -89,3 +89,6 @@ jobs:
 
       - name: Run tenant welcome seed smoke test
         run: node scripts/step3-seed-smoke.js
+
+      - name: Run transactional lifecycle smoke test
+        run: node scripts/step4-lifecycle-smoke.js

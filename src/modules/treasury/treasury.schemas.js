@@ -18,4 +18,13 @@ const cierreSchema = z.object({
   saldoFinal: z.coerce.number().min(0)
 });
 
-module.exports = { cajaBancoSchema, aperturaSchema, cierreSchema };
+const paymentSchema = z.object({
+  documentoId: z.string().uuid(),
+  monto: z.coerce.number().positive(),
+  metodoPago: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA']),
+  cajaBancoId: z.string().uuid(),
+  referencia: z.string().trim().max(300).optional().nullable(),
+  sourceId: z.string().trim().max(120).optional().nullable()
+});
+
+module.exports = { cajaBancoSchema, aperturaSchema, cierreSchema, paymentSchema };

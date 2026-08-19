@@ -11,8 +11,11 @@ const detailSchema = z.object({
 });
 
 const commercialDocumentSchema = z.object({
-  tipo: z.enum(['COTIZACION', 'FACTURA_VENTA', 'COMPRA', 'RECIBO_CAJA', 'COMPROBANTE_EGRESO']),
+  tipo: z.enum(['COTIZACION', 'FACTURA_VENTA', 'COMPRA']),
   numero: z.string().trim().max(60).optional(),
+  sourceId: z.string().trim().max(120).optional().nullable(),
+  estado: z.enum(['BORRADOR', 'EMITIDO']).optional(),
+  documentoOrigenId: z.string().uuid().optional().nullable(),
   terceroId: z.string().uuid().optional().nullable(),
   cajaBancoId: z.string().uuid().optional().nullable(),
   formaPago: z.enum(['EFECTIVO', 'BANCO', 'CREDITO']).optional().nullable(),
@@ -22,4 +25,37 @@ const commercialDocumentSchema = z.object({
   detalles: z.array(detailSchema).min(1)
 });
 
-module.exports = { commercialDocumentSchema };
+const updateDraftSchema = z.object({
+  tipo: z.enum(['COTIZACION', 'FACTURA_VENTA', 'COMPRA']).optional(),
+  terceroId: z.string().uuid().optional().nullable(),
+  cajaBancoId: z.string().uuid().optional().nullable(),
+  formaPago: z.enum(['EFECTIVO', 'BANCO', 'CREDITO']).optional().nullable(),
+  fecha: z.coerce.date().optional(),
+  fechaVencimiento: z.coerce.date().optional().nullable(),
+  observaciones: z.string().trim().max(1000).optional().nullable(),
+  detalles: z.array(detailSchema).min(1).optional()
+}).refine((value) => Object.keys(value).length > 0, { message: 'Debe enviar al menos un cambio' });
+
+const cancelDocumentSchema = z.object({
+  motivo: z.string().trim().min(3).max(500)
+});
+
+const replaceDocumentSchema = z.object({
+  motivo: z.string().trim().min(3).max(500).optional(),
+  sourceId: z.string().trim().max(120).optional().nullable(),
+  terceroId: z.string().uuid().optional().nullable(),
+  cajaBancoId: z.string().uuid().optional().nullable(),
+  formaPago: z.enum(['EFECTIVO', 'BANCO', 'CREDITO']).optional().nullable(),
+  fecha: z.coerce.date().optional(),
+  fechaVencimiento: z.coerce.date().optional().nullable(),
+  observaciones: z.string().trim().max(1000).optional().nullable(),
+  detalles: z.array(detailSchema).min(1).optional()
+});
+
+module.exports = {
+  detailSchema,
+  commercialDocumentSchema,
+  updateDraftSchema,
+  cancelDocumentSchema,
+  replaceDocumentSchema
+};

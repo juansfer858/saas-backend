@@ -40,6 +40,12 @@ async function updateProduct(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function deactivateProduct(req, res, next) {
+  try {
+    res.json({ ok: true, data: await service.deactivateProduct(req.tenantId, req.params.id) });
+  } catch (error) { next(error); }
+}
+
 async function createMovement(req, res, next) {
   try {
     const data = await service.createManualMovement(req.tenantId, parse(movementSchema, req.body));
@@ -51,6 +57,9 @@ async function listMovements(req, res, next) {
   try {
     const data = await service.listMovements(req.tenantId, {
       productoId: req.query.productoId,
+      tipo: req.query.tipo,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
       limit: req.query.limit
     });
     res.json({ ok: true, data });
@@ -62,6 +71,7 @@ module.exports = {
   listProducts,
   getProduct,
   updateProduct,
+  deactivateProduct,
   createMovement,
   listMovements
 };

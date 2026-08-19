@@ -53,6 +53,11 @@ async function updateProduct(tenantId, id, input) {
   }
 }
 
+async function deactivateProduct(tenantId, id) {
+  await getProduct(tenantId, id);
+  return prisma.producto.update({ where: { id }, data: { activo: false } });
+}
+
 async function applyMovement(tx, params) {
   const product = await getProduct(params.tenantId, params.productoId, tx);
 
@@ -127,6 +132,34 @@ async function applyMovement(tx, params) {
   return { movement, product: updatedProduct, costOfMovement };
 }
 
+async function reverseDocumentMovementsInTx(tx, params) {
+  const originals = await tx.movimientoInventario.findMany({
+    where: {
+      tenantId: params.tenantId,
+      comprobanteId: params.comprobanteId,
+      tipo: { in: ['VENTA', 'COMPRA'] }
+    },
+    orderBy: { creadoEn: 'asc' }
+  });
+
+  const reversals = [];
+  for (const movement of originals) {
+    const reverseType = movement.tipo === 'VENTA' ? 'DEVOLUCION_VENTA' : 'DEVOLUCION_COMPRA';
+    const result = await applyMovement(tx, {
+      tenantId: params.tenantId,
+      productoId: movement.productoId,
+      comprobanteId: params.reversalDocumentId || null,
+      tipo: reverseType,
+      cantidad: movement.cantidad,
+      costoUnitario: movement.tipo === 'VENTA' ? movement.costoUnitario : undefined,
+      referencia: params.referencia || `REV-${movement.referencia || params.comprobanteId}`
+    });
+    if (result.movement) reversals.push(result.movement);
+  }
+
+  return reversals;
+}
+
 async function createManualMovement(tenantId, input) {
   return prisma.$transaction((tx) => applyMovement(tx, { tenantId, ...input }));
 }
@@ -134,6 +167,12 @@ async function createManualMovement(tenantId, input) {
 async function listMovements(tenantId, filters = {}) {
   const where = { tenantId };
   if (filters.productoId) where.productoId = filters.productoId;
+  if (filters.tipo) where.tipo = filters.tipo;
+  if (filters.desde || filters.hasta) {
+    where.creadoEn = {};
+    if (filters.desde) where.creadoEn.gte = new Date(filters.desde);
+    if (filters.hasta) where.creadoEn.lte = new Date(filters.hasta);
+  }
 
   return prisma.movimientoInventario.findMany({
     where,
@@ -148,7 +187,9 @@ module.exports = {
   listProducts,
   getProduct,
   updateProduct,
+  deactivateProduct,
   applyMovement,
+  reverseDocumentMovementsInTx,
   createManualMovement,
   listMovements
 };

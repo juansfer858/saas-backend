@@ -72,11 +72,16 @@ enum TipoComprobanteComercial {
   COMPRA
   RECIBO_CAJA
   COMPROBANTE_EGRESO
+  NOTA_CREDITO
+  NOTA_DEBITO
 }
 
 enum EstadoComprobante {
   BORRADOR
   CONFIRMADO
+  EMITIDO
+  PAGADO_PARCIAL
+  PAGADO_TOTAL
   ANULADO
 }
 
@@ -84,6 +89,12 @@ enum FormaPago {
   EFECTIVO
   BANCO
   CREDITO
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
 }
 
 enum NivelCuentaPUC {
@@ -137,6 +148,7 @@ model Tenant {
   movimientosTesoreria  MovimientoTesoreria[]
   cartera               Cartera[]
   movimientosCartera    MovimientoCartera[]
+  pagos                  Pago[]
   comprobantes          ComprobanteComercial[]
   detallesComprobante   DetalleComprobante[]
   cuentasPUC            CuentaPUC[]
@@ -156,10 +168,11 @@ model User {
   activo    Boolean  @default(true)
   creadoEn  DateTime @default(now())
 
-  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  aperturas    AperturaCierreCaja[]
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  aperturas     AperturaCierreCaja[]
   comprobantes ComprobanteComercial[]
-  asientos     AsientoContable[]
+  asientos      AsientoContable[]
+  pagos         Pago[]
 
   @@unique([tenantId, email])
   @@unique([tenantId, id])
@@ -265,6 +278,7 @@ model CajaBanco {
   aperturas            AperturaCierreCaja[]
   comprobantes         ComprobanteComercial[]
   movimientosTesoreria MovimientoTesoreria[]
+  pagos                Pago[]
 
   @@unique([tenantId, nombre])
   @@unique([tenantId, id])
@@ -332,10 +346,11 @@ model Cartera {
   referencia       String?
   creadoEn         DateTime      @default(now())
 
-  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  tercero      Tercero                @relation(fields: [terceroId], references: [id], onDelete: Restrict)
-  comprobante  ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
-  movimientos  MovimientoCartera[]
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tercero     Tercero                @relation(fields: [terceroId], references: [id], onDelete: Restrict)
+  comprobante ComprobanteComercial? @relation(fields: [comprobanteId], references: [id], onDelete: SetNull)
+  movimientos MovimientoCartera[]
+  pagos       Pago[]
 
   @@unique([tenantId, id])
   @@index([tenantId, tipo, estado])
@@ -364,19 +379,50 @@ model MovimientoCartera {
   @@index([tenantId, comprobanteId])
 }
 
+model Pago {
+  id                       String     @id @default(uuid())
+  tenantId                 String
+  documentoId              String
+  carteraId                String
+  comprobanteTesoreriaId   String     @unique
+  cajaBancoId              String
+  userId                   String
+  sourceId                 String?
+  metodoPago               MetodoPago
+  monto                    Decimal    @db.Decimal(18, 2)
+  referencia               String?
+  creadoEn                 DateTime   @default(now())
+
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  documento            ComprobanteComercial   @relation("DocumentoPagado", fields: [documentoId], references: [id], onDelete: Restrict)
+  cartera              Cartera                @relation(fields: [carteraId], references: [id], onDelete: Restrict)
+  comprobanteTesoreria ComprobanteComercial   @relation("ComprobantePago", fields: [comprobanteTesoreriaId], references: [id], onDelete: Restrict)
+  cajaBanco            CajaBanco              @relation(fields: [cajaBancoId], references: [id], onDelete: Restrict)
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, sourceId])
+  @@unique([tenantId, id])
+  @@index([tenantId, documentoId, creadoEn])
+  @@index([tenantId, carteraId, creadoEn])
+}
+
 model ComprobanteComercial {
   id                 String                    @id @default(uuid())
   tenantId           String
   tipo               TipoComprobanteComercial
   numero             String
   sourceId           String?
-  estado             EstadoComprobante         @default(CONFIRMADO)
+  estado             EstadoComprobante         @default(BORRADOR)
+  documentoOrigenId  String?
   terceroId          String?
   cajaBancoId        String?
   creadoPorId        String
   formaPago          FormaPago?
   fecha              DateTime                   @default(now())
   fechaVencimiento   DateTime?
+  emitidoEn          DateTime?
+  anuladoEn          DateTime?
+  motivoAnulacion    String?
   observaciones      String?
   subtotal           Decimal                    @default(0) @db.Decimal(18, 2)
   descuentoTotal     Decimal                    @default(0) @db.Decimal(18, 2)
@@ -386,22 +432,28 @@ model ComprobanteComercial {
   saldo              Decimal                    @default(0) @db.Decimal(18, 2)
   creadoEn           DateTime                   @default(now())
 
-  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  tercero               Tercero?                @relation(fields: [terceroId], references: [id], onDelete: Restrict)
-  cajaBanco             CajaBanco?              @relation(fields: [cajaBancoId], references: [id], onDelete: Restrict)
-  creadoPor             User                    @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
-  detalles              DetalleComprobante[]
-  movimientosInventario MovimientoInventario[]
-  movimientosTesoreria  MovimientoTesoreria[]
-  cartera               Cartera[]
-  movimientosCartera    MovimientoCartera[]
-  asiento               AsientoContable?
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  documentoOrigen        ComprobanteComercial?   @relation("AjustesDocumento", fields: [documentoOrigenId], references: [id], onDelete: Restrict)
+  ajustes                ComprobanteComercial[]  @relation("AjustesDocumento")
+  tercero                Tercero?                @relation(fields: [terceroId], references: [id], onDelete: Restrict)
+  cajaBanco              CajaBanco?              @relation(fields: [cajaBancoId], references: [id], onDelete: Restrict)
+  creadoPor              User                    @relation(fields: [creadoPorId], references: [id], onDelete: Restrict)
+  detalles               DetalleComprobante[]
+  movimientosInventario  MovimientoInventario[]
+  movimientosTesoreria   MovimientoTesoreria[]
+  cartera                Cartera[]
+  movimientosCartera     MovimientoCartera[]
+  pagosRecibidos         Pago[]                  @relation("DocumentoPagado")
+  pagosComoComprobante   Pago[]                  @relation("ComprobantePago")
+  asiento                AsientoContable?
 
   @@unique([tenantId, tipo, numero])
   @@unique([tenantId, sourceId])
   @@unique([tenantId, id])
-  @@index([tenantId, fecha])
+  @@index([tenantId, tipo, estado, fecha])
   @@index([tenantId, terceroId])
+  @@index([tenantId, documentoOrigenId])
+  @@index([tenantId, total])
 }
 
 model DetalleComprobante {
@@ -431,19 +483,19 @@ model DetalleComprobante {
 }
 
 model CuentaPUC {
-  id                 String           @id @default(uuid())
-  tenantId           String
-  codigo             String
-  codigoReferencia   String?
-  nombre             String
-  nivel              NivelCuentaPUC
-  naturaleza         NaturalezaCuenta
-  parentId           String?
-  permiteMovimiento  Boolean          @default(false)
-  requiereTercero    Boolean          @default(false)
-  versionCatalogo    String           @default("CO-1")
-  activa             Boolean          @default(true)
-  creadoEn           DateTime         @default(now())
+  id                String            @id @default(uuid())
+  tenantId          String
+  codigo            String
+  codigoReferencia  String?
+  nombre            String
+  nivel             NivelCuentaPUC
+  naturaleza        NaturalezaCuenta
+  parentId          String?
+  permiteMovimiento Boolean           @default(false)
+  requiereTercero   Boolean           @default(false)
+  versionCatalogo   String            @default("CO-1")
+  activa            Boolean           @default(true)
+  creadoEn          DateTime          @default(now())
 
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   parent          CuentaPUC?       @relation("CuentaJerarquia", fields: [parentId], references: [id], onDelete: Restrict)
