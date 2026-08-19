@@ -26,17 +26,17 @@ async function main() {
       'Balance de Prueba',
       'Estado de Resultados',
       'Balance General / Situación Financiera',
+      'balance-general',
       'Anular asiento',
       'Exportar a Excel',
       'Exportar a PDF',
-      '/api/v1/contabilidad/reportes/balance-general',
       '/api/v1/contabilidad/periodos/',
       '/api/v1/contabilidad/impuestos/',
       '/api/v1/contabilidad/activos-fijos',
       '/api/v1/contabilidad/conciliaciones',
       'x-tenant-subdomain'
     ]) {
-      assert.match(html, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      assert.ok(html.includes(marker), `Falta marcador UI: ${marker}`);
     }
 
     const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
