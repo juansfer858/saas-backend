@@ -3,6 +3,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { signAccessToken } = require('../../utils/jwt');
 const { seedTenantDefaults } = require('../../services/tenant-seed.service');
+const { seedPlatformDefaults } = require('../../services/platform-seed.service');
 
 async function registerTenant(input) {
   const passwordHash = await bcrypt.hash(input.admin.password, 12);
@@ -51,6 +52,7 @@ async function registerTenant(input) {
       });
 
       await seedTenantDefaults(tx, tenant);
+      await seedPlatformDefaults(tx, tenant, admin);
 
       return { tenant, admin };
     });
@@ -94,6 +96,12 @@ async function login(tenantId, input) {
     userId: user.id,
     tenantId: user.tenantId,
     rol: user.rol
+  });
+
+  await prisma.platformTenantControl.upsert({
+    where: { tenantId: user.tenantId },
+    create: { tenantId: user.tenantId, planCode: 'CORE', lastAccessAt: new Date() },
+    update: { lastAccessAt: new Date() }
   });
 
   return {
