@@ -26,8 +26,8 @@ async function main() {
   assert.equal(parametrization.config.metodoCosteo, 'PROMEDIO_PONDERADO');
 
   const accounts = Object.fromEntries((await prisma.cuentaPUC.findMany({ where: { tenantId: tenant.id } })).map((x) => [x.codigo, x]));
-  const bank = await treasury.createCajaBanco(tenant.id, { tipo: 'BANCO', codigo: `B-${suffix}`, nombre: 'Banco Integración V3', banco: 'Banco QA', numeroCuenta: suffix, cuentaContableId: accounts['111005'].id, saldoActual: 1000000, activo: true });
-  const cash = await treasury.createCajaBanco(tenant.id, { tipo: 'CAJA', codigo: `C-${suffix}`, nombre: 'Caja Integración V3', cuentaContableId: accounts['110505'].id, saldoActual: 0, activo: true });
+  const bank = await treasury.createCajaBanco(tenant.id, { tipo: 'BANCO', nombre: 'Banco Integración V3', banco: 'Banco QA', numeroCuenta: suffix, cuentaContableId: accounts['111005'].id, saldoActual: 1000000, activo: true });
+  const cash = await treasury.createCajaBanco(tenant.id, { tipo: 'CAJA', nombre: 'Caja Integración V3', cuentaContableId: accounts['110505'].id, saldoActual: 0, activo: true });
 
   const supplier = await prisma.tercero.create({ data: { tenantId: tenant.id, tipo: 'PROVEEDOR', tipoDocumento: 'NIT', identificacion: `SUP-${suffix}`, nombre: 'Proveedor V3', razonSocial: 'Proveedor V3 SAS', cupoCredito: 5000000, diasPlazo: 30, responsableIva: true, sujetoRetefuente: false, activo: true } });
   const customer = await prisma.tercero.create({ data: { tenantId: tenant.id, tipo: 'CLIENTE', tipoDocumento: 'CC', identificacion: `CLI-${suffix}`, nombre: 'Cliente V3', cupoCredito: 5000000, diasPlazo: 30, activo: true } });
