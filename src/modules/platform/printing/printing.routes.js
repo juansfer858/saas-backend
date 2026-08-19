@@ -34,6 +34,21 @@ const printerSchema = z.object({
   active: z.boolean().default(true)
 });
 
+const printLineSchema = z.union([
+  z.string().max(500),
+  z.object({ quantity: z.union([z.string(), z.number()]).optional(), name: z.string().max(300), note: z.string().max(300).optional().nullable() })
+]);
+const directedSchema = z.object({
+  title: z.string().trim().max(120).optional(),
+  footer: z.string().trim().max(300).optional().nullable(),
+  groups: z.array(z.object({
+    role: z.string().trim().min(2).max(60),
+    lines: z.array(printLineSchema).min(1),
+    footer: z.string().trim().max(300).optional().nullable(),
+    copies: z.coerce.number().int().min(1).max(10).optional()
+  })).min(1)
+});
+
 router.get('/formatos', requirePermission('CONFIGURACION.VER'), (req, res) => {
   res.json({ ok: true, data: service.FORMAT_SPECS });
 });
@@ -51,6 +66,10 @@ router.get('/impresoras', requirePermission('CONFIGURACION.VER'), async (req, re
 });
 router.post('/impresoras', requirePermission('CONFIGURACION.EDITAR'), async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await service.savePrinter(req.tenantId, parse(printerSchema, req.body)) }); }
+  catch (error) { next(error); }
+});
+router.post('/trabajos-dirigidos', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await service.buildDirectedJobs(req.tenantId, parse(directedSchema, req.body)) }); }
   catch (error) { next(error); }
 });
 router.get('/plantilla/:format', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
