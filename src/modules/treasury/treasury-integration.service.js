@@ -215,7 +215,7 @@ async function allocatePaymentBatch(tenantId, userId, input) {
         tenantId, userId, comprobanteId: receipt.id,
         sourceId: childSource ? `PAY-${childSource}` : `PAY-${receipt.id}`,
         fecha: receipt.fecha, concepto: `${receiptType} ${receiptNumber}`, referencia: receiptNumber,
-        origen: 'AUTOMATICO', codigoTipo: 'AU', detalles
+        origen: 'AUTOMATICO', codigoTipo: 'AU', detalles: details
       });
       const payment = await tx.pago.create({ data: {
         tenantId, documentoId: document.id, carteraId: cartera.id, comprobanteTesoreriaId: receipt.id,
