@@ -80,6 +80,56 @@ async function listPrinters(tenantId) {
   return prisma.printerEndpoint.findMany({ where: { tenantId }, orderBy: { name: 'asc' } });
 }
 
+async function printersForRoles(tenantId, roles) {
+  const normalized = [...new Set((roles || []).map((x) => String(x).trim().toUpperCase()).filter(Boolean))];
+  if (!normalized.length) return [];
+  return prisma.printerEndpoint.findMany({
+    where: { tenantId, active: true, transport: 'LAN', role: { in: normalized } },
+    orderBy: { name: 'asc' }
+  });
+}
+
+async function buildDirectedJobs(tenantId, input) {
+  const groups = input.groups || [];
+  const roles = groups.map((group) => String(group.role || '').trim().toUpperCase()).filter(Boolean);
+  const printers = await printersForRoles(tenantId, roles);
+  const byRole = new Map();
+  for (const printer of printers) {
+    const key = String(printer.role).toUpperCase();
+    if (!byRole.has(key)) byRole.set(key, []);
+    byRole.get(key).push(printer);
+  }
+
+  const entries = [];
+  const missingRoles = [];
+  for (const group of groups) {
+    const role = String(group.role || '').trim().toUpperCase();
+    const targets = byRole.get(role) || [];
+    if (!targets.length) {
+      missingRoles.push(role);
+      continue;
+    }
+    for (const printer of targets) {
+      entries.push({
+        stationRole: role,
+        target: { id: printer.id, name: printer.name, host: printer.host, port: printer.port || 9100, format: printer.format || null },
+        job: {
+          title: input.title || 'COMANDA',
+          lines: group.lines || [],
+          footer: group.footer || input.footer || null,
+          copies: group.copies || 1,
+          cut: true
+        }
+      });
+    }
+  }
+  return {
+    spooler: { protocol: 'HTTP_LOCAL_TO_RAW_ESC_POS', defaultUrl: 'http://127.0.0.1:18787/print/batch', internetRequired: false },
+    entries,
+    missingRoles
+  };
+}
+
 function templateContract(format, qrMinimumMm = 20) {
   const spec = FORMAT_SPECS[format];
   if (!spec) throw new AppError(400, 'Formato de impresión inválido', 'PRINT_FORMAT_INVALID');
@@ -92,4 +142,4 @@ function templateContract(format, qrMinimumMm = 20) {
   };
 }
 
-module.exports = { FORMAT_SPECS, getConfig, saveConfig, savePrinter, listPrinters, templateContract };
+module.exports = { FORMAT_SPECS, getConfig, saveConfig, savePrinter, listPrinters, printersForRoles, buildDirectedJobs, templateContract };
