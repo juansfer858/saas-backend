@@ -10,6 +10,9 @@ router.post('/cajas-bancos/:cajaBancoId/abrir', controller.openCashSession);
 router.post('/turnos/:sessionId/cerrar', controller.closeCashSession);
 
 router.get('/cartera', controller.listCartera);
+router.get('/cartera/antiguedad', controller.carteraAging);
+router.get('/cartera/conciliacion-contable', controller.carteraAccountingReconciliation);
+router.get('/cartera/terceros/:terceroId', controller.carteraThirdPartyDetail);
 router.get('/pagos', controller.listPayments);
 router.post('/pagos', controller.registerPayment);
 router.post('/pagos/aplicar-multiples', controller.registerPaymentBatch);
