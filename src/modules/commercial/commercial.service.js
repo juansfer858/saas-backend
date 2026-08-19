@@ -3,6 +3,7 @@ const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty, pct } = require('../../utils/decimal');
 const inventoryService = require('../inventory/inventory.service');
 const treasuryService = require('../treasury/treasury.service');
+const treasuryReversalService = require('../treasury/treasury-reversal.service');
 const accountingService = require('../accounting/accounting.service');
 
 const PREFIX = {
@@ -549,6 +550,15 @@ async function cancelDocumentInTx(tx, tenantId, userId, id, motivo) {
     tenantId,
     userId,
     documentoId: original.id,
+    motivo
+  });
+
+  await treasuryReversalService.reverseDirectDocumentSettlementInTx(tx, {
+    tenantId,
+    userId,
+    documentoId: original.id,
+    reversalDocumentId: note.id,
+    referencia: note.numero,
     motivo
   });
 
