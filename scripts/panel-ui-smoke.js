@@ -7,6 +7,7 @@ async function main() {
   const base = `http://127.0.0.1:${server.address().port}`;
 
   try {
+    let canonicalHtml = '';
     for (const route of ['/app/dashboard', '/app/ventas', '/app/ventas/nueva', '/app/ventas/00000000-0000-0000-0000-000000000000', '/app/contabilidad']) {
       const response = await fetch(base + route);
       const html = await response.text();
@@ -15,7 +16,13 @@ async function main() {
       assert.match(html, /Nueva venta/);
       assert.match(html, /Registrar abono/);
       assert.match(html, /Contabilidad PUC/);
+      canonicalHtml = html;
     }
+
+    const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(script, 'El panel debe contener su controlador SPA');
+    // Compila el JavaScript sin ejecutarlo para detectar errores de sintaxis antes del deploy.
+    new Function(script);
 
     console.log('SUPER CORE PANEL UI SMOKE OK');
   } finally {
