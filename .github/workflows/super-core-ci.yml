@@ -13,6 +13,7 @@ on:
       - accounting-ui-v1
       - web-panel-sales-v1
       - panel-demo-view-v1
+      - production-demo-tenant-v1
   pull_request:
     branches:
       - main
@@ -110,3 +111,6 @@ jobs:
 
       - name: Run integral hardening matrix
         run: node scripts/integral-hardening-smoke.js
+
+      - name: Validate permanent production demo tenant bootstrap
+        run: node scripts/production-demo-tenant-smoke.js
