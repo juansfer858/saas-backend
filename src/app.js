@@ -10,7 +10,9 @@ const app = express();
 
 app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+// Soportes contables se envían en base64 y están limitados a 5 MB en servicio.
+// 8 MB permite el overhead de base64 sin abrir cargas arbitrariamente grandes.
+app.use(express.json({ limit: '8mb' }));
 
 app.get('/', (_req, res) => {
   res.json({
@@ -33,8 +35,6 @@ app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
 });
 
-// Suite contable operativa dedicada. Conserva la sesión del panel global y
-// consume únicamente endpoints protegidos/multitenant del Accounting Core.
 app.get('/app/contabilidad', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'accounting.html'));
 });
@@ -59,7 +59,12 @@ app.get('/api/v1/status', async (_req, res) => {
         receivablesPayables: 'READY',
         commercialLifecycle: 'READY',
         accounting: 'READY',
-        accountingSuite: 'READY',
+        accountingSuite: 'V2',
+        financialStatements: 'READY',
+        accountingGovernance: 'READY',
+        taxes: 'READY',
+        fixedAssets: 'READY',
+        bankReconciliation: 'READY',
         adminPanel: 'READY',
         demoPanel: 'READY',
         salesUi: 'READY'
@@ -91,7 +96,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Pagos / Abonos</span><span class="ok">READY</span></div>
 <div class="grid"><span>Ventas / Compras — ciclo documental</span><span class="ok">READY</span></div>
 <div class="grid"><span>Reversos / Reemplazos trazables</span><span class="ok">READY</span></div>
-<div class="grid"><span>Contabilidad PUC + Diario + Mayor + Reportes</span><span class="ok">READY</span></div>
+<div class="grid"><span>Contabilidad V2 — PUC + Diario + Mayor + Estados + Cierres + Impuestos</span><span class="ok">READY</span></div>
+<div class="grid"><span>Activos fijos + Conciliación + Auditoría</span><span class="ok">READY</span></div>
 <div class="grid"><span>Panel Web</span><span class="ok">READY</span></div>
 <a class="link" href="/app/demo">Ver estructura sin ingresar</a><a class="link" href="/app/dashboard">Abrir Panel Web</a><a class="link" href="/app/ventas">Abrir Ventas</a><a class="link" href="/app/contabilidad">Abrir Contabilidad</a></div>
 <div class="muted">Despliegue automático GitHub → Coolify</div></div></body></html>`);
