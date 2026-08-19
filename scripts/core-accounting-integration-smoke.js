@@ -68,7 +68,6 @@ async function main() {
     costoPromedio: 0, stockActual: 0, precio1: 35000, ivaPct: 19, impoconsumoPct: 0, activo: true
   });
 
-  // 1-2. Compra crédito: Inventario + IVA / Retención + Proveedor neto.
   const purchase = await commercial.createDocument(tenant.id, user.id, {
     tipo: 'COMPRA', estado: 'EMITIDO', terceroId: supplier.id, formaPago: 'CREDITO', sourceId: `INT-PUR-${stamp}`,
     fechaVencimiento: new Date(Date.now() + 30 * 86400000),
@@ -76,7 +75,7 @@ async function main() {
   });
   assert.equal(purchase.tipo, 'COMPRA');
   assert.ok(purchase.asiento && balanced(purchase.asiento), 'Asiento compra debe cuadrar');
-  assert.equal(purchase.asiento.tipoComprobante?.codigo, 'AU');
+  assert.ok(String(purchase.asiento.numeroComprobante || '').startsWith('AU-'), 'Compra debe usar consecutivo AU');
   assert.equal(n(purchase.retencionTotal), 5000);
   assert.equal(n(purchase.netoPagar), 233000);
   assert.ok(purchase.asiento.detalles.some((d) => d.cuenta.codigo === '236540' && n(d.credito) === 5000));
@@ -85,7 +84,6 @@ async function main() {
   assert.equal(n(stocked.costoPromedio), 20000);
   assert.equal(n(purchase.saldo), 233000);
 
-  // 3. Pago parcial proveedor -> CxP + banco + AU.
   const supplierPayment = await treasuryIntegration.allocatePaymentBatch(tenant.id, user.id, {
     cajaBancoId: bank.id, metodoPago: 'TRANSFERENCIA', referencia: 'PAGO PARCIAL QA', sourceId: `INT-PAY-SUP-${stamp}`,
     aplicaciones: [{ documentoId: purchase.id, monto: 30000 }]
@@ -94,14 +92,13 @@ async function main() {
   assert.ok(balanced(supplierPayment.aplicaciones[0].asiento));
   assert.equal(n(supplierPayment.aplicaciones[0].saldo), 203000);
 
-  // 4-5. Venta crédito: Cliente neto + retención a favor / Ingreso + IVA; además COGS/Inventario.
   const sale = await commercial.createDocument(tenant.id, user.id, {
     tipo: 'FACTURA_VENTA', estado: 'EMITIDO', terceroId: customer.id, formaPago: 'CREDITO', sourceId: `INT-SALE-${stamp}`,
     fechaVencimiento: new Date(Date.now() + 30 * 86400000),
     detalles: [{ productoId: product.id, cantidad: 2, precioUnitario: 35000, ivaPct: 19 }]
   });
   assert.ok(sale.asiento && balanced(sale.asiento), 'Venta debe crear AU cuadrado');
-  assert.equal(sale.asiento.tipoComprobante?.codigo, 'AU');
+  assert.ok(String(sale.asiento.numeroComprobante || '').startsWith('AU-'), 'Venta debe usar consecutivo AU');
   assert.equal(n(sale.retencionTotal), 700);
   assert.equal(n(sale.netoPagar), 82600);
   assert.ok(sale.asiento.detalles.some((d) => d.cuenta.codigo === '135515' && n(d.debito) === 700));
@@ -111,7 +108,6 @@ async function main() {
   const saleCogsDebit = sale.asiento.detalles.filter((d) => d.cuenta.codigo === '613505').reduce((a, d) => a + n(d.debito), 0);
   assert.equal(saleCogsDebit, 40000, 'Costo de venta debe usar costo del Kardex');
 
-  // 6. Recaudo cliente -> CxC + banco + AU.
   const collection = await treasuryIntegration.allocatePaymentBatch(tenant.id, user.id, {
     cajaBancoId: bank.id, metodoPago: 'TRANSFERENCIA', referencia: 'RECAUDO QA', sourceId: `INT-PAY-CLI-${stamp}`,
     aplicaciones: [{ documentoId: sale.id, monto: 50000 }]
@@ -126,7 +122,6 @@ async function main() {
   const aging = await carteraReport.aging(tenant.id, {});
   assert.equal(n(aging.totales.TOTAL), 235600);
 
-  // Ajuste manual de inventario -> AU propio y justificación.
   const adjustment = await inventoryAccounting.createAccountedAdjustment(tenant.id, user.id, {
     productoId: product.id, tipo: 'AJUSTE_ENTRADA', cantidad: 1, costoUnitario: 20000,
     justificacion: 'Sobrante físico verificado en conteo QA', sourceId: `INT-ADJ-${stamp}`
@@ -149,14 +144,12 @@ async function main() {
   assert.ok(balanced(expense.asiento));
   assert.ok(expense.asiento.detalles.some((d) => d.cuenta.codigo === '519595' && n(d.debito) === 5000));
 
-  // 7. Estados financieros siguen matemáticamente balanceados.
   const today = new Date().toISOString().slice(0, 10);
   const bs = await accounting.getBalanceSheet(tenant.id, { corte: today });
   assert.ok(Math.abs(n(bs.diferencia)) < 0.01, `Balance General descuadrado: ${bs.diferencia}`);
   const pl = await accounting.getProfitAndLoss(tenant.id, { desde: `${new Date().getUTCFullYear()}-01-01`, hasta: today });
   assert.ok(pl, 'P&G debe responder');
 
-  // 8. Cierre bloquea la operación origen y la transacción completa hace rollback.
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth() + 1;
