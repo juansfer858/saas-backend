@@ -24,11 +24,12 @@ class EdgeStore {
         state TEXT NOT NULL DEFAULT 'PENDING',
         attempts INTEGER NOT NULL DEFAULT 0,
         last_error TEXT,
+        next_attempt_at TEXT,
         payload_enc TEXT NOT NULL,
         created_at TEXT NOT NULL,
         synced_at TEXT
       );
-      CREATE INDEX IF NOT EXISTS idx_operations_queue ON operations(state, local_timestamp, created_at);
+      CREATE INDEX IF NOT EXISTS idx_operations_queue ON operations(state, next_attempt_at, local_timestamp, created_at);
       CREATE TABLE IF NOT EXISTS stock_delta (
         product_id TEXT PRIMARY KEY,
         delta REAL NOT NULL DEFAULT 0,
@@ -39,11 +40,28 @@ class EdgeStore {
         operation_id TEXT NOT NULL UNIQUE,
         local_number TEXT NOT NULL UNIQUE,
         total REAL NOT NULL,
-        cash_received REAL NOT NULL,
+        cash_received REAL NOT NULL DEFAULT 0,
+        payment_mode TEXT NOT NULL DEFAULT 'CASH',
+        payment_status TEXT NOT NULL DEFAULT 'PAID_LOCAL',
         payload_enc TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS field_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        details_enc TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_field_events_time ON field_events(created_at DESC);
     `);
+    this.ensureColumn('operations', 'next_attempt_at', 'TEXT');
+    this.ensureColumn('local_sales', 'payment_mode', "TEXT NOT NULL DEFAULT 'CASH'");
+    this.ensureColumn('local_sales', 'payment_status', "TEXT NOT NULL DEFAULT 'PAID_LOCAL'");
+  }
+
+  ensureColumn(table, column, definition) {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all().map((x) => x.name);
+    if (!columns.includes(column)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 
   putSnapshot(kind, version, payload) {
@@ -61,8 +79,8 @@ class EdgeStore {
 
   enqueueOperation(operation) {
     const now = new Date().toISOString();
-    this.db.prepare(`INSERT INTO operations(id,type,local_timestamp,state,attempts,payload_enc,created_at)
-      VALUES(?,?,?,'PENDING',0,?,?)`).run(operation.id, operation.type, operation.localTimestamp, encryptJson(operation.payload, this.encryptionKey), now);
+    this.db.prepare(`INSERT INTO operations(id,type,local_timestamp,state,attempts,next_attempt_at,payload_enc,created_at)
+      VALUES(?,?,?,'PENDING',0,NULL,?,?)`).run(operation.id, operation.type, operation.localTimestamp, encryptJson(operation.payload, this.encryptionKey), now);
   }
 
   operationExists(id) {
@@ -70,25 +88,35 @@ class EdgeStore {
   }
 
   listPending(limit = 200) {
-    return this.db.prepare(`SELECT id,type,local_timestamp,state,attempts,last_error,payload_enc,created_at
-      FROM operations WHERE state IN ('PENDING','FAILED') ORDER BY local_timestamp ASC, created_at ASC LIMIT ?`).all(Number(limit)).map((row) => ({
+    const now = new Date().toISOString();
+    return this.db.prepare(`SELECT id,type,local_timestamp,state,attempts,last_error,next_attempt_at,payload_enc,created_at
+      FROM operations
+      WHERE state IN ('PENDING','FAILED') AND (next_attempt_at IS NULL OR next_attempt_at<=?)
+      ORDER BY local_timestamp ASC, created_at ASC LIMIT ?`).all(now, Number(limit)).map((row) => ({
         id: row.id,
         type: row.type,
         localTimestamp: row.local_timestamp,
         state: row.state,
         attempts: row.attempts,
         lastError: row.last_error,
+        nextAttemptAt: row.next_attempt_at,
         payload: decryptJson(row.payload_enc, this.encryptionKey),
         createdAt: row.created_at
       }));
   }
 
   markSynced(id) {
-    this.db.prepare("UPDATE operations SET state='SYNCED',synced_at=?,last_error=NULL WHERE id=?").run(new Date().toISOString(), id);
+    this.db.prepare("UPDATE operations SET state='SYNCED',synced_at=?,last_error=NULL,next_attempt_at=NULL WHERE id=?").run(new Date().toISOString(), id);
   }
 
-  markFailed(id, error) {
-    this.db.prepare("UPDATE operations SET state='FAILED',attempts=attempts+1,last_error=? WHERE id=?").run(String(error || 'SYNC_ERROR').slice(0, 1000), id);
+  markFailed(id, error, baseMs = 5000) {
+    const row = this.db.prepare('SELECT attempts FROM operations WHERE id=?').get(id);
+    const attempts = Number(row?.attempts || 0) + 1;
+    const delay = Math.min(Math.max(500, Number(baseMs) || 5000) * (2 ** Math.min(attempts - 1, 8)), 300000);
+    const nextAttemptAt = new Date(Date.now() + delay).toISOString();
+    this.db.prepare("UPDATE operations SET state='FAILED',attempts=?,last_error=?,next_attempt_at=? WHERE id=?")
+      .run(attempts, String(error || 'SYNC_ERROR').slice(0, 1000), nextAttemptAt, id);
+    return { attempts, delayMs: delay, nextAttemptAt };
   }
 
   pendingCount() {
@@ -96,20 +124,46 @@ class EdgeStore {
     return Number(row?.n || 0);
   }
 
+  pendingSummary(limit = 100) {
+    return this.db.prepare(`SELECT id,type,local_timestamp,state,attempts,last_error,next_attempt_at,created_at,synced_at
+      FROM operations ORDER BY created_at DESC LIMIT ?`).all(Number(limit)).map((row) => ({
+        id: row.id, type: row.type, localTimestamp: row.local_timestamp, state: row.state, attempts: row.attempts,
+        lastError: row.last_error, nextAttemptAt: row.next_attempt_at, createdAt: row.created_at, syncedAt: row.synced_at
+      }));
+  }
+
   saveLocalSale(sale) {
-    this.db.prepare('INSERT INTO local_sales(id,operation_id,local_number,total,cash_received,payload_enc,created_at) VALUES(?,?,?,?,?,?,?)')
-      .run(sale.id, sale.operationId, sale.localNumber, sale.total, sale.cashReceived, encryptJson(sale.payload, this.encryptionKey), sale.createdAt);
+    this.db.prepare(`INSERT INTO local_sales(id,operation_id,local_number,total,cash_received,payment_mode,payment_status,payload_enc,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?)`)
+      .run(sale.id, sale.operationId, sale.localNumber, sale.total, sale.cashReceived || 0, sale.paymentMode || 'CASH', sale.paymentStatus || 'PAID_LOCAL', encryptJson(sale.payload, this.encryptionKey), sale.createdAt);
   }
 
   recentSales(limit = 50) {
-    return this.db.prepare('SELECT id,operation_id,local_number,total,cash_received,payload_enc,created_at FROM local_sales ORDER BY created_at DESC LIMIT ?').all(Number(limit)).map((row) => ({
+    return this.db.prepare(`SELECT id,operation_id,local_number,total,cash_received,payment_mode,payment_status,payload_enc,created_at
+      FROM local_sales ORDER BY created_at DESC LIMIT ?`).all(Number(limit)).map((row) => ({
       id: row.id,
       operationId: row.operation_id,
       localNumber: row.local_number,
       total: Number(row.total),
       cashReceived: Number(row.cash_received),
+      paymentMode: row.payment_mode,
+      paymentStatus: row.payment_status,
       createdAt: row.created_at,
       payload: decryptJson(row.payload_enc, this.encryptionKey)
+    }));
+  }
+
+  recordEvent(eventType, details = {}) {
+    this.db.prepare('INSERT INTO field_events(event_type,details_enc,created_at) VALUES(?,?,?)')
+      .run(String(eventType), encryptJson(details, this.encryptionKey), new Date().toISOString());
+  }
+
+  recentEvents(limit = 200) {
+    return this.db.prepare('SELECT id,event_type,details_enc,created_at FROM field_events ORDER BY id DESC LIMIT ?').all(Number(limit)).map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      details: decryptJson(row.details_enc, this.encryptionKey),
+      createdAt: row.created_at
     }));
   }
 
