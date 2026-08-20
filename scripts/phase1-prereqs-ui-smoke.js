@@ -1,0 +1,16 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const routes = fs.readFileSync('src/routes/core.routes.js','utf8');
+const app = fs.readFileSync('src/app.js','utf8');
+const sales = fs.readFileSync('src/web/sales.html','utf8');
+const spooler = fs.readFileSync('edge/print-spooler/server.js','utf8');
+const docs = fs.readFileSync('docs/RESTAURANT_PHASE1_PREREQUISITES_V1.md','utf8');
+assert.ok(routes.includes("router.use('/consumo'"));
+assert.ok(app.includes("salesUi: 'OPERATIONAL_V1'"));
+assert.ok(app.includes('consumptionProductionEngine'));
+assert.ok(app.includes('localEscPosSpooler'));
+assert.ok(sales.includes('Documento Equivalente POS'));
+assert.ok(spooler.includes('/print/batch'));
+assert.ok(docs.includes('Phase 2 status'));
+assert.ok(docs.includes('BLOCKED'));
+console.log('RESTAURANT PHASE1 SURFACE SMOKE OK');

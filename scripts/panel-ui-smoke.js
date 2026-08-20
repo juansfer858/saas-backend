@@ -8,7 +8,7 @@ async function main() {
 
   try {
     let canonicalHtml = '';
-    for (const route of ['/app/dashboard', '/app/ventas', '/app/ventas/nueva', '/app/ventas/00000000-0000-0000-0000-000000000000']) {
+    for (const route of ['/app/dashboard', '/app/ventas/nueva', '/app/ventas/00000000-0000-0000-0000-000000000000']) {
       const response = await fetch(base + route);
       const html = await response.text();
       assert.equal(response.status, 200, route);
@@ -19,6 +19,17 @@ async function main() {
       canonicalHtml = html;
     }
 
+    const salesResponse = await fetch(base + '/app/ventas');
+    const salesHtml = await salesResponse.text();
+    assert.equal(salesResponse.status, 200);
+    assert.match(salesHtml, /VantixGC Super Core/);
+    assert.match(salesHtml, /\+ Nueva venta/);
+    assert.match(salesHtml, /Guardar borrador/);
+    assert.match(salesHtml, /Emitir venta/);
+    assert.match(salesHtml, /Documento Equivalente POS/);
+    assert.match(salesHtml, /Kardex\/recetas/);
+    assert.match(salesHtml, /cola DIAN/);
+
     const accounting = await fetch(base + '/app/contabilidad');
     const accountingHtml = await accounting.text();
     assert.equal(accounting.status, 200);
@@ -28,6 +39,10 @@ async function main() {
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
     new Function(script);
+
+    const salesScript = salesHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
+    new Function(salesScript);
 
     console.log('SUPER CORE PANEL UI SMOKE OK');
   } finally {
