@@ -22,6 +22,7 @@ on:
       - restaurant-prereqs-core-v1
       - edge-offline-first-core-v1
       - edge-offline-production-closure-v1
+      - notifications-whatsapp-tracking-core-v1
   pull_request:
     branches:
       - main
@@ -79,6 +80,9 @@ jobs:
 
       - name: Validate Edge production-closure policy UI, backoff and evidence store
         run: node scripts/edge-offline-closure-ui-smoke.js
+
+      - name: Validate Notifications fifth block and Embedded Signup contract
+        run: node scripts/notifications-ui-smoke.js
 
       - name: Validate read-only demo panel
         run: node scripts/demo-ui-smoke.js
@@ -175,3 +179,6 @@ jobs:
 
       - name: Validate Edge actual network drop, policy UI, evidence and automatic reconnect
         run: node scripts/edge-agent-real-network-drop-smoke.js
+
+      - name: Validate Notifications Core, consent, Meta contract and Magic Links
+        run: node scripts/notifications-core-v1-smoke.js
