@@ -1,0 +1,33 @@
+{
+  "sessionId": "EDGE-FIELD-YYYYMMDD-001",
+  "date": "YYYY-MM-DD",
+  "operator": "",
+  "device": {
+    "type": "",
+    "os": "",
+    "network": "",
+    "physicalWanDisconnected": false
+  },
+  "printers": [
+    {
+      "brand": "",
+      "model": "",
+      "transport": "LAN TCP/9100",
+      "ticketPrintedOffline": false,
+      "formatOk": false,
+      "charactersOk": false,
+      "qrOkIfApplicable": false
+    }
+  ],
+  "cashOnlyBlockVisible": false,
+  "automaticSyncAfterReconnect": false,
+  "centralEffectsVerified": {
+    "accountingAU": false,
+    "inventoryOrConsumption": false,
+    "treasuryOrReceivable": false,
+    "dianOutbox": false
+  },
+  "fieldEvidenceFile": "field-evidence.json",
+  "unexpectedFindings": [],
+  "result": "PENDING"
+}
