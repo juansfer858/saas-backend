@@ -56,7 +56,12 @@ async function update(req, res, next) {
   try {
     const input = parse(updateSchema, req.body);
     res.json({ ok: true, data: await service.updateDraft(req.tenantId, req.userId, req.params.id, input) });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error?.code === 'SALE_IMMUTABLE') {
+      return next(new AppError(409, 'Un documento emitido no se edita directamente; use reemplazar para generar reverso y nueva versión', 'COMMERCIAL_IMMUTABLE_USE_REPLACE'));
+    }
+    next(error);
+  }
 }
 
 async function emit(req, res, next) {
