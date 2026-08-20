@@ -10,7 +10,8 @@ const router = express.Router();
 const signupSchema = z.object({
   code: z.string().trim().min(8).max(4096),
   wabaId: z.string().trim().min(3).max(100),
-  phoneNumberId: z.string().trim().min(3).max(100)
+  phoneNumberId: z.string().trim().min(3).max(100).optional().nullable(),
+  onboardingMode: z.enum(['STANDARD', 'COEXISTENCE']).default('STANDARD')
 });
 
 router.get('/meta-tech-provider/readiness', requirePermission('CONFIGURACION.VER'), async (_req, res, next) => {
@@ -18,8 +19,6 @@ router.get('/meta-tech-provider/readiness', requirePermission('CONFIGURACION.VER
   catch (error) { next(error); }
 });
 
-// Mounted before the generic Notifications router so real production onboarding always uses
-// the encrypted Tech Provider System User token for management calls.
 router.post('/embedded-signup/complete', requirePermission('CONFIGURACION.EDITAR'), async (req, res, next) => {
   try {
     const parsed = signupSchema.safeParse(req.body);
