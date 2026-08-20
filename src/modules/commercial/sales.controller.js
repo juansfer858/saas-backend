@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const service = require('./sales.service');
+const queryService = require('./sales-query.service');
 const { detailSchema } = require('./commercial.schemas');
 
 function parse(schema, value) {
@@ -38,7 +39,8 @@ const cancelSchema = z.object({ motivo: z.string().trim().min(3).max(500) });
 
 async function list(req, res, next) {
   try {
-    res.json({ ok: true, data: await service.list(req.tenantId, req.query) });
+    const result = await queryService.list(req.tenantId, req.query);
+    res.json({ ok: true, data: result.items, meta: result.meta });
   } catch (error) { next(error); }
 }
 
