@@ -3,10 +3,13 @@ require('dotenv').config();
 const { app } = require('./src/app');
 const { prisma } = require('./src/config/prisma');
 const dianTransmission = require('./src/modules/platform/dian/dian-transmission.service');
+const notifications = require('./src/modules/notifications/notifications.service');
 
 const PORT = process.env.PORT || 3000;
 const DIAN_QUEUE_INTERVAL_MS = Math.max(Number(process.env.DIAN_QUEUE_INTERVAL_MS) || 60000, 10000);
+const NOTIFICATION_QUEUE_INTERVAL_MS = Math.max(Number(process.env.NOTIFICATION_QUEUE_INTERVAL_MS) || 30000, 5000);
 let dianWorkerBusy = false;
+let notificationWorkerBusy = false;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor activo en el puerto ${PORT}`);
@@ -25,13 +28,31 @@ async function runDianQueue() {
   }
 }
 
+async function runNotificationQueue() {
+  if (notificationWorkerBusy) return;
+  notificationWorkerBusy = true;
+  try {
+    const processed = await notifications.processQueue(Number(process.env.NOTIFICATION_QUEUE_BATCH_SIZE) || 25);
+    if (processed.length) console.log(`NOTIFICATION_QUEUE processed=${processed.length}`);
+  } catch (error) {
+    console.error(`NOTIFICATION_QUEUE_ERROR: ${error.message}`);
+  } finally {
+    notificationWorkerBusy = false;
+  }
+}
+
 const dianTimer = setInterval(runDianQueue, DIAN_QUEUE_INTERVAL_MS);
 dianTimer.unref?.();
 setTimeout(runDianQueue, 2000).unref?.();
 
+const notificationTimer = setInterval(runNotificationQueue, NOTIFICATION_QUEUE_INTERVAL_MS);
+notificationTimer.unref?.();
+setTimeout(runNotificationQueue, 2500).unref?.();
+
 async function shutdown(signal) {
   console.log(`${signal} recibido. Cerrando servidor...`);
   clearInterval(dianTimer);
+  clearInterval(notificationTimer);
 
   server.close(async () => {
     await prisma.$disconnect();

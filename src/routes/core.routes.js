@@ -15,6 +15,7 @@ const { payrollRouter } = require('../modules/platform/payroll/payroll.routes');
 const { printingRouter } = require('../modules/platform/printing/printing.routes');
 const { rbacRouter } = require('../modules/platform/rbac/rbac.routes');
 const { edgeTenantRouter } = require('../modules/edge/edge.routes');
+const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 
 const router = express.Router();
 
@@ -35,5 +36,6 @@ router.use('/nomina', payrollRouter);
 router.use('/impresion', printingRouter);
 router.use('/seguridad', rbacRouter);
 router.use('/edge', edgeTenantRouter);
+router.use('/notificaciones', notificationsRouter);
 
 module.exports = { coreRouter: router };
