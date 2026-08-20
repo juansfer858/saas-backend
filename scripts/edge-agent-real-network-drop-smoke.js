@@ -36,6 +36,7 @@ function fakeBootstrap() {
   return {
     tenant: { id: 'tenant-edge-qa', nombreEmpresa: 'VantixGC Edge QA', moneda: 'COP', pais: 'CO' },
     edge: { id: 'edge-agent-qa', pointCode: 'CAJA-QA', name: 'Caja QA', defaultCustomerId: 'customer-qa', defaultCashAccountId: 'cash-qa' },
+    offlinePolicy: { paymentPolicy: 'CASH_ONLY', manualPaymentNote: null },
     products: [{ id: 'product-qa', sku: 'P-QA', codigoBarras: null, nombre: 'Producto Offline QA', tipo: 'PRODUCTO', unidadMedida: 'UND', controlaInventario: true, stockActual: 1, costoPromedio: 4000, precio1: 10000, ivaPct: 0, impoconsumoPct: 0 }],
     recipes: [],
     cashAccounts: [{ id: 'cash-qa', nombre: 'Caja General', tipo: 'CAJA' }],
@@ -86,6 +87,7 @@ async function main() {
       EDGE_DB_PATH: path.join(tempDir, 'edge.sqlite'),
       EDGE_PORT: String(edgePort),
       EDGE_SYNC_INTERVAL_MS: '2000',
+      EDGE_RETRY_BASE_MS: '500',
       EDGE_HTTP_TIMEOUT_MS: '800',
       EDGE_RECEIPT_PRINTER_HOST: '127.0.0.1',
       EDGE_RECEIPT_PRINTER_PORT: String(printerPort)
@@ -102,16 +104,26 @@ async function main() {
     });
     let status = await (await fetch(`http://127.0.0.1:${edgePort}/api/status`)).json();
     assert.equal(status.connected, true);
+    assert.equal(status.offlinePolicy.paymentPolicy, 'CASH_ONLY');
 
-    // Caída real del socket central: no flag de simulación, el servidor deja de escuchar.
     await close(central);
     await waitFor(async () => {
       const s = await (await fetch(`http://127.0.0.1:${edgePort}/api/status`)).json();
       return s.connected === false ? s : null;
     }, 10000);
 
+    const html = await (await fetch(`http://127.0.0.1:${edgePort}/`)).text();
+    assert.match(html, /Sin conexión: solo se aceptan pagos en efectivo/);
+
+    const blockedCard = await fetch(`http://127.0.0.1:${edgePort}/api/sales`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines: [{ productId: 'product-qa', quantity: 1 }], paymentMode: 'MANUAL_EXTERNAL_PENDING' })
+    });
+    const blockedBody = await blockedCard.json();
+    assert.equal(blockedCard.status, 400);
+    assert.equal(blockedBody.code, 'EDGE_OFFLINE_CASH_ONLY');
+
     const saleResponse = await fetch(`http://127.0.0.1:${edgePort}/api/sales`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines: [{ productId: 'product-qa', quantity: 1 }], cashReceived: 10000 })
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines: [{ productId: 'product-qa', quantity: 1 }], paymentMode: 'CASH', cashReceived: 10000 })
     });
     const sale = await saleResponse.json();
     assert.equal(saleResponse.status, 201);
@@ -122,10 +134,17 @@ async function main() {
     status = await (await fetch(`http://127.0.0.1:${edgePort}/api/status`)).json();
     assert.equal(status.mode, 'OFFLINE');
     assert.equal(status.pending >= 1, true);
-    const html = await (await fetch(`http://127.0.0.1:${edgePort}/`)).text();
-    assert.match(html, /Modo offline —/);
 
-    // Restablece la conexión en el mismo endpoint TCP; el Edge debe vaciar la cola solo.
+    // Los bytes pueden llegar al socket antes de que el callback de impresión registre la evidencia.
+    // Esperamos explícitamente el evento para no convertir una carrera de milisegundos en un falso fallo de CI.
+    const evidenceOffline = await waitFor(async () => {
+      const evidence = await (await fetch(`http://127.0.0.1:${edgePort}/api/field-evidence`)).json();
+      return evidence.ok && evidence.data.events.some((x) => x.eventType === 'PRINT_SUCCEEDED') ? evidence : null;
+    }, 5000, 100);
+    assert.ok(evidenceOffline.data.events.some((x) => x.eventType === 'CORE_DISCONNECTED'));
+    assert.ok(evidenceOffline.data.events.some((x) => x.eventType === 'LOCAL_SALE_CREATED'));
+    assert.ok(evidenceOffline.data.events.some((x) => x.eventType === 'PRINT_SUCCEEDED'));
+
     central = makeCentral(received);
     await listen(central, centralPort);
     await waitFor(async () => {
@@ -136,17 +155,25 @@ async function main() {
     assert.equal(received[0].type, 'SALE_EMIT');
     assert.equal(received[0].payload.detalles[0].precioUnitario, 10000);
 
+    const evidenceOnline = await waitFor(async () => {
+      const evidence = await (await fetch(`http://127.0.0.1:${edgePort}/api/field-evidence`)).json();
+      return evidence.data.events.some((x) => x.eventType === 'OPERATION_SYNCED') ? evidence : null;
+    }, 5000, 100);
+    assert.equal(evidenceOnline.data.status.pending, 0);
+
     const dbBytes = fs.readFileSync(path.join(tempDir, 'edge.sqlite'));
     assert.equal(dbBytes.includes(Buffer.from('Producto Offline QA')), false, 'El payload sensible no debe quedar plano en SQLite');
 
-    console.log('EDGE AGENT REAL NETWORK DROP SMOKE OK');
+    console.log('EDGE AGENT REAL NETWORK DROP + CLOSURE SMOKE OK');
     console.log(JSON.stringify({
       actualCentralSocketStopped: true,
-      offlineSaleCompleted: true,
+      offlineCashSaleCompleted: true,
+      cashOnlyPolicyBlocksCardQr: true,
       localEncryptedSqlite: true,
       visibleOfflineIndicator: true,
       rawEscPosPrintedWhileCentralDown: printedBytes > 0,
       automaticReconnectAndSync: true,
+      fieldEvidenceExport: true,
       queuedOperationsReceived: received.length,
       physicalPrinterTested: false,
       physicalWanDisconnected: false

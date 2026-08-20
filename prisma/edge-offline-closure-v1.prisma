@@ -1,0 +1,17 @@
+enum EdgeOfflinePaymentPolicy {
+  CASH_ONLY
+  MANUAL_EXTERNAL_PENDING
+  PAUSE_SALES
+}
+
+model EdgeOfflineTenantConfig {
+  id                String                   @id @default(uuid())
+  tenantId          String                   @unique
+  paymentPolicy     EdgeOfflinePaymentPolicy @default(CASH_ONLY)
+  manualPaymentNote String?
+  updatedByUserId   String?
+  creadoEn          DateTime                 @default(now())
+  actualizadoEn     DateTime                 @updatedAt
+
+  @@index([paymentPolicy])
+}
