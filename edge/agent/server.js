@@ -80,6 +80,17 @@ async function refreshBootstrap(force = false) {
   return store.getSnapshot('bootstrap');
 }
 
+async function probeCentral() {
+  try {
+    await central('/edge/api/v1/ping');
+    return true;
+  } catch (error) {
+    runtime.connected = false;
+    runtime.lastError = error.message;
+    return false;
+  }
+}
+
 async function flushQueue() {
   if (runtime.syncing || runtime.revoked) return;
   runtime.syncing = true;
@@ -99,7 +110,6 @@ async function flushQueue() {
         runtime.lastError = error.message;
         store.markFailed(operation.id, `${error.code || 'NETWORK'}: ${error.message}`);
         if (error.status === 401 || error.status === 403) break;
-        // Fallo aislado: la siguiente operación sí se intenta si el Core sigue alcanzable.
         if (!error.status) break;
       }
     }
@@ -261,7 +271,10 @@ server.listen(PORT, HOST, async () => {
   setInterval(async () => {
     try {
       if (store.pendingCount() > 0) await flushQueue();
-      else await refreshBootstrap(false);
+      else {
+        const online = await probeCentral();
+        if (online) await refreshBootstrap(false);
+      }
     } catch (error) {
       runtime.connected = false;
       runtime.lastError = error.message;
