@@ -132,7 +132,7 @@ model NotificationMessage {
   payload               Json
   providerMessageId     String?
   retryCount            Int                      @default(0)
-  nextRetryAt           DateTime                 @default(now())
+  nextRetryAt           DateTime?                 @default(now())
   lastError             String?
   queuedAt              DateTime                 @default(now())
   sentAt                DateTime?
