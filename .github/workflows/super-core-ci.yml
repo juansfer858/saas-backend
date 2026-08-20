@@ -20,6 +20,7 @@ on:
       - core-accounting-integration-v1-work2
       - platform-core-dian-rbac-print-saas-v1
       - restaurant-prereqs-core-v1
+      - edge-offline-first-core-v1
   pull_request:
     branches:
       - main
@@ -30,6 +31,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:dummy@localhost:5432/postgres
       JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
       JWT_EXPIRES_IN: 8h
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
@@ -71,6 +73,9 @@ jobs:
       - name: Validate Restaurant Phase1 surfaces and gate
         run: node scripts/phase1-prereqs-ui-smoke.js
 
+      - name: Validate Edge Offline-First local agent source
+        run: node -e "require('./edge/agent/crypto-store'); require('./edge/agent/store'); console.log('EDGE AGENT LOAD OK')"
+
       - name: Validate read-only demo panel
         run: node scripts/demo-ui-smoke.js
 
@@ -95,6 +100,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
       JWT_EXPIRES_IN: 8h
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
@@ -159,3 +165,9 @@ jobs:
 
       - name: Validate offline RAW ESC-POS local spooler
         run: node scripts/escpos-spooler-smoke.js
+
+      - name: Validate Edge central reconciliation, negative stock and device revocation
+        run: node scripts/edge-offline-core-smoke.js
+
+      - name: Validate Edge actual network drop, local sale and automatic reconnect
+        run: node scripts/edge-agent-real-network-drop-smoke.js
