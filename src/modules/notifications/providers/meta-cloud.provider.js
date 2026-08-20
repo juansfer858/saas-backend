@@ -83,10 +83,18 @@ async function subscribeWaba({ wabaId, accessToken }) {
   return result.data;
 }
 
+async function listPhoneNumbers({ wabaId, accessToken }) {
+  const result = await graph(`${wabaId}/phone_numbers`, {
+    token: accessToken,
+    query: { fields: 'id,display_phone_number,verified_name,quality_rating,is_on_biz_app,platform_type' }
+  });
+  return result.data?.data || [];
+}
+
 async function getPhoneNumber({ phoneNumberId, accessToken }) {
   const result = await graph(phoneNumberId, {
     token: accessToken,
-    query: { fields: 'display_phone_number,verified_name,quality_rating' }
+    query: { fields: 'id,display_phone_number,verified_name,quality_rating,is_on_biz_app,platform_type' }
   });
   return result.data;
 }
@@ -158,6 +166,7 @@ module.exports = {
   debugAccessToken,
   listSharedWabas,
   subscribeWaba,
+  listPhoneNumbers,
   getPhoneNumber,
   revokeAccess,
   createTemplate,
