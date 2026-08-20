@@ -11,12 +11,13 @@ function graphVersion() {
 }
 
 function embeddedSignupConfig() {
+  const configuredVersion = String(process.env.META_GRAPH_VERSION || '').trim();
   return {
     providerCode: 'META_CLOUD_API',
     embeddedSignupVersion: 'v4',
     appId: process.env.META_APP_ID || null,
     configId: process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || null,
-    graphVersion: process.env.META_GRAPH_VERSION || null,
+    graphVersion: configuredVersion ? (configuredVersion.startsWith('v') ? configuredVersion : `v${configuredVersion}`) : null,
     ready: Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_EMBEDDED_SIGNUP_CONFIG_ID && process.env.META_GRAPH_VERSION)
   };
 }
