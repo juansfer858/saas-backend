@@ -1,0 +1,88 @@
+enum EdgeAgentState {
+  ACTIVE
+  REVOKED
+}
+
+enum EdgeSyncReceiptState {
+  RECEIVED
+  SYNCED
+  FAILED
+}
+
+enum EdgeAlertState {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model EdgeAgent {
+  id                   String         @id @default(uuid())
+  tenantId             String
+  name                 String
+  pointCode            String
+  credentialHash       String
+  serviceUserId        String
+  defaultCustomerId    String?
+  defaultCashAccountId String?
+  state                EdgeAgentState @default(ACTIVE)
+  softwareVersion      String?
+  lastSeenAt           DateTime?
+  lastSyncAt           DateTime?
+  revokedAt            DateTime?
+  revokedByUserId      String?
+  createdByUserId      String
+  creadoEn             DateTime       @default(now())
+  actualizadoEn        DateTime       @updatedAt
+
+  receipts             EdgeSyncReceipt[]
+  alerts               EdgeReconciliationAlert[]
+
+  @@unique([tenantId, pointCode])
+  @@unique([tenantId, id])
+  @@index([tenantId, state, lastSeenAt])
+}
+
+model EdgeSyncReceipt {
+  id               String               @id @default(uuid())
+  tenantId         String
+  edgeAgentId      String
+  operationId      String
+  operationType    String
+  localTimestamp   DateTime
+  payloadHash      String
+  state            EdgeSyncReceiptState @default(RECEIVED)
+  originDocumentId String?
+  errorCode        String?
+  errorMessage     String?
+  receivedAt       DateTime             @default(now())
+  processedAt      DateTime?
+
+  agent            EdgeAgent            @relation(fields: [edgeAgentId], references: [id], onDelete: Cascade)
+
+  @@unique([edgeAgentId, operationId])
+  @@index([tenantId, state, localTimestamp])
+}
+
+model EdgeReconciliationAlert {
+  id               String         @id @default(uuid())
+  tenantId         String
+  edgeAgentId      String
+  operationId      String?
+  type             String
+  severity         String         @default("WARNING")
+  state            EdgeAlertState @default(OPEN)
+  productoId       String?
+  originDocumentId String?
+  message          String
+  details          Json?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedAt       DateTime?
+  creadoEn         DateTime       @default(now())
+
+  agent            EdgeAgent      @relation(fields: [edgeAgentId], references: [id], onDelete: Cascade)
+
+  @@unique([edgeAgentId, operationId, type, productoId])
+  @@index([tenantId, state, creadoEn])
+  @@index([tenantId, type, productoId])
+}

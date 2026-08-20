@@ -6,6 +6,7 @@ const { prisma } = require('./config/prisma');
 const { authRouter } = require('./modules/auth/auth.routes');
 const { coreRouter } = require('./routes/core.routes');
 const { platformPublicRouter, platformAdminRouter } = require('./modules/platform/saas/platform.routes');
+const { edgePublicRouter } = require('./modules/edge/edge.routes');
 const { errorHandler } = require('./middleware/error-handler');
 
 const app = express();
@@ -17,6 +18,7 @@ const salesHtmlPath = path.join(__dirname, 'web', 'sales.html');
 const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
 const platformCoreConfigHtmlPath = path.join(__dirname, 'web', 'platform-core-config.html');
 const platformAdminHtmlPath = path.join(__dirname, 'web', 'platform-admin.html');
+const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -30,6 +32,8 @@ app.get('/', (_req, res) => {
     statusPage: '/status',
     adminApp: '/app/dashboard',
     advancedConfigApp: '/app/configuracion-avanzada',
+    edgeConfigApp: '/app/edge',
+    edgeAgentApi: '/edge/api/v1',
     platformAdminApp: '/platform',
     demoApp: '/app/demo',
     salesApp: '/app/ventas',
@@ -46,6 +50,9 @@ app.get('/platform', (_req, res) => res.sendFile(platformAdminHtmlPath));
 app.get('/platform/admin', (_req, res) => res.sendFile(platformAdminHtmlPath));
 app.use('/platform/api/auth', platformPublicRouter);
 app.use('/platform/api', platformAdminRouter);
+
+// Edge Agents authenticate with device credentials, never with a human tenant JWT.
+app.use('/edge/api/v1', edgePublicRouter);
 
 app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
@@ -69,6 +76,10 @@ app.get('/app/compras', (_req, res) => {
 
 app.get('/app/configuracion-avanzada', (_req, res) => {
   res.sendFile(platformCoreConfigHtmlPath);
+});
+
+app.get('/app/edge', (_req, res) => {
+  res.sendFile(edgeConfigHtmlPath);
 });
 
 app.get('/app/contabilidad', async (_req, res, next) => {
@@ -130,6 +141,7 @@ app.get('/api/v1/status', async (_req, res) => {
         tenantRbac: 'V1',
         printingConfiguration: 'V1',
         localEscPosSpooler: 'V1_EDGE_AGENT_DEV_VALIDATION_REQUIRED',
+        edgeOfflineFirstCore: 'V1_DEVICE_QUEUE_RECONCILIATION',
         saasPlatformAdmin: 'V1'
       }
     });
@@ -161,12 +173,13 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Motor consumo/producción</span><span class="warn">V1 · VALIDACIÓN FASE 1</span></div>
 <div class="grid"><span>Contabilidad V2 + integración AU</span><span class="ok">READY</span></div>
 <div class="grid"><span>Núcleo DIAN + adaptador real HKA</span><span class="warn">CÓDIGO V1 · CREDENCIALES/HABILITACIÓN EXTERNAS PENDIENTES</span></div>
+<div class="grid"><span>Edge Offline-First</span><span class="ok">V1 · COLA LOCAL + RECONCILIACIÓN</span></div>
 <div class="grid"><span>Nómina electrónica mínima + AU</span><span class="warn">V1 · PT REAL PENDIENTE</span></div>
 <div class="grid"><span>Roles y permisos por acción</span><span class="ok">V1</span></div>
 <div class="grid"><span>Impresión 58/80/Carta + agente ESC/POS LAN</span><span class="warn">V1 · PRUEBA FÍSICA PENDIENTE</span></div>
 <div class="grid"><span>Panel Super-Administración SaaS</span><span class="ok">V1</span></div>
-<a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/platform">Panel SaaS</a></div>
-<div class="muted">FASE 2 Restaurante permanece bloqueada hasta verificar los cuatro prerrequisitos de FASE 1 en producción y completar las dependencias externas reales.</div></div></body></html>`);
+<a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/app/edge">Edge Agents</a><a class="link" href="/platform">Panel SaaS</a></div>
+<div class="muted">Fase 2 Restaurante sigue gobernada por sus prerrequisitos externos y pruebas físicas; Edge Offline-First es una capacidad transversal del Core.</div></div></body></html>`);
 });
 
 app.use('/api/v1/auth', authRouter);

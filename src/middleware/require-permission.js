@@ -26,14 +26,14 @@ function permissionForRequest(req) {
   else if (path.startsWith('/contabilidad')) module = 'CONTABILIDAD';
   else if (path.startsWith('/dian')) module = 'DIAN';
   else if (path.startsWith('/nomina')) module = 'NOMINA';
-  else if (path.startsWith('/impresion') || path.startsWith('/seguridad')) module = 'CONFIGURACION';
+  else if (path.startsWith('/impresion') || path.startsWith('/seguridad') || path.startsWith('/edge')) module = 'CONFIGURACION';
   if (!module) return null;
 
   let action = 'VER';
   const method = String(req.method || 'GET').toUpperCase();
   if (method === 'POST') {
     if (/\/emitir(?:\/|$)/.test(path)) action = 'EMITIR';
-    else if (/\/anular|\/revers/.test(path)) action = 'ANULAR';
+    else if (/\/anular|\/revers|\/revoke/.test(path)) action = 'ANULAR';
     else if (/\/pagar|\/pagos|\/aplicar/.test(path)) action = 'PAGAR';
     else if (/\/ajust/.test(path)) action = 'AJUSTAR';
     else if (/\/cerrar|\/close/.test(path)) action = 'CERRAR';

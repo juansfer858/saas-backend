@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty } = require('../../utils/decimal');
+const { getEdgeSyncContext } = require('../edge/edge-sync-context');
 
 const ENTRY_TYPES = new Set(['COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_VENTA']);
 const EXIT_TYPES = new Set(['VENTA', 'AJUSTE_SALIDA', 'MERMA', 'DEVOLUCION_COMPRA']);
@@ -58,6 +59,50 @@ async function deactivateProduct(tenantId, id) {
   return prisma.producto.update({ where: { id }, data: { activo: false } });
 }
 
+async function createNegativeStockAlert(tx, context, product, oldStock, quantity, newStock, params) {
+  if (!context?.edgeAgentId || !context?.operationId) return;
+  await tx.edgeReconciliationAlert.upsert({
+    where: {
+      edgeAgentId_operationId_type_productoId: {
+        edgeAgentId: context.edgeAgentId,
+        operationId: context.operationId,
+        type: 'NEGATIVE_STOCK',
+        productoId: product.id
+      }
+    },
+    create: {
+      tenantId: params.tenantId,
+      edgeAgentId: context.edgeAgentId,
+      operationId: context.operationId,
+      type: 'NEGATIVE_STOCK',
+      severity: 'HIGH',
+      productoId: product.id,
+      originDocumentId: params.comprobanteId || null,
+      message: `Stock negativo al reconciliar operación offline: ${product.nombre}`,
+      details: {
+        sku: product.sku,
+        stockCentralAntes: oldStock.toString(),
+        cantidadSincronizada: quantity.toString(),
+        stockCentralDespues: newStock.toString(),
+        referencia: params.referencia || null
+      }
+    },
+    update: {
+      state: 'OPEN',
+      severity: 'HIGH',
+      originDocumentId: params.comprobanteId || null,
+      message: `Stock negativo al reconciliar operación offline: ${product.nombre}`,
+      details: {
+        sku: product.sku,
+        stockCentralAntes: oldStock.toString(),
+        cantidadSincronizada: quantity.toString(),
+        stockCentralDespues: newStock.toString(),
+        referencia: params.referencia || null
+      }
+    }
+  });
+}
+
 async function applyMovement(tx, params) {
   const product = await getProduct(params.tenantId, params.productoId, tx);
 
@@ -75,6 +120,7 @@ async function applyMovement(tx, params) {
   let newStock;
   let newAvg;
   let unitCost;
+  const edgeContext = getEdgeSyncContext();
 
   if (ENTRY_TYPES.has(params.tipo)) {
     unitCost = decimal(params.costoUnitario || 0).toDecimalPlaces(4);
@@ -87,7 +133,7 @@ async function applyMovement(tx, params) {
       ? oldValue.plus(incomingValue).div(newStock).toDecimalPlaces(4)
       : unitCost;
   } else if (EXIT_TYPES.has(params.tipo)) {
-    if (oldStock.lt(quantity)) {
+    if (oldStock.lt(quantity) && !edgeContext?.allowNegativeInventory) {
       throw new AppError(409, `Stock insuficiente para ${product.nombre}`, 'INVENTORY_INSUFFICIENT_STOCK', {
         productoId: product.id,
         stockActual: oldStock.toString(),
@@ -128,6 +174,10 @@ async function applyMovement(tx, params) {
       referencia: params.referencia || null
     }
   });
+
+  if (newStock.lt(0) && edgeContext?.allowNegativeInventory) {
+    await createNegativeStockAlert(tx, edgeContext, product, oldStock, quantity, newStock, params);
+  }
 
   return { movement, product: updatedProduct, costOfMovement };
 }
