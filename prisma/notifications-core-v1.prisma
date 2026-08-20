@@ -1,0 +1,220 @@
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+}
+
+enum NotificationConnectionState {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
+enum NotificationTemplateState {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  DISABLED
+}
+
+enum NotificationMessageState {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  CANCELLED
+}
+
+enum NotificationConsentState {
+  GRANTED
+  REVOKED
+}
+
+model NotificationTenantConfig {
+  id                       String                      @id @default(uuid())
+  tenantId                 String                      @unique
+  providerCode             String                      @default("META_CLOUD_API")
+  connectionState          NotificationConnectionState @default(DISCONNECTED)
+  embeddedSignupVersion    String                      @default("v4")
+  wabaId                   String?
+  phoneNumberId            String?
+  displayPhoneNumber       String?
+  accessTokenCiphertext    String?
+  tokenExpiresAt           DateTime?
+  webhookSubscribedAt      DateTime?
+  connectedAt              DateTime?
+  disconnectedAt           DateTime?
+  trackingExpiryDays       Int                         @default(60)
+  fallbackHumanContact     String?
+  updatedByUserId          String?
+  providerMetadata         Json?
+  creadoEn                 DateTime                    @default(now())
+  actualizadoEn            DateTime                    @updatedAt
+
+  @@index([providerCode, connectionState])
+}
+
+model NotificationTemplate {
+  id                   String                    @id @default(uuid())
+  tenantId             String
+  channel              NotificationChannel       @default(WHATSAPP)
+  name                 String
+  languageCode         String                    @default("es_CO")
+  category             String                    @default("UTILITY")
+  bodyText             String
+  variables            Json?
+  providerTemplateId   String?
+  providerTemplateName String?
+  state                NotificationTemplateState @default(DRAFT)
+  rejectedReason       String?
+  lastProviderSyncAt   DateTime?
+  createdByUserId      String?
+  creadoEn             DateTime                  @default(now())
+  actualizadoEn        DateTime                  @updatedAt
+
+  @@unique([tenantId, channel, name, languageCode])
+  @@index([tenantId, state, category])
+}
+
+model NotificationEventRule {
+  id              String              @id @default(uuid())
+  tenantId        String
+  eventCode       String
+  channel         NotificationChannel @default(WHATSAPP)
+  enabled         Boolean             @default(false)
+  templateId      String?
+  marketing       Boolean             @default(false)
+  requiresConsent Boolean             @default(true)
+  updatedByUserId String?
+  creadoEn        DateTime            @default(now())
+  actualizadoEn   DateTime            @updatedAt
+
+  @@unique([tenantId, eventCode, channel])
+  @@index([tenantId, enabled, eventCode])
+}
+
+model NotificationConsent {
+  id              String                   @id @default(uuid())
+  tenantId        String
+  terceroId       String?
+  phoneE164       String
+  scope           String                   @default("TRANSACTIONAL")
+  state           NotificationConsentState @default(GRANTED)
+  source          String
+  evidence        Json?
+  grantedAt       DateTime                 @default(now())
+  revokedAt       DateTime?
+  createdByUserId String?
+  creadoEn        DateTime                 @default(now())
+  actualizadoEn   DateTime                 @updatedAt
+
+  @@unique([tenantId, phoneE164, scope])
+  @@index([tenantId, terceroId, state])
+  @@index([tenantId, phoneE164, state])
+}
+
+model NotificationMessage {
+  id                    String                   @id @default(uuid())
+  tenantId              String
+  channel               NotificationChannel
+  providerCode          String
+  recipientPhoneE164    String
+  eventCode             String?
+  templateId            String?
+  originType            String?
+  originId              String?
+  trackingLinkId        String?
+  dianDocumentId        String?
+  state                 NotificationMessageState @default(QUEUED)
+  payload               Json
+  providerMessageId     String?
+  retryCount            Int                      @default(0)
+  nextRetryAt           DateTime                 @default(now())
+  lastError             String?
+  queuedAt              DateTime                 @default(now())
+  sentAt                DateTime?
+  deliveredAt           DateTime?
+  readAt                DateTime?
+  failedAt              DateTime?
+  creadoEn              DateTime                 @default(now())
+  actualizadoEn         DateTime                 @updatedAt
+
+  @@unique([tenantId, providerMessageId])
+  @@index([tenantId, state, nextRetryAt])
+  @@index([tenantId, originType, originId])
+  @@index([tenantId, recipientPhoneE164, creadoEn])
+}
+
+model NotificationDeliveryAttempt {
+  id                    String   @id @default(uuid())
+  notificationMessageId String
+  attempt               Int
+  result                String
+  httpStatus            Int?
+  providerResponse      Json?
+  errorMessage          String?
+  durationMs            Int?
+  creadoEn              DateTime @default(now())
+
+  @@unique([notificationMessageId, attempt])
+  @@index([result, creadoEn])
+}
+
+model NotificationInboundMessage {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  providerMessageId  String   @unique
+  phoneNumberId      String
+  senderPhoneE164    String
+  messageType        String
+  textBody           String?
+  rawPayload         Json?
+  action             String?
+  responseMessageId  String?
+  receivedAt         DateTime @default(now())
+  handledAt          DateTime?
+
+  @@index([tenantId, senderPhoneE164, receivedAt])
+}
+
+model TrackingLink {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  tokenHash             String   @unique
+  tokenHint             String
+  originType            String
+  originId              String
+  publicReference       String
+  currentStatus         String
+  timeline              Json     @default("[]")
+  customerPhoneE164     String?
+  expiresAt             DateTime
+  completedAt           DateTime?
+  active                Boolean  @default(true)
+  lastNotificationAt    DateTime?
+  createdByUserId       String?
+  creadoEn              DateTime @default(now())
+  actualizadoEn         DateTime @updatedAt
+
+  @@unique([tenantId, originType, originId])
+  @@index([tenantId, customerPhoneE164, active, actualizadoEn])
+  @@index([tenantId, expiresAt, active])
+}
+
+model NotificationAudit {
+  id          String   @id @default(uuid())
+  tenantId    String
+  actorType   String
+  actorId     String?
+  action      String
+  entity      String
+  entityId    String?
+  metadata    Json?
+  creadoEn    DateTime @default(now())
+
+  @@index([tenantId, creadoEn])
+  @@index([tenantId, entity, entityId])
+}
