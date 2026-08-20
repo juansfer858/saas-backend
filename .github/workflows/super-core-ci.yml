@@ -23,6 +23,7 @@ on:
       - edge-offline-first-core-v1
       - edge-offline-production-closure-v1
       - notifications-whatsapp-tracking-core-v1
+      - meta-real-connection-closure-v1
   pull_request:
     branches:
       - main
@@ -182,3 +183,6 @@ jobs:
 
       - name: Validate Notifications Core, consent, Meta contract and Magic Links
         run: node scripts/notifications-core-v1-smoke.js
+
+      - name: Validate Meta real-connection Tech Provider token and signup contract
+        run: node scripts/meta-real-connection-smoke.js
