@@ -54,7 +54,7 @@ async function printJob(target, job) {
   const buffer = buildEscPos(job);
   const results = [];
   for (let i = 0; i < copies; i += 1) results.push(await sendRawPrint({ host: target.host, port: target.port || 9100, buffer }));
-  return { target: { name: target.name || null, host: target.host, port: target.port || 9100 }, copies, bytesPerCopy: buffer.length, results };
+  return { ok: true, target: { name: target.name || null, host: target.host, port: target.port || 9100 }, copies, bytesPerCopy: buffer.length, results };
 }
 
 async function printBatch(entries) {
