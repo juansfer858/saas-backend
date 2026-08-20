@@ -21,6 +21,11 @@ const agentSchema = z.object({
   softwareVersion: z.string().trim().max(50).optional().nullable()
 });
 
+const offlinePolicySchema = z.object({
+  paymentPolicy: z.enum(['CASH_ONLY', 'MANUAL_EXTERNAL_PENDING', 'PAUSE_SALES']),
+  manualPaymentNote: z.string().trim().max(500).optional().nullable()
+});
+
 const operationsSchema = z.object({
   operations: z.array(z.object({
     id: z.string().trim().min(8).max(120),
@@ -28,6 +33,16 @@ const operationsSchema = z.object({
     localTimestamp: z.coerce.date(),
     payload: z.record(z.string(), z.any())
   })).min(1).max(200)
+});
+
+tenantRouter.get('/policy', async (req, res, next) => {
+  try { res.json({ ok: true, data: await service.getOfflinePolicy(req.tenantId) }); }
+  catch (error) { next(error); }
+});
+
+tenantRouter.put('/policy', async (req, res, next) => {
+  try { res.json({ ok: true, data: await service.saveOfflinePolicy(req.tenantId, req.userId, parse(offlinePolicySchema, req.body)) }); }
+  catch (error) { next(error); }
 });
 
 tenantRouter.get('/agents', async (req, res, next) => {
