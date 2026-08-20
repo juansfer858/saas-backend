@@ -14,6 +14,7 @@ const { dianRouter } = require('../modules/platform/dian/dian.routes');
 const { payrollRouter } = require('../modules/platform/payroll/payroll.routes');
 const { printingRouter } = require('../modules/platform/printing/printing.routes');
 const { rbacRouter } = require('../modules/platform/rbac/rbac.routes');
+const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 
 const router = express.Router();
 
@@ -33,5 +34,6 @@ router.use('/dian', dianRouter);
 router.use('/nomina', payrollRouter);
 router.use('/impresion', printingRouter);
 router.use('/seguridad', rbacRouter);
+router.use('/edge', edgeTenantRouter);
 
 module.exports = { coreRouter: router };
