@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
+const { prisma } = require('../../config/prisma');
 const service = require('./sales.service');
 const queryService = require('./sales-query.service');
 const { detailSchema } = require('./commercial.schemas');
@@ -45,8 +46,17 @@ async function list(req, res, next) {
 }
 
 async function create(req, res, next) {
-  try { res.status(201).json({ ok: true, data: await service.create(req.tenantId, req.userId, parse(saleSchema, req.body)) }); }
-  catch (error) { next(error); }
+  try {
+    const input = parse(saleSchema, req.body);
+    if (input.sourceId) {
+      const existing = await prisma.comprobanteComercial.findFirst({
+        where: { tenantId: req.tenantId, sourceId: input.sourceId, tipo: 'FACTURA_VENTA' },
+        select: { id: true }
+      });
+      if (existing) return res.status(201).json({ ok: true, data: await service.get(req.tenantId, existing.id) });
+    }
+    res.status(201).json({ ok: true, data: await service.create(req.tenantId, req.userId, input) });
+  } catch (error) { next(error); }
 }
 
 async function get(req, res, next) {
