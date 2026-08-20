@@ -135,8 +135,12 @@ async function main() {
     assert.equal(status.mode, 'OFFLINE');
     assert.equal(status.pending >= 1, true);
 
-    const evidenceOffline = await (await fetch(`http://127.0.0.1:${edgePort}/api/field-evidence`)).json();
-    assert.equal(evidenceOffline.ok, true);
+    // Los bytes pueden llegar al socket antes de que el callback de impresión registre la evidencia.
+    // Esperamos explícitamente el evento para no convertir una carrera de milisegundos en un falso fallo de CI.
+    const evidenceOffline = await waitFor(async () => {
+      const evidence = await (await fetch(`http://127.0.0.1:${edgePort}/api/field-evidence`)).json();
+      return evidence.ok && evidence.data.events.some((x) => x.eventType === 'PRINT_SUCCEEDED') ? evidence : null;
+    }, 5000, 100);
     assert.ok(evidenceOffline.data.events.some((x) => x.eventType === 'CORE_DISCONNECTED'));
     assert.ok(evidenceOffline.data.events.some((x) => x.eventType === 'LOCAL_SALE_CREATED'));
     assert.ok(evidenceOffline.data.events.some((x) => x.eventType === 'PRINT_SUCCEEDED'));
@@ -151,8 +155,10 @@ async function main() {
     assert.equal(received[0].type, 'SALE_EMIT');
     assert.equal(received[0].payload.detalles[0].precioUnitario, 10000);
 
-    const evidenceOnline = await (await fetch(`http://127.0.0.1:${edgePort}/api/field-evidence`)).json();
-    assert.ok(evidenceOnline.data.events.some((x) => x.eventType === 'OPERATION_SYNCED'));
+    const evidenceOnline = await waitFor(async () => {
+      const evidence = await (await fetch(`http://127.0.0.1:${edgePort}/api/field-evidence`)).json();
+      return evidence.data.events.some((x) => x.eventType === 'OPERATION_SYNCED') ? evidence : null;
+    }, 5000, 100);
     assert.equal(evidenceOnline.data.status.pending, 0);
 
     const dbBytes = fs.readFileSync(path.join(tempDir, 'edge.sqlite'));
