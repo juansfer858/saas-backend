@@ -7,6 +7,7 @@ const { authRouter } = require('./modules/auth/auth.routes');
 const { coreRouter } = require('./routes/core.routes');
 const { platformPublicRouter, platformAdminRouter } = require('./modules/platform/saas/platform.routes');
 const { edgePublicRouter } = require('./modules/edge/edge.routes');
+const { notificationsPublicRouter } = require('./modules/notifications/notifications.public.routes');
 const { errorHandler } = require('./middleware/error-handler');
 
 const app = express();
@@ -14,6 +15,7 @@ const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
 const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
 const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
 const panelIntegrationExtrasPath = path.join(__dirname, 'web', 'panel-integration-extras.js');
+const notificationsConfigScriptPath = path.join(__dirname, 'web', 'notifications-config.js');
 const salesHtmlPath = path.join(__dirname, 'web', 'sales.html');
 const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
 const platformCoreConfigHtmlPath = path.join(__dirname, 'web', 'platform-core-config.html');
@@ -22,7 +24,15 @@ const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 
 app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json({ limit: '8mb' }));
+app.use(express.json({
+  limit: '8mb',
+  verify: (req, _res, buf) => {
+    if (String(req.originalUrl || '').startsWith('/webhooks/whatsapp')) req.rawBody = Buffer.from(buf);
+  }
+}));
+
+// Public webhook and magic-link surfaces. No tenant login is required on these specific routes.
+app.use('/', notificationsPublicRouter);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -34,6 +44,8 @@ app.get('/', (_req, res) => {
     advancedConfigApp: '/app/configuracion-avanzada',
     edgeConfigApp: '/app/edge',
     edgeAgentApi: '/edge/api/v1',
+    trackingPublicPath: '/seguimiento/:token',
+    whatsappWebhook: '/webhooks/whatsapp',
     platformAdminApp: '/platform',
     demoApp: '/app/demo',
     salesApp: '/app/ventas',
@@ -66,6 +78,10 @@ app.get('/app/panel-integration-extras.js', (_req, res) => {
   res.type('application/javascript').sendFile(panelIntegrationExtrasPath);
 });
 
+app.get('/app/notifications-config.js', (_req, res) => {
+  res.type('application/javascript').sendFile(notificationsConfigScriptPath);
+});
+
 app.get('/app/ventas', (_req, res) => {
   res.sendFile(salesHtmlPath);
 });
@@ -74,8 +90,13 @@ app.get('/app/compras', (_req, res) => {
   res.sendFile(purchasesHtmlPath);
 });
 
-app.get('/app/configuracion-avanzada', (_req, res) => {
-  res.sendFile(platformCoreConfigHtmlPath);
+app.get('/app/configuracion-avanzada', async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(platformCoreConfigHtmlPath, 'utf8');
+    const script = '<script src="/app/notifications-config.js?v=notifications-core-v1"></script>';
+    const rendered = html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : `${html}${script}`;
+    res.type('html').send(rendered);
+  } catch (error) { next(error); }
 });
 
 app.get('/app/edge', (_req, res) => {
@@ -142,6 +163,8 @@ app.get('/api/v1/status', async (_req, res) => {
         printingConfiguration: 'V1',
         localEscPosSpooler: 'V1_EDGE_AGENT_DEV_VALIDATION_REQUIRED',
         edgeOfflineFirstCore: 'V1_DEVICE_QUEUE_RECONCILIATION',
+        notificationsCore: 'V1_META_EMBEDDED_SIGNUP_TENANT_QUEUE_CONSENT_TRACKING',
+        magicLinkTracking: 'V1_PUBLIC_READ_ONLY',
         saasPlatformAdmin: 'V1'
       }
     });
@@ -174,12 +197,13 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Contabilidad V2 + integración AU</span><span class="ok">READY</span></div>
 <div class="grid"><span>Núcleo DIAN + adaptador real HKA</span><span class="warn">CÓDIGO V1 · CREDENCIALES/HABILITACIÓN EXTERNAS PENDIENTES</span></div>
 <div class="grid"><span>Edge Offline-First</span><span class="ok">V1 · COLA LOCAL + RECONCILIACIÓN</span></div>
+<div class="grid"><span>Notificaciones por tenant + Magic Link</span><span class="ok">V1 · META CLOUD + COLA + CONSENTIMIENTO</span></div>
 <div class="grid"><span>Nómina electrónica mínima + AU</span><span class="warn">V1 · PT REAL PENDIENTE</span></div>
 <div class="grid"><span>Roles y permisos por acción</span><span class="ok">V1</span></div>
 <div class="grid"><span>Impresión 58/80/Carta + agente ESC/POS LAN</span><span class="warn">V1 · PRUEBA FÍSICA PENDIENTE</span></div>
 <div class="grid"><span>Panel Super-Administración SaaS</span><span class="ok">V1</span></div>
 <a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/app/edge">Edge Agents</a><a class="link" href="/platform">Panel SaaS</a></div>
-<div class="muted">Fase 2 Restaurante sigue gobernada por sus prerrequisitos externos y pruebas físicas; Edge Offline-First es una capacidad transversal del Core.</div></div></body></html>`);
+<div class="muted">Fase 2 Restaurante sigue gobernada por sus prerrequisitos externos y pruebas físicas; los núcleos Edge y Notificaciones son capacidades transversales reutilizables.</div></div></body></html>`);
 });
 
 app.use('/api/v1/auth', authRouter);
