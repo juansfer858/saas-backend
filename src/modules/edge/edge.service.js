@@ -5,6 +5,8 @@ const { AppError } = require('../../utils/app-error');
 const sales = require('../commercial/sales.service');
 const { runEdgeSyncContext } = require('./edge-sync-context');
 
+const OFFLINE_POLICIES = new Set(['CASH_ONLY', 'MANUAL_EXTERNAL_PENDING', 'PAUSE_SALES']);
+
 function authSecret() {
   const value = process.env.EDGE_AUTH_SECRET || process.env.JWT_SECRET;
   if (!value || value.length < 32) throw new AppError(500, 'EDGE_AUTH_SECRET/JWT_SECRET insuficiente para autenticar Edge Agents', 'EDGE_AUTH_SECRET_REQUIRED');
@@ -27,6 +29,32 @@ function payloadHash(value) {
 
 function snapshotHash(value) {
   return payloadHash(value);
+}
+
+async function getOfflinePolicy(tenantId) {
+  const current = await prisma.edgeOfflineTenantConfig.findUnique({ where: { tenantId } });
+  if (current) return current;
+  return prisma.edgeOfflineTenantConfig.create({ data: { tenantId, paymentPolicy: 'CASH_ONLY' } });
+}
+
+async function saveOfflinePolicy(tenantId, userId, input) {
+  const paymentPolicy = String(input.paymentPolicy || '').trim().toUpperCase();
+  if (!OFFLINE_POLICIES.has(paymentPolicy)) throw new AppError(400, 'Política offline inválida', 'EDGE_OFFLINE_POLICY_INVALID');
+  const manualPaymentNote = input.manualPaymentNote ? String(input.manualPaymentNote).trim().slice(0, 500) : null;
+  const config = await prisma.edgeOfflineTenantConfig.upsert({
+    where: { tenantId },
+    create: { tenantId, paymentPolicy, manualPaymentNote, updatedByUserId: userId },
+    update: { paymentPolicy, manualPaymentNote, updatedByUserId: userId }
+  });
+  await prisma.rbacAudit.create({
+    data: {
+      tenantId,
+      actorUserId: userId,
+      action: 'EDGE_OFFLINE_POLICY_UPDATED',
+      metadata: { paymentPolicy, manualPaymentNote }
+    }
+  });
+  return config;
 }
 
 async function provisionAgent(tenantId, actorUserId, input) {
@@ -88,10 +116,14 @@ async function revokeAgent(tenantId, actorUserId, agentId) {
   if (!agent) throw new AppError(404, 'Edge Agent no encontrado', 'EDGE_AGENT_NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     await tx.user.updateMany({ where: { id: agent.serviceUserId, tenantId }, data: { activo: false } });
-    return tx.edgeAgent.update({
+    const revoked = await tx.edgeAgent.update({
       where: { id: agent.id },
       data: { state: 'REVOKED', revokedAt: new Date(), revokedByUserId: actorUserId }
     });
+    await tx.rbacAudit.create({
+      data: { tenantId, actorUserId, action: 'EDGE_AGENT_REVOKED', metadata: { edgeAgentId: agent.id, pointCode: agent.pointCode } }
+    });
+    return revoked;
   });
 }
 
@@ -120,7 +152,7 @@ async function authenticateAgent(agentId, edgeKey) {
 
 async function buildBootstrap(agent) {
   const tenantId = agent.tenantId;
-  const [products, recipes, cashAccounts, printers, accountingConfig] = await Promise.all([
+  const [products, recipes, cashAccounts, printers, accountingConfig, offlineConfig] = await Promise.all([
     prisma.producto.findMany({
       where: { tenantId, activo: true },
       select: {
@@ -136,7 +168,8 @@ async function buildBootstrap(agent) {
     }),
     prisma.cajaBanco.findMany({ where: { tenantId, activo: true }, select: { id: true, nombre: true, tipo: true }, orderBy: { nombre: 'asc' } }),
     prisma.printerEndpoint.findMany({ where: { tenantId, active: true }, select: { id: true, name: true, role: true, host: true, port: true, format: true } }),
-    prisma.configuracionContable.findUnique({ where: { tenantId } })
+    prisma.configuracionContable.findUnique({ where: { tenantId } }),
+    getOfflinePolicy(tenantId)
   ]);
 
   const defaultCustomer = agent.defaultCustomerId
@@ -150,16 +183,19 @@ async function buildBootstrap(agent) {
     id: r.id, code: r.code, name: r.name, outputProductId: r.outputProductId, version: r.version,
     items: r.items.map((i) => ({ ingredientProductId: i.ingredientProductId, quantity: Number(i.quantity), unitLabel: i.unitLabel }))
   }));
+  const offlinePolicy = { paymentPolicy: offlineConfig.paymentPolicy, manualPaymentNote: offlineConfig.manualPaymentNote || null };
   const snapshot = {
     tenant: { id: agent.tenant.id, nombreEmpresa: agent.tenant.nombreEmpresa, moneda: agent.tenant.moneda, pais: agent.tenant.pais },
     edge: { id: agent.id, pointCode: agent.pointCode, name: agent.name, defaultCustomerId: defaultCustomer?.id || null, defaultCashAccountId: agent.defaultCashAccountId || cashAccounts.find((c) => c.tipo === 'CAJA')?.id || null },
+    offlinePolicy,
     products: normalizedProducts,
     recipes: normalizedRecipes,
     cashAccounts,
     printers,
     configurationFingerprint: snapshotHash({
       products: normalizedProducts.map((p) => [p.id, p.precio1, p.ivaPct, p.impoconsumoPct]),
-      accountingUpdatedAt: accountingConfig?.actualizadoEn || accountingConfig?.creadoEn || null
+      accountingUpdatedAt: accountingConfig?.actualizadoEn || accountingConfig?.creadoEn || null,
+      offlinePolicy
     })
   };
   return { ...snapshot, snapshotVersion: snapshotHash(snapshot), generatedAt: new Date().toISOString() };
@@ -197,9 +233,11 @@ async function createConfigDriftAlerts(agent, operation, payload, currentProduct
 
 async function syncSaleOperation(agent, operation) {
   const payload = operation.payload || {};
-  if (payload.formaPago && payload.formaPago !== 'EFECTIVO') {
-    throw new AppError(400, 'Edge Offline V1 solo permite cobro local en efectivo', 'EDGE_OFFLINE_PAYMENT_NOT_SUPPORTED');
+  const paymentMode = String(payload.paymentMode || payload.formaPago || 'CASH').toUpperCase();
+  if (!['CASH', 'EFECTIVO', 'MANUAL_EXTERNAL_PENDING'].includes(paymentMode)) {
+    throw new AppError(400, 'Modo de cobro Edge no soportado', 'EDGE_OFFLINE_PAYMENT_NOT_SUPPORTED');
   }
+  const manualExternal = paymentMode === 'MANUAL_EXTERNAL_PENDING';
   const sourceId = `EDGE-${agent.id}-${operation.id}`;
   const existing = await prisma.comprobanteComercial.findFirst({ where: { tenantId: agent.tenantId, sourceId, tipo: 'FACTURA_VENTA' }, select: { id: true } });
   if (existing) return sales.get(agent.tenantId, existing.id);
@@ -214,11 +252,13 @@ async function syncSaleOperation(agent, operation) {
     estado: 'EMITIDO',
     sourceId,
     terceroId: payload.terceroId || agent.defaultCustomerId || null,
-    cajaBancoId: payload.cajaBancoId || agent.defaultCashAccountId || null,
-    formaPago: 'EFECTIVO',
+    cajaBancoId: manualExternal ? null : (payload.cajaBancoId || agent.defaultCashAccountId || null),
+    formaPago: manualExternal ? 'CREDITO' : 'EFECTIVO',
     fecha: new Date(operation.localTimestamp),
     documentType: payload.documentType || 'DOCUMENTO_EQUIVALENTE_POS',
-    notas: `Sincronizada desde Edge ${agent.pointCode}. Operación local ${operation.id}`,
+    notas: manualExternal
+      ? `Sincronizada desde Edge ${agent.pointCode}. Pago externo pendiente de confirmar. Operación local ${operation.id}`
+      : `Sincronizada desde Edge ${agent.pointCode}. Operación local ${operation.id}`,
     detalles: payload.detalles || []
   }));
 
@@ -285,6 +325,7 @@ async function processOperations(agent, operations) {
 async function listAlerts(tenantId, filters = {}) {
   const where = { tenantId };
   if (filters.state) where.state = filters.state;
+  if (filters.type) where.type = filters.type;
   if (filters.edgeAgentId) where.edgeAgentId = filters.edgeAgentId;
   return prisma.edgeReconciliationAlert.findMany({ where, include: { agent: { select: { id: true, name: true, pointCode: true } } }, orderBy: { creadoEn: 'desc' }, take: 500 });
 }
@@ -292,10 +333,36 @@ async function listAlerts(tenantId, filters = {}) {
 async function acknowledgeAlert(tenantId, userId, id) {
   const alert = await prisma.edgeReconciliationAlert.findFirst({ where: { id, tenantId } });
   if (!alert) throw new AppError(404, 'Alerta Edge no encontrada', 'EDGE_ALERT_NOT_FOUND');
-  return prisma.edgeReconciliationAlert.update({ where: { id }, data: { state: 'ACKNOWLEDGED', acknowledgedById: userId, acknowledgedAt: new Date() } });
+  if (alert.state === 'ACKNOWLEDGED') return alert;
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.edgeReconciliationAlert.update({
+      where: { id },
+      data: { state: 'ACKNOWLEDGED', acknowledgedById: userId, acknowledgedAt: new Date() }
+    });
+    await tx.rbacAudit.create({
+      data: {
+        tenantId,
+        actorUserId: userId,
+        action: 'EDGE_ALERT_ACKNOWLEDGED',
+        metadata: {
+          edgeAlertId: alert.id,
+          edgeAgentId: alert.edgeAgentId,
+          operationId: alert.operationId,
+          type: alert.type,
+          productoId: alert.productoId,
+          originDocumentId: alert.originDocumentId,
+          decision: 'REVIEWED_NO_ACTION'
+        }
+      }
+    });
+    return updated;
+  });
 }
 
 module.exports = {
+  OFFLINE_POLICIES,
+  getOfflinePolicy,
+  saveOfflinePolicy,
   provisionAgent,
   listAgents,
   revokeAgent,
