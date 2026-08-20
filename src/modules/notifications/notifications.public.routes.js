@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const service = require('./notifications.service');
+const techProvider = require('./meta-tech-provider.service');
 const { AppError } = require('../../utils/app-error');
 
 const router = express.Router();
@@ -16,6 +17,10 @@ function verifyMetaSignature(req) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new AppError(401, 'Firma de webhook Meta inválida', 'META_WEBHOOK_SIGNATURE_INVALID');
 }
 
+function hasAccountUpdate(payload) {
+  return (payload?.entry || []).some((entry) => (entry.changes || []).some((change) => String(change.field || '').toLowerCase() === 'account_update'));
+}
+
 router.get('/webhooks/whatsapp', async (req, res, next) => {
   try {
     const challenge = await service.verifyWebhook(req.query['hub.mode'], req.query['hub.verify_token'], req.query['hub.challenge']);
@@ -27,6 +32,11 @@ router.post('/webhooks/whatsapp', async (req, res, next) => {
   try {
     verifyMetaSignature(req);
     await service.handleWhatsAppWebhook(req.body);
+    await techProvider.touch({
+      lastLiveWebhookAt: new Date(),
+      ...(hasAccountUpdate(req.body) ? { lastAccountUpdateAt: new Date() } : {}),
+      updatedBy: 'META_SIGNED_WEBHOOK'
+    });
     res.status(200).json({ ok: true });
   } catch (error) { next(error); }
 });
