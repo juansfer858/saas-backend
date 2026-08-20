@@ -12,6 +12,19 @@ function targetIdsFromDebug(debug) {
   return ids;
 }
 
+async function resolvePhone(input, accessToken) {
+  if (input.phoneNumberId) return meta.getPhoneNumber({ phoneNumberId: input.phoneNumberId, accessToken });
+  const phones = await meta.listPhoneNumbers({ wabaId: input.wabaId, accessToken });
+  if (!phones.length) throw new AppError(409, 'Meta no devolvió números para la WABA conectada', 'META_WABA_PHONE_NOT_FOUND');
+  if (input.onboardingMode === 'COEXISTENCE') {
+    const coexistence = phones.find((phone) => phone.is_on_biz_app === true) || (phones.length === 1 ? phones[0] : null);
+    if (!coexistence) throw new AppError(409, 'No fue posible identificar de forma segura el número de WhatsApp Business App conectado', 'META_COEXISTENCE_PHONE_AMBIGUOUS');
+    return coexistence;
+  }
+  if (phones.length !== 1) throw new AppError(409, 'Meta devolvió varios números; se requiere Phone Number ID explícito', 'META_WABA_PHONE_AMBIGUOUS');
+  return phones[0];
+}
+
 async function completeEmbeddedSignup(tenantId, userId, input) {
   const config = await prisma.notificationTenantConfig.findUnique({ where: { tenantId } })
     || await prisma.notificationTenantConfig.create({ data: { tenantId, providerCode: 'META_CLOUD_API', embeddedSignupVersion: 'v4', trackingExpiryDays: 60 } });
@@ -36,10 +49,13 @@ async function completeEmbeddedSignup(tenantId, userId, input) {
     }
 
     const subscription = await meta.subscribeWaba({ wabaId: input.wabaId, accessToken: systemUserAccessToken });
-    const phone = await meta.getPhoneNumber({ phoneNumberId: input.phoneNumberId, accessToken: tenantToken.accessToken });
+    const phone = await resolvePhone(input, tenantToken.accessToken);
+    if (input.onboardingMode === 'COEXISTENCE' && phone.is_on_biz_app !== true) {
+      throw new AppError(409, 'Meta no confirmó coexistencia con WhatsApp Business App para este número', 'META_COEXISTENCE_NOT_CONFIRMED');
+    }
     const tokenExpiresAt = tenantToken.expiresIn ? new Date(Date.now() + Number(tenantToken.expiresIn) * 1000) : null;
 
-    const row = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const saved = await tx.notificationTenantConfig.update({
         where: { id: config.id },
         data: {
@@ -47,7 +63,7 @@ async function completeEmbeddedSignup(tenantId, userId, input) {
           connectionState: 'CONNECTED',
           embeddedSignupVersion: 'v4',
           wabaId: input.wabaId,
-          phoneNumberId: input.phoneNumberId,
+          phoneNumberId: String(phone.id || input.phoneNumberId),
           displayPhoneNumber: phone.display_phone_number || null,
           accessTokenCiphertext: notifications.encryptJson({ accessToken: tenantToken.accessToken }),
           tokenExpiresAt,
@@ -59,6 +75,11 @@ async function completeEmbeddedSignup(tenantId, userId, input) {
             verifiedName: phone.verified_name || null,
             qualityRating: phone.quality_rating || null,
             subscription,
+            onboardingMode: input.onboardingMode || 'STANDARD',
+            coexistence: {
+              isOnBusinessApp: phone.is_on_biz_app === true,
+              platformType: phone.platform_type || null
+            },
             tokenDebug: {
               appId: debug.app_id || null,
               type: debug.type || null,
@@ -75,13 +96,19 @@ async function completeEmbeddedSignup(tenantId, userId, input) {
           tenantId,
           actorType: 'USER',
           actorId: userId,
-          action: 'WHATSAPP_REAL_EMBEDDED_SIGNUP_COMPLETED',
+          action: input.onboardingMode === 'COEXISTENCE' ? 'WHATSAPP_COEXISTENCE_SIGNUP_COMPLETED' : 'WHATSAPP_REAL_EMBEDDED_SIGNUP_COMPLETED',
           entity: 'NotificationTenantConfig',
           entityId: saved.id,
-          metadata: { wabaId: input.wabaId, phoneNumberId: input.phoneNumberId, embeddedSignupVersion: 'v4', systemUserManagementTokenUsed: true }
+          metadata: {
+            wabaId: input.wabaId,
+            phoneNumberId: String(phone.id || input.phoneNumberId),
+            embeddedSignupVersion: 'v4',
+            onboardingMode: input.onboardingMode || 'STANDARD',
+            isOnBusinessApp: phone.is_on_biz_app === true,
+            systemUserManagementTokenUsed: true
+          }
         }
       });
-      return saved;
     });
 
     await techProvider.touch({ lastRealSignupAt: new Date(), updatedBy: userId });
