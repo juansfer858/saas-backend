@@ -1,0 +1,16 @@
+model MetaTechProviderCredential {
+  id                         String   @id @default("META_TECH_PROVIDER")
+  systemUserTokenCiphertext  String?
+  tokenExpiresAt             DateTime?
+  tokenLabel                 String?
+  configurationId            String?
+  graphVersion               String?
+  webhookVerifyTokenSet      Boolean  @default(false)
+  lastLiveWebhookAt          DateTime?
+  lastAccountUpdateAt        DateTime?
+  lastRealSignupAt           DateTime?
+  lastRealMessageSentAt      DateTime?
+  updatedBy                  String?
+  creadoEn                   DateTime @default(now())
+  actualizadoEn              DateTime @updatedAt
+}

@@ -65,6 +65,19 @@ async function exchangeEmbeddedSignupCode(code) {
   return { accessToken: result.data.access_token, tokenType: result.data.token_type || null, expiresIn: result.data.expires_in || null };
 }
 
+async function debugAccessToken({ inputToken, systemUserAccessToken }) {
+  const result = await graph('debug_token', {
+    token: systemUserAccessToken,
+    query: { input_token: inputToken }
+  });
+  return result.data?.data || null;
+}
+
+async function listSharedWabas({ businessId, systemUserAccessToken }) {
+  const result = await graph(`${businessId}/client_whatsapp_business_accounts`, { token: systemUserAccessToken });
+  return result.data?.data || [];
+}
+
 async function subscribeWaba({ wabaId, accessToken }) {
   const result = await graph(`${wabaId}/subscribed_apps`, { method: 'POST', token: accessToken, body: {} });
   return result.data;
@@ -79,7 +92,6 @@ async function getPhoneNumber({ phoneNumberId, accessToken }) {
 }
 
 async function revokeAccess({ accessToken }) {
-  // Best effort provider-side invalidation. The Core always deletes the tenant token locally even if Meta rejects this call.
   try {
     const result = await graph('me/permissions', { method: 'DELETE', token: accessToken, body: {} });
     return { attempted: true, providerResponse: result.data };
@@ -90,18 +102,10 @@ async function revokeAccess({ accessToken }) {
 
 async function createTemplate({ wabaId, accessToken, template }) {
   const bodyComponent = { type: 'BODY', text: template.bodyText };
-  if (template.variables?.examples?.length) {
-    bodyComponent.example = { body_text: [template.variables.examples] };
-  }
+  if (template.variables?.examples?.length) bodyComponent.example = { body_text: [template.variables.examples] };
   const result = await graph(`${wabaId}/message_templates`, {
-    method: 'POST',
-    token: accessToken,
-    body: {
-      name: template.name,
-      language: template.languageCode,
-      category: template.category,
-      components: [bodyComponent]
-    }
+    method: 'POST', token: accessToken,
+    body: { name: template.name, language: template.languageCode, category: template.category, components: [bodyComponent] }
   });
   return result.data;
 }
@@ -121,14 +125,8 @@ async function sendTemplate({ phoneNumberId, accessToken, to, templateName, lang
   const result = await graph(`${phoneNumberId}/messages`, {
     method: 'POST', token: accessToken,
     body: {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'template',
-      template: {
-        name: templateName,
-        language: { code: languageCode },
-        ...(components ? { components } : {})
-      }
+      messaging_product: 'whatsapp', to, type: 'template',
+      template: { name: templateName, language: { code: languageCode }, ...(components ? { components } : {}) }
     }
   });
   return { providerMessageId: result.data?.messages?.[0]?.id || null, raw: result.data };
@@ -146,9 +144,7 @@ async function sendDocument({ phoneNumberId, accessToken, to, link, filename, ca
   const result = await graph(`${phoneNumberId}/messages`, {
     method: 'POST', token: accessToken,
     body: {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'document',
+      messaging_product: 'whatsapp', to, type: 'document',
       document: { link, filename: filename || undefined, caption: caption || undefined }
     }
   });
@@ -159,6 +155,8 @@ module.exports = {
   code: 'META_CLOUD_API',
   embeddedSignupConfig,
   exchangeEmbeddedSignupCode,
+  debugAccessToken,
+  listSharedWabas,
   subscribeWaba,
   getPhoneNumber,
   revokeAccess,
