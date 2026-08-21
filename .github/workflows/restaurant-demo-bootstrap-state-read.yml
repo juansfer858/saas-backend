@@ -1,0 +1,20 @@
+name: Restaurant Demo Bootstrap State Read
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  read-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read live demo readiness and bootstrap state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== DEMO READINESS ==='
+          curl -fsSL --max-time 15 https://core.vantixgc.com/api/public/restaurante/demo-readiness
+          echo
+          echo '=== CORE STATUS ==='
+          curl -fsSL --max-time 15 https://core.vantixgc.com/api/v1/status
