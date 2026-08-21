@@ -108,8 +108,12 @@ async function main() {
 
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
     assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v6'/);
-    assert.match(sharedEntry, /updateActiveNavigation/);
+    assert.match(sharedEntry, /window\.VantixGCCoreSidebarRuntime = 'off'/);
     assert.match(sharedEntry, /bootstrapRestaurantAccessCache/);
+    assert.ok(!sharedEntry.includes('MutationObserver'));
+    assert.ok(!sharedEntry.includes('normalizeSidebarChrome'));
+    assert.ok(!sharedEntry.includes('ensureCanonicalSidebarStyles'));
+    assert.ok(!sharedEntry.includes('updateActiveNavigation'));
     assert.ok(!sharedEntry.includes('nav.innerHTML'));
     assert.ok(!sharedEntry.includes('canonicalNavigationHtml'));
 
@@ -121,7 +125,7 @@ async function main() {
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
 
-    console.log('SUPER CORE PANEL UI + STRUCTURAL NAVIGATION V6 SMOKE OK');
+    console.log('SUPER CORE PANEL UI + STRUCTURAL NAVIGATION V6 + SIDEBAR RUNTIME OFF SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
