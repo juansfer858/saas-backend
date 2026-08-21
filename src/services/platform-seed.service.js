@@ -1,6 +1,8 @@
 const rbac = require('../modules/platform/rbac/rbac.service');
+const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
 async function seedPlatformDefaults(tx, tenant, adminUser = null) {
+  installRestaurantRbac();
   const roles = await rbac.ensureTenantRoles(tenant.id, tx);
   await tx.printTenantConfig.upsert({
     where: { tenantId: tenant.id },

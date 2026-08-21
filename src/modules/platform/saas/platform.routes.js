@@ -24,6 +24,11 @@ const controlSchema = z.object({
   maxStorageMb: z.coerce.number().int().positive().optional().nullable(),
   softLimitPercent: z.coerce.number().int().min(1).max(100).optional()
 }).refine((v) => Object.keys(v).length > 0, { message: 'Debe enviar al menos un cambio' });
+const restaurantFiscalDecisionSchema = z.object({
+  accepted: z.boolean(),
+  reason: z.string().trim().min(20).max(1200),
+  acknowledgedNoDianValidity: z.boolean().optional().default(false)
+});
 
 publicRouter.post('/login', async (req, res, next) => {
   try {
@@ -55,6 +60,16 @@ adminRouter.get('/tenants', async (_req, res, next) => {
 adminRouter.get('/tenants/:tenantId/users', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listTenantUsers(req.params.tenantId) }); }
   catch (error) { next(error); }
+});
+adminRouter.get('/tenants/:tenantId/restaurante/fiscal-simulado', async (req, res, next) => {
+  try { res.json({ ok: true, data: await service.getRestaurantFiscalGovernance(req.params.tenantId) }); }
+  catch (error) { next(error); }
+});
+adminRouter.put('/tenants/:tenantId/restaurante/fiscal-simulado', async (req, res, next) => {
+  try {
+    const input = parse(restaurantFiscalDecisionSchema, req.body);
+    res.json({ ok: true, data: await service.setRestaurantSimulatedFiscalAcceptance(req.platformAdmin.id, req.params.tenantId, input) });
+  } catch (error) { next(error); }
 });
 adminRouter.put('/tenants/:tenantId/estado', async (req, res, next) => {
   try {
