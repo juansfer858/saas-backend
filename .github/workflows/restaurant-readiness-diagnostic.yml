@@ -1,0 +1,20 @@
+name: Restaurant Demo Readiness Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  read-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read production demo readiness once
+        shell: bash
+        run: |
+          set -u
+          echo '=== DEMO READINESS ==='
+          curl -sS --max-time 15 -i https://core.vantixgc.com/api/public/restaurante/demo-readiness || true
+          echo
+          echo '=== CORE STATUS ==='
+          curl -sS --max-time 15 -i https://core.vantixgc.com/api/v1/status || true
