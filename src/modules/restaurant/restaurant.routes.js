@@ -1,5 +1,6 @@
 const express = require('express');
 const { z } = require('zod');
+const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
@@ -117,7 +118,11 @@ router.post('/menu', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, r
   try { res.status(201).json({ ok: true, data: await service.saveMenuItem(req.tenantId, null, parse(menuSchema, req.body)) }); } catch (error) { next(error); }
 });
 router.put('/menu/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.saveMenuItem(req.tenantId, req.params.id, parse(menuSchema, req.body)) }); } catch (error) { next(error); }
+  try {
+    const owned = await prisma.restaurantMenuItem.findFirst({ where: { id: req.params.id, tenantId: req.tenantId }, select: { id: true } });
+    if (!owned) throw new AppError(404, 'Ítem de menú no encontrado', 'RESTAURANT_MENU_ITEM_NOT_FOUND');
+    res.json({ ok: true, data: await service.saveMenuItem(req.tenantId, req.params.id, parse(menuSchema, req.body)) });
+  } catch (error) { next(error); }
 });
 router.delete('/menu/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.deactivateMenuItem(req.tenantId, req.params.id) }); } catch (error) { next(error); }
