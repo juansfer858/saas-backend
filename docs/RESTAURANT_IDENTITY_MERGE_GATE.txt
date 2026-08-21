@@ -1,1 +1,0 @@
-Do not merge unless Super Core regression and Restaurant Identity Connected CI are green.
