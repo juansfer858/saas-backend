@@ -64,12 +64,18 @@ async function main() {
   const templates = provisioning.templates();
   assert.equal(templates.find((x) => x.code === 'CORE').available, true);
   assert.equal(templates.find((x) => x.code === 'RESTAURANTE').available, true);
-  assert.equal(templates.find((x) => x.code === 'PAPELERIA').available, false);
+  const paper = templates.find((x) => x.code === 'PAPELERIA');
+  assert.ok(paper, 'Catálogo debe publicar PAPELERIA como próxima plantilla');
+  assert.equal(paper.label, 'Papelería');
+  assert.equal(paper.available, false);
+  assert.equal(paper.comingSoon, true);
 
   const ui = fs.readFileSync('src/web/platform-restaurant-fiscal-governance.js', 'utf8');
-  for (const marker of ['+ Crear nuevo tenant', '/platform/api/tenant-templates', '/platform/api/tenants', 'Contraseña inicial', 'Papelería']) {
+  for (const marker of ['+ Crear nuevo tenant', '/platform/api/tenant-templates', '/platform/api/tenants', 'Contraseña inicial']) {
     assert.ok(ui.includes(marker), `UI plataforma debe contener ${marker}`);
   }
+  assert.ok(ui.includes('templates.filter((x) => !x.available)'), 'UI debe separar plantillas próximas recibidas dinámicamente');
+  assert.ok(ui.includes("coming.map((t) => esc(t.label))"), 'UI debe mostrar los nombres dinámicos de plantillas próximas');
   assert.ok(ui.includes('passwordReturned: false') === false, 'UI no debe fingir que recibe contraseña del servidor');
 
   const cli = fs.readFileSync('scripts/create-platform-superadmin-interactive.js', 'utf8');
@@ -88,6 +94,7 @@ async function main() {
     coreReady: true,
     restaurantReady: true,
     papeleriaAvailable: false,
+    papeleriaComingSoon: true,
     audited: true,
     passwordReturned: false,
     anonymousRegistrationDefault: 'DISABLED'
