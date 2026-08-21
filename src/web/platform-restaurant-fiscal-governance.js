@@ -36,6 +36,88 @@
     if (root) root.innerHTML = '';
   }
 
+  async function openTenantProvisioning() {
+    const root = modalRoot();
+    if (!root) return;
+    root.innerHTML = '<div class="modal-back"><div class="modal"><p>Cargando plantillas de tenant…</p></div></div>';
+    try {
+      const templates = await platformApi('/platform/api/tenant-templates');
+      const available = templates.filter((x) => x.available);
+      const coming = templates.filter((x) => !x.available);
+      root.innerHTML = `<div class="modal-back"><div class="modal">
+        <h2>Crear nuevo tenant</h2>
+        <p class="muted">El Core crea empresa, ADMIN, PUC, Caja General, tercero genérico, RBAC, impresión y control SaaS en una sola transacción. El subdominio se reserva automáticamente desde el nombre del negocio.</p>
+        <div class="grid">
+          <div class="field" style="grid-column:span 2"><label>Nombre del negocio</label><input class="input" id="tpBusiness" maxlength="120" placeholder="Ej. Restaurante El Parque"></div>
+          <div class="field"><label>Plantilla</label><select class="select" id="tpTemplate">${available.map((t) => `<option value="${esc(t.code)}">${esc(t.label)}</option>`).join('')}</select></div>
+          <div class="field"><label>NIT (opcional)</label><input class="input" id="tpNit" maxlength="40"></div>
+          <div class="field"><label>País</label><input class="input" id="tpCountry" value="CO" maxlength="2"></div>
+          <div class="field"><label>Moneda</label><input class="input" id="tpCurrency" value="COP" maxlength="3"></div>
+        </div>
+        <h3 style="margin-top:22px">Administrador inicial del tenant</h3>
+        <div class="grid">
+          <div class="field"><label>Nombre</label><input class="input" id="tpAdminName" maxlength="100"></div>
+          <div class="field"><label>Correo</label><input class="input" id="tpAdminEmail" type="email" maxlength="254"></div>
+          <div class="field"><label>Contraseña inicial</label><input class="input" id="tpAdminPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password"></div>
+        </div>
+        <div class="notice">La contraseña no se registra en auditoría ni se devuelve por API. Master la define aquí y debe entregarla al administrador del negocio por su canal operativo seguro.</div>
+        ${coming.length ? `<div class="muted">Próximamente: ${coming.map((t) => esc(t.label)).join(', ')}. No se puede seleccionar hasta que su plantilla esté aprobada.</div>` : ''}
+        <div id="tpError"></div>
+        <div class="toolbar" style="justify-content:flex-end;margin-top:16px">
+          <button class="btn" id="tpCancel">Cancelar</button>
+          <button class="btn primary" id="tpCreate">Crear tenant</button>
+        </div>
+      </div></div>`;
+      document.querySelector('#tpCancel').onclick = close;
+      document.querySelector('#tpCreate').onclick = async () => {
+        const errorBox = document.querySelector('#tpError');
+        const body = {
+          nombreEmpresa: String(document.querySelector('#tpBusiness')?.value || '').trim(),
+          templateCode: document.querySelector('#tpTemplate')?.value,
+          nit: String(document.querySelector('#tpNit')?.value || '').trim() || null,
+          pais: String(document.querySelector('#tpCountry')?.value || 'CO').trim().toUpperCase(),
+          moneda: String(document.querySelector('#tpCurrency')?.value || 'COP').trim().toUpperCase(),
+          admin: {
+            nombre: String(document.querySelector('#tpAdminName')?.value || '').trim(),
+            email: String(document.querySelector('#tpAdminEmail')?.value || '').trim().toLowerCase(),
+            password: String(document.querySelector('#tpAdminPassword')?.value || '')
+          }
+        };
+        if (body.nombreEmpresa.length < 2 || body.admin.nombre.length < 2 || !body.admin.email || body.admin.password.length < 12) {
+          errorBox.innerHTML = '<div class="error">Complete negocio, administrador, correo válido y contraseña de mínimo 12 caracteres.</div>';
+          return;
+        }
+        if (!confirm(`Se creará un tenant real para ${body.nombreEmpresa} con plantilla ${body.templateCode}. ¿Continuar?`)) return;
+        try {
+          const created = await platformApi('/platform/api/tenants', { method: 'POST', body: JSON.stringify(body) });
+          root.innerHTML = `<div class="modal-back"><div class="modal">
+            <h2>Tenant creado</h2>
+            <div class="notice"><b>${esc(created.tenant.nombreEmpresa)}</b> quedó activo y auditado.</div>
+            <div class="panel"><div style="padding:14px">
+              <div><b>Tenant ID:</b> ${esc(created.tenant.id)}</div>
+              <div style="margin-top:7px"><b>Plantilla:</b> ${esc(created.template.label)}</div>
+              <div style="margin-top:7px"><b>Subdominio:</b> ${esc(created.tenant.subdomain)}</div>
+              <div style="margin-top:7px"><b>Correo ADMIN:</b> ${esc(created.admin.email)}</div>
+              <div style="margin-top:7px"><b>Acceso:</b> <a href="/app" target="_blank" rel="noopener">Abrir login del tenant</a></div>
+            </div></div>
+            <p class="muted">La contraseña no se muestra porque fue definida por Master en el formulario y nunca es retornada por el servidor.</p>
+            <div class="toolbar" style="justify-content:flex-end"><button class="btn primary" id="tpDone">Cerrar y actualizar tenants</button></div>
+          </div></div>`;
+          document.querySelector('#tpDone').onclick = () => {
+            close();
+            const refresh = document.querySelector('#refresh');
+            if (refresh) refresh.click();
+          };
+        } catch (error) {
+          errorBox.innerHTML = `<div class="error">${esc(error.message)}</div>`;
+        }
+      };
+    } catch (error) {
+      root.innerHTML = `<div class="modal-back"><div class="modal"><div class="error">${esc(error.message)}</div><button class="btn" id="tpCancel">Cerrar</button></div></div>`;
+      document.querySelector('#tpCancel').onclick = close;
+    }
+  }
+
   async function openGovernance(tenantId) {
     const root = modalRoot();
     if (!root) return;
@@ -96,7 +178,21 @@
     }
   }
 
+  function installCreateTenantButton() {
+    const refresh = document.querySelector('#refresh');
+    const header = refresh?.parentElement;
+    if (!refresh || !header || header.querySelector('[data-create-tenant]')) return;
+    const button = document.createElement('button');
+    button.className = 'btn primary';
+    button.type = 'button';
+    button.dataset.createTenant = '1';
+    button.textContent = '+ Crear nuevo tenant';
+    button.onclick = openTenantProvisioning;
+    header.insertBefore(button, refresh);
+  }
+
   function enhanceTenantRows() {
+    installCreateTenantButton();
     document.querySelectorAll('[data-control]').forEach((controlButton) => {
       const tenantId = controlButton.dataset.control;
       const toolbar = controlButton.parentElement;
