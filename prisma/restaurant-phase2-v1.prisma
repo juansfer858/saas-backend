@@ -1,0 +1,225 @@
+enum RestaurantTableState {
+  LIBRE
+  OCUPADA
+  CUENTA_PEDIDA
+  RESERVADA
+}
+
+enum RestaurantSessionState {
+  ABIERTA
+  CUENTA_PEDIDA
+  CERRADA
+  CANCELADA
+}
+
+enum RestaurantOrderSource {
+  MESERO
+  QR
+}
+
+enum RestaurantOrderState {
+  ENVIADO
+  EN_PREPARACION
+  LISTO
+  ENTREGADO
+  CANCELADO
+}
+
+enum RestaurantStation {
+  COCINA
+  BARRA
+  POSTRES
+}
+
+enum RestaurantCommandState {
+  PENDIENTE
+  EN_PREPARACION
+  LISTA
+  ENTREGADA
+  CANCELADA
+}
+
+enum RestaurantPrintMode {
+  SIMULATED_SCREEN
+  ESC_POS
+}
+
+enum RestaurantMenuCategory {
+  ENTRADAS
+  FUERTES
+  BEBIDAS
+  POSTRES
+}
+
+enum RestaurantFiscalMode {
+  SIMULATED
+  DIAN
+}
+
+model RestaurantConfig {
+  tenantId                          String              @id
+  verticalStatus                    String              @default("FUNCTIONAL_SIMULATED_PRINT")
+  printMode                         RestaurantPrintMode @default(SIMULATED_SCREEN)
+  physicalPrinterFieldPass          Boolean             @default(false)
+  physicalPrinterEvidence           Json?
+  metaBusinessManagementReviewPass  Boolean             @default(false)
+  metaReviewEvidence                 Json?
+  dianRealEnabled                    Boolean             @default(false)
+  dianEvidence                       Json?
+  allowSimulatedDocumentEquivalent  Boolean             @default(true)
+  whatsappOrderReadyEnabled          Boolean             @default(false)
+  creadoEn                          DateTime            @default(now())
+  actualizadoEn                     DateTime            @updatedAt
+}
+
+model RestaurantTable {
+  id                String               @id @default(uuid())
+  tenantId          String
+  code              String
+  name              String
+  seats             Int                  @default(4)
+  posX              Int                  @default(24)
+  posY              Int                  @default(24)
+  width             Int                  @default(124)
+  height            Int                  @default(92)
+  state             RestaurantTableState @default(LIBRE)
+  assignedWaiterId  String?
+  qrToken           String               @unique @default(uuid())
+  active            Boolean              @default(true)
+  creadoEn          DateTime             @default(now())
+  actualizadoEn     DateTime             @updatedAt
+
+  sessions          RestaurantTableSession[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, state, active])
+  @@index([tenantId, assignedWaiterId])
+}
+
+model RestaurantMenuItem {
+  id              String                 @id @default(uuid())
+  tenantId        String
+  productId       String
+  category        RestaurantMenuCategory
+  station         RestaurantStation
+  requiresRecipe  Boolean                @default(true)
+  active          Boolean                @default(true)
+  sortOrder       Int                    @default(0)
+  creadoEn        DateTime               @default(now())
+  actualizadoEn   DateTime               @updatedAt
+
+  @@unique([tenantId, productId])
+  @@index([tenantId, category, active, sortOrder])
+  @@index([tenantId, station, active])
+}
+
+model RestaurantTableSession {
+  id                  String                 @id @default(uuid())
+  tenantId            String
+  tableId             String
+  saleId              String
+  state               RestaurantSessionState @default(ABIERTA)
+  openedByUserId      String
+  closedByUserId      String?
+  cashShiftId         String?
+  guestCount          Int                    @default(1)
+  customerPhoneE164   String?
+  tipAmount           Decimal                @default(0) @db.Decimal(18, 2)
+  splitMode           String?
+  splitMetadata       Json?
+  openedAt            DateTime               @default(now())
+  accountRequestedAt  DateTime?
+  closedAt            DateTime?
+  actualizadoEn       DateTime               @updatedAt
+
+  table               RestaurantTable        @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  orders              RestaurantOrder[]
+  fiscalDocuments     RestaurantFiscalDocument[]
+
+  @@unique([tenantId, saleId])
+  @@index([tenantId, tableId, state])
+  @@index([tenantId, cashShiftId, closedAt])
+}
+
+model RestaurantOrder {
+  id                  String                 @id @default(uuid())
+  tenantId            String
+  sessionId           String
+  source              RestaurantOrderSource
+  state               RestaurantOrderState   @default(ENVIADO)
+  createdByUserId     String?
+  customerPhoneE164   String?
+  externalRequestId   String?
+  total               Decimal                @default(0) @db.Decimal(18, 2)
+  notes               String?
+  creadoEn            DateTime               @default(now())
+  actualizadoEn       DateTime               @updatedAt
+
+  session             RestaurantTableSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  items               RestaurantOrderItem[]
+  commands            RestaurantCommand[]
+
+  @@unique([tenantId, externalRequestId])
+  @@index([tenantId, sessionId, creadoEn])
+  @@index([tenantId, state, creadoEn])
+}
+
+model RestaurantOrderItem {
+  id             String            @id @default(uuid())
+  tenantId       String
+  orderId        String
+  menuItemId     String
+  productId      String
+  saleDetailId   String
+  description    String
+  quantity       Decimal           @db.Decimal(18, 4)
+  unitPrice      Decimal           @db.Decimal(18, 2)
+  lineTotal      Decimal           @db.Decimal(18, 2)
+  station        RestaurantStation
+  notes          String?
+  creadoEn       DateTime          @default(now())
+
+  order          RestaurantOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, orderId])
+  @@index([tenantId, station])
+  @@index([saleDetailId])
+}
+
+model RestaurantCommand {
+  id                String                 @id @default(uuid())
+  tenantId          String
+  orderId           String
+  station           RestaurantStation
+  state             RestaurantCommandState @default(PENDIENTE)
+  printMode         RestaurantPrintMode    @default(SIMULATED_SCREEN)
+  simulationRecord  Json
+  creadoEn          DateTime               @default(now())
+  startedAt         DateTime?
+  readyAt           DateTime?
+  deliveredAt       DateTime?
+  actualizadoEn     DateTime               @updatedAt
+
+  order             RestaurantOrder        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, station])
+  @@index([tenantId, station, state, creadoEn])
+}
+
+model RestaurantFiscalDocument {
+  id              String                  @id @default(uuid())
+  tenantId        String
+  sessionId       String
+  saleId          String
+  mode            RestaurantFiscalMode
+  documentType    String                  @default("DOCUMENTO_EQUIVALENTE_POS")
+  internalNumber  String
+  dianDocumentId  String?
+  simulatedData   Json?
+  creadoEn        DateTime                @default(now())
+
+  session         RestaurantTableSession  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, saleId])
+  @@index([tenantId, mode, creadoEn])
+}
