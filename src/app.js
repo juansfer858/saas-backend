@@ -27,8 +27,28 @@ const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
-const tenantNavigationHeadTag = '<style id="core-nav-anti-flash">.sidebar .nav:not([data-core-navigation-version]),.side .nav:not([data-core-navigation-version]){visibility:hidden}</style>';
-const tenantNavigationTag = '<script src="/app/panel-restaurant-entry.js?v=core-nav-v5"></script>';
+
+const TENANT_NAV_VERSION = 'core-nav-v6';
+const tenantNavigationItems = Object.freeze([
+  Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
+  Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
+  Object.freeze({ href: '/app/ventas', icon: '🛒', label: 'Ventas' }),
+  Object.freeze({ href: '/app/compras', icon: '🛍', label: 'Compras' }),
+  Object.freeze({ href: '/app/inventario', icon: '▣', label: 'Inventarios / Kardex' }),
+  Object.freeze({ href: '/app/tesoreria', icon: '🏦', label: 'Tesorería & Bancos' }),
+  Object.freeze({ href: '/app/cartera', icon: '📑', label: 'Cartera' }),
+  Object.freeze({ href: '/app/terceros', icon: '👥', label: 'Terceros' }),
+  Object.freeze({ href: '/app/contabilidad', icon: '📒', label: 'Contabilidad' }),
+  Object.freeze({ href: '/app/configuracion', icon: '⚙', label: 'Parametrización Contable' }),
+  Object.freeze({ href: '/app/configuracion-avanzada', icon: '🧩', label: 'Configuración avanzada' })
+]);
+
+const tenantNavigationHeadTag = `<style id="core-nav-structural-style">
+.core-nav-restaurant{visibility:hidden}
+html[data-core-restaurant-access="1"] .core-nav-restaurant{visibility:visible}
+html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
+</style><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
+const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -38,6 +58,27 @@ app.use(express.json({
     if (String(req.originalUrl || '').startsWith('/webhooks/whatsapp')) req.rawBody = Buffer.from(buf);
   }
 }));
+
+function normalizeAppPath(value) {
+  const clean = String(value || '/app/dashboard').split('?')[0].replace(/\/$/, '');
+  return clean || '/app';
+}
+
+function canonicalTenantNavHtml(requestPath) {
+  const current = normalizeAppPath(requestPath);
+  const links = tenantNavigationItems.map((item) => {
+    const active = current === item.href || current.startsWith(`${item.href}/`);
+    const classes = [active ? 'active' : '', item.restaurantOnly ? 'core-nav-restaurant' : ''].filter(Boolean).join(' ');
+    const restaurantAttr = item.restaurantOnly ? ' data-restaurant-entry="true"' : '';
+    return `<a href="${item.href}" class="${classes}" data-core-full-route="true"${restaurantAttr}><span class="icon">${item.icon}</span><span>${item.label}</span></a>`;
+  }).join('');
+  return `<nav class="nav" data-core-navigation-version="${TENANT_NAV_VERSION}" data-core-navigation-structural="true">${links}</nav>`;
+}
+
+function replaceLegacyTenantNav(html, requestPath) {
+  const canonical = canonicalTenantNavHtml(requestPath);
+  return html.replace(/<nav class=(['"])nav\1>[\s\S]*?<\/nav>/g, canonical);
+}
 
 function injectBeforeHeadEnd(html, tags) {
   const markup = (tags || []).filter(Boolean).join('');
@@ -51,10 +92,12 @@ function injectBeforeBody(html, tags) {
   return html.includes('</body>') ? html.replace('</body>', `${markup}</body>`) : `${html}${markup}`;
 }
 
-async function sendTenantHtml(filePath, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag]) {
+async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
-    const withHead = injectBeforeHeadEnd(html, headTags);
+    const canonicalized = replaceLegacyTenantNav(html, req.path);
+    const withHead = injectBeforeHeadEnd(canonicalized, headTags);
+    res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
     res.type('html').send(injectBeforeBody(withHead, bodyTags));
   } catch (error) {
     next(error);
@@ -145,31 +188,31 @@ app.get('/app/notifications-config.js', (_req, res) => {
   res.type('application/javascript').sendFile(notificationsConfigScriptPath);
 });
 
-app.get('/app/ventas', (_req, res, next) => {
-  sendTenantHtml(salesHtmlPath, res, next, [tenantNavigationTag]);
+app.get('/app/ventas', (req, res, next) => {
+  sendTenantHtml(salesHtmlPath, req, res, next, [tenantNavigationTag]);
 });
 
-app.get('/app/compras', (_req, res, next) => {
-  sendTenantHtml(purchasesHtmlPath, res, next, [tenantNavigationTag]);
+app.get('/app/compras', (req, res, next) => {
+  sendTenantHtml(purchasesHtmlPath, req, res, next, [tenantNavigationTag]);
 });
 
-app.get('/app/configuracion-avanzada', (_req, res, next) => {
+app.get('/app/configuracion-avanzada', (req, res, next) => {
   const notificationsTag = '<script src="/app/notifications-config.js?v=notifications-core-v1"></script>';
-  sendTenantHtml(platformCoreConfigHtmlPath, res, next, [notificationsTag, tenantNavigationTag]);
+  sendTenantHtml(platformCoreConfigHtmlPath, req, res, next, [notificationsTag, tenantNavigationTag]);
 });
 
 app.get('/app/edge', (_req, res) => {
   res.sendFile(edgeConfigHtmlPath);
 });
 
-app.get('/app/contabilidad', (_req, res, next) => {
+app.get('/app/contabilidad', (req, res, next) => {
   const guardTag = '<script src="/app/accounting-runtime-guard.js?v=qa-blockers-v2"></script>';
-  sendTenantHtml(accountingHtmlPath, res, next, [guardTag, tenantNavigationTag]);
+  sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag]);
 });
 
-app.use('/app', (_req, res, next) => {
+app.use('/app', (req, res, next) => {
   const integrationTag = '<script src="/app/panel-integration-extras.js?v=core-accounting-integration-v1"></script>';
-  sendTenantHtml(panelHtmlPath, res, next, [integrationTag, tenantNavigationTag]);
+  sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag]);
 });
 
 app.get('/api/v1/status', async (_req, res) => {
