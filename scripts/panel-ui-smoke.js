@@ -16,14 +16,21 @@ const expectedNavLabels = [
   'Configuración avanzada'
 ];
 
-function assertStructuralNavigation(html, route) {
-  assert.match(html, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v6/, route);
-  assert.match(html, /data-core-navigation-version="core-nav-v6"/, route);
+function assertCanonicalSidebar(html, route) {
+  assert.match(html, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v7/, route);
+  assert.match(html, /data-core-navigation-version="core-nav-v7"/, route);
   assert.match(html, /data-core-navigation-structural="true"/, route);
+  assert.match(html, /data-core-sidebar-version="core-sidebar-server-v1"/, route);
+  assert.match(html, /class="sidebar core-tenant-sidebar"/, route);
+  assert.match(html, /class="core-brandmark">V<\/div>/, route);
+  assert.match(html, /class="nav-title">Navegación<\/div>/, route);
 
-  const match = html.match(/<nav class="nav" data-core-navigation-version="core-nav-v6" data-core-navigation-structural="true">([\s\S]*?)<\/nav>/);
-  assert.ok(match, `${route}: falta navegación estructural`);
-  const nav = match[1];
+  const sidebarMatch = html.match(/<aside class="sidebar core-tenant-sidebar"[^>]*>([\s\S]*?)<\/aside>/);
+  assert.ok(sidebarMatch, `${route}: falta sidebar canónico completo`);
+  const sidebar = sidebarMatch[1];
+  const navMatch = sidebar.match(/<nav class="nav" data-core-navigation-version="core-nav-v7" data-core-navigation-structural="true">([\s\S]*?)<\/nav>/);
+  assert.ok(navMatch, `${route}: falta navegación estructural`);
+  const nav = navMatch[1];
 
   let cursor = -1;
   for (const label of expectedNavLabels) {
@@ -40,8 +47,8 @@ function assertStructuralNavigation(html, route) {
   const headEndAt = html.indexOf('</head>');
   const bodyAt = html.indexOf('<body');
   assert.ok(styleAt >= 0, `${route}: falta estilo estructural`);
-  assert.ok(styleAt < headEndAt, `${route}: el bootstrap de visibilidad debe estar en head`);
-  assert.ok(bodyAt < 0 || styleAt < bodyAt, `${route}: el bootstrap debe preceder body`);
+  assert.ok(styleAt < headEndAt, `${route}: estilo/sidebar debe estar listo en head`);
+  assert.ok(bodyAt < 0 || styleAt < bodyAt, `${route}: estilo/sidebar debe preceder body`);
 }
 
 async function main() {
@@ -55,18 +62,20 @@ async function main() {
       const response = await fetch(base + route);
       const html = await response.text();
       assert.equal(response.status, 200, route);
-      assert.equal(response.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v6', route);
+      assert.equal(response.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v7', route);
+      assert.equal(response.headers.get('x-vantixgc-tenant-sidebar'), 'core-sidebar-server-v1', route);
       assert.match(html, /VantixGC Super Core/);
       assert.match(html, /Nueva venta/);
       assert.match(html, /Registrar abono/);
-      assertStructuralNavigation(html, route);
+      assertCanonicalSidebar(html, route);
       canonicalHtml = html;
     }
 
     const salesResponse = await fetch(base + '/app/ventas');
     const salesHtml = await salesResponse.text();
     assert.equal(salesResponse.status, 200);
-    assert.equal(salesResponse.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v6');
+    assert.equal(salesResponse.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v7');
+    assert.equal(salesResponse.headers.get('x-vantixgc-tenant-sidebar'), 'core-sidebar-server-v1');
     assert.match(salesHtml, /VantixGC Super Core/);
     assert.match(salesHtml, /\+ Nueva venta/);
     assert.match(salesHtml, /Guardar borrador/);
@@ -74,12 +83,13 @@ async function main() {
     assert.match(salesHtml, /Documento Equivalente POS/);
     assert.match(salesHtml, /Kardex\/recetas/);
     assert.match(salesHtml, /cola DIAN/);
-    assertStructuralNavigation(salesHtml, '/app/ventas');
+    assertCanonicalSidebar(salesHtml, '/app/ventas');
 
     const accounting = await fetch(base + '/app/contabilidad');
     const accountingHtml = await accounting.text();
     assert.equal(accounting.status, 200);
-    assert.equal(accounting.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v6');
+    assert.equal(accounting.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v7');
+    assert.equal(accounting.headers.get('x-vantixgc-tenant-sidebar'), 'core-sidebar-server-v1');
     for (const marker of [
       'Plan de Cuentas',
       'Libro Diario',
@@ -90,32 +100,33 @@ async function main() {
       'Estado de Resultados',
       'Balance General / Situación Financiera'
     ]) assert.match(accountingHtml, new RegExp(marker));
-    assertStructuralNavigation(accountingHtml, '/app/contabilidad');
+    assertCanonicalSidebar(accountingHtml, '/app/contabilidad');
 
     const advanced = await fetch(base + '/app/configuracion-avanzada');
     const advancedHtml = await advanced.text();
     assert.equal(advanced.status, 200);
-    assert.equal(advanced.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v6');
+    assert.equal(advanced.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v7');
+    assert.equal(advanced.headers.get('x-vantixgc-tenant-sidebar'), 'core-sidebar-server-v1');
     for (const marker of ['DIAN', 'Roles y permisos', 'Impresión', 'Nómina electrónica']) {
       assert.ok(advancedHtml.includes(marker), `Configuración avanzada debe contener ${marker}`);
     }
     assert.match(advancedHtml, /\/app\/notifications-config\.js/);
-    assertStructuralNavigation(advancedHtml, '/app/configuracion-avanzada');
+    assertCanonicalSidebar(advancedHtml, '/app/configuracion-avanzada');
 
     const notificationsUi = fs.readFileSync('src/web/notifications-config.js', 'utf8');
     assert.match(notificationsUi, /button\.textContent = 'Notificaciones'/);
     assert.match(notificationsUi, /data-notifications-tab/);
 
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
-    assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v6'/);
+    assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v7'/);
     assert.match(sharedEntry, /window\.VantixGCCoreSidebarRuntime = 'off'/);
+    assert.match(sharedEntry, /window\.VantixGCCoreSidebarShellSource = 'server'/);
     assert.match(sharedEntry, /bootstrapRestaurantAccessCache/);
     assert.ok(!sharedEntry.includes('MutationObserver'));
     assert.ok(!sharedEntry.includes('normalizeSidebarChrome'));
     assert.ok(!sharedEntry.includes('ensureCanonicalSidebarStyles'));
     assert.ok(!sharedEntry.includes('updateActiveNavigation'));
     assert.ok(!sharedEntry.includes('nav.innerHTML'));
-    assert.ok(!sharedEntry.includes('canonicalNavigationHtml'));
 
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
@@ -125,7 +136,7 @@ async function main() {
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
 
-    console.log('SUPER CORE PANEL UI + STRUCTURAL NAVIGATION V6 + SIDEBAR RUNTIME OFF SMOKE OK');
+    console.log('SUPER CORE PANEL UI + SERVER SIDEBAR V1 + NAV V7 SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
