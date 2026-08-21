@@ -2,8 +2,26 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
+  const NAV_VERSION = 'core-nav-v2';
+  const CORE_NAV_ITEMS = Object.freeze([
+    Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
+    Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
+    Object.freeze({ href: '/app/ventas', icon: '🛒', label: 'Ventas' }),
+    Object.freeze({ href: '/app/compras', icon: '🛍', label: 'Compras' }),
+    Object.freeze({ href: '/app/inventario', icon: '▣', label: 'Inventarios / Kardex' }),
+    Object.freeze({ href: '/app/tesoreria', icon: '🏦', label: 'Tesorería & Bancos' }),
+    Object.freeze({ href: '/app/cartera', icon: '📑', label: 'Cartera' }),
+    Object.freeze({ href: '/app/terceros', icon: '👥', label: 'Terceros' }),
+    Object.freeze({ href: '/app/contabilidad', icon: '📒', label: 'Contabilidad' }),
+    Object.freeze({ href: '/app/configuracion', icon: '⚙', label: 'Parametrización Contable' }),
+    Object.freeze({ href: '/app/configuracion-avanzada', icon: '🧩', label: 'Configuración avanzada' })
+  ]);
+
+  window.VantixGCCoreNavigation = CORE_NAV_ITEMS;
+
   let accessChecked = false;
-  let hasAccess = false;
+  let hasRestaurantAccess = false;
+  let refreshScheduled = false;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -15,41 +33,56 @@
     window.location.href = path;
   }
 
-  // The legacy panel SPA still contains a lightweight PUC-only renderer for
-  // /app/contabilidad. Shared Core modules must never be shadowed by those
-  // lightweight panel views: force full document navigation to the canonical
-  // Core surfaces used by every tenant.
+  function currentPath() {
+    return String(window.location.pathname || '/app/dashboard').replace(/\/$/, '') || '/app';
+  }
+
+  function isActive(href) {
+    const path = currentPath();
+    return path === href || path.startsWith(`${href}/`);
+  }
+
+  function visibleItems() {
+    return CORE_NAV_ITEMS.filter((item) => !item.restaurantOnly || hasRestaurantAccess);
+  }
+
+  function navigationSignature(items) {
+    return items.map((item) => `${item.href}|${item.label}|${isActive(item.href) ? '1' : '0'}`).join('||');
+  }
+
+  function canonicalNavigationHtml(items) {
+    return items.map((item) => {
+      const active = isActive(item.href) ? ' active' : '';
+      const restaurantAttr = item.restaurantOnly ? ' data-restaurant-entry="true"' : '';
+      return `<a href="${item.href}" class="${active.trim()}" data-core-full-route="true"${restaurantAttr}><span class="icon">${item.icon}</span><span>${item.label}</span></a>`;
+    }).join('');
+  }
+
   function installCoreNavigationParity() {
-    const nav = document.querySelector('.sidebar .nav');
-    if (!nav) return;
+    const items = visibleItems();
+    const signature = navigationSignature(items);
+    const navs = document.querySelectorAll('.sidebar .nav, .side .nav');
 
-    const accountingLink = [...nav.querySelectorAll('a')]
-      .find((a) => a.getAttribute('href') === '/app/contabilidad');
-    if (accountingLink && accountingLink.dataset.coreFullRoute !== 'true') {
-      const replacement = accountingLink.cloneNode(true);
-      replacement.removeAttribute('data-nav');
-      replacement.dataset.coreFullRoute = 'true';
-      const label = replacement.querySelector('span:last-child');
-      if (label) label.textContent = 'Contabilidad';
-      replacement.addEventListener('click', (event) => openFullCoreRoute('/app/contabilidad', event));
-      accountingLink.replaceWith(replacement);
-    }
+    navs.forEach((nav) => {
+      if (nav.dataset.coreNavigationVersion === NAV_VERSION && nav.dataset.coreNavigationSignature === signature) return;
+      nav.innerHTML = canonicalNavigationHtml(items);
+      nav.dataset.coreNavigationVersion = NAV_VERSION;
+      nav.dataset.coreNavigationSignature = signature;
+      nav.querySelectorAll('a[data-core-full-route="true"]').forEach((link) => {
+        link.addEventListener('click', (event) => openFullCoreRoute(link.getAttribute('href'), event));
+      });
+    });
 
-    if (!nav.querySelector('[data-core-advanced-config]')) {
-      const link = document.createElement('a');
-      link.href = '/app/configuracion-avanzada';
-      link.dataset.coreAdvancedConfig = 'true';
-      link.innerHTML = '<span class="icon">🧩</span><span>Configuración avanzada</span>';
-      link.addEventListener('click', (event) => openFullCoreRoute('/app/configuracion-avanzada', event));
-      const configLink = [...nav.querySelectorAll('a')]
-        .find((a) => a.getAttribute('href') === '/app/configuracion');
-      if (configLink) configLink.insertAdjacentElement('afterend', link);
-      else nav.appendChild(link);
+    if (currentPath() === '/app/configuracion') {
+      const heading = document.querySelector('.content .pagehead h1, .content .head h1');
+      if (heading && heading.textContent.trim() !== 'Parametrización Contable') {
+        heading.textContent = 'Parametrización Contable';
+      }
     }
   }
 
   async function checkRestaurantAccess() {
-    if (accessChecked) return hasAccess;
+    if (accessChecked) return hasRestaurantAccess;
     accessChecked = true;
     const session = readSession();
     if (!session?.token || !session?.subdomain) return false;
@@ -63,8 +96,8 @@
       });
       if (!response.ok) return false;
       const body = await response.json();
-      hasAccess = Boolean(body?.ok && body?.data?.permissions);
-      return hasAccess;
+      hasRestaurantAccess = Boolean(body?.ok && body?.data?.permissions);
+      return hasRestaurantAccess;
     } catch {
       return false;
     }
@@ -74,50 +107,48 @@
     openFullCoreRoute('/app/restaurante', event);
   }
 
-  function installNavEntry() {
-    if (!hasAccess) return;
-    const nav = document.querySelector('.sidebar .nav');
-    if (nav && !nav.querySelector('[data-restaurant-entry]')) {
-      const link = document.createElement('a');
-      link.href = '/app/restaurante';
-      link.dataset.restaurantEntry = 'true';
-      link.innerHTML = '<span class="icon">🍽</span><span>Restaurante</span>';
-      link.addEventListener('click', openRestaurant);
-      const configLink = [...nav.querySelectorAll('a')].find((a) => a.textContent.includes('Configuración'));
-      if (configLink) nav.insertBefore(link, configLink);
-      else nav.appendChild(link);
+  function installRestaurantDashboardEntry() {
+    if (!hasRestaurantAccess || currentPath() !== '/app/dashboard') return;
+    const actions = document.querySelector('.pagehead .actions');
+    if (actions && !actions.querySelector('[data-restaurant-dashboard-entry]')) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn';
+      button.dataset.restaurantDashboardEntry = 'true';
+      button.textContent = '🍽 Abrir Restaurante';
+      button.addEventListener('click', openRestaurant);
+      actions.prepend(button);
     }
+  }
 
-    if (location.pathname === '/app/dashboard') {
-      const actions = document.querySelector('.pagehead .actions');
-      if (actions && !actions.querySelector('[data-restaurant-dashboard-entry]')) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn';
-        button.dataset.restaurantDashboardEntry = 'true';
-        button.textContent = '🍽 Abrir Restaurante';
-        button.addEventListener('click', openRestaurant);
-        actions.prepend(button);
-      }
-    }
+  function installCurrentUi() {
+    installCoreNavigationParity();
+    installRestaurantDashboardEntry();
   }
 
   async function refreshEntry() {
     installCoreNavigationParity();
     await checkRestaurantAccess();
-    installCoreNavigationParity();
-    installNavEntry();
+    installCurrentUi();
   }
 
-  const observer = new MutationObserver(() => {
-    installCoreNavigationParity();
-    installNavEntry();
-  });
-  window.addEventListener('load', () => {
-    const root = document.querySelector('#root');
-    if (root) observer.observe(root, { childList: true, subtree: true });
+  function scheduleRefresh() {
+    if (refreshScheduled) return;
+    refreshScheduled = true;
+    queueMicrotask(() => {
+      refreshScheduled = false;
+      installCurrentUi();
+    });
+  }
+
+  const observer = new MutationObserver(scheduleRefresh);
+
+  function start() {
+    observer.observe(document.body, { childList: true, subtree: true });
     installCoreNavigationParity();
     refreshEntry();
-  });
-  setTimeout(refreshEntry, 100);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();
