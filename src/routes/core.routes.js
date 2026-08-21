@@ -17,6 +17,10 @@ const { rbacRouter } = require('../modules/platform/rbac/rbac.routes');
 const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
+const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
+const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
+
+installRestaurantRbac();
 
 const router = express.Router();
 
@@ -39,5 +43,6 @@ router.use('/seguridad', rbacRouter);
 router.use('/edge', edgeTenantRouter);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
+router.use('/restaurante', restaurantRouter);
 
 module.exports = { coreRouter: router };
