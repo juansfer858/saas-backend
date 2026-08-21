@@ -62,4 +62,4 @@ jobs:
       - run: npm run build
       - run: npx prisma db push
       - name: Validate six connected identity acceptance criteria
-        run: node scripts/restaurant-identity-connected-smoke.js
+        run: node scripts/restaurant-identity-connected-smoke-fixed.js
