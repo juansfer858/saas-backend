@@ -27,7 +27,8 @@ const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
-const tenantNavigationTag = '<style id="core-nav-anti-flash">.sidebar .nav:not([data-core-navigation-version]),.side .nav:not([data-core-navigation-version]){visibility:hidden}</style><script src="/app/panel-restaurant-entry.js?v=core-nav-v4"></script>';
+const tenantNavigationHeadTag = '<style id="core-nav-anti-flash">.sidebar .nav:not([data-core-navigation-version]),.side .nav:not([data-core-navigation-version]){visibility:hidden}</style>';
+const tenantNavigationTag = '<script src="/app/panel-restaurant-entry.js?v=core-nav-v5"></script>';
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -38,16 +39,23 @@ app.use(express.json({
   }
 }));
 
+function injectBeforeHeadEnd(html, tags) {
+  const markup = (tags || []).filter(Boolean).join('');
+  if (!markup) return html;
+  return html.includes('</head>') ? html.replace('</head>', `${markup}</head>`) : `${markup}${html}`;
+}
+
 function injectBeforeBody(html, tags) {
   const markup = (tags || []).filter(Boolean).join('');
   if (!markup) return html;
   return html.includes('</body>') ? html.replace('</body>', `${markup}</body>`) : `${html}${markup}`;
 }
 
-async function sendTenantHtml(filePath, res, next, tags = []) {
+async function sendTenantHtml(filePath, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
-    res.type('html').send(injectBeforeBody(html, tags));
+    const withHead = injectBeforeHeadEnd(html, headTags);
+    res.type('html').send(injectBeforeBody(withHead, bodyTags));
   } catch (error) {
     next(error);
   }
