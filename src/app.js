@@ -27,7 +27,7 @@ const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
-const tenantNavigationTag = '<script src="/app/panel-restaurant-entry.js?v=core-nav-v2"></script>';
+const tenantNavigationTag = '<style id="core-nav-anti-flash">.sidebar .nav:not([data-core-navigation-version]),.side .nav:not([data-core-navigation-version]){visibility:hidden}</style><script src="/app/panel-restaurant-entry.js?v=core-nav-v4"></script>';
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -129,6 +129,7 @@ app.get('/app/panel-integration-extras.js', (_req, res) => {
 });
 
 app.get('/app/panel-restaurant-entry.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(panelRestaurantEntryPath);
 });
 
