@@ -1,0 +1,52 @@
+name: Horizontal Audit Public Live
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  audit-public-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe public production surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "AUDIT_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo '=== STATUS ==='
+          curl -fsSL --max-time 20 https://core.vantixgc.com/api/v1/status
+          echo
+          echo '=== RESTAURANT DEMO READINESS ==='
+          curl -fsSL --max-time 20 https://core.vantixgc.com/api/public/restaurante/demo-readiness
+          echo
+          echo '=== RESTAURANT BUILD MARKER ==='
+          curl -fsSL --max-time 20 https://core.vantixgc.com/api/public/restaurante/build-marker
+          echo
+          echo '=== PLATFORM HTML ==='
+          code=$(curl -sS -L --max-time 20 -o /tmp/platform.html -w '%{http_code}' https://core.vantixgc.com/platform)
+          echo "platform_http=$code"
+          grep -qi 'VantixGC' /tmp/platform.html
+          echo '=== PLATFORM API WITHOUT AUTH ==='
+          code=$(curl -sS --max-time 20 -o /tmp/platform-api.json -w '%{http_code}' https://core.vantixgc.com/platform/api/tenants)
+          echo "platform_api_no_auth_http=$code"
+          cat /tmp/platform-api.json
+          echo
+          test "$code" = "401"
+          echo '=== GENERAL APP ==='
+          code=$(curl -sS -L --max-time 20 -o /tmp/app.html -w '%{http_code}' https://core.vantixgc.com/app)
+          echo "app_http=$code"
+          test "$code" = "200"
+          grep -qi 'VantixGC Super Core' /tmp/app.html
+          echo '=== RESTAURANT APP ==='
+          code=$(curl -sS -L --max-time 20 -o /tmp/rest.html -w '%{http_code}' https://core.vantixgc.com/app/restaurante)
+          echo "restaurant_app_http=$code"
+          test "$code" = "200"
+          grep -qi 'La Riel' /tmp/rest.html
+          echo '=== PANEL RESTAURANT ENTRY ASSET ==='
+          code=$(curl -sS -L --max-time 20 -o /tmp/panel-rest.js -w '%{http_code}' https://core.vantixgc.com/app/panel-restaurant-entry.js)
+          echo "panel_restaurant_asset_http=$code"
+          test "$code" = "200"
+          grep -q '/api/v1/restaurante/ui-context' /tmp/panel-rest.js
+          grep -q '/app/restaurante' /tmp/panel-rest.js
+          echo 'HORIZONTAL_AUDIT_PUBLIC_LIVE=PASS'
