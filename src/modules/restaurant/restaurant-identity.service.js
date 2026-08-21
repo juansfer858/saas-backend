@@ -39,7 +39,7 @@ async function listTablesLive(tenantId, user) {
   const saleIds = sessions.map((x) => x.saleId);
   const sales = saleIds.length ? await prisma.comprobanteComercial.findMany({
     where: { tenantId, id: { in: saleIds } },
-    select: { id: true, numero: true, estado: true, total: true, actualizadoEn: true }
+    select: { id: true, numero: true, estado: true, total: true, creadoEn: true }
   }) : [];
   const bySale = new Map(sales.map((x) => [x.id, x]));
   return tables.map((table) => {
@@ -49,7 +49,7 @@ async function listTablesLive(tenantId, user) {
       ...table,
       activeSession: session ? {
         ...session,
-        sale: sale ? { id: sale.id, numero: sale.numero, estado: sale.estado, total: sale.total, actualizadoEn: sale.actualizadoEn } : null
+        sale: sale ? { id: sale.id, numero: sale.numero, estado: sale.estado, total: sale.total, creadoEn: sale.creadoEn } : null
       } : null
     };
   });
@@ -89,7 +89,7 @@ async function loadDraft(tenantId, orderId, client = prisma) {
   if (!order) return null;
   const sale = await client.comprobanteComercial.findFirst({
     where: { id: order.session.saleId, tenantId },
-    include: { detalles: { orderBy: { creadoEn: 'asc' } } }
+    include: { detalles: true }
   });
   return { order, sale };
 }
