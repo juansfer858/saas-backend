@@ -57,19 +57,21 @@ enum RestaurantFiscalMode {
 }
 
 model RestaurantConfig {
-  tenantId                          String              @id
-  verticalStatus                    String              @default("FUNCTIONAL_SIMULATED_PRINT")
-  printMode                         RestaurantPrintMode @default(SIMULATED_SCREEN)
-  physicalPrinterFieldPass          Boolean             @default(false)
-  physicalPrinterEvidence           Json?
-  metaBusinessManagementReviewPass  Boolean             @default(false)
-  metaReviewEvidence                 Json?
-  dianRealEnabled                    Boolean             @default(false)
-  dianEvidence                       Json?
-  allowSimulatedDocumentEquivalent  Boolean             @default(true)
-  whatsappOrderReadyEnabled          Boolean             @default(false)
-  creadoEn                          DateTime            @default(now())
-  actualizadoEn                     DateTime            @updatedAt
+  tenantId                                  String              @id
+  verticalStatus                            String              @default("FUNCTIONAL_SIMULATED_PRINT")
+  printMode                                 RestaurantPrintMode @default(SIMULATED_SCREEN)
+  physicalPrinterFieldPass                  Boolean             @default(false)
+  physicalPrinterEvidence                   Json?
+  metaBusinessManagementReviewPass          Boolean             @default(false)
+  metaReviewEvidence                        Json?
+  dianRealEnabled                            Boolean             @default(false)
+  dianEvidence                               Json?
+  simulatedFiscalOperationExplicitlyAccepted Boolean             @default(false)
+  simulatedFiscalDecisionEvidence            Json?
+  allowSimulatedDocumentEquivalent          Boolean             @default(true)
+  whatsappOrderReadyEnabled                  Boolean             @default(false)
+  creadoEn                                  DateTime            @default(now())
+  actualizadoEn                             DateTime            @updatedAt
 }
 
 model RestaurantTable {
