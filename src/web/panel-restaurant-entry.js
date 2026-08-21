@@ -2,7 +2,8 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
-  const NAV_VERSION = 'core-nav-v4';
+  const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
+  const NAV_VERSION = 'core-nav-v5';
   const CORE_NAV_ITEMS = Object.freeze([
     Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
     Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
@@ -28,6 +29,38 @@
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
     catch { return null; }
+  }
+
+  function accessCacheKey(session = readSession()) {
+    if (!session?.subdomain) return null;
+    const userKey = session.user?.id || session.user?.email || session.user?.rol || 'user';
+    return `${ACCESS_CACHE_PREFIX}:${session.subdomain}:${userKey}`;
+  }
+
+  function readCachedRestaurantAccess() {
+    const key = accessCacheKey();
+    if (!key) return null;
+    try {
+      const value = sessionStorage.getItem(key);
+      if (value === '1') return true;
+      if (value === '0') return false;
+    } catch {}
+    return null;
+  }
+
+  function writeCachedRestaurantAccess(value) {
+    const key = accessCacheKey();
+    if (!key) return;
+    try { sessionStorage.setItem(key, value ? '1' : '0'); }
+    catch {}
+  }
+
+  function bootstrapRestaurantAccessCache() {
+    const cached = readCachedRestaurantAccess();
+    if (cached === null) return false;
+    hasRestaurantAccess = cached;
+    accessChecked = true;
+    return true;
   }
 
   function openFullCoreRoute(path, event) {
@@ -85,9 +118,11 @@
 
   async function checkRestaurantAccess() {
     if (accessChecked) return hasRestaurantAccess;
-    accessChecked = true;
     const session = readSession();
-    if (!session?.token || !session?.subdomain) return false;
+    if (!session?.token || !session?.subdomain) {
+      accessChecked = true;
+      return false;
+    }
     try {
       const response = await fetch('/api/v1/restaurante/ui-context', {
         cache: 'no-store',
@@ -96,9 +131,18 @@
           'x-tenant-subdomain': session.subdomain
         }
       });
-      if (!response.ok) return false;
+      if (!response.ok) {
+        if ([401, 403, 404].includes(response.status)) {
+          hasRestaurantAccess = false;
+          accessChecked = true;
+          writeCachedRestaurantAccess(false);
+        }
+        return false;
+      }
       const body = await response.json();
       hasRestaurantAccess = Boolean(body?.ok && body?.data?.permissions);
+      accessChecked = true;
+      writeCachedRestaurantAccess(hasRestaurantAccess);
       return hasRestaurantAccess;
     } catch {
       return false;
@@ -131,7 +175,6 @@
   function installCurrentUi() {
     if (installing) return;
     installing = true;
-
     if (observerStarted) observer.disconnect();
     try {
       installCoreNavigationParity();
@@ -158,9 +201,10 @@
   const observer = new MutationObserver(scheduleRefresh);
 
   async function start() {
-    // Resolve Restaurant visibility before exposing the canonical sidebar. This
-    // avoids rendering the legacy menu, then 10 items, then 11 items in sequence.
-    await refreshEntry();
+    const accessWasCached = bootstrapRestaurantAccessCache();
+    if (accessWasCached) installCurrentUi();
+    else await refreshEntry();
+
     observerStarted = true;
     observeUi();
   }
