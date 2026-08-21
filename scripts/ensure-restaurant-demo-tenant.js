@@ -4,7 +4,8 @@ const { seedPlatformDefaults } = require('../src/services/platform-seed.service'
 const rbac = require('../src/modules/platform/rbac/rbac.service');
 const { installRestaurantRbac } = require('../src/modules/restaurant/restaurant.rbac');
 
-const PASSWORD_HASH = '$2y$12$D8g5.rrzj2zyeDch7EfaSeZGiuY3v/le.rF97fN5vT9j.QkbG7LKa';
+// Demo-only credential. Plaintext is delivered to the project owner out-of-band in the testing handoff.
+const PASSWORD_HASH = '$2y$12$fIYGPmV6S.qw3ICCXvH6pubzoZyPzvjpJsrFSB8V2UytzoySpu9Vy';
 const SUBDOMAIN = 'demo-restaurante';
 
 const USERS = [
@@ -60,7 +61,7 @@ async function ensureRestaurantDemoTenant() {
       users[role] = await tx.user.upsert({
         where: { tenantId_email: { tenantId: tenant.id, email } },
         create: { tenantId: tenant.id, nombre: name, email, password: PASSWORD_HASH, rol: role, activo: true },
-        update: { nombre: name, rol: role, activo: true }
+        update: { nombre: name, password: PASSWORD_HASH, rol: role, activo: true }
       });
     }
 
