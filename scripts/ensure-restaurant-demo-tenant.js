@@ -5,7 +5,7 @@ const rbac = require('../src/modules/platform/rbac/rbac.service');
 const { installRestaurantRbac } = require('../src/modules/restaurant/restaurant.rbac');
 
 // Demo-only credential. Plaintext is delivered to the project owner out-of-band in the testing handoff.
-const PASSWORD_HASH = '$2y$12$fIYGPmV6S.qw3ICCXvH6pubzoZyPzvjpJsrFSB8V2UytzoySpu9Vy';
+const PASSWORD_HASH = '$2y$12$okWsFqOf1Uzl0wsSwFMpn.bv.C2qIX0wp1CjgPrBzGkohM9gcays6';
 const SUBDOMAIN = 'demo-restaurante';
 
 const USERS = [
