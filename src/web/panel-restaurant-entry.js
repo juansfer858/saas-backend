@@ -2,7 +2,7 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
-  const NAV_VERSION = 'core-nav-v3';
+  const NAV_VERSION = 'core-nav-v4';
   const CORE_NAV_ITEMS = Object.freeze([
     Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
     Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
@@ -132,9 +132,6 @@
     if (installing) return;
     installing = true;
 
-    // Do not observe our own sidebar/heading mutations. The previous implementation
-    // observed the same DOM it rewrote, which could create a feedback loop on pages
-    // that also re-render their shell (notably Parametrización Contable).
     if (observerStarted) observer.disconnect();
     try {
       installCoreNavigationParity();
@@ -146,7 +143,6 @@
   }
 
   async function refreshEntry() {
-    installCurrentUi();
     await checkRestaurantAccess();
     installCurrentUi();
   }
@@ -156,16 +152,17 @@
     refreshTimer = window.setTimeout(() => {
       refreshTimer = null;
       installCurrentUi();
-    }, 30);
+    }, 0);
   }
 
   const observer = new MutationObserver(scheduleRefresh);
 
-  function start() {
+  async function start() {
+    // Resolve Restaurant visibility before exposing the canonical sidebar. This
+    // avoids rendering the legacy menu, then 10 items, then 11 items in sequence.
+    await refreshEntry();
     observerStarted = true;
     observeUi();
-    installCurrentUi();
-    refreshEntry();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
