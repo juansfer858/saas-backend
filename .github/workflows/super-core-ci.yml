@@ -80,6 +80,9 @@ jobs:
       - name: Validate Restaurant Phase2 simulated UI and production gate
         run: node scripts/restaurant-phase2-ui-smoke.js
 
+      - name: Validate Restaurant simulated fiscal governance authorization and warnings
+        run: node scripts/restaurant-fiscal-governance-ui-smoke.js
+
       - name: Validate Edge Offline-First local agent source
         run: node -e "require('./edge/agent/crypto-store'); require('./edge/agent/store'); console.log('EDGE AGENT LOAD OK')"
 
@@ -178,6 +181,9 @@ jobs:
 
       - name: Validate Restaurant Phase2 simulated six-criteria acceptance
         run: node scripts/restaurant-phase2-simulated-smoke.js
+
+      - name: Validate Restaurant simulated fiscal governance, audit and immutable history
+        run: node scripts/restaurant-fiscal-governance-smoke.js
 
       - name: Validate The Factory HKA real HTTP adapter contract
         run: node scripts/hka-provider-adapter-smoke.js
