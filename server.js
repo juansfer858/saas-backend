@@ -5,6 +5,7 @@ const { prisma } = require('./src/config/prisma');
 const dianTransmission = require('./src/modules/platform/dian/dian-transmission.service');
 const notifications = require('./src/modules/notifications/notifications.service');
 const { ensureRestaurantDemoTenant } = require('./scripts/ensure-restaurant-demo-tenant');
+const { ensureRestaurantRuntimeSchema } = require('./scripts/ensure-restaurant-runtime-schema');
 const demoBootstrapState = require('./src/modules/restaurant/restaurant-demo-bootstrap-state');
 
 const PORT = process.env.PORT || 3000;
@@ -55,6 +56,8 @@ async function ensureRestaurantDemoInBackground(attempt = 1) {
 
   demoBootstrapState.markStart(attempt);
   try {
+    const schema = await ensureRestaurantRuntimeSchema();
+    if (schema.changed) console.log('RESTAURANT_SCHEMA_SYNC_APPLIED');
     const demo = await ensureRestaurantDemoTenant();
     demoBootstrapState.markReady();
     console.log(`RESTAURANT_DEMO_RUNTIME_READY subdomain=${demo.subdomain} tables=${demo.tables} menuItems=${demo.menuItems} attempt=${attempt}`);
