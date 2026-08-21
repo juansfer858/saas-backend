@@ -1,6 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const service = require('./platform.service');
+const provisioning = require('./platform-tenant-provisioning.service');
 const { AppError } = require('../../../utils/app-error');
 
 const publicRouter = express.Router();
@@ -24,6 +25,18 @@ const controlSchema = z.object({
   maxStorageMb: z.coerce.number().int().positive().optional().nullable(),
   softLimitPercent: z.coerce.number().int().min(1).max(100).optional()
 }).refine((v) => Object.keys(v).length > 0, { message: 'Debe enviar al menos un cambio' });
+const tenantCreateSchema = z.object({
+  nombreEmpresa: z.string().trim().min(2).max(120),
+  templateCode: z.enum(['CORE','RESTAURANTE']),
+  nit: z.string().trim().min(3).max(40).optional().nullable(),
+  pais: z.string().trim().length(2).toUpperCase().default('CO'),
+  moneda: z.string().trim().length(3).toUpperCase().default('COP'),
+  admin: z.object({
+    nombre: z.string().trim().min(2).max(100),
+    email: z.string().trim().toLowerCase().email().max(254),
+    password: z.string().min(12).max(128)
+  })
+});
 const restaurantFiscalDecisionSchema = z.object({
   accepted: z.boolean(),
   reason: z.string().trim().min(20).max(1200),
@@ -53,6 +66,16 @@ adminRouter.use(async (req, _res, next) => {
   } catch (error) { next(error); }
 });
 
+adminRouter.get('/tenant-templates', async (_req, res, next) => {
+  try { res.json({ ok: true, data: provisioning.templates() }); }
+  catch (error) { next(error); }
+});
+adminRouter.post('/tenants', async (req, res, next) => {
+  try {
+    const input = parse(tenantCreateSchema, req.body);
+    res.status(201).json({ ok: true, data: await provisioning.createTenant(req.platformAdmin.id, input) });
+  } catch (error) { next(error); }
+});
 adminRouter.get('/tenants', async (_req, res, next) => {
   try { res.json({ ok: true, data: await service.listTenants() }); }
   catch (error) { next(error); }
