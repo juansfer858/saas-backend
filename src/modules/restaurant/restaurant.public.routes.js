@@ -39,7 +39,7 @@ router.get('/api/public/restaurante/build-marker', (_req, res) => {
     ok: true,
     data: {
       restaurantIdentity: 'LA_RIEL_CONNECTED_V1',
-      demoAccessSeed: 'ROTATED_V1_2026_08_21',
+      demoAccessSeed: 'ROTATED_V2_2026_08_21',
       productionPromise: false
     }
   });
