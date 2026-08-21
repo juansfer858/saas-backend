@@ -1,1 +1,0 @@
-Branch restaurant-identity-core-v1 contains UI/theme integration only plus minimal waiter draft persistence required to represent the real in-progress order.
