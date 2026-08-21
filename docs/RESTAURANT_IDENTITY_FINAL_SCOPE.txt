@@ -1,1 +1,0 @@
-Implementation prepared; merge remains gated by CI.
