@@ -5,6 +5,7 @@ const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
 const identity = require('./restaurant-identity.service');
 const notifications = require('../notifications/notifications.service');
+const demoBootstrapState = require('./restaurant-demo-bootstrap-state');
 const { AppError } = require('../../utils/app-error');
 
 const router = express.Router();
@@ -48,12 +49,13 @@ router.get('/api/public/restaurante/build-marker', (_req, res) => {
 
 router.get('/api/public/restaurante/demo-readiness', async (_req, res, next) => {
   try {
+    const bootstrap = demoBootstrapState.snapshot();
     const tenant = await prisma.tenant.findUnique({
       where: { subdomain: 'demo-restaurante' },
       select: { id: true, activo: true }
     });
     if (!tenant) {
-      res.json({ ok: true, data: { ready: false, tenantFound: false, active: false, users: 0, tables: 0, menuItems: 0, recipes: 0 } });
+      res.json({ ok: true, data: { ready: false, tenantFound: false, active: false, users: 0, tables: 0, menuItems: 0, recipes: 0, bootstrap } });
       return;
     }
     const [users, tables, menuItems, recipes] = await Promise.all([
@@ -78,7 +80,8 @@ router.get('/api/public/restaurante/demo-readiness', async (_req, res, next) => 
         users,
         tables,
         menuItems,
-        recipes
+        recipes,
+        bootstrap
       }
     });
   } catch (error) { next(error); }

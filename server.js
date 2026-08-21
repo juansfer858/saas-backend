@@ -5,6 +5,7 @@ const { prisma } = require('./src/config/prisma');
 const dianTransmission = require('./src/modules/platform/dian/dian-transmission.service');
 const notifications = require('./src/modules/notifications/notifications.service');
 const { ensureRestaurantDemoTenant } = require('./scripts/ensure-restaurant-demo-tenant');
+const demoBootstrapState = require('./src/modules/restaurant/restaurant-demo-bootstrap-state');
 
 const PORT = process.env.PORT || 3000;
 const DIAN_QUEUE_INTERVAL_MS = Math.max(Number(process.env.DIAN_QUEUE_INTERVAL_MS) || 60000, 10000);
@@ -45,13 +46,23 @@ async function runNotificationQueue() {
 }
 
 async function ensureRestaurantDemoInBackground(attempt = 1) {
-  if (String(process.env.DISABLE_RESTAURANT_DEMO_BOOTSTRAP || '').toLowerCase() === 'true') return;
+  const disabled = String(process.env.DISABLE_RESTAURANT_DEMO_BOOTSTRAP || '').toLowerCase() === 'true';
+  demoBootstrapState.setEnabled(!disabled);
+  if (disabled) {
+    console.warn('RESTAURANT_DEMO_RUNTIME_DISABLED');
+    return;
+  }
+
+  demoBootstrapState.markStart(attempt);
   try {
     const demo = await ensureRestaurantDemoTenant();
+    demoBootstrapState.markReady();
     console.log(`RESTAURANT_DEMO_RUNTIME_READY subdomain=${demo.subdomain} tables=${demo.tables} menuItems=${demo.menuItems} attempt=${attempt}`);
   } catch (error) {
+    const terminal = attempt >= RESTAURANT_DEMO_MAX_ATTEMPTS;
+    demoBootstrapState.markError(error, terminal);
     console.error(`RESTAURANT_DEMO_RUNTIME_RETRY attempt=${attempt} error=${error.message}`);
-    if (attempt < RESTAURANT_DEMO_MAX_ATTEMPTS) {
+    if (!terminal) {
       restaurantDemoTimer = setTimeout(() => ensureRestaurantDemoInBackground(attempt + 1), RESTAURANT_DEMO_RETRY_MS);
       restaurantDemoTimer.unref?.();
     } else {
