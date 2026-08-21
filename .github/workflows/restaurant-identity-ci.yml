@@ -34,6 +34,8 @@ jobs:
         run: node scripts/restaurant-demo-handoff-smoke.js
       - name: Validate demo runtime bootstrap wiring
         run: node scripts/restaurant-demo-runtime-bootstrap-smoke.js
+      - name: Validate safe Restaurant runtime schema sync
+        run: node scripts/restaurant-runtime-schema-sync-smoke.js
 
   integration:
     needs: validate
@@ -55,7 +57,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
     steps:
