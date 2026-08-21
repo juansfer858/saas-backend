@@ -10,6 +10,7 @@ const app = read('src/app.js');
 const operator = read('src/web/restaurant.html');
 const customer = read('src/web/restaurant-qr.html');
 const service = read('src/modules/restaurant/restaurant.service.js');
+const routes = read('src/modules/restaurant/restaurant.routes.js');
 const rbac = read('src/modules/restaurant/restaurant.rbac.js');
 const phase2 = read('docs/RESTAURANT_PHASE2_SIMULATED_V1.md');
 const edgeGate = read('docs/EDGE_FIELD_TEST_GATE_V1.md');
@@ -43,10 +44,15 @@ assert.match(service, /DOCUMENTO EQUIVALENTE SIMULADO/);
 assert.match(service, /Propinas por pagar/);
 assert.match(service, /ORDER_READY/);
 
+assert.match(routes, /restaurantMenuItem\.findFirst/);
+assert.match(routes, /tenantId:\s*req\.tenantId/);
+assert.match(routes, /RESTAURANT_MENU_ITEM_NOT_FOUND/);
+
 assert.match(rbac, /MESERO:/);
 assert.match(rbac, /COCINA:/);
 assert.match(rbac, /BARRA:/);
 assert.match(rbac, /CAJERO:/);
+assert.match(rbac, /BASE_ROLES\.ADMIN = \['\*'\]/);
 assert.doesNotMatch(rbac, /MESERO:[\s\S]*CONTABILIDAD\.VER[\s\S]*COCINA:/);
 
 assert.match(phase2, /RESTAURANT_PRODUCTION_READY = physicalPrinterFieldPass && metaBusinessManagementReviewPass && \(dianRealEnabled \|\| simulatedFiscalOperationExplicitlyAccepted\)/);
@@ -66,5 +72,6 @@ console.log(JSON.stringify({
   qrDirectOrderUi: true,
   cashShiftUi: true,
   restaurantRbacDeclared: true,
+  menuUpdateTenantIsolation: true,
   physicalGateStillRequired: true
 }, null, 2));
