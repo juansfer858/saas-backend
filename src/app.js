@@ -21,9 +21,11 @@ const salesHtmlPath = path.join(__dirname, 'web', 'sales.html');
 const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
 const platformCoreConfigHtmlPath = path.join(__dirname, 'web', 'platform-core-config.html');
 const platformAdminHtmlPath = path.join(__dirname, 'web', 'platform-admin.html');
+const platformRestaurantFiscalGovernancePath = path.join(__dirname, 'web', 'platform-restaurant-fiscal-governance.js');
 const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
+const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -64,8 +66,20 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', service: 'saas-backend' });
 });
 
-app.get('/platform', (_req, res) => res.sendFile(platformAdminHtmlPath));
-app.get('/platform/admin', (_req, res) => res.sendFile(platformAdminHtmlPath));
+async function sendPlatformAdmin(_req, res, next) {
+  try {
+    const html = await fs.promises.readFile(platformAdminHtmlPath, 'utf8');
+    const script = '<script src="/platform/restaurant-fiscal-governance.js?v=platform-only-v1"></script>';
+    const rendered = html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : `${html}${script}`;
+    res.type('html').send(rendered);
+  } catch (error) { next(error); }
+}
+
+app.get('/platform/restaurant-fiscal-governance.js', (_req, res) => {
+  res.type('application/javascript').sendFile(platformRestaurantFiscalGovernancePath);
+});
+app.get('/platform', sendPlatformAdmin);
+app.get('/platform/admin', sendPlatformAdmin);
 app.use('/platform/api/auth', platformPublicRouter);
 app.use('/platform/api', platformAdminRouter);
 
@@ -73,7 +87,17 @@ app.use('/platform/api', platformAdminRouter);
 app.use('/edge/api/v1', edgePublicRouter);
 
 app.get('/r/:token', (_req, res) => res.sendFile(restaurantQrHtmlPath));
-app.get('/app/restaurante', (_req, res) => res.sendFile(restaurantHtmlPath));
+app.get('/app/restaurant-fiscal-warning.js', (_req, res) => {
+  res.type('application/javascript').sendFile(restaurantFiscalWarningPath);
+});
+app.get('/app/restaurante', async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(restaurantHtmlPath, 'utf8');
+    const script = '<script src="/app/restaurant-fiscal-warning.js?v=platform-only-v1"></script>';
+    const rendered = html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : `${html}${script}`;
+    res.type('html').send(rendered);
+  } catch (error) { next(error); }
+});
 
 app.get('/app/demo', (_req, res) => {
   res.sendFile(path.join(__dirname, 'web', 'demo.html'));
@@ -169,6 +193,7 @@ app.get('/api/v1/status', async (_req, res) => {
         restaurantVertical: 'PHASE2_FUNCTIONAL_SIMULATED_PRINT_PRODUCTION_BLOCKED',
         restaurantSimulatedCommandDestination: 'PDF_SCREEN_RECORD',
         restaurantProductionGate: 'PHYSICAL_PRINTER_AND_META_AND_FISCAL_DECISION_REQUIRED',
+        restaurantSimulatedFiscalGovernance: 'PLATFORM_SUPERADMIN_ONLY_AUDITED_IMMUTABLE_HISTORY',
         dianCore: 'V1_REAL_HKA_ADAPTER_CODED_EXTERNAL_CREDENTIALS_AND_DIAN_HABILITATION_REQUIRED',
         electronicPayrollCore: 'V1_PROVIDER_NEUTRAL_PT_ADAPTER_REQUIRED_FOR_REAL_TRANSMISSION',
         tenantRbac: 'V1_RESTAURANT_ROLES',
@@ -198,7 +223,7 @@ app.get('/status', async (_req, res) => {
 <title>VantixGC Super Core</title><style>
 body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18221d;margin:0;padding:32px}.wrap{max-width:900px;margin:auto}.card{background:#fff;border:1px solid #e4e4e7;border-radius:18px;padding:24px;margin:16px 0}.ok{color:#118a57;font-weight:700}.warn{color:#b54708;font-weight:700}.bad{color:#b91c1c;font-weight:700}h1{margin:0 0 6px}.grid{display:grid;grid-template-columns:1fr auto;gap:12px;border-top:1px solid #eee;padding:12px 0}.muted{color:#61706a}.link{display:inline-block;margin:14px 8px 0 0;padding:10px 14px;border-radius:10px;background:#0d6b43;color:white;text-decoration:none;font-weight:700}.gate{background:#fff7ed;border:1px solid #f5c06a;border-radius:12px;padding:12px;margin-top:12px}</style></head>
 <body><div class="wrap"><h1>VantixGC Super Core</h1><div class="muted">Núcleo universal SaaS multitenant ERP/Contable</div>
-<div class="gate"><b>Restaurante: FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA (PDF/PANTALLA)</b><br><span class="bad">PRODUCCIÓN REAL BLOQUEADA</span><div class="muted">Faltan los gates de impresora térmica física, revisión Meta business_management y habilitación/decisión fiscal documentada.</div></div>
+<div class="gate"><b>Restaurante: FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA (PDF/PANTALLA)</b><br><span class="bad">PRODUCCIÓN REAL BLOQUEADA</span><div class="muted">Faltan los gates de impresora térmica física, revisión Meta business_management y habilitación/decisión fiscal documentada. La aceptación fiscal simulada, si se usa, solo puede ser autorizada y auditada desde el Panel SaaS.</div></div>
 <div class="card"><div class="grid"><span>PostgreSQL</span><span class="${ready ? 'ok' : 'bad'}">${database}</span></div>
 <div class="grid"><span>Auth & Multitenancy</span><span class="ok">READY</span></div>
 <div class="grid"><span>Terceros</span><span class="ok">READY</span></div>
@@ -208,6 +233,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Compras operativas</span><span class="ok">V1</span></div>
 <div class="grid"><span>Motor consumo/producción</span><span class="ok">V1 · INTEGRADO A RESTAURANTE</span></div>
 <div class="grid"><span>Restaurante Fase 2</span><span class="warn">FUNCIONAL SIMULADO · NO PRODUCCIÓN</span></div>
+<div class="grid"><span>Gobernanza fiscal simulada Restaurante</span><span class="warn">SOLO SUPER-ADMIN · AUDITADA</span></div>
 <div class="grid"><span>Contabilidad V2 + integración AU</span><span class="ok">READY</span></div>
 <div class="grid"><span>Núcleo DIAN + adaptador real HKA</span><span class="warn">CÓDIGO V1 · CREDENCIALES/HABILITACIÓN EXTERNAS PENDIENTES</span></div>
 <div class="grid"><span>Edge Offline-First</span><span class="ok">V1 · COLA LOCAL + RECONCILIACIÓN</span></div>
