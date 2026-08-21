@@ -2,7 +2,7 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
-  const NAV_VERSION = 'core-nav-v2';
+  const NAV_VERSION = 'core-nav-v3';
   const CORE_NAV_ITEMS = Object.freeze([
     Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
     Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
@@ -21,7 +21,9 @@
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
-  let refreshScheduled = false;
+  let observerStarted = false;
+  let installing = false;
+  let refreshTimer = null;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -121,31 +123,48 @@
     }
   }
 
+  function observeUi() {
+    if (!observerStarted) return;
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
   function installCurrentUi() {
-    installCoreNavigationParity();
-    installRestaurantDashboardEntry();
+    if (installing) return;
+    installing = true;
+
+    // Do not observe our own sidebar/heading mutations. The previous implementation
+    // observed the same DOM it rewrote, which could create a feedback loop on pages
+    // that also re-render their shell (notably Parametrización Contable).
+    if (observerStarted) observer.disconnect();
+    try {
+      installCoreNavigationParity();
+      installRestaurantDashboardEntry();
+    } finally {
+      installing = false;
+      if (observerStarted) observeUi();
+    }
   }
 
   async function refreshEntry() {
-    installCoreNavigationParity();
+    installCurrentUi();
     await checkRestaurantAccess();
     installCurrentUi();
   }
 
   function scheduleRefresh() {
-    if (refreshScheduled) return;
-    refreshScheduled = true;
-    queueMicrotask(() => {
-      refreshScheduled = false;
+    if (refreshTimer !== null) return;
+    refreshTimer = window.setTimeout(() => {
+      refreshTimer = null;
       installCurrentUi();
-    });
+    }, 30);
   }
 
   const observer = new MutationObserver(scheduleRefresh);
 
   function start() {
-    observer.observe(document.body, { childList: true, subtree: true });
-    installCoreNavigationParity();
+    observerStarted = true;
+    observeUi();
+    installCurrentUi();
     refreshEntry();
   }
 
