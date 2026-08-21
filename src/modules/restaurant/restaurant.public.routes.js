@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const { z } = require('zod');
@@ -29,6 +30,18 @@ const orderSchema = z.object({
   notes: z.string().trim().max(500).optional().nullable(),
   externalRequestId: z.string().trim().min(3).max(120).optional().nullable()
 }).refine((x) => !x.consentWhatsApp || Boolean(x.customerPhoneE164), { message: 'El consentimiento WhatsApp requiere número celular', path: ['customerPhoneE164'] });
+
+// The main tenant panel already loads this extension on every shell page. Restaurant
+// augments that same asset with a permission-backed entrypoint, avoiding a parallel menu system.
+router.get('/app/panel-integration-extras.js', async (_req, res, next) => {
+  try {
+    const [coreExtras, restaurantEntry] = await Promise.all([
+      fs.promises.readFile(path.join(webRoot, 'panel-integration-extras.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'panel-restaurant-entry.js'), 'utf8')
+    ]);
+    res.type('application/javascript').send(`${coreExtras}\n;${restaurantEntry}`);
+  } catch (error) { next(error); }
+});
 
 // Static assets belong to the Restaurant vertical. They are public code/style files and contain no tenant data or secrets.
 router.get('/app/restaurant-theme.css', (_req, res) => res.type('text/css').sendFile(path.join(webRoot, 'restaurant-theme.css')));
