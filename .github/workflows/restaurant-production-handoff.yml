@@ -53,7 +53,6 @@ jobs:
           echo "PRODUCTION_CENTRAL_TENANT_LOGIN_OK"
 
       - name: Verify demo Restaurant tenant is seeded in production
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
