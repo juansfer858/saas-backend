@@ -3,7 +3,7 @@
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
-  const NAV_VERSION = 'core-nav-v6';
+  const NAV_VERSION = 'core-nav-v7';
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
@@ -146,4 +146,5 @@
 
   window.VantixGCCoreNavigationVersion = NAV_VERSION;
   window.VantixGCCoreSidebarRuntime = 'off';
+  window.VantixGCCoreSidebarShellSource = 'server';
 })();
