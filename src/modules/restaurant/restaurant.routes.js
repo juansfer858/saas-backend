@@ -2,6 +2,9 @@ const express = require('express');
 const { z } = require('zod');
 const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
+const identity = require('./restaurant-identity.service');
+const liveTables = require('./restaurant-live-tables.service');
+const theme = require('./restaurant-theme.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 
@@ -47,6 +50,7 @@ const orderSchema = z.object({
   customerPhoneE164: z.string().trim().max(30).optional().nullable(),
   externalRequestId: z.string().trim().min(3).max(120).optional().nullable()
 });
+const draftQtySchema = z.object({ quantity: z.coerce.number().min(0).max(999) });
 
 const equalSplit = z.object({ mode: z.literal('EQUAL'), parts: z.coerce.number().int().min(2).max(50) });
 const itemSplit = z.object({
@@ -74,6 +78,28 @@ const gatesSchema = z.object({
   dianEvidence: z.record(z.string(), z.any()).optional().nullable()
 });
 
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Color hexadecimal inválido');
+const fontFamily = z.string().trim().min(1).max(180).regex(/^[^;{}<>]+$/, 'Tipografía inválida');
+const themeSchema = z.object({
+  preset: z.string().trim().min(1).max(40).optional(),
+  restaurantName: z.string().trim().min(1).max(100).optional().nullable(),
+  tokens: z.object({
+    char: hexColor.optional(), bone: hexColor.optional(), ember: hexColor.optional(), verdigris: hexColor.optional(), brass: hexColor.optional(),
+    paper: hexColor.optional(), ink: hexColor.optional(), muted: hexColor.optional(), line: hexColor.optional(), success: hexColor.optional(), danger: hexColor.optional()
+  }).optional(),
+  typography: z.object({ display: fontFamily.optional(), body: fontFamily.optional(), mono: fontFamily.optional() }).optional()
+}).refine((x) => Object.keys(x).length > 0, { message: 'Debe enviar al menos un cambio de tema' });
+
+router.get('/ui-context', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await identity.uiContext(req.tenantId, req.user) }); } catch (error) { next(error); }
+});
+router.get('/theme', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await theme.getTheme(req.tenantId) }); } catch (error) { next(error); }
+});
+router.patch('/theme', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await theme.saveTheme(req.tenantId, req.userId, parse(themeSchema, req.body)) }); } catch (error) { next(error); }
+});
+
 router.get('/status', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.getStatus(req.tenantId) }); } catch (error) { next(error); }
 });
@@ -90,7 +116,7 @@ router.patch('/gates', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req,
 });
 
 router.get('/mesas', requirePermission('MESAS.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.listTables(req.tenantId, req.user) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await liveTables.listTablesLive(req.tenantId, req.user) }); } catch (error) { next(error); }
 });
 router.post('/mesas', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await service.createTable(req.tenantId, parse(tableSchema, req.body)) }); } catch (error) { next(error); }
@@ -108,7 +134,7 @@ router.post('/mesas/:id/pedir-cuenta', requirePermission('MESAS.EDITAR'), async 
   try { res.json({ ok: true, data: await service.requestAccount(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
 });
 router.post('/mesas/:id/cerrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.closeTable(req.tenantId, req.user, req.params.id, parse(closeSchema, req.body)) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await identity.closeTableGuarded(req.tenantId, req.user, req.params.id, parse(closeSchema, req.body)) }); } catch (error) { next(error); }
 });
 router.get('/sesiones/:id', requirePermission('MESAS.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.getSession(req.tenantId, req.params.id) }); } catch (error) { next(error); }
@@ -131,6 +157,19 @@ router.delete('/menu/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (
   try { res.json({ ok: true, data: await service.deactivateMenuItem(req.tenantId, req.params.id) }); } catch (error) { next(error); }
 });
 
+router.get('/sesiones/:sessionId/pedido-borrador', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await identity.getWaiterDraft(req.tenantId, req.user, req.params.sessionId) }); } catch (error) { next(error); }
+});
+router.put('/sesiones/:sessionId/pedido-borrador/items/:menuItemId', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
+  try {
+    const input = parse(draftQtySchema, req.body);
+    res.json({ ok: true, data: await identity.setWaiterDraftItem(req.tenantId, req.user, req.params.sessionId, req.params.menuItemId, input.quantity) });
+  } catch (error) { next(error); }
+});
+router.post('/sesiones/:sessionId/pedido-borrador/enviar', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await identity.sendWaiterDraft(req.tenantId, req.user, req.params.sessionId) }); } catch (error) { next(error); }
+});
+
 router.get('/pedidos', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listOrders(req.tenantId, { sessionId: req.query.sessionId, state: req.query.state, limit: req.query.limit }, req.user) }); } catch (error) { next(error); }
 });
@@ -149,7 +188,7 @@ router.post('/caja/abrir', requirePermission('TESORERIA.CREAR'), async (req, res
   try { res.status(201).json({ ok: true, data: await service.openCashShift(req.tenantId, req.userId, parse(cashOpenSchema, req.body)) }); } catch (error) { next(error); }
 });
 router.get('/caja/turnos/:id/resumen', requirePermission('TESORERIA.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.cashShiftSummary(req.tenantId, req.userId, req.params.id) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await identity.cashShiftSummary(req.tenantId, req.userId, req.params.id) }); } catch (error) { next(error); }
 });
 router.post('/caja/turnos/:id/cerrar', requirePermission('TESORERIA.CERRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.closeCashShift(req.tenantId, req.userId, req.params.id, parse(cashCloseSchema, req.body)) }); } catch (error) { next(error); }

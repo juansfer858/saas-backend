@@ -1,10 +1,13 @@
+const path = require('node:path');
 const express = require('express');
 const { z } = require('zod');
 const service = require('./restaurant.service');
+const identity = require('./restaurant-identity.service');
 const notifications = require('../notifications/notifications.service');
 const { AppError } = require('../../utils/app-error');
 
 const router = express.Router();
+const webRoot = path.join(__dirname, '..', '..', 'web');
 
 function parse(schema, value) {
   const result = schema.safeParse(value);
@@ -25,8 +28,14 @@ const orderSchema = z.object({
   externalRequestId: z.string().trim().min(3).max(120).optional().nullable()
 }).refine((x) => !x.consentWhatsApp || Boolean(x.customerPhoneE164), { message: 'El consentimiento WhatsApp requiere número celular', path: ['customerPhoneE164'] });
 
+// Static assets belong to the Restaurant vertical. They are public code/style files and contain no tenant data or secrets.
+router.get('/app/restaurant-theme.css', (_req, res) => res.type('text/css').sendFile(path.join(webRoot, 'restaurant-theme.css')));
+router.get('/app/restaurant-theme.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-theme.js')));
+router.get('/app/restaurant-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-ui.js')));
+router.get('/app/restaurant-qr-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-ui.js')));
+
 router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.getQrContext(req.params.token) }); }
+  try { res.json({ ok: true, data: await identity.publicQrContext(req.params.token) }); }
   catch (error) { next(error); }
 });
 

@@ -12,6 +12,7 @@
     if (!current?.token || !current?.subdomain) return;
     try {
       const response = await fetch('/api/v1/restaurante/status', {
+        cache: 'no-store',
         headers: {
           Authorization: `Bearer ${current.token}`,
           'x-tenant-subdomain': current.subdomain
@@ -33,9 +34,7 @@
     }
     if (existing) return;
     const warning = document.createElement('div');
-    warning.className = 'error fiscal-simulated-warning';
-    warning.style.marginTop = '10px';
-    warning.style.fontWeight = '700';
+    warning.className = 'ri-error fiscal-simulated-warning';
     warning.textContent = WARNING;
     gate.appendChild(warning);
   }

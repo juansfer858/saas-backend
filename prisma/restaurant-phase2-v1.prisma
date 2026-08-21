@@ -18,6 +18,7 @@ enum RestaurantOrderSource {
 }
 
 enum RestaurantOrderState {
+  BORRADOR
   ENVIADO
   EN_PREPARACION
   LISTO
@@ -64,12 +65,16 @@ model RestaurantConfig {
   physicalPrinterEvidence                   Json?
   metaBusinessManagementReviewPass          Boolean             @default(false)
   metaReviewEvidence                        Json?
-  dianRealEnabled                            Boolean             @default(false)
-  dianEvidence                               Json?
-  simulatedFiscalOperationExplicitlyAccepted Boolean             @default(false)
-  simulatedFiscalDecisionEvidence            Json?
+  dianRealEnabled                           Boolean             @default(false)
+  dianEvidence                              Json?
+  simulatedFiscalOperationExplicitlyAccepted Boolean            @default(false)
+  simulatedFiscalDecisionEvidence           Json?
   allowSimulatedDocumentEquivalent          Boolean             @default(true)
-  whatsappOrderReadyEnabled                  Boolean             @default(false)
+  whatsappOrderReadyEnabled                 Boolean             @default(false)
+  themePreset                               String              @default("LA_RIEL_V1")
+  themeData                                 Json?
+  displayName                               String?
+  themeUpdatedByUserId                      String?
   creadoEn                                  DateTime            @default(now())
   actualizadoEn                             DateTime            @updatedAt
 }

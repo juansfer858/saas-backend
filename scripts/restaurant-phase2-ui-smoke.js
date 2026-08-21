@@ -8,7 +8,10 @@ function read(relative) {
 
 const app = read('src/app.js');
 const operator = read('src/web/restaurant.html');
+const operatorUi = read('src/web/restaurant-ui.js');
 const customer = read('src/web/restaurant-qr.html');
+const customerUi = read('src/web/restaurant-qr-ui.js');
+const themeCss = read('src/web/restaurant-theme.css');
 const service = read('src/modules/restaurant/restaurant.service.js');
 const routes = read('src/modules/restaurant/restaurant.routes.js');
 const rbac = read('src/modules/restaurant/restaurant.rbac.js');
@@ -21,19 +24,24 @@ assert.match(app, /PRODUCCIÓN REAL BLOQUEADA/);
 assert.match(app, /app\.get\('\/app\/restaurante'/);
 assert.match(app, /app\.get\('\/r\/:token'/);
 
-assert.match(operator, /FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA/);
-assert.match(operator, /productionLabel/);
-assert.match(operator, /Plano del salón/);
-assert.match(operator, /Panel mesero/);
-assert.match(operator, /KDS \/ comandas/);
-assert.match(operator, /COMANDA SIMULADA — NO IMPRESA EN HARDWARE/);
-assert.match(operator, /Guardar PDF/);
-assert.match(operator, /Caja \/ cierre/);
+assert.match(operator, /restaurant-theme\.css/);
+assert.match(operator, /restaurant-ui\.js/);
+assert.match(operator, /id="gate"/);
+assert.match(operatorUi, /Panel del mesero/);
+assert.match(operatorUi, /Salón/);
+assert.match(operatorUi, /Cocina \/ Barra/);
+assert.match(operatorUi, /COMANDA SIMULADA — NO IMPRESA EN HARDWARE/);
+assert.match(operatorUi, /Imprimir \/ Guardar PDF/);
+assert.match(operatorUi, /Cierre de caja \/ turno/);
+assert.match(themeCss, /\.floor/);
+assert.match(themeCss, /\.command-ticket/);
+assert.match(themeCss, /\.receipt/);
 
-assert.match(customer, /Pedido directo a cocina\/barra · sin aprobación previa del mesero/);
-assert.match(customer, /Revisé el total · Confirmar pedido/);
-assert.match(customer, /consentWhatsApp/);
-assert.match(customer, /entró de inmediato a las comandas/i);
+assert.match(customer, /restaurant-qr-ui\.js/);
+assert.match(customerUi, /Pedido directo a producción · sin aprobación previa del mesero/);
+assert.match(customerUi, /Revisé el total · Confirmar pedido/);
+assert.match(customerUi, /consentWhatsApp/);
+assert.match(customerUi, /Entró de inmediato a Cocina \/ Barra/);
 
 assert.match(service, /physicalPrinterFieldPass/);
 assert.match(service, /metaBusinessManagementReviewPass/);
@@ -47,6 +55,7 @@ assert.match(service, /ORDER_READY/);
 assert.match(routes, /restaurantMenuItem\.findFirst/);
 assert.match(routes, /tenantId:\s*req\.tenantId/);
 assert.match(routes, /RESTAURANT_MENU_ITEM_NOT_FOUND/);
+assert.match(routes, /pedido-borrador/);
 
 assert.match(rbac, /MESERO:/);
 assert.match(rbac, /COCINA:/);
@@ -73,5 +82,6 @@ console.log(JSON.stringify({
   cashShiftUi: true,
   restaurantRbacDeclared: true,
   menuUpdateTenantIsolation: true,
-  physicalGateStillRequired: true
+  physicalGateStillRequired: true,
+  identityThemeExtracted: true
 }, null, 2));
