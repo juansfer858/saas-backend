@@ -28,7 +28,8 @@ const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
 
-const TENANT_NAV_VERSION = 'core-nav-v6';
+const TENANT_NAV_VERSION = 'core-nav-v7';
+const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
 const tenantNavigationItems = Object.freeze([
   Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
   Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
@@ -47,6 +48,15 @@ const tenantNavigationHeadTag = `<style id="core-nav-structural-style">
 .core-nav-restaurant{visibility:hidden}
 html[data-core-restaurant-access="1"] .core-nav-restaurant{visibility:visible}
 html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
+.core-tenant-sidebar{background:#10241b!important;color:#fff!important;padding:20px 14px!important;position:sticky!important;top:0!important;height:100vh!important;overflow:auto!important;box-sizing:border-box!important}
+.core-tenant-sidebar .brand{display:flex!important;align-items:center!important;gap:11px!important;padding:4px 8px 22px!important;font-weight:800!important;font-size:18px!important;color:#fff!important}
+.core-tenant-sidebar .core-brandmark{width:34px!important;height:34px!important;min-width:34px!important;border-radius:11px!important;background:linear-gradient(145deg,#fff,#dff2e8)!important;color:#0d6b43!important;display:grid!important;place-items:center!important;font-weight:900!important;font-size:16px!important}
+.core-tenant-sidebar .brand small{display:block!important;color:#9db3a8!important;font-weight:500!important;font-size:12px!important;margin-top:2px!important}
+.core-tenant-sidebar .nav-title{display:block!important;font-size:11px!important;text-transform:uppercase!important;letter-spacing:.12em!important;color:#92aa9f!important;padding:14px 10px 8px!important}
+.core-tenant-sidebar .nav a{display:flex!important;align-items:center!important;gap:10px!important;text-decoration:none!important;color:#d9e6e0!important;padding:10px 11px!important;margin:3px 0!important;border-radius:10px!important;font-size:14px!important;line-height:20px!important}
+.core-tenant-sidebar .nav a:hover,.core-tenant-sidebar .nav a.active{background:#173429!important;color:#fff!important}
+.core-tenant-sidebar .nav .icon{display:inline-block!important;width:22px!important;min-width:22px!important;text-align:center!important}
+@media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}}
 </style><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
 const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
@@ -75,9 +85,13 @@ function canonicalTenantNavHtml(requestPath) {
   return `<nav class="nav" data-core-navigation-version="${TENANT_NAV_VERSION}" data-core-navigation-structural="true">${links}</nav>`;
 }
 
-function replaceLegacyTenantNav(html, requestPath) {
-  const canonical = canonicalTenantNavHtml(requestPath);
-  return html.replace(/<nav class=(['"])nav\1>[\s\S]*?<\/nav>/g, canonical);
+function canonicalTenantSidebarHtml(requestPath) {
+  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="nav-title">Navegación</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+}
+
+function replaceLegacyTenantSidebar(html, requestPath) {
+  const canonical = canonicalTenantSidebarHtml(requestPath);
+  return html.replace(/<aside class=(['"])(?:sidebar|side)\1[^>]*>[\s\S]*?<\/aside>/g, canonical);
 }
 
 function injectBeforeHeadEnd(html, tags) {
@@ -95,9 +109,10 @@ function injectBeforeBody(html, tags) {
 async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
-    const canonicalized = replaceLegacyTenantNav(html, req.path);
+    const canonicalized = replaceLegacyTenantSidebar(html, req.path);
     const withHead = injectBeforeHeadEnd(canonicalized, headTags);
     res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
+    res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION);
     res.type('html').send(injectBeforeBody(withHead, bodyTags));
   } catch (error) {
     next(error);
