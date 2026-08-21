@@ -20,13 +20,14 @@ assert.match(app, /PRODUCCIÓN REAL BLOQUEADA/);
 assert.match(app, /app\.get\('\/app\/restaurante'/);
 assert.match(app, /app\.get\('\/r\/:token'/);
 
+assert.match(operator, /FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA/);
+assert.match(operator, /productionLabel/);
 assert.match(operator, /Plano del salón/);
 assert.match(operator, /Panel mesero/);
 assert.match(operator, /KDS \/ comandas/);
 assert.match(operator, /COMANDA SIMULADA — NO IMPRESA EN HARDWARE/);
 assert.match(operator, /Guardar PDF/);
 assert.match(operator, /Caja \/ cierre/);
-assert.match(operator, /PRODUCCIÓN REAL BLOQUEADA/);
 
 assert.match(customer, /Pedido directo a cocina\/barra · sin aprobación previa del mesero/);
 assert.match(customer, /Revisé el total · Confirmar pedido/);
@@ -56,6 +57,7 @@ assert.match(edgeGate, /RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA/);
 console.log('RESTAURANT PHASE 2 SIMULATED UI/GATE SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
+  dynamicProductionBlockedStatus: true,
   falseProductionClaimBlocked: true,
   floorPlanUi: true,
   waiterUi: true,
