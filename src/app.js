@@ -16,6 +16,7 @@ const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
 const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guard.js');
 const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
 const panelIntegrationExtrasPath = path.join(__dirname, 'web', 'panel-integration-extras.js');
+const panelRestaurantEntryPath = path.join(__dirname, 'web', 'panel-restaurant-entry.js');
 const notificationsConfigScriptPath = path.join(__dirname, 'web', 'notifications-config.js');
 const salesHtmlPath = path.join(__dirname, 'web', 'sales.html');
 const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
@@ -26,6 +27,7 @@ const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
+const tenantNavigationTag = '<script src="/app/panel-restaurant-entry.js?v=core-nav-v2"></script>';
 
 app.disable('x-powered-by');
 app.use(cors());
@@ -35,6 +37,21 @@ app.use(express.json({
     if (String(req.originalUrl || '').startsWith('/webhooks/whatsapp')) req.rawBody = Buffer.from(buf);
   }
 }));
+
+function injectBeforeBody(html, tags) {
+  const markup = (tags || []).filter(Boolean).join('');
+  if (!markup) return html;
+  return html.includes('</body>') ? html.replace('</body>', `${markup}</body>`) : `${html}${markup}`;
+}
+
+async function sendTenantHtml(filePath, res, next, tags = []) {
+  try {
+    const html = await fs.promises.readFile(filePath, 'utf8');
+    res.type('html').send(injectBeforeBody(html, tags));
+  } catch (error) {
+    next(error);
+  }
+}
 
 // Public webhook, magic-link and Restaurant QR surfaces. These routes never require a human tenant JWT.
 app.use('/', notificationsPublicRouter);
@@ -111,55 +128,39 @@ app.get('/app/panel-integration-extras.js', (_req, res) => {
   res.type('application/javascript').sendFile(panelIntegrationExtrasPath);
 });
 
+app.get('/app/panel-restaurant-entry.js', (_req, res) => {
+  res.type('application/javascript').sendFile(panelRestaurantEntryPath);
+});
+
 app.get('/app/notifications-config.js', (_req, res) => {
   res.type('application/javascript').sendFile(notificationsConfigScriptPath);
 });
 
-app.get('/app/ventas', (_req, res) => {
-  res.sendFile(salesHtmlPath);
+app.get('/app/ventas', (_req, res, next) => {
+  sendTenantHtml(salesHtmlPath, res, next, [tenantNavigationTag]);
 });
 
-app.get('/app/compras', (_req, res) => {
-  res.sendFile(purchasesHtmlPath);
+app.get('/app/compras', (_req, res, next) => {
+  sendTenantHtml(purchasesHtmlPath, res, next, [tenantNavigationTag]);
 });
 
-app.get('/app/configuracion-avanzada', async (_req, res, next) => {
-  try {
-    const html = await fs.promises.readFile(platformCoreConfigHtmlPath, 'utf8');
-    const script = '<script src="/app/notifications-config.js?v=notifications-core-v1"></script>';
-    const rendered = html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : `${html}${script}`;
-    res.type('html').send(rendered);
-  } catch (error) { next(error); }
+app.get('/app/configuracion-avanzada', (_req, res, next) => {
+  const notificationsTag = '<script src="/app/notifications-config.js?v=notifications-core-v1"></script>';
+  sendTenantHtml(platformCoreConfigHtmlPath, res, next, [notificationsTag, tenantNavigationTag]);
 });
 
 app.get('/app/edge', (_req, res) => {
   res.sendFile(edgeConfigHtmlPath);
 });
 
-app.get('/app/contabilidad', async (_req, res, next) => {
-  try {
-    const html = await fs.promises.readFile(accountingHtmlPath, 'utf8');
-    const guardTag = '<script src="/app/accounting-runtime-guard.js?v=qa-blockers-v2"></script>';
-    const rendered = html.includes('</body>')
-      ? html.replace('</body>', `${guardTag}</body>`)
-      : `${html}${guardTag}`;
-    res.type('html').send(rendered);
-  } catch (error) {
-    next(error);
-  }
+app.get('/app/contabilidad', (_req, res, next) => {
+  const guardTag = '<script src="/app/accounting-runtime-guard.js?v=qa-blockers-v2"></script>';
+  sendTenantHtml(accountingHtmlPath, res, next, [guardTag, tenantNavigationTag]);
 });
 
-app.use('/app', async (_req, res, next) => {
-  try {
-    const html = await fs.promises.readFile(panelHtmlPath, 'utf8');
-    const integrationTag = '<script src="/app/panel-integration-extras.js?v=core-accounting-integration-v1"></script>';
-    const rendered = html.includes('</body>')
-      ? html.replace('</body>', `${integrationTag}</body>`)
-      : `${html}${integrationTag}`;
-    res.type('html').send(rendered);
-  } catch (error) {
-    next(error);
-  }
+app.use('/app', (_req, res, next) => {
+  const integrationTag = '<script src="/app/panel-integration-extras.js?v=core-accounting-integration-v1"></script>';
+  sendTenantHtml(panelHtmlPath, res, next, [integrationTag, tenantNavigationTag]);
 });
 
 app.get('/api/v1/status', async (_req, res) => {

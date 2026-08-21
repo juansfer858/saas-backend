@@ -16,6 +16,7 @@ async function main() {
       assert.match(html, /VantixGC Super Core/);
       assert.match(html, /Nueva venta/);
       assert.match(html, /Registrar abono/);
+      assert.match(html, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v2/);
       canonicalHtml = html;
     }
 
@@ -29,6 +30,7 @@ async function main() {
     assert.match(salesHtml, /Documento Equivalente POS/);
     assert.match(salesHtml, /Kardex\/recetas/);
     assert.match(salesHtml, /cola DIAN/);
+    assert.match(salesHtml, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v2/);
 
     // Canonical Accounting must be the complete shared Core surface, never the
     // legacy lightweight PUC renderer embedded in the generic panel SPA.
@@ -45,6 +47,7 @@ async function main() {
       'Estado de Resultados',
       'Balance General / Situación Financiera'
     ]) assert.match(accountingHtml, new RegExp(marker));
+    assert.match(accountingHtml, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v2/);
 
     // Advanced Configuration is also one canonical tenant surface. Four base
     // blocks are in the HTML and Notifications is installed as the fifth block.
@@ -55,19 +58,22 @@ async function main() {
       assert.ok(advancedHtml.includes(marker), `Configuración avanzada debe contener ${marker}`);
     }
     assert.match(advancedHtml, /\/app\/notifications-config\.js/);
+    assert.match(advancedHtml, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v2/);
     const notificationsUi = fs.readFileSync('src/web/notifications-config.js', 'utf8');
     assert.match(notificationsUi, /button\.textContent = 'Notificaciones'/);
     assert.match(notificationsUi, /data-notifications-tab/);
 
-    // The shared panel extension replaces the legacy SPA navigation with full
-    // document navigation for canonical Core modules for every tenant. Restaurant
-    // access only controls the extra Restaurant entry, not these Core links.
+    // One shared runtime source normalizes every tenant Core sidebar. It keeps
+    // the complete Accounting route, the permission-backed Restaurant entry,
+    // Parametrización Contable and Advanced Configuration in the requested order.
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
+    assert.match(sharedEntry, /const CORE_NAV_ITEMS = Object\.freeze/);
     assert.match(sharedEntry, /installCoreNavigationParity/);
-    assert.match(sharedEntry, /label\.textContent = 'Contabilidad'/);
-    assert.match(sharedEntry, /removeAttribute\('data-nav'\)/);
-    assert.match(sharedEntry, /\/app\/configuracion-avanzada/);
-    assert.match(sharedEntry, /Configuración avanzada/);
+    assert.match(sharedEntry, /href: '\/app\/restaurante'.*label: 'Restaurante'.*restaurantOnly: true/);
+    assert.match(sharedEntry, /href: '\/app\/contabilidad'.*label: 'Contabilidad'/);
+    assert.match(sharedEntry, /href: '\/app\/configuracion'.*label: 'Parametrización Contable'/);
+    assert.match(sharedEntry, /href: '\/app\/configuracion-avanzada'.*label: 'Configuración avanzada'/);
+    assert.match(sharedEntry, /heading\.textContent = 'Parametrización Contable'/);
 
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
@@ -77,7 +83,7 @@ async function main() {
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
 
-    console.log('SUPER CORE PANEL UI + SHARED MODULE PARITY SMOKE OK');
+    console.log('SUPER CORE PANEL UI + CANONICAL NAVIGATION V2 SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
