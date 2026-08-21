@@ -1,6 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const service = require('./restaurant.service');
+const identity = require('./restaurant-identity.service');
 const notifications = require('../notifications/notifications.service');
 const { AppError } = require('../../utils/app-error');
 
@@ -26,7 +27,7 @@ const orderSchema = z.object({
 }).refine((x) => !x.consentWhatsApp || Boolean(x.customerPhoneE164), { message: 'El consentimiento WhatsApp requiere número celular', path: ['customerPhoneE164'] });
 
 router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.getQrContext(req.params.token) }); }
+  try { res.json({ ok: true, data: await identity.publicQrContext(req.params.token) }); }
   catch (error) { next(error); }
 });
 
