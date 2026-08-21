@@ -2,6 +2,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { app } = require('../src/app');
 
+function assertCanonicalNavBootstrap(html, route) {
+  assert.match(html, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v5/, route);
+  const antiFlashAt = html.indexOf('core-nav-anti-flash');
+  const headEndAt = html.indexOf('</head>');
+  const bodyAt = html.indexOf('<body');
+  assert.ok(antiFlashAt >= 0, `${route}: falta anti-flash`);
+  assert.ok(headEndAt >= 0 && antiFlashAt < headEndAt, `${route}: anti-flash debe estar dentro de <head>`);
+  assert.ok(bodyAt < 0 || antiFlashAt < bodyAt, `${route}: anti-flash debe cargarse antes de <body>`);
+}
+
 async function main() {
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -16,8 +26,7 @@ async function main() {
       assert.match(html, /VantixGC Super Core/);
       assert.match(html, /Nueva venta/);
       assert.match(html, /Registrar abono/);
-      assert.match(html, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v4/);
-      assert.match(html, /core-nav-anti-flash/);
+      assertCanonicalNavBootstrap(html, route);
       canonicalHtml = html;
     }
 
@@ -31,8 +40,7 @@ async function main() {
     assert.match(salesHtml, /Documento Equivalente POS/);
     assert.match(salesHtml, /Kardex\/recetas/);
     assert.match(salesHtml, /cola DIAN/);
-    assert.match(salesHtml, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v4/);
-    assert.match(salesHtml, /core-nav-anti-flash/);
+    assertCanonicalNavBootstrap(salesHtml, '/app/ventas');
 
     const accounting = await fetch(base + '/app/contabilidad');
     const accountingHtml = await accounting.text();
@@ -47,8 +55,7 @@ async function main() {
       'Estado de Resultados',
       'Balance General / Situación Financiera'
     ]) assert.match(accountingHtml, new RegExp(marker));
-    assert.match(accountingHtml, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v4/);
-    assert.match(accountingHtml, /core-nav-anti-flash/);
+    assertCanonicalNavBootstrap(accountingHtml, '/app/contabilidad');
 
     const advanced = await fetch(base + '/app/configuracion-avanzada');
     const advancedHtml = await advanced.text();
@@ -57,14 +64,13 @@ async function main() {
       assert.ok(advancedHtml.includes(marker), `Configuración avanzada debe contener ${marker}`);
     }
     assert.match(advancedHtml, /\/app\/notifications-config\.js/);
-    assert.match(advancedHtml, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v4/);
-    assert.match(advancedHtml, /core-nav-anti-flash/);
+    assertCanonicalNavBootstrap(advancedHtml, '/app/configuracion-avanzada');
     const notificationsUi = fs.readFileSync('src/web/notifications-config.js', 'utf8');
     assert.match(notificationsUi, /button\.textContent = 'Notificaciones'/);
     assert.match(notificationsUi, /data-notifications-tab/);
 
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
-    assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v4'/);
+    assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v5'/);
     assert.match(sharedEntry, /const CORE_NAV_ITEMS = Object\.freeze/);
     assert.match(sharedEntry, /installCoreNavigationParity/);
     assert.match(sharedEntry, /href: '\/app\/restaurante'.*label: 'Restaurante'.*restaurantOnly: true/);
@@ -72,7 +78,8 @@ async function main() {
     assert.match(sharedEntry, /href: '\/app\/configuracion'.*label: 'Parametrización Contable'/);
     assert.match(sharedEntry, /href: '\/app\/configuracion-avanzada'.*label: 'Configuración avanzada'/);
     assert.match(sharedEntry, /heading\.textContent = 'Parametrización Contable'/);
-    assert.match(sharedEntry, /await refreshEntry\(\);/);
+    assert.match(sharedEntry, /sessionStorage/);
+    assert.match(sharedEntry, /bootstrapRestaurantAccessCache/);
 
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
@@ -82,7 +89,7 @@ async function main() {
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
 
-    console.log('SUPER CORE PANEL UI + CANONICAL NAVIGATION V4 NO-FLICKER SMOKE OK');
+    console.log('SUPER CORE PANEL UI + CANONICAL NAVIGATION V5 HEAD ANTI-FLASH SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
