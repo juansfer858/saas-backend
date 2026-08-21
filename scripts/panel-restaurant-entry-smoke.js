@@ -4,64 +4,62 @@ const fs = require('node:fs');
 const navigation = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
 const app = fs.readFileSync('src/app.js', 'utf8');
 
-assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v5'"));
-assert.ok(navigation.includes('const CORE_NAV_ITEMS = Object.freeze(['));
-assert.equal((navigation.match(/const CORE_NAV_ITEMS =/g) || []).length, 1);
-assert.ok(navigation.includes('window.VantixGCCoreNavigation = CORE_NAV_ITEMS'));
-assert.ok(navigation.includes('installCoreNavigationParity'));
+assert.ok(app.includes("const TENANT_NAV_VERSION = 'core-nav-v6'"));
+assert.ok(app.includes('const tenantNavigationItems = Object.freeze(['));
+assert.ok(app.includes('canonicalTenantNavHtml'));
+assert.ok(app.includes('replaceLegacyTenantNav'));
+assert.ok(app.includes('data-core-navigation-structural="true"'));
 
 const expected = [
-  ["'/app/dashboard'", "'Dashboard'"],
-  ["'/app/restaurante'", "'Restaurante'"],
-  ["'/app/ventas'", "'Ventas'"],
-  ["'/app/compras'", "'Compras'"],
-  ["'/app/inventario'", "'Inventarios / Kardex'"],
-  ["'/app/tesoreria'", "'Tesorería & Bancos'"],
-  ["'/app/cartera'", "'Cartera'"],
-  ["'/app/terceros'", "'Terceros'"],
-  ["'/app/contabilidad'", "'Contabilidad'"],
-  ["'/app/configuracion'", "'Parametrización Contable'"],
-  ["'/app/configuracion-avanzada'", "'Configuración avanzada'"]
+  ["href: '/app/dashboard'", "label: 'Dashboard'"],
+  ["href: '/app/restaurante'", "label: 'Restaurante'"],
+  ["href: '/app/ventas'", "label: 'Ventas'"],
+  ["href: '/app/compras'", "label: 'Compras'"],
+  ["href: '/app/inventario'", "label: 'Inventarios / Kardex'"],
+  ["href: '/app/tesoreria'", "label: 'Tesorería & Bancos'"],
+  ["href: '/app/cartera'", "label: 'Cartera'"],
+  ["href: '/app/terceros'", "label: 'Terceros'"],
+  ["href: '/app/contabilidad'", "label: 'Contabilidad'"],
+  ["href: '/app/configuracion'", "label: 'Parametrización Contable'"],
+  ["href: '/app/configuracion-avanzada'", "label: 'Configuración avanzada'"]
 ];
 
 let cursor = -1;
 for (const [href, label] of expected) {
-  const hrefAt = navigation.indexOf(`href: ${href}`, cursor + 1);
-  const labelAt = navigation.indexOf(`label: ${label}`, hrefAt);
+  const hrefAt = app.indexOf(href, cursor + 1);
+  const labelAt = app.indexOf(label, hrefAt);
   assert.ok(hrefAt > cursor, `Ruta fuera de orden o ausente: ${href}`);
-  assert.ok(labelAt > hrefAt, `Etiqueta ausente para ${href}: ${label}`);
+  assert.ok(labelAt > hrefAt, `Etiqueta ausente: ${label}`);
   cursor = hrefAt;
 }
 
-assert.ok(navigation.includes("heading.textContent = 'Parametrización Contable'"));
+// Runtime no longer rebuilds the sidebar. It only resolves Restaurant visibility,
+// active state and the optional Dashboard shortcut.
+assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v6'"));
 assert.ok(navigation.includes("'/api/v1/restaurante/ui-context'"));
-assert.ok(navigation.includes('restaurantOnly: true'));
-assert.ok(navigation.includes('data-restaurant-entry'));
-assert.ok(navigation.includes('Abrir Restaurante'));
-assert.ok(!navigation.includes("rol === 'ADMIN'"), 'Restaurant visibility must be permission-backed, not hardcoded to ADMIN');
-
-assert.ok(navigation.includes('observer.disconnect()'));
-assert.ok(navigation.includes('observerStarted'));
-assert.ok(navigation.includes('installing'));
-assert.ok(navigation.includes('window.setTimeout'));
-assert.ok(!navigation.includes('queueMicrotask('), 'Do not schedule self-triggered MutationObserver work as microtasks');
 assert.ok(navigation.includes('sessionStorage'));
 assert.ok(navigation.includes('bootstrapRestaurantAccessCache'));
 assert.ok(navigation.includes('writeCachedRestaurantAccess'));
+assert.ok(navigation.includes('updateActiveNavigation'));
+assert.ok(navigation.includes('installRestaurantDashboardEntry'));
+assert.ok(!navigation.includes('canonicalNavigationHtml'));
+assert.ok(!navigation.includes('nav.innerHTML'));
+assert.ok(!navigation.includes('CORE_NAV_ITEMS'));
+assert.ok(!navigation.includes("rol === 'ADMIN'"), 'Restaurant visibility must remain permission-backed');
 
-assert.ok(app.includes("app.get('/app/panel-restaurant-entry.js'"));
 assert.ok(app.includes("res.set('Cache-Control', 'no-store')"));
-assert.ok(app.includes('tenantNavigationHeadTag'));
-assert.ok(app.includes('injectBeforeHeadEnd'));
-assert.ok(app.includes('/app/panel-restaurant-entry.js?v=core-nav-v5'));
-assert.ok(app.includes('tenantNavigationTag'));
+assert.ok(app.includes('core-nav-structural-style'));
+assert.ok(app.includes('/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}'));
+assert.ok(app.includes("res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION)"));
+
 for (const route of ['/app/ventas', '/app/compras', '/app/configuracion-avanzada', '/app/contabilidad']) {
   assert.ok(app.includes(`app.get('${route}'`), `Falta ruta ${route}`);
 }
-assert.ok(app.includes('sendTenantHtml(salesHtmlPath, res, next, [tenantNavigationTag])'));
-assert.ok(app.includes('sendTenantHtml(purchasesHtmlPath, res, next, [tenantNavigationTag])'));
-assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, res, next, [notificationsTag, tenantNavigationTag])'));
-assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, res, next, [guardTag, tenantNavigationTag])'));
-assert.ok(app.includes('sendTenantHtml(panelHtmlPath, res, next, [integrationTag, tenantNavigationTag])'));
 
-console.log('PANEL CANONICAL 11-ITEM NAVIGATION + HEAD ANTI-FLASH/CACHE SMOKE OK');
+assert.ok(app.includes('sendTenantHtml(salesHtmlPath, req, res, next, [tenantNavigationTag])'));
+assert.ok(app.includes('sendTenantHtml(purchasesHtmlPath, req, res, next, [tenantNavigationTag])'));
+assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, req, res, next, [notificationsTag, tenantNavigationTag])'));
+assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag])'));
+assert.ok(app.includes('sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag])'));
+
+console.log('PANEL STRUCTURAL CANONICAL 11-ITEM NAVIGATION SMOKE OK');
