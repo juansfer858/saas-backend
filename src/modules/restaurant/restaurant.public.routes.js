@@ -34,6 +34,17 @@ router.get('/app/restaurant-theme.js', (_req, res) => res.type('application/java
 router.get('/app/restaurant-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-ui.js')));
 router.get('/app/restaurant-qr-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-ui.js')));
 
+router.get('/api/public/restaurante/build-marker', (_req, res) => {
+  res.json({
+    ok: true,
+    data: {
+      restaurantIdentity: 'LA_RIEL_CONNECTED_V1',
+      demoAccessSeed: 'ROTATED_V1_2026_08_21',
+      productionPromise: false
+    }
+  });
+});
+
 router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
   try { res.json({ ok: true, data: await identity.publicQrContext(req.params.token) }); }
   catch (error) { next(error); }
