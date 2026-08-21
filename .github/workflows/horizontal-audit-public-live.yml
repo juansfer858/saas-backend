@@ -43,10 +43,11 @@ jobs:
           echo "restaurant_app_http=$code"
           test "$code" = "200"
           grep -qi 'La Riel' /tmp/rest.html
-          echo '=== PANEL RESTAURANT ENTRY ASSET ==='
-          code=$(curl -sS -L --max-time 20 -o /tmp/panel-rest.js -w '%{http_code}' https://core.vantixgc.com/app/panel-restaurant-entry.js)
-          echo "panel_restaurant_asset_http=$code"
+          echo '=== PANEL COMBINED EXTENSION ==='
+          code=$(curl -sS -L --max-time 20 -o /tmp/panel-extras.js -w '%{http_code}' https://core.vantixgc.com/app/panel-integration-extras.js)
+          echo "panel_combined_asset_http=$code"
           test "$code" = "200"
-          grep -q '/api/v1/restaurante/ui-context' /tmp/panel-rest.js
-          grep -q '/app/restaurante' /tmp/panel-rest.js
+          grep -q '/api/v1/restaurante/ui-context' /tmp/panel-extras.js
+          grep -q '/app/restaurante' /tmp/panel-extras.js
+          grep -q 'Abrir Restaurante' /tmp/panel-extras.js
           echo 'HORIZONTAL_AUDIT_PUBLIC_LIVE=PASS'
