@@ -7,6 +7,8 @@ const { installRestaurantRbac } = require('../src/modules/restaurant/restaurant.
 // Demo-only credential. Plaintext is delivered to the project owner out-of-band in the testing handoff.
 const PASSWORD_HASH = '$2y$12$okWsFqOf1Uzl0wsSwFMpn.bv.C2qIX0wp1CjgPrBzGkohM9gcays6';
 const SUBDOMAIN = 'demo-restaurante';
+const DEMO_SEED_MAX_WAIT_MS = Math.max(Number(process.env.RESTAURANT_DEMO_SEED_MAX_WAIT_MS) || 15000, 5000);
+const DEMO_SEED_TIMEOUT_MS = Math.max(Number(process.env.RESTAURANT_DEMO_SEED_TIMEOUT_MS) || 120000, 30000);
 
 const USERS = [
   ['ADMIN', 'Administrador Restaurante', 'admin@demo-restaurante.vantixgc.com'],
@@ -119,6 +121,9 @@ async function ensureRestaurantDemoTenant() {
     });
 
     return { tenantId: tenant.id, subdomain: tenant.subdomain, users: Object.fromEntries(Object.entries(users).map(([role, user]) => [role, user.id])), products: productBySku.size, menuItems: menu.length, tables: 6 };
+  }, {
+    maxWait: DEMO_SEED_MAX_WAIT_MS,
+    timeout: DEMO_SEED_TIMEOUT_MS
   });
 }
 
@@ -131,4 +136,4 @@ if (require.main === module) {
   main().catch((error) => { console.error('RESTAURANT DEMO TENANT ERROR', error); process.exitCode = 1; }).finally(async () => prisma.$disconnect());
 }
 
-module.exports = { SUBDOMAIN, ensureRestaurantDemoTenant };
+module.exports = { SUBDOMAIN, ensureRestaurantDemoTenant, DEMO_SEED_MAX_WAIT_MS, DEMO_SEED_TIMEOUT_MS };
