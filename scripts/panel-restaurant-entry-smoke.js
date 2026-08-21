@@ -33,24 +33,22 @@ for (const [href, label] of expected) {
   cursor = hrefAt;
 }
 
-// Runtime does not rebuild navigation. It normalizes only the visual sidebar shell
-// so old module-specific chrome cannot make the panel appear to change between pages.
+// The browser runtime must never restyle or rebuild the sidebar. Production
+// flicker was caused by the client normalizer + MutationObserver touching the
+// same shell after each module rendered. Navigation is structural server HTML.
 assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v6'"));
-assert.ok(navigation.includes("const SHELL_STYLE_ID = 'vantixgc-core-sidebar-shell-v1'"));
-assert.ok(navigation.includes('ensureCanonicalSidebarStyles'));
-assert.ok(navigation.includes('normalizeSidebarChrome'));
-assert.ok(navigation.includes("sidebar.classList.add('core-tenant-sidebar')"));
-assert.ok(navigation.includes("title.textContent = 'Navegación'"));
-assert.ok(navigation.includes("mark.textContent = 'V'"));
-assert.ok(navigation.includes("window.VantixGCCoreSidebarShellVersion = 'core-sidebar-v1'"));
+assert.ok(navigation.includes("window.VantixGCCoreSidebarRuntime = 'off'"));
 assert.ok(navigation.includes("'/api/v1/restaurante/ui-context'"));
 assert.ok(navigation.includes('sessionStorage'));
 assert.ok(navigation.includes('bootstrapRestaurantAccessCache'));
 assert.ok(navigation.includes('writeCachedRestaurantAccess'));
-assert.ok(navigation.includes('updateActiveNavigation'));
 assert.ok(navigation.includes('installRestaurantDashboardEntry'));
-assert.ok(!navigation.includes('canonicalNavigationHtml'));
+assert.ok(!navigation.includes('MutationObserver'));
+assert.ok(!navigation.includes('normalizeSidebarChrome'));
+assert.ok(!navigation.includes('ensureCanonicalSidebarStyles'));
+assert.ok(!navigation.includes('updateActiveNavigation'));
 assert.ok(!navigation.includes('nav.innerHTML'));
+assert.ok(!navigation.includes('canonicalNavigationHtml'));
 assert.ok(!navigation.includes('CORE_NAV_ITEMS'));
 assert.ok(!navigation.includes("rol === 'ADMIN'"), 'Restaurant visibility must remain permission-backed');
 
@@ -69,4 +67,4 @@ assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, req, res, nex
 assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag])'));
 assert.ok(app.includes('sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag])'));
 
-console.log('PANEL STRUCTURAL NAV + SINGLE CANONICAL SIDEBAR SHELL SMOKE OK');
+console.log('PANEL STRUCTURAL NAV + SIDEBAR RUNTIME OFF SMOKE OK');
