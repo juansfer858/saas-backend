@@ -51,3 +51,28 @@ jobs:
           grep -qi 'VantixGC Super Core' /tmp/core-login.html
           grep -qi 'Subdominio de empresa' /tmp/core-login.html
           echo "PRODUCTION_CENTRAL_TENANT_LOGIN_OK"
+
+      - name: Verify demo Restaurant tenant is seeded in production
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/restaurante/demo-readiness"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q '"ready":true' && \
+                 echo "$body" | grep -q '"tenantFound":true' && \
+                 echo "$body" | grep -q '"users":6' && \
+                 echo "$body" | grep -q '"tables":6' && \
+                 echo "$body" | grep -q '"menuItems":4' && \
+                 echo "$body" | grep -q '"recipes":4'; then
+                echo "PRODUCTION_DEMO_RESTAURANT_READY"
+                exit 0
+              fi
+            fi
+            echo "Waiting for demo tenant bootstrap... attempt=$attempt"
+            sleep 10
+          done
+          echo "demo-restaurante was not fully seeded in production" >&2
+          exit 1

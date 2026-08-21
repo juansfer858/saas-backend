@@ -5,6 +5,7 @@ on:
     branches:
       - restaurant-identity-core-v1
       - restaurant-demo-handoff-v2
+      - restaurant-demo-bootstrap-runtime-v1
   pull_request:
     branches:
       - main
@@ -31,6 +32,8 @@ jobs:
         run: node scripts/restaurant-identity-ui-smoke.js
       - name: Validate demo handoff credentials and marker
         run: node scripts/restaurant-demo-handoff-smoke.js
+      - name: Validate demo runtime bootstrap wiring
+        run: node scripts/restaurant-demo-runtime-bootstrap-smoke.js
 
   integration:
     needs: validate
