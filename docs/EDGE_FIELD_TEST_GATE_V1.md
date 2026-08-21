@@ -2,7 +2,7 @@
 
 Estado actual: **NO APROBADO EN CAMPO**.
 
-Este documento define el último gate antes de iniciar Restaurante Fase 2. Ningún CI, socket simulado, listener TCP de QA ni prueba automatizada puede marcar este gate como aprobado.
+Este documento define el gate físico de impresión/Edge. Ningún CI, socket simulado, listener TCP de QA ni prueba automatizada puede marcar este gate como aprobado.
 
 ## 1. Evidencia obligatoria
 
@@ -66,32 +66,46 @@ Crear un archivo `field-session.json` con este formato:
 
 `result` solo puede ser `PASS` si todos los valores obligatorios anteriores son verdaderos y existe evidencia real de impresora física + desconexión física de WAN.
 
-## 3. Regla de destrabe
+## 3. Excepción deliberada de desarrollo — Restaurante Fase 2
 
-Restaurante Fase 2 se mantiene **BLOQUEADA** hasta que:
+A partir del 20 de agosto de 2026 se autoriza iniciar Restaurante Fase 2 **en modo funcional simulado**, sin esperar disponibilidad de impresora térmica física.
 
-- la sesión física termine en `PASS`;
-- el JSON de `/api/field-evidence` quede guardado junto con `field-session.json`;
-- Motor Consumo/Producción y Ventas permanezcan aprobados;
-- el spooler haya sido probado con impresora física real.
+Esta excepción únicamente cambia el gate de **desarrollo**. No cambia el gate de **producción real** y no marca esta prueba física como aprobada.
 
-## 4. Decisión sobre DIAN
+Estado permitido durante la excepción:
 
-Decisión de negocio adoptada para no bloquear desarrollo por un trámite externo:
+`RESTAURANTE FASE 2: FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA (PDF/PANTALLA)`
 
-**Restaurante Fase 2 podrá iniciar en paralelo a la habilitación DIAN únicamente después de aprobar la prueba física Edge.**
+Estado expresamente prohibido mientras el gate siga pendiente:
 
-Durante ese paralelo se puede construir y validar Mesas, toma de pedidos, comandas, KDS, división de cuenta, propina, caja/turno, roles y consumo de recetas. La salida a producción con clientes reales y la aceptación fiscal final permanecen bloqueadas hasta que el Proveedor Tecnológico/DIAN confirme habilitación real del Documento Equivalente Electrónico POS.
+`RESTAURANTE: LISTO PARA PRODUCCIÓN CON CLIENTES REALES`
 
-Por tanto:
+La simulación debe mantener la misma lógica de enrutamiento de impresión por estación; solo cambia el destino final desde ESC/POS físico hacia un registro/PDF/pantalla de comanda simulada.
 
-- Gate técnico para iniciar Fase 2: prueba física Edge = PASS.
-- Gate comercial/fiscal para producción: DIAN/PT real = HABILITADO.
+## 4. Regla de destrabe para producción real
 
-## 5. Estado de este documento
+Restaurante no puede declararse listo para vender a clientes reales hasta que se cumplan simultáneamente:
 
-Mientras no exista una sesión física adjunta y verificable, el estado oficial es:
+- sesión física Edge = `PASS` y spooler probado con impresora térmica real;
+- Meta `business_management` deje de estar pendiente en `0 de 1 llamadas de prueba necesarias` y la revisión quede resuelta;
+- DIAN/PT real quede habilitado, o exista una decisión comercial explícita y documentada sobre el alcance fiscal permitido mientras continúa en simulación.
+
+El código del vertical debe reflejar estos gates de forma visible y mantener `PRODUCCIÓN REAL BLOQUEADA` mientras alguno permanezca abierto.
+
+## 5. Decisión sobre DIAN
+
+Se mantiene la decisión de no bloquear desarrollo por un trámite externo. Mesas, toma de pedidos, comandas, KDS, división de cuenta, propina, caja/turno, roles y consumo de recetas pueden validarse con Documento Equivalente simulado mientras DIAN real no esté habilitada.
+
+La aceptación fiscal real sigue siendo un gate independiente de producción.
+
+## 6. Estado de este documento
+
+Mientras no exista una sesión física adjunta y verificable:
 
 `EDGE OFFLINE-FIRST V1: SOFTWARE APROBADO / CAMPO PENDIENTE`
 
-`RESTAURANTE FASE 2: BLOQUEADA`
+`RESTAURANTE FASE 2: DESARROLLO FUNCIONAL SIMULADO AUTORIZADO`
+
+`RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA`
+
+Ver también `RESTAURANT_PHASE2_SIMULATED_V1.md`.
