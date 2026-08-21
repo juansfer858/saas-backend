@@ -10,6 +10,44 @@
     catch { return null; }
   }
 
+  function openFullCoreRoute(path, event) {
+    event?.preventDefault?.();
+    window.location.href = path;
+  }
+
+  // The legacy panel SPA still contains a lightweight PUC-only renderer for
+  // /app/contabilidad. Shared Core modules must never be shadowed by those
+  // lightweight panel views: force full document navigation to the canonical
+  // Core surfaces used by every tenant.
+  function installCoreNavigationParity() {
+    const nav = document.querySelector('.sidebar .nav');
+    if (!nav) return;
+
+    const accountingLink = [...nav.querySelectorAll('a')]
+      .find((a) => a.getAttribute('href') === '/app/contabilidad');
+    if (accountingLink && accountingLink.dataset.coreFullRoute !== 'true') {
+      const replacement = accountingLink.cloneNode(true);
+      replacement.removeAttribute('data-nav');
+      replacement.dataset.coreFullRoute = 'true';
+      const label = replacement.querySelector('span:last-child');
+      if (label) label.textContent = 'Contabilidad';
+      replacement.addEventListener('click', (event) => openFullCoreRoute('/app/contabilidad', event));
+      accountingLink.replaceWith(replacement);
+    }
+
+    if (!nav.querySelector('[data-core-advanced-config]')) {
+      const link = document.createElement('a');
+      link.href = '/app/configuracion-avanzada';
+      link.dataset.coreAdvancedConfig = 'true';
+      link.innerHTML = '<span class="icon">🧩</span><span>Configuración avanzada</span>';
+      link.addEventListener('click', (event) => openFullCoreRoute('/app/configuracion-avanzada', event));
+      const configLink = [...nav.querySelectorAll('a')]
+        .find((a) => a.getAttribute('href') === '/app/configuracion');
+      if (configLink) configLink.insertAdjacentElement('afterend', link);
+      else nav.appendChild(link);
+    }
+  }
+
   async function checkRestaurantAccess() {
     if (accessChecked) return hasAccess;
     accessChecked = true;
@@ -33,8 +71,7 @@
   }
 
   function openRestaurant(event) {
-    event?.preventDefault?.();
-    window.location.href = '/app/restaurante';
+    openFullCoreRoute('/app/restaurante', event);
   }
 
   function installNavEntry() {
@@ -66,14 +103,20 @@
   }
 
   async function refreshEntry() {
+    installCoreNavigationParity();
     await checkRestaurantAccess();
+    installCoreNavigationParity();
     installNavEntry();
   }
 
-  const observer = new MutationObserver(() => installNavEntry());
+  const observer = new MutationObserver(() => {
+    installCoreNavigationParity();
+    installNavEntry();
+  });
   window.addEventListener('load', () => {
     const root = document.querySelector('#root');
     if (root) observer.observe(root, { childList: true, subtree: true });
+    installCoreNavigationParity();
     refreshEntry();
   });
   setTimeout(refreshEntry, 100);
