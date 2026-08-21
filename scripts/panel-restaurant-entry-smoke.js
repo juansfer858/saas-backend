@@ -4,11 +4,14 @@ const fs = require('node:fs');
 const navigation = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
 const app = fs.readFileSync('src/app.js', 'utf8');
 
-assert.ok(app.includes("const TENANT_NAV_VERSION = 'core-nav-v6'"));
+assert.ok(app.includes("const TENANT_NAV_VERSION = 'core-nav-v7'"));
+assert.ok(app.includes("const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1'"));
 assert.ok(app.includes('const tenantNavigationItems = Object.freeze(['));
 assert.ok(app.includes('canonicalTenantNavHtml'));
-assert.ok(app.includes('replaceLegacyTenantNav'));
+assert.ok(app.includes('canonicalTenantSidebarHtml'));
+assert.ok(app.includes('replaceLegacyTenantSidebar'));
 assert.ok(app.includes('data-core-navigation-structural="true"'));
+assert.ok(app.includes('data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}"'));
 
 const expected = [
   ["href: '/app/dashboard'", "label: 'Dashboard'"],
@@ -33,11 +36,15 @@ for (const [href, label] of expected) {
   cursor = hrefAt;
 }
 
-// The browser runtime must never restyle or rebuild the sidebar. Production
-// flicker was caused by the client normalizer + MutationObserver touching the
-// same shell after each module rendered. Navigation is structural server HTML.
-assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v6'"));
+assert.ok(app.includes('<div class="core-brandmark">V</div>'));
+assert.ok(app.includes('<div class="nav-title">Navegación</div>'));
+assert.ok(app.includes('.core-tenant-sidebar .nav a'));
+assert.ok(app.includes("res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION)"));
+
+// Browser runtime remains OFF for the sidebar. No restyling, rebuilding or DOM observer.
+assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v7'"));
 assert.ok(navigation.includes("window.VantixGCCoreSidebarRuntime = 'off'"));
+assert.ok(navigation.includes("window.VantixGCCoreSidebarShellSource = 'server'"));
 assert.ok(navigation.includes("'/api/v1/restaurante/ui-context'"));
 assert.ok(navigation.includes('sessionStorage'));
 assert.ok(navigation.includes('bootstrapRestaurantAccessCache'));
@@ -67,4 +74,4 @@ assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, req, res, nex
 assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag])'));
 assert.ok(app.includes('sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag])'));
 
-console.log('PANEL STRUCTURAL NAV + SIDEBAR RUNTIME OFF SMOKE OK');
+console.log('PANEL SERVER-RENDERED CANONICAL SIDEBAR V1 + NAV V7 SMOKE OK');
