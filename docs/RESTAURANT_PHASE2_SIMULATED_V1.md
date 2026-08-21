@@ -12,13 +12,21 @@ Este estado **NO significa listo para producción con clientes reales**.
 
 ## Gate obligatorio para producción real
 
-`RESTAURANT_PRODUCTION_READY` solo puede ser verdadero cuando los tres puntos siguientes estén cerrados explícitamente:
+La fórmula ejecutable es:
 
-1. `physicalPrinterFieldPass = true`: sesión física de `EDGE_FIELD_TEST_GATE_V1.md` aprobada con impresora térmica LAN real y desconexión física de Internet.
-2. `metaBusinessManagementReviewPass = true`: revisión Meta `business_management` resuelta; no puede permanecer en `0 de 1 llamadas de prueba necesarias`.
-3. `dianRealEnabled = true`: habilitación real DIAN/PT completada. Si se adopta formalmente una operación comercial sin DIAN real, la decisión debe quedar registrada por separado y el sistema seguirá mostrando la limitación fiscal correspondiente.
+`RESTAURANT_PRODUCTION_READY = physicalPrinterFieldPass && metaBusinessManagementReviewPass && (dianRealEnabled || simulatedFiscalOperationExplicitlyAccepted)`
 
-Mientras cualquiera sea falso, el vertical debe mostrar de forma visible `PRODUCCIÓN REAL BLOQUEADA`.
+Los tres bloques deben estar cerrados explícitamente:
+
+1. `physicalPrinterFieldPass = true`: sesión física de `EDGE_FIELD_TEST_GATE_V1.md` aprobada con impresora térmica LAN real y desconexión física de Internet. La evidencia debe identificar sesión y modelo de impresora.
+2. `metaBusinessManagementReviewPass = true`: revisión Meta `business_management` resuelta; no puede permanecer en `0 de 1 llamadas de prueba necesarias`. La evidencia debe identificar la revisión/resolución.
+3. Gate fiscal satisfecho por una de dos vías:
+   - `dianRealEnabled = true`: habilitación DIAN/PT real completada y documentada; o
+   - `simulatedFiscalOperationExplicitlyAccepted = true`: existe una decisión comercial/fiscal explícita, documentada y atribuida que autoriza el alcance temporal permitido con Documento Equivalente simulado. Esta alternativa **no convierte el documento simulado en documento fiscal DIAN** y la limitación debe continuar visible.
+
+Mientras cualquiera de los tres bloques anteriores permanezca abierto, el vertical debe mostrar `PRODUCCIÓN REAL BLOQUEADA`.
+
+Ningún endpoint operativo normal puede poner esos gates en verdadero por accidente: los cambios administrativos requieren evidencia y quedan auditados.
 
 ## Alcance funcional de Fase 2
 
@@ -28,9 +36,10 @@ Mientras cualquiera sea falso, el vertical debe mostrar de forma visible `PRODUC
 4. Pedido de mesero y Autopedido QR agregan líneas al mismo borrador y crean comandas por estación `COCINA`, `BARRA` o `POSTRES`.
 5. Autopedido QR no requiere aprobación previa del mesero.
 6. Cierre de mesa usa la emisión transaccional de Ventas del Core: Tesorería/Cartera, AU, Kardex/Consumo y outbox DIAN permanecen dentro de la misma transacción. El Documento Equivalente puede quedar en modo simulado si DIAN real aún no está habilitada.
-7. Caja/turno reutiliza `AperturaCierreCaja` y Tesorería del Core; no se crea una caja paralela.
-8. Roles Restaurante reutilizan RBAC del Core.
-9. `ORDER_READY` reutiliza el Núcleo de Notificaciones, sujeto a activación del tenant, plantilla Meta aprobada y consentimiento.
+7. La propina se conserva separada del total fiscal de la venta y se registra en Tesorería/Contabilidad como valor por pagar, dentro de la misma transacción de cierre.
+8. Caja/turno reutiliza `AperturaCierreCaja` y Tesorería del Core; no se crea una caja paralela.
+9. Roles Restaurante reutilizan RBAC del Core.
+10. `ORDER_READY` reutiliza el Núcleo de Notificaciones, sujeto a activación del tenant, plantilla Meta aprobada y consentimiento transaccional.
 
 ## Criterios de aceptación del modo simulado
 
@@ -39,8 +48,8 @@ Mientras cualquiera sea falso, el vertical debe mostrar de forma visible `PRODUC
 - AC-03: Cierre con división entre dos comensales y propina genera AU balanceado, consume recetas y asocia Documento Equivalente real/simulado según estado DIAN.
 - AC-04: Cierre de caja coincide con la suma de mesas cerradas del turno.
 - AC-05: Mesero no accede a Configuración/Contabilidad/Reportes; Cocina/Barra solo accede a su cola.
-- AC-06: Estado visible `FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA` y `PRODUCCIÓN REAL BLOQUEADA` hasta completar los tres gates.
+- AC-06: Estado visible `FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA` y `PRODUCCIÓN REAL BLOQUEADA` hasta completar los tres bloques del gate.
 
 ## Evidencia
 
-La automatización de CI puede probar los criterios funcionales anteriores con PostgreSQL real de integración y simulación de comanda. Ninguna prueba automatizada puede cambiar `physicalPrinterFieldPass` a verdadero.
+La automatización de CI puede probar los criterios funcionales anteriores con PostgreSQL real de integración y simulación de comanda. Ninguna prueba automatizada puede cambiar `physicalPrinterFieldPass` a verdadero ni sustituir la sesión de campo.
