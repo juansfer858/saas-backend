@@ -20,6 +20,7 @@ on:
       - core-accounting-integration-v1-work2
       - platform-core-dian-rbac-print-saas-v1
       - restaurant-prereqs-core-v1
+      - restaurant-phase2-simulated-v1
       - edge-offline-first-core-v1
       - edge-offline-production-closure-v1
       - notifications-whatsapp-tracking-core-v1
@@ -75,6 +76,9 @@ jobs:
 
       - name: Validate Restaurant Phase1 surfaces and gate
         run: node scripts/phase1-prereqs-ui-smoke.js
+
+      - name: Validate Restaurant Phase2 simulated UI and production gate
+        run: node scripts/restaurant-phase2-ui-smoke.js
 
       - name: Validate Edge Offline-First local agent source
         run: node -e "require('./edge/agent/crypto-store'); require('./edge/agent/store'); console.log('EDGE AGENT LOAD OK')"
@@ -168,6 +172,9 @@ jobs:
 
       - name: Validate Restaurant Phase1 consumption and Sales prerequisites
         run: node scripts/restaurant-prereqs-phase1-smoke.js
+
+      - name: Validate Restaurant Phase2 simulated six-criteria acceptance
+        run: node scripts/restaurant-phase2-simulated-smoke.js
 
       - name: Validate The Factory HKA real HTTP adapter contract
         run: node scripts/hka-provider-adapter-smoke.js
