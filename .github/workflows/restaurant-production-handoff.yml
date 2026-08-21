@@ -42,11 +42,12 @@ jobs:
           echo "$body" | grep -q 'restaurantVertical'
           echo "PRODUCTION_CORE_STATUS_OK"
 
-      - name: Verify demo Restaurant tenant web entrypoint
+      - name: Verify supported central tenant login entrypoint
         shell: bash
         run: |
           set -euo pipefail
-          code=$(curl -sS -L --max-time 15 -o /tmp/rest-demo.html -w '%{http_code}' https://demo-restaurante.vantixgc.com/app)
+          code=$(curl -sS -L --max-time 15 -o /tmp/core-login.html -w '%{http_code}' https://core.vantixgc.com/app)
           test "$code" = "200"
-          grep -qi 'VantixGC' /tmp/rest-demo.html
-          echo "PRODUCTION_DEMO_RESTAURANT_HOST_OK"
+          grep -qi 'VantixGC Super Core' /tmp/core-login.html
+          grep -qi 'Subdominio de empresa' /tmp/core-login.html
+          echo "PRODUCTION_CENTRAL_TENANT_LOGIN_OK"
