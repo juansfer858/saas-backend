@@ -33,9 +33,16 @@ for (const [href, label] of expected) {
   cursor = hrefAt;
 }
 
-// Runtime no longer rebuilds the sidebar. It only resolves Restaurant visibility,
-// active state and the optional Dashboard shortcut.
+// Runtime does not rebuild navigation. It normalizes only the visual sidebar shell
+// so old module-specific chrome cannot make the panel appear to change between pages.
 assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v6'"));
+assert.ok(navigation.includes("const SHELL_STYLE_ID = 'vantixgc-core-sidebar-shell-v1'"));
+assert.ok(navigation.includes('ensureCanonicalSidebarStyles'));
+assert.ok(navigation.includes('normalizeSidebarChrome'));
+assert.ok(navigation.includes("sidebar.classList.add('core-tenant-sidebar')"));
+assert.ok(navigation.includes("title.textContent = 'Navegación'"));
+assert.ok(navigation.includes("mark.textContent = 'V'"));
+assert.ok(navigation.includes("window.VantixGCCoreSidebarShellVersion = 'core-sidebar-v1'"));
 assert.ok(navigation.includes("'/api/v1/restaurante/ui-context'"));
 assert.ok(navigation.includes('sessionStorage'));
 assert.ok(navigation.includes('bootstrapRestaurantAccessCache'));
@@ -62,4 +69,4 @@ assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, req, res, nex
 assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag])'));
 assert.ok(app.includes('sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag])'));
 
-console.log('PANEL STRUCTURAL CANONICAL 11-ITEM NAVIGATION SMOKE OK');
+console.log('PANEL STRUCTURAL NAV + SINGLE CANONICAL SIDEBAR SHELL SMOKE OK');
