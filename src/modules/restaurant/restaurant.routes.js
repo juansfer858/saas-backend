@@ -71,9 +71,7 @@ const gatesSchema = z.object({
   metaBusinessManagementReviewPass: z.boolean().optional(),
   metaReviewEvidence: z.record(z.string(), z.any()).optional().nullable(),
   dianRealEnabled: z.boolean().optional(),
-  dianEvidence: z.record(z.string(), z.any()).optional().nullable(),
-  simulatedFiscalOperationExplicitlyAccepted: z.boolean().optional(),
-  simulatedFiscalDecisionEvidence: z.record(z.string(), z.any()).optional().nullable()
+  dianEvidence: z.record(z.string(), z.any()).optional().nullable()
 });
 
 router.get('/status', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
@@ -83,7 +81,12 @@ router.patch('/config', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req
   try { res.json({ ok: true, data: await service.saveOperationalConfig(req.tenantId, parse(operationalConfigSchema, req.body)) }); } catch (error) { next(error); }
 });
 router.patch('/gates', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.updateProductionGates(req.tenantId, req.userId, parse(gatesSchema, req.body)) }); } catch (error) { next(error); }
+  try {
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'simulatedFiscalOperationExplicitlyAccepted') || Object.prototype.hasOwnProperty.call(req.body || {}, 'simulatedFiscalDecisionEvidence')) {
+      throw new AppError(403, 'La aceptación de operación fiscal simulada solo puede ser administrada por un super-administrador desde el Panel SaaS', 'RESTAURANT_SIMULATED_FISCAL_PLATFORM_ONLY');
+    }
+    res.json({ ok: true, data: await service.updateProductionGates(req.tenantId, req.userId, parse(gatesSchema, req.body)) });
+  } catch (error) { next(error); }
 });
 
 router.get('/mesas', requirePermission('MESAS.VER'), async (req, res, next) => {
