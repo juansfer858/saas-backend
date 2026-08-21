@@ -18,6 +18,7 @@ const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
+require('../modules/restaurant/restaurant-draft-fix');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
 installRestaurantRbac();
