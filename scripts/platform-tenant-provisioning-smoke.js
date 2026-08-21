@@ -77,6 +77,10 @@ async function main() {
   assert.ok(cli.includes('bcrypt.hash(password, 12)'), 'CLI debe persistir solo hash bcrypt');
   assert.ok(!cli.includes('console.log(password)'), 'CLI nunca imprime contraseña');
 
+  const authRoutes = fs.readFileSync('src/modules/auth/auth.routes.js', 'utf8');
+  assert.ok(authRoutes.includes('PUBLIC_TENANT_REGISTRATION_ENABLED'), 'Registro público debe requerir opt-in explícito');
+  assert.ok(authRoutes.includes('PUBLIC_TENANT_REGISTRATION_DISABLED'), 'Debe existir respuesta explícita cuando el registro público está cerrado');
+
   console.log('PLATFORM TENANT PROVISIONING SMOKE OK');
   console.log(JSON.stringify({
     coreTenant: core.tenant.subdomain,
@@ -85,7 +89,8 @@ async function main() {
     restaurantReady: true,
     papeleriaAvailable: false,
     audited: true,
-    passwordReturned: false
+    passwordReturned: false,
+    anonymousRegistrationDefault: 'DISABLED'
   }, null, 2));
 }
 
