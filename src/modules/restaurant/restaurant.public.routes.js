@@ -1,6 +1,7 @@
 const path = require('node:path');
 const express = require('express');
 const { z } = require('zod');
+const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
 const identity = require('./restaurant-identity.service');
 const notifications = require('../notifications/notifications.service');
@@ -43,6 +44,44 @@ router.get('/api/public/restaurante/build-marker', (_req, res) => {
       productionPromise: false
     }
   });
+});
+
+router.get('/api/public/restaurante/demo-readiness', async (_req, res, next) => {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { subdomain: 'demo-restaurante' },
+      select: { id: true, activo: true }
+    });
+    if (!tenant) {
+      res.json({ ok: true, data: { ready: false, tenantFound: false, active: false, users: 0, tables: 0, menuItems: 0, recipes: 0 } });
+      return;
+    }
+    const [users, tables, menuItems, recipes] = await Promise.all([
+      prisma.user.count({ where: { tenantId: tenant.id, activo: true, email: { in: [
+        'admin@demo-restaurante.vantixgc.com',
+        'mesero@demo-restaurante.vantixgc.com',
+        'cocina@demo-restaurante.vantixgc.com',
+        'barra@demo-restaurante.vantixgc.com',
+        'postres@demo-restaurante.vantixgc.com',
+        'cajero@demo-restaurante.vantixgc.com'
+      ] } } }),
+      prisma.restaurantTable.count({ where: { tenantId: tenant.id, active: true } }),
+      prisma.restaurantMenuItem.count({ where: { tenantId: tenant.id, active: true } }),
+      prisma.consumptionRecipe.count({ where: { tenantId: tenant.id, active: true } })
+    ]);
+    res.json({
+      ok: true,
+      data: {
+        ready: Boolean(tenant.activo && users >= 6 && tables >= 6 && menuItems >= 4 && recipes >= 4),
+        tenantFound: true,
+        active: tenant.activo,
+        users,
+        tables,
+        menuItems,
+        recipes
+      }
+    });
+  } catch (error) { next(error); }
 });
 
 router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
