@@ -1,0 +1,30 @@
+name: Restaurant Panel Live Verify V1
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  verify-live-panel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify production panel extension exposes Restaurant
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/app/panel-integration-extras.js"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 15 "$URL" 2>/dev/null); then
+              if echo "$body" | grep -q 'Abrir Restaurante' && \
+                 echo "$body" | grep -q '/app/restaurante' && \
+                 echo "$body" | grep -q '/api/v1/restaurante/ui-context'; then
+                echo "PRODUCTION_RESTAURANT_PANEL_ENTRY_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for panel deploy... attempt=$attempt"
+            sleep 10
+          done
+          echo "Production panel does not expose Restaurant entry yet" >&2
+          exit 1
