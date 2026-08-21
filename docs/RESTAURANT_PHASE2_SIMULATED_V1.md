@@ -22,11 +22,54 @@ Los tres bloques deben estar cerrados explícitamente:
 2. `metaBusinessManagementReviewPass = true`: revisión Meta `business_management` resuelta; no puede permanecer en `0 de 1 llamadas de prueba necesarias`. La evidencia debe identificar la revisión/resolución.
 3. Gate fiscal satisfecho por una de dos vías:
    - `dianRealEnabled = true`: habilitación DIAN/PT real completada y documentada; o
-   - `simulatedFiscalOperationExplicitlyAccepted = true`: existe una decisión comercial/fiscal explícita, documentada y atribuida que autoriza el alcance temporal permitido con Documento Equivalente simulado. Esta alternativa **no convierte el documento simulado en documento fiscal DIAN** y la limitación debe continuar visible.
+   - `simulatedFiscalOperationExplicitlyAccepted = true`: existe una decisión comercial/fiscal explícita, documentada y atribuida que autoriza el alcance temporal permitido con Documento Equivalente simulado. Esta alternativa **no convierte el documento simulado en documento fiscal DIAN**.
 
 Mientras cualquiera de los tres bloques anteriores permanezca abierto, el vertical debe mostrar `PRODUCCIÓN REAL BLOQUEADA`.
 
-Ningún endpoint operativo normal puede poner esos gates en verdadero por accidente: los cambios administrativos requieren evidencia y quedan auditados.
+## Gobernanza de `simulatedFiscalOperationExplicitlyAccepted`
+
+Decisión adoptada antes de fusionar Fase 2:
+
+**El tenant NO puede activar ni revocar este flag por autoservicio.** Aunque un usuario tenga rol `ADMIN` dentro del tenant, el endpoint de Restaurante rechaza cualquier intento de cambiar `simulatedFiscalOperationExplicitlyAccepted` o su evidencia asociada.
+
+La única superficie autorizada es el **Panel SaaS VantixGC**, autenticado con `PLATFORM_ADMIN`, mediante el control `Fiscal Restaurante` del tenant. La acción solo puede ejecutarla un `PlatformSuperAdmin` activo.
+
+Para activar el modo se exige simultáneamente:
+
+1. justificación en texto libre de mínimo 20 caracteres;
+2. confirmación explícita de la advertencia de ausencia de validez fiscal DIAN;
+3. confirmación final de la acción en la interfaz del Panel SaaS.
+
+La revocación también exige una justificación obligatoria. No existe una revocación silenciosa.
+
+Cada activación o revocación crea un registro en `PlatformAudit` con:
+
+- `superAdminId`;
+- `tenantId`;
+- fecha automática `creadoEn`;
+- acción `RESTAURANT_SIMULATED_FISCAL_ACCEPT` o `RESTAURANT_SIMULATED_FISCAL_REVOKE`;
+- justificación;
+- estado anterior y posterior;
+- advertencia aceptada;
+- cantidad de documentos simulados ya emitidos al momento de la decisión.
+
+Además, `RestaurantConfig.simulatedFiscalDecisionEvidence` conserva una instantánea de la última decisión con super-administrador, fecha, justificación, advertencia y referencia resumida de la decisión anterior.
+
+### Advertencia obligatoria al negocio
+
+Antes de activar el modo, el Panel SaaS muestra de forma destacada:
+
+> Los documentos emitidos en modo fiscal simulado NO tienen validez fiscal ante la DIAN. No deben entregarse ni presentarse como si hubieran sido validados fiscalmente por la DIAN.
+
+Cuando el flag está activo, la interfaz del Restaurante muestra también una advertencia permanente equivalente. Por tanto, la limitación no queda escondida solo en documentación técnica.
+
+### Inmutabilidad de documentos simulados
+
+Cada cierre de mesa sin documento DIAN real crea un `RestaurantFiscalDocument` con `mode = SIMULATED` y `simulatedData` que identifica explícitamente `fiscalAcceptance: false` y la razón de simulación.
+
+Ese registro representa el estado fiscal **al momento de emisión**. No existe endpoint para convertir un `RestaurantFiscalDocument` `SIMULATED` en `DIAN`, ni para revalidarlo retroactivamente. Si después se habilita DIAN real o se revoca/activa nuevamente el flag, los documentos anteriores permanecen `SIMULATED` y continúan identificables como no validados fiscalmente.
+
+La habilitación DIAN futura aplica únicamente a documentos nuevos emitidos bajo la nueva configuración.
 
 ## Alcance funcional de Fase 2
 
@@ -50,6 +93,14 @@ Ningún endpoint operativo normal puede poner esos gates en verdadero por accide
 - AC-05: Mesero no accede a Configuración/Contabilidad/Reportes; Cocina/Barra solo accede a su cola.
 - AC-06: Estado visible `FUNCIONAL — VALIDADO CON IMPRESIÓN SIMULADA` y `PRODUCCIÓN REAL BLOQUEADA` hasta completar los tres bloques del gate.
 
+## Criterios adicionales de gobernanza fiscal
+
+- GF-01: un `ADMIN` del tenant no puede activar ni revocar `simulatedFiscalOperationExplicitlyAccepted`.
+- GF-02: solo `PlatformSuperAdmin` puede hacerlo desde el Panel SaaS.
+- GF-03: activación y revocación exigen justificación y quedan en `PlatformAudit` con actor y fecha.
+- GF-04: la activación exige aceptación explícita de la advertencia de no validez fiscal DIAN.
+- GF-05: documentos emitidos con `RestaurantFiscalDocument.mode = SIMULATED` permanecen identificados así después de cambios posteriores de DIAN o del flag.
+
 ## Evidencia
 
-La automatización de CI puede probar los criterios funcionales anteriores con PostgreSQL real de integración y simulación de comanda. Ninguna prueba automatizada puede cambiar `physicalPrinterFieldPass` a verdadero ni sustituir la sesión de campo.
+La automatización de CI puede probar los criterios funcionales anteriores con PostgreSQL real de integración y simulación de comanda, además de la gobernanza del flag y la inmutabilidad del marcador `SIMULATED`. Ninguna prueba automatizada puede cambiar `physicalPrinterFieldPass` a verdadero ni sustituir la sesión de campo.
