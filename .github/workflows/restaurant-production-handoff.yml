@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -36,7 +39,7 @@ jobs:
           body=$(curl -fsSL --max-time 15 https://core.vantixgc.com/api/v1/status)
           echo "$body"
           echo "$body" | grep -q 'PHASE2_FUNCTIONAL_SIMULATED_PRINT_PRODUCTION_BLOCKED'
-          echo "$body" | grep -q 'LA_RIEL_CONNECTED_V1\|restaurantVertical'
+          echo "$body" | grep -q 'restaurantVertical'
           echo "PRODUCTION_CORE_STATUS_OK"
 
       - name: Verify demo Restaurant tenant web entrypoint
