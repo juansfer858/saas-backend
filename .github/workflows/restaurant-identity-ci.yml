@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - restaurant-identity-core-v1
+      - restaurant-demo-handoff-v2
   pull_request:
     branches:
       - main
@@ -28,6 +29,8 @@ jobs:
         run: npm run build && node -e "require('./src/app'); console.log('RESTAURANT IDENTITY APP LOAD OK')"
       - name: Validate La Riel theme separation and real endpoint wiring
         run: node scripts/restaurant-identity-ui-smoke.js
+      - name: Validate demo handoff credentials and marker
+        run: node scripts/restaurant-demo-handoff-smoke.js
 
   integration:
     needs: validate
