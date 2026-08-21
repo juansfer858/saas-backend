@@ -3,6 +3,7 @@ const { z } = require('zod');
 const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
 const identity = require('./restaurant-identity.service');
+const liveTables = require('./restaurant-live-tables.service');
 const theme = require('./restaurant-theme.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
@@ -115,7 +116,7 @@ router.patch('/gates', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req,
 });
 
 router.get('/mesas', requirePermission('MESAS.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await identity.listTablesLive(req.tenantId, req.user) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await liveTables.listTablesLive(req.tenantId, req.user) }); } catch (error) { next(error); }
 });
 router.post('/mesas', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await service.createTable(req.tenantId, parse(tableSchema, req.body)) }); } catch (error) { next(error); }
@@ -172,7 +173,6 @@ router.post('/sesiones/:sessionId/pedido-borrador/enviar', requirePermission('PE
 router.get('/pedidos', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listOrders(req.tenantId, { sessionId: req.query.sessionId, state: req.query.state, limit: req.query.limit }, req.user) }); } catch (error) { next(error); }
 });
-// Compatibility endpoint retained for clients built before the connected La Riel UI.
 router.post('/sesiones/:sessionId/pedidos', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await service.placeWaiterOrder(req.tenantId, req.user, req.params.sessionId, parse(orderSchema, req.body)) }); } catch (error) { next(error); }
 });
