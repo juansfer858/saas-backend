@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -36,14 +39,15 @@ jobs:
           body=$(curl -fsSL --max-time 15 https://core.vantixgc.com/api/v1/status)
           echo "$body"
           echo "$body" | grep -q 'PHASE2_FUNCTIONAL_SIMULATED_PRINT_PRODUCTION_BLOCKED'
-          echo "$body" | grep -q 'LA_RIEL_CONNECTED_V1\|restaurantVertical'
+          echo "$body" | grep -q 'restaurantVertical'
           echo "PRODUCTION_CORE_STATUS_OK"
 
-      - name: Verify demo Restaurant tenant web entrypoint
+      - name: Verify supported central tenant login entrypoint
         shell: bash
         run: |
           set -euo pipefail
-          code=$(curl -sS -L --max-time 15 -o /tmp/rest-demo.html -w '%{http_code}' https://demo-restaurante.vantixgc.com/app)
+          code=$(curl -sS -L --max-time 15 -o /tmp/core-login.html -w '%{http_code}' https://core.vantixgc.com/app)
           test "$code" = "200"
-          grep -qi 'VantixGC' /tmp/rest-demo.html
-          echo "PRODUCTION_DEMO_RESTAURANT_HOST_OK"
+          grep -qi 'VantixGC Super Core' /tmp/core-login.html
+          grep -qi 'Subdominio de empresa' /tmp/core-login.html
+          echo "PRODUCTION_CENTRAL_TENANT_LOGIN_OK"
