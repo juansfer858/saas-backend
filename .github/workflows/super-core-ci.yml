@@ -120,6 +120,7 @@ jobs:
       JWT_EXPIRES_IN: 8h
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
+      PUBLIC_TENANT_REGISTRATION_ENABLED: 'true'
 
     steps:
       - name: Checkout
