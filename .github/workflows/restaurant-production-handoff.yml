@@ -1,0 +1,49 @@
+name: Restaurant Production Handoff Verify
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Restaurant V2 marker in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/restaurante/build-marker"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q 'LA_RIEL_CONNECTED_V1' && echo "$body" | grep -q 'ROTATED_V2_2026_08_21'; then
+                echo "PRODUCTION_RESTAURANT_MARKER_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for production deploy... attempt=$attempt"
+            sleep 10
+          done
+          echo "Production did not expose expected Restaurant V2 marker in time" >&2
+          exit 1
+
+      - name: Verify Super Core Restaurant runtime status
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(curl -fsSL --max-time 15 https://core.vantixgc.com/api/v1/status)
+          echo "$body"
+          echo "$body" | grep -q 'PHASE2_FUNCTIONAL_SIMULATED_PRINT_PRODUCTION_BLOCKED'
+          echo "$body" | grep -q 'LA_RIEL_CONNECTED_V1\|restaurantVertical'
+          echo "PRODUCTION_CORE_STATUS_OK"
+
+      - name: Verify demo Restaurant tenant web entrypoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -L --max-time 15 -o /tmp/rest-demo.html -w '%{http_code}' https://demo-restaurante.vantixgc.com/app)
+          test "$code" = "200"
+          grep -qi 'VantixGC' /tmp/rest-demo.html
+          echo "PRODUCTION_DEMO_RESTAURANT_HOST_OK"
