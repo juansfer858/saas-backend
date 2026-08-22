@@ -49,12 +49,11 @@ router.get('/app/restaurant-theme.js', (_req, res) => res.type('application/java
 router.get('/app/restaurant-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-ui.js')));
 router.get('/app/restaurant-qr-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-ui.js')));
 
-// Isolated UI/UX sandbox. This page is deliberately mock-only: it does not call
-// tenant APIs or mutate production data. It is mounted here because this public
-// router is registered before the generic /app catch-all in src/app.js.
+// Isolated UI/UX sandbox. Self-contained: no CDN, no tenant API, no production writes.
 router.get(['/app/v2-preview', '/app/sandbox'], (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.set('X-VantixGC-UI-Sandbox', 'mock-local-v1');
+  res.set('X-VantixGC-UI-Sandbox', 'mock-local-v2');
+  res.set('X-VantixGC-UI-Sandbox-Runtime', 'self-contained');
   res.type('html').sendFile(path.join(webRoot, 'ui-sandbox.html'));
 });
 
