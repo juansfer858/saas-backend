@@ -102,9 +102,7 @@ function canonicalTenantNavHtml(requestPath) {
 }
 
 function canonicalTenantSidebarHtml(requestPath) {
-  const sidebar = `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">VantixGC</b><span data-core-tenant-meta="true">Tenant activo</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
-  const hydrate = `<script data-core-tenant-card-hydrator="true">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');const root=document.currentScript&&document.currentScript.previousElementSibling;if(!root||!s?.subdomain)return;const n=root.querySelector('[data-core-tenant-name]');const m=root.querySelector('[data-core-tenant-meta]');if(n)n.textContent=s.tenant?.nombreEmpresa||s.subdomain;if(m)m.textContent=s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')}catch{}})();</script>`;
-  return `${sidebar}${hydrate}`;
+  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">VantixGC</b><span data-core-tenant-meta="true">Tenant activo</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
 }
 
 function replaceLegacyTenantSidebar(html, requestPath) {
