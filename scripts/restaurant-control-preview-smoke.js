@@ -25,7 +25,9 @@ async function main() {
   assert.match(routes, /X-VantixGC-Restaurant-Control-Preview', 'real-readonly-v1'/);
   assert.match(routes, /X-VantixGC-Restaurant-Control-Writes', 'disabled'/);
 
-  assert.match(panelEntry, /CONTROL_CENTER_PATH = '\/app\/centro-de-control-preview'/);
+  // The preview remains available, but the main Restaurant entry now points to the
+  // operational shell. The classic panel stays as the emergency fallback.
+  assert.match(panelEntry, /CONTROL_CENTER_PATH = '\/app\/centro-de-control'/);
   assert.match(panelEntry, /CLASSIC_RESTAURANT_PATH = '\/app\/restaurante'/);
   assert.match(panelEntry, /data-restaurant-dashboard-entry/);
   assert.match(panelEntry, /data-restaurant-classic-entry/);
@@ -49,7 +51,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER REVERSIBLE LAYER SMOKE OK');
+  console.log('RESTAURANT CONTROL PREVIEW REAL-READONLY SMOKE OK');
 }
 
 main().catch((error) => {

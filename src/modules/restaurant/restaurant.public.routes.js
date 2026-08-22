@@ -28,7 +28,7 @@ body{background:var(--bg)!important}
 .card{background:var(--panel)!important;border:2px solid var(--line)!important;border-radius:18px!important;box-shadow:var(--shadow)!important;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.card:hover{border-color:#fdba74!important;box-shadow:0 16px 38px rgba(15,23,42,.14)!important}.dark .card:hover{box-shadow:0 18px 42px rgba(0,0,0,.34)!important}
 .metric{padding:20px!important}.metric-icon{width:48px!important;height:48px!important;border-radius:50%!important;font-size:20px!important;font-weight:900!important;box-shadow:inset 0 0 0 1px rgba(15,23,42,.05)}.grid4>.metric:nth-child(1) .metric-icon{background:#ffedd5!important;color:#ea580c!important}.grid4>.metric:nth-child(2) .metric-icon{background:#dcfce7!important;color:#16a34a!important}.grid4>.metric:nth-child(3) .metric-icon{background:#d1fae5!important;color:#059669!important}.grid4>.metric:nth-child(4) .metric-icon{background:#ffe4e6!important;color:#e11d48!important}.dark .grid4>.metric:nth-child(1) .metric-icon{background:#431407!important;color:#fdba74!important}.dark .grid4>.metric:nth-child(2) .metric-icon{background:#052e16!important;color:#86efac!important}.dark .grid4>.metric:nth-child(3) .metric-icon{background:#022c22!important;color:#6ee7b7!important}.dark .grid4>.metric:nth-child(4) .metric-icon{background:#4c0519!important;color:#fda4af!important}
 .metric-label{font-size:12px!important;color:#334155!important;font-weight:800!important}.dark .metric-label{color:#cbd5e1!important}.metric-value{font-size:28px!important;line-height:1.1!important;font-weight:950!important;letter-spacing:-.03em!important;color:var(--text)!important}.metric-trend{font-weight:900!important}
-.pagehead h1,.card-head h3,.table-card h3,.product b,.total,.activity-main b,.cart-line b{color:var(--text)!important;font-weight:900!important}.pagehead p,.activity-main span,.activity-side,.field label,.breadcrumb,.sandbox-note{color:#334155!important;font-weight:700!important}.dark .pagehead p,.dark .activity-main span,.dark .activity-side,.dark .field label,.dark .breadcrumb,.dark .sandbox-note{color:#cbd5e1!important}
+.pagehead h1,.card-head h3,.table-card h3,.product b,.total,.activity-main b,.cart-line b{color:var(--text)!important;font-weight:900!important}.pagehead p,.activity-main span,.activity-side,.field label,.breadcrumb,.sandbox-note{color:#334155!important;font-weight:700!important}.dark .pagehead p,.dark .activity-main span,.dark .activity-side,.dark .field label,.dark .breadcrumb,.dark .sandbox-note{color:#cbd5e1!important;font-weight:700!important}
 .table{border-collapse:separate!important;border-spacing:0!important}.table th{color:#0f172a!important;background:#f1f5f9!important;font-weight:900!important;border-bottom:2px solid #cbd5e1!important}.dark .table th{color:#f8fafc!important;background:#172033!important;border-bottom-color:#475569!important}.table td{font-weight:750!important;color:var(--text)!important;border-bottom:1px solid #cbd5e1!important;transition:background .12s ease}.dark .table td{border-bottom-color:#334155!important}.table tbody tr:nth-child(even) td{background:rgba(241,245,249,.8)}.dark .table tbody tr:nth-child(even) td{background:rgba(30,41,59,.42)}.table tbody tr:hover td{background:#ffedd5!important}.dark .table tbody tr:hover td{background:#431407!important}
 .badge{gap:6px!important;align-items:center!important;font-weight:900!important;border:1px solid currentColor!important}.badge:before{content:'';width:7px;height:7px;border-radius:999px;background:currentColor;box-shadow:0 0 0 0 currentColor;animation:posStatusPulse 1.8s ease-out infinite}.badge.bad:before{animation:none}.badge.info:before{animation:posStatusPulse 2.1s ease-out infinite}@keyframes posStatusPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 45%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .product,.table-card,.input,.select,.textarea,.btn,.icon-btn,.tenant-select,.user-pill{border:2px solid var(--line)!important}.table-card{background:var(--panel)!important;box-shadow:0 4px 12px rgba(15,23,42,.08)}.table-card:hover{border-color:#f97316!important;box-shadow:0 14px 28px rgba(249,115,22,.16)!important;transform:translateY(-2px)}
@@ -73,6 +73,25 @@ router.get('/app/restaurant-theme.css', (_req, res) => res.type('text/css').send
 router.get('/app/restaurant-theme.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-theme.js')));
 router.get('/app/restaurant-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-ui.js')));
 router.get('/app/restaurant-qr-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-ui.js')));
+router.get('/app/restaurant-control-center.css', (_req, res) => res.type('text/css').sendFile(path.join(webRoot, 'restaurant-control-center.css')));
+router.get('/app/restaurant-control-center.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-control-center.js')));
+
+// Operational Control Center. It reuses restaurant-ui.js as the proven write engine,
+// while the new shell owns navigation and presentation. The classic route remains untouched.
+router.get('/app/centro-de-control', async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(path.join(webRoot, 'restaurant.html'), 'utf8');
+    const rendered = html
+      .replace('<title>VantixGC Restaurante</title>', '<title>VantixGC Restaurante · Centro de control</title>')
+      .replace('</head>', '  <link rel="stylesheet" href="/app/restaurant-control-center.css?v=operational-v1">\n</head>')
+      .replace('</body>', '  <script src="/app/restaurant-control-center.js?v=operational-v1"></script>\n</body>');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Restaurant-Control', 'operational-shell-v1');
+    res.set('X-VantixGC-Restaurant-Control-Engine', 'restaurant-ui-v1');
+    res.set('X-VantixGC-Restaurant-Control-Fallback', '/app/restaurante');
+    res.type('html').send(rendered);
+  } catch (error) { next(error); }
+});
 
 // Authenticated-in-browser, read-only preview on top of the real Restaurant tenant session.
 router.get('/app/centro-de-control-preview', (_req, res) => {

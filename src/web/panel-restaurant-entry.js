@@ -4,7 +4,7 @@
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
   const NAV_VERSION = 'core-nav-v7';
-  const CONTROL_CENTER_PATH = '/app/centro-de-control-preview';
+  const CONTROL_CENTER_PATH = '/app/centro-de-control';
   const CLASSIC_RESTAURANT_PATH = '/app/restaurante';
 
   let accessChecked = false;
@@ -121,7 +121,7 @@
       button.className = 'btn';
       button.dataset.restaurantDashboardEntry = 'true';
       button.textContent = '🍽 Abrir Restaurante';
-      button.title = 'Abrir el nuevo Centro de control conectado';
+      button.title = 'Abrir el Centro de Control operativo conectado al restaurante real';
       button.addEventListener('click', openRestaurantControlCenter);
       actions.prepend(button);
     }
@@ -132,7 +132,7 @@
       classicButton.className = 'btn';
       classicButton.dataset.restaurantClassicEntry = 'true';
       classicButton.textContent = '↩ Panel clásico';
-      classicButton.title = 'Ruta de respaldo: abre la interfaz anterior sin pasar por el Centro de control';
+      classicButton.title = 'Ruta de respaldo: abre la interfaz anterior sin pasar por el Centro de Control';
       classicButton.addEventListener('click', openRestaurantClassic);
       actions.append(classicButton);
     }
