@@ -5,6 +5,7 @@ const { app } = require('../src/app');
 async function main() {
   const html = fs.readFileSync('src/web/restaurant-control-preview.html', 'utf8');
   const routes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
+  const panelEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
 
   assert.match(html, /Centro de control/);
   assert.match(html, /Tu restaurante, bajo control/);
@@ -19,9 +20,18 @@ async function main() {
   assert.match(html, /\/api\/v1\/restaurante\/pedidos/);
   assert.ok(!/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i.test(html), 'Preview must remain read-only');
   assert.ok(!html.includes("fetch('/api/"), 'Preview API helper must always use auth/session headers');
+
   assert.match(routes, /\/app\/centro-de-control-preview/);
   assert.match(routes, /X-VantixGC-Restaurant-Control-Preview', 'real-readonly-v1'/);
   assert.match(routes, /X-VantixGC-Restaurant-Control-Writes', 'disabled'/);
+
+  assert.match(panelEntry, /CONTROL_CENTER_PATH = '\/app\/centro-de-control-preview'/);
+  assert.match(panelEntry, /CLASSIC_RESTAURANT_PATH = '\/app\/restaurante'/);
+  assert.match(panelEntry, /data-restaurant-dashboard-entry/);
+  assert.match(panelEntry, /data-restaurant-classic-entry/);
+  assert.match(panelEntry, /Panel clásico/);
+  assert.match(panelEntry, /openRestaurantControlCenter/);
+  assert.match(panelEntry, /openRestaurantClassic/);
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -39,7 +49,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL PREVIEW REAL-READONLY SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER REVERSIBLE LAYER SMOKE OK');
 }
 
 main().catch((error) => {
