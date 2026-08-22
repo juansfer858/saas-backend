@@ -7,23 +7,32 @@ async function main() {
   const routes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
 
   assert.match(html, /VantixGC Super Core · UI Sandbox/);
-  assert.match(html, /import React,\{useEffect,useState\}/);
+  assert.match(html, /function useState\(/);
+  assert.match(html, /window\.VantixGCUISandbox=\{version:'mock-local-v2',runtime:'self-contained',useState\}/);
   assert.match(html, /Restaurante \/ Mesas/);
   assert.match(html, /Ventas \/ POS/);
   assert.match(html, /Parametrización Contable/);
   assert.match(html, /Configuración avanzada/);
-  assert.match(html, /setTables/);
-  assert.match(html, /setCart/);
-  assert.match(html, /setEntries/);
-  assert.match(html, /setAccounts/);
-  assert.match(html, /setTheme/);
-  assert.match(html, /theme\.mode==='dark'/);
+  assert.match(html, /data-table-state="Libre"/);
+  assert.match(html, /data-add-product/);
+  assert.match(html, /entryForm/);
+  assert.match(html, /accountForm/);
+  assert.match(html, /Personalizar interfaz/);
   assert.match(html, /Colapsar sidebar/);
   assert.match(html, /Datos completamente locales/);
+  assert.ok(!html.includes('esm.sh'), 'Sandbox must not depend on esm.sh');
+  assert.ok(!html.includes('unpkg.com'), 'Sandbox must not depend on unpkg');
+  assert.ok(!html.includes('jsdelivr.net'), 'Sandbox must not depend on jsdelivr');
+  assert.ok(!html.includes('type="module"'), 'Sandbox must not require module imports');
   assert.ok(!html.includes("fetch('/api/"), 'Sandbox must not call production tenant APIs');
   assert.ok(!html.includes('Authorization:'), 'Sandbox must not use production auth tokens');
   assert.match(routes, /\['\/app\/v2-preview', '\/app\/sandbox'\]/);
-  assert.match(routes, /X-VantixGC-UI-Sandbox/);
+  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v2'/);
+  assert.match(routes, /X-VantixGC-UI-Sandbox-Runtime', 'self-contained'/);
+
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script, 'Sandbox must include an embedded runtime script');
+  new Function(script);
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -33,16 +42,18 @@ async function main() {
       const response = await fetch(base + path);
       const body = await response.text();
       assert.equal(response.status, 200, path);
-      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v1');
+      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v2');
+      assert.equal(response.headers.get('x-vantixgc-ui-sandbox-runtime'), 'self-contained');
       assert.match(body, /UI Sandbox/);
-      assert.match(body, /useState/);
+      assert.match(body, /function useState\(/);
       assert.match(body, /Personalizar interfaz/);
+      assert.ok(!body.includes('https://esm.sh'));
     }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('UI SANDBOX MOCK-ONLY + INTERACTIVE STATE SMOKE OK');
+  console.log('UI SANDBOX SELF-CONTAINED MOCK-ONLY INTERACTIVE STATE SMOKE OK');
 }
 
 main().catch((error) => {
