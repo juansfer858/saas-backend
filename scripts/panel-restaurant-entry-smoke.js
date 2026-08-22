@@ -42,7 +42,6 @@ assert.ok(!app.includes("href: '/app/restaurante'"), 'Legacy Restaurant route mu
 assert.ok(app.includes("res.redirect(302, '/app/centro-de-control')"));
 assert.ok(app.includes("restaurantApp: '/app/centro-de-control'"));
 
-// V5 is server-rendered before first paint.
 assert.ok(app.includes('linear-gradient(145deg,#a8b0b5 0%,#7f888f 28%,#5f676d 62%,#90989e 100%)'));
 assert.ok(app.includes('background:rgba(243,246,248,.34)'));
 assert.ok(app.includes('background:#137a53'));
@@ -54,18 +53,18 @@ assert.ok(app.includes('<div class="nav-title">Principal</div>'));
 assert.ok(app.includes('Finanzas y sistema'));
 assert.ok(app.includes("res.set('X-VantixGC-Super-Core-Theme', SUPER_CORE_VISUAL_THEME)"));
 
-// The tenant card occupies its final space in the initial HTML. It is hydrated from
-// the already-cached browser session, never created asynchronously and never fetched.
+// Tenant card is structural from the first frame and only its text is hydrated from
+// the cached session. No async fetch, DOM insertion or height change is allowed.
 assert.ok(app.includes('data-core-tenant-card="true"'));
 assert.ok(app.includes('data-core-tenant-name="true"'));
 assert.ok(app.includes('data-core-tenant-meta="true"'));
-assert.ok(app.includes('data-core-tenant-card-hydrator="true"'));
-assert.ok(app.includes("localStorage.getItem('vantixgc_core_session_v1')"));
 assert.ok(app.includes('height:51px;min-height:51px'));
 assert.ok(app.includes("res.set('X-VantixGC-Sidebar-Stability', SIDEBAR_STABILITY_VERSION)"));
+assert.ok(navigation.includes('function hydrateTenantCard()'));
+assert.ok(navigation.includes("document.querySelector('[data-core-tenant-name]')"));
+assert.ok(navigation.includes("document.querySelector('[data-core-tenant-meta]')"));
+assert.ok(navigation.includes('session.tenant?.nombreEmpresa || session.subdomain'));
 
-// Browser runtime may check Restaurant permission and add the Dashboard CTA, but it
-// is not allowed to create/move/repaint any part of the canonical sidebar.
 assert.ok(navigation.includes("const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server'"));
 assert.ok(navigation.includes("window.VantixGCCoreSidebarRuntime = 'off'"));
 assert.ok(navigation.includes("window.VantixGCCoreSidebarShellSource = 'server'"));
