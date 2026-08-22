@@ -3,7 +3,9 @@
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
-  const NAV_VERSION = 'core-nav-v7';
+  const NAV_VERSION = 'core-nav-v8-control-center-layer';
+  const CONTROL_CENTER_PATH = '/app/centro-de-control-preview';
+  const CLASSIC_RESTAURANT_PATH = '/app/restaurante';
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
@@ -94,16 +96,22 @@
     }
   }
 
-  function openRestaurant() {
-    window.location.href = '/app/restaurante';
+  function openRestaurantControlCenter() {
+    window.location.href = CONTROL_CENTER_PATH;
+  }
+
+  function openRestaurantClassic() {
+    window.location.href = CLASSIC_RESTAURANT_PATH;
   }
 
   function installRestaurantDashboardEntry() {
     const actions = document.querySelector('.pagehead .actions');
     const existing = actions?.querySelector('[data-restaurant-dashboard-entry]');
+    const existingClassic = actions?.querySelector('[data-restaurant-classic-entry]');
 
     if (!hasRestaurantAccess || currentPath() !== '/app/dashboard') {
       existing?.remove();
+      existingClassic?.remove();
       return;
     }
 
@@ -113,8 +121,20 @@
       button.className = 'btn';
       button.dataset.restaurantDashboardEntry = 'true';
       button.textContent = '🍽 Abrir Restaurante';
-      button.addEventListener('click', openRestaurant);
+      button.title = 'Abrir el nuevo Centro de control conectado';
+      button.addEventListener('click', openRestaurantControlCenter);
       actions.prepend(button);
+    }
+
+    if (actions && !existingClassic) {
+      const classicButton = document.createElement('button');
+      classicButton.type = 'button';
+      classicButton.className = 'btn';
+      classicButton.dataset.restaurantClassicEntry = 'true';
+      classicButton.textContent = '↩ Panel clásico';
+      classicButton.title = 'Ruta de respaldo: abre la interfaz anterior sin pasar por el Centro de control';
+      classicButton.addEventListener('click', openRestaurantClassic);
+      actions.append(classicButton);
     }
   }
 
@@ -144,6 +164,12 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 
+  window.VantixGCRestaurantNavigation = Object.freeze({
+    controlCenterPath: CONTROL_CENTER_PATH,
+    classicPath: CLASSIC_RESTAURANT_PATH,
+    openControlCenter: openRestaurantControlCenter,
+    openClassic: openRestaurantClassic
+  });
   window.VantixGCCoreNavigationVersion = NAV_VERSION;
   window.VantixGCCoreSidebarRuntime = 'off';
   window.VantixGCCoreSidebarShellSource = 'server';
