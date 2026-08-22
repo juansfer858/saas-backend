@@ -32,3 +32,5 @@ jobs:
         run: node scripts/restaurant-control-preview-smoke.js
       - name: Validate operational restaurant control center
         run: node scripts/restaurant-control-center-operational-smoke.js
+      - name: Validate isolated Super Core sidebar preview
+        run: node scripts/super-core-sidebar-preview-smoke.js
