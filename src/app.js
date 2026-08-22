@@ -24,7 +24,6 @@ const platformCoreConfigHtmlPath = path.join(__dirname, 'web', 'platform-core-co
 const platformAdminHtmlPath = path.join(__dirname, 'web', 'platform-admin.html');
 const platformRestaurantFiscalGovernancePath = path.join(__dirname, 'web', 'platform-restaurant-fiscal-governance.js');
 const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
-const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
 
@@ -32,7 +31,7 @@ const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
 const tenantNavigationItems = Object.freeze([
   Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
-  Object.freeze({ href: '/app/restaurante', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
+  Object.freeze({ href: '/app/centro-de-control', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
   Object.freeze({ href: '/app/ventas', icon: '🛒', label: 'Ventas' }),
   Object.freeze({ href: '/app/compras', icon: '🛍', label: 'Compras' }),
   Object.freeze({ href: '/app/inventario', icon: '▣', label: 'Inventarios / Kardex' }),
@@ -130,7 +129,7 @@ app.get('/', (_req, res) => {
     api: '/api/v1',
     statusPage: '/status',
     adminApp: '/app/dashboard',
-    restaurantApp: '/app/restaurante',
+    restaurantApp: '/app/centro-de-control',
     restaurantQrPath: '/r/:token',
     advancedConfigApp: '/app/configuracion-avanzada',
     edgeConfigApp: '/app/edge',
@@ -173,13 +172,10 @@ app.get('/r/:token', (_req, res) => res.sendFile(restaurantQrHtmlPath));
 app.get('/app/restaurant-fiscal-warning.js', (_req, res) => {
   res.type('application/javascript').sendFile(restaurantFiscalWarningPath);
 });
-app.get('/app/restaurante', async (_req, res, next) => {
-  try {
-    const html = await fs.promises.readFile(restaurantHtmlPath, 'utf8');
-    const script = '<script src="/app/restaurant-fiscal-warning.js?v=platform-only-v1"></script>';
-    const rendered = html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : `${html}${script}`;
-    res.type('html').send(rendered);
-  } catch (error) { next(error); }
+app.get('/app/restaurante', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-VantixGC-Restaurant-Canonical', '/app/centro-de-control');
+  res.redirect(302, '/app/centro-de-control');
 });
 
 app.get('/app/demo', (_req, res) => {
@@ -310,7 +306,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Roles Restaurante Mesero/Cocina/Barra/Cajero</span><span class="ok">RBAC CORE</span></div>
 <div class="grid"><span>Impresión 58/80/Carta + agente ESC/POS LAN</span><span class="warn">CI OK · PRUEBA FÍSICA PENDIENTE</span></div>
 <div class="grid"><span>Panel Super-Administración SaaS</span><span class="ok">V1</span></div>
-<a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/restaurante">Restaurante</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/app/edge">Edge Agents</a><a class="link" href="/platform">Panel SaaS</a></div>
+<a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/centro-de-control">Restaurante</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/app/edge">Edge Agents</a><a class="link" href="/platform">Panel SaaS</a></div>
 <div class="muted">La excepción de Fase 2 destraba desarrollo funcional, no la promesa de “listo para vender de verdad”. Ver RESTAURANT_PHASE2_SIMULATED_V1.md y EDGE_FIELD_TEST_GATE_V1.md.</div></div></body></html>`);
 });
 

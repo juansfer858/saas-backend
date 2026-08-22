@@ -25,15 +25,14 @@ async function main() {
   assert.match(routes, /X-VantixGC-Restaurant-Control-Preview', 'real-readonly-v1'/);
   assert.match(routes, /X-VantixGC-Restaurant-Control-Writes', 'disabled'/);
 
-  // The preview remains available, but the main Restaurant entry now points to the
-  // operational shell. The classic panel stays as the emergency fallback.
+  // The preview remains available for design review, while the only product entry
+  // exposed from the Super Core points to the operational Control Center.
   assert.match(panelEntry, /CONTROL_CENTER_PATH = '\/app\/centro-de-control'/);
-  assert.match(panelEntry, /CLASSIC_RESTAURANT_PATH = '\/app\/restaurante'/);
   assert.match(panelEntry, /data-restaurant-dashboard-entry/);
-  assert.match(panelEntry, /data-restaurant-classic-entry/);
-  assert.match(panelEntry, /Panel clásico/);
   assert.match(panelEntry, /openRestaurantControlCenter/);
-  assert.match(panelEntry, /openRestaurantClassic/);
+  assert.ok(!panelEntry.includes('data-restaurant-classic-entry'));
+  assert.ok(!panelEntry.includes('Panel clásico'));
+  assert.ok(!panelEntry.includes('openRestaurantClassic'));
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));

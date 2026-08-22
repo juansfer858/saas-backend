@@ -15,7 +15,7 @@ assert.ok(app.includes('data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}"'))
 
 const expected = [
   ["href: '/app/dashboard'", "label: 'Dashboard'"],
-  ["href: '/app/restaurante'", "label: 'Restaurante'"],
+  ["href: '/app/centro-de-control'", "label: 'Restaurante'"],
   ["href: '/app/ventas'", "label: 'Ventas'"],
   ["href: '/app/compras'", "label: 'Compras'"],
   ["href: '/app/inventario'", "label: 'Inventarios / Kardex'"],
@@ -36,6 +36,10 @@ for (const [href, label] of expected) {
   cursor = hrefAt;
 }
 
+assert.ok(!app.includes("href: '/app/restaurante', icon: '🍽', label: 'Restaurante'"), 'Legacy Restaurant route must not be a sidebar entry');
+assert.ok(app.includes("res.redirect(302, '/app/centro-de-control')"), 'Legacy Restaurant URL must redirect to the canonical Control Center');
+assert.ok(app.includes("restaurantApp: '/app/centro-de-control'"));
+
 assert.ok(app.includes('<div class="core-brandmark">V</div>'));
 assert.ok(app.includes('<div class="nav-title">Navegación</div>'));
 assert.ok(app.includes('.core-tenant-sidebar .nav a'));
@@ -43,6 +47,7 @@ assert.ok(app.includes("res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERS
 
 // Browser runtime remains OFF for the sidebar. No restyling, rebuilding or DOM observer.
 assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v7'"));
+assert.ok(navigation.includes("const CONTROL_CENTER_PATH = '/app/centro-de-control'"));
 assert.ok(navigation.includes("window.VantixGCCoreSidebarRuntime = 'off'"));
 assert.ok(navigation.includes("window.VantixGCCoreSidebarShellSource = 'server'"));
 assert.ok(navigation.includes("'/api/v1/restaurante/ui-context'"));
@@ -50,6 +55,8 @@ assert.ok(navigation.includes('sessionStorage'));
 assert.ok(navigation.includes('bootstrapRestaurantAccessCache'));
 assert.ok(navigation.includes('writeCachedRestaurantAccess'));
 assert.ok(navigation.includes('installRestaurantDashboardEntry'));
+assert.ok(!navigation.includes('CLASSIC_RESTAURANT_PATH'));
+assert.ok(!navigation.includes('openRestaurantClassic'));
 assert.ok(!navigation.includes('MutationObserver'));
 assert.ok(!navigation.includes('normalizeSidebarChrome'));
 assert.ok(!navigation.includes('ensureCanonicalSidebarStyles'));
@@ -74,4 +81,4 @@ assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, req, res, nex
 assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag])'));
 assert.ok(app.includes('sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag])'));
 
-console.log('PANEL SERVER-RENDERED CANONICAL SIDEBAR V1 + NAV V7 SMOKE OK');
+console.log('PANEL SERVER-RENDERED CANONICAL SIDEBAR V1 + RESTAURANT CONTROL CENTER ROUTE SMOKE OK');
