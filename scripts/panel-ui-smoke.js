@@ -16,14 +16,30 @@ const expectedNavHrefs = [
   '/app/configuracion-avanzada'
 ];
 
+function extractSidebar(html) {
+  return html.match(/<aside class="sidebar core-tenant-sidebar"[^>]*>([\s\S]*?)<\/aside>/)?.[0] || '';
+}
+
+function stableSidebarSignature(html) {
+  return extractSidebar(html)
+    .replace(/\sactive(?=[" ])/g, '')
+    .replace(/class="active\s*/g, 'class="')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function assertCanonicalSidebar(html, route) {
   assert.match(html, /\/app\/panel-restaurant-entry\.js\?v=core-nav-v7/, route);
   assert.match(html, /data-core-navigation-version="core-nav-v7"/, route);
   assert.match(html, /data-core-navigation-structural="true"/, route);
   assert.match(html, /data-core-sidebar-version="core-sidebar-server-v1"/, route);
   assert.match(html, /data-core-visual-theme="super-core-v5-silver-server"/, route);
+  assert.match(html, /data-core-sidebar-stability="tenant-card-server-slot-v1"/, route);
   assert.match(html, /class="sidebar core-tenant-sidebar"/, route);
   assert.match(html, /class="core-brandmark">V<\/div>/, route);
+  assert.match(html, /data-core-tenant-card="true"/, route);
+  assert.match(html, /data-core-tenant-name="true"/, route);
+  assert.match(html, /data-core-tenant-meta="true"/, route);
   assert.match(html, /class="nav-title">Principal<\/div>/, route);
   assert.match(html, /class="core-v5-group-label">Finanzas y sistema<\/div>/, route);
   assert.match(html, /data-core-vertical-primary="true"/, route);
@@ -33,6 +49,9 @@ function assertCanonicalSidebar(html, route) {
   const sidebarMatch = html.match(/<aside class="sidebar core-tenant-sidebar"[^>]*>([\s\S]*?)<\/aside>/);
   assert.ok(sidebarMatch, `${route}: falta sidebar canónico completo`);
   const sidebar = sidebarMatch[1];
+  const tenantAt = sidebar.indexOf('data-core-tenant-card="true"');
+  const principalAt = sidebar.indexOf('class="nav-title">Principal</div>');
+  assert.ok(tenantAt >= 0 && principalAt > tenantAt, `${route}: tarjeta tenant debe existir antes de Principal desde el HTML inicial`);
   const navMatch = sidebar.match(/<nav class="nav"[^>]*>([\s\S]*?)<\/nav>/);
   assert.ok(navMatch, `${route}: falta navegación estructural`);
   const nav = navMatch[1];
@@ -54,6 +73,7 @@ function assertCanonicalSidebar(html, route) {
   assert.ok(bodyAt < 0 || styleAt < bodyAt, `${route}: V5 debe existir antes del body para evitar flicker`);
   assert.ok(html.includes('linear-gradient(145deg,#a8b0b5 0%,#7f888f 28%,#5f676d 62%,#90989e 100%)'), `${route}: falta fondo V5 inicial`);
   assert.ok(html.includes('background:rgba(243,246,248,.34)'), `${route}: faltan botones claros V5 iniciales`);
+  assert.ok(html.includes('height:51px;min-height:51px'), `${route}: la tarjeta tenant debe reservar altura fija`);
   assert.ok(!html.includes('.core-tenant-sidebar{background:#10241b'), `${route}: no debe existir el tema verde viejo en la capa canónica`);
 }
 
@@ -64,6 +84,7 @@ async function main() {
 
   try {
     let canonicalHtml = '';
+    let stableSignature = '';
     for (const route of ['/app/dashboard', '/app/ventas/nueva', '/app/ventas/00000000-0000-0000-0000-000000000000']) {
       const response = await fetch(base + route);
       const html = await response.text();
@@ -71,10 +92,15 @@ async function main() {
       assert.equal(response.headers.get('x-vantixgc-tenant-nav'), 'core-nav-v7', route);
       assert.equal(response.headers.get('x-vantixgc-tenant-sidebar'), 'core-sidebar-server-v1', route);
       assert.equal(response.headers.get('x-vantixgc-super-core-theme'), 'super-core-v5-silver-server', route);
+      assert.equal(response.headers.get('x-vantixgc-sidebar-stability'), 'tenant-card-server-slot-v1', route);
       assert.match(html, /VantixGC Super Core/);
       assert.match(html, /Nueva venta/);
       assert.match(html, /Registrar abono/);
       assertCanonicalSidebar(html, route);
+      const signature = stableSidebarSignature(html);
+      assert.ok(signature, `${route}: firma sidebar vacía`);
+      if (!stableSignature) stableSignature = signature;
+      else assert.equal(signature, stableSignature, `${route}: la estructura/altura del sidebar cambió entre rutas`);
       canonicalHtml = html;
     }
 
@@ -82,6 +108,7 @@ async function main() {
     const salesHtml = await salesResponse.text();
     assert.equal(salesResponse.status, 200);
     assert.equal(salesResponse.headers.get('x-vantixgc-super-core-theme'), 'super-core-v5-silver-server');
+    assert.equal(salesResponse.headers.get('x-vantixgc-sidebar-stability'), 'tenant-card-server-slot-v1');
     assert.match(salesHtml, /\+ Nueva venta/);
     assert.match(salesHtml, /Guardar borrador/);
     assert.match(salesHtml, /Emitir venta/);
@@ -89,11 +116,13 @@ async function main() {
     assert.match(salesHtml, /Kardex\/recetas/);
     assert.match(salesHtml, /cola DIAN/);
     assertCanonicalSidebar(salesHtml, '/app/ventas');
+    assert.equal(stableSidebarSignature(salesHtml), stableSignature, '/app/ventas: sidebar debe conservar la misma geometría');
 
     const accounting = await fetch(base + '/app/contabilidad');
     const accountingHtml = await accounting.text();
     assert.equal(accounting.status, 200);
     assert.equal(accounting.headers.get('x-vantixgc-super-core-theme'), 'super-core-v5-silver-server');
+    assert.equal(accounting.headers.get('x-vantixgc-sidebar-stability'), 'tenant-card-server-slot-v1');
     for (const marker of [
       'Plan de Cuentas',
       'Libro Diario',
@@ -105,22 +134,30 @@ async function main() {
       'Balance General / Situación Financiera'
     ]) assert.match(accountingHtml, new RegExp(marker));
     assertCanonicalSidebar(accountingHtml, '/app/contabilidad');
+    assert.equal(stableSidebarSignature(accountingHtml), stableSignature, '/app/contabilidad: sidebar debe conservar la misma geometría');
 
     const advanced = await fetch(base + '/app/configuracion-avanzada');
     const advancedHtml = await advanced.text();
     assert.equal(advanced.status, 200);
     assert.equal(advanced.headers.get('x-vantixgc-super-core-theme'), 'super-core-v5-silver-server');
+    assert.equal(advanced.headers.get('x-vantixgc-sidebar-stability'), 'tenant-card-server-slot-v1');
     for (const marker of ['DIAN', 'Roles y permisos', 'Impresión', 'Nómina electrónica']) {
       assert.ok(advancedHtml.includes(marker), `Configuración avanzada debe contener ${marker}`);
     }
     assert.match(advancedHtml, /\/app\/notifications-config\.js/);
     assertCanonicalSidebar(advancedHtml, '/app/configuracion-avanzada');
+    assert.equal(stableSidebarSignature(advancedHtml), stableSignature, '/app/configuracion-avanzada: sidebar debe conservar la misma geometría');
 
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
     assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v7'/);
     assert.match(sharedEntry, /window\.VantixGCCoreSidebarRuntime = 'off'/);
     assert.match(sharedEntry, /window\.VantixGCCoreSidebarShellSource = 'server'/);
     assert.match(sharedEntry, /bootstrapRestaurantAccessCache/);
+    assert.match(sharedEntry, /function hydrateTenantCard\(\)/);
+    assert.match(sharedEntry, /data-core-tenant-name/);
+    assert.match(sharedEntry, /data-core-tenant-meta/);
+    assert.ok(!sharedEntry.includes('installTenantCard'));
+    assert.ok(!sharedEntry.includes("document.createElement('div')"));
     assert.ok(!sharedEntry.includes('installSuperCoreV5Styles'));
     assert.ok(!sharedEntry.includes('installSuperCoreV5Navigation'));
     assert.ok(!sharedEntry.includes('document.createElement(\'style\')'));
@@ -135,7 +172,7 @@ async function main() {
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
 
-    console.log('SUPER CORE V5 FIRST-PAINT SIDEBAR + SINGLE-OWNER SMOKE OK');
+    console.log('SUPER CORE V5 STABLE SIDEBAR GEOMETRY + CACHED TENANT HYDRATION SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

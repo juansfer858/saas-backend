@@ -39,7 +39,8 @@ async function main() {
       assert.ok(html.includes(marker), `Falta marcador UI: ${marker}`);
     }
 
-    const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+    const inlineScripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+    const script = inlineScripts.find((source) => source.includes('/api/v1/contabilidad'));
     assert.ok(script, 'El módulo contable debe contener su controlador web');
     new Function(script);
 
