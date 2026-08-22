@@ -40,7 +40,6 @@ function assertCanonicalSidebar(html, route) {
   assert.match(html, /data-core-tenant-card="true"/, route);
   assert.match(html, /data-core-tenant-name="true"/, route);
   assert.match(html, /data-core-tenant-meta="true"/, route);
-  assert.match(html, /data-core-tenant-card-hydrator="true"/, route);
   assert.match(html, /class="nav-title">Principal<\/div>/, route);
   assert.match(html, /class="core-v5-group-label">Finanzas y sistema<\/div>/, route);
   assert.match(html, /data-core-vertical-primary="true"/, route);
@@ -154,6 +153,9 @@ async function main() {
     assert.match(sharedEntry, /window\.VantixGCCoreSidebarRuntime = 'off'/);
     assert.match(sharedEntry, /window\.VantixGCCoreSidebarShellSource = 'server'/);
     assert.match(sharedEntry, /bootstrapRestaurantAccessCache/);
+    assert.match(sharedEntry, /function hydrateTenantCard\(\)/);
+    assert.match(sharedEntry, /data-core-tenant-name/);
+    assert.match(sharedEntry, /data-core-tenant-meta/);
     assert.ok(!sharedEntry.includes('installTenantCard'));
     assert.ok(!sharedEntry.includes("document.createElement('div')"));
     assert.ok(!sharedEntry.includes('installSuperCoreV5Styles'));
