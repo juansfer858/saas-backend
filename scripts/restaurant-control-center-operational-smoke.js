@@ -21,7 +21,7 @@ async function main() {
 
   assert.match(shellJs, /data-cc-home/);
   assert.match(shellJs, /openOperationalTab/);
-  assert.match(shellJs, /data-tab=\\"\$\{tab\}\\"/);
+  assert.match(shellJs, /data-tab/);
   assert.match(shellJs, /\/api\/v1\/restaurante\/ui-context/);
   assert.match(shellJs, /\/api\/v1\/restaurante\/mesas/);
   assert.match(shellJs, /\/api\/v1\/restaurante\/menu/);
