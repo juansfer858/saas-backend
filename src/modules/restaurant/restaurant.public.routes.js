@@ -74,6 +74,14 @@ router.get('/app/restaurant-theme.js', (_req, res) => res.type('application/java
 router.get('/app/restaurant-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-ui.js')));
 router.get('/app/restaurant-qr-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-ui.js')));
 
+// Authenticated-in-browser, read-only preview on top of the real Restaurant tenant session.
+router.get('/app/centro-de-control-preview', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-VantixGC-Restaurant-Control-Preview', 'real-readonly-v1');
+  res.set('X-VantixGC-Restaurant-Control-Writes', 'disabled');
+  res.type('html').sendFile(path.join(webRoot, 'restaurant-control-preview.html'));
+});
+
 // Isolated UI/UX sandbox. Self-contained: no CDN, no tenant API, no production writes.
 router.get(['/app/v2-preview', '/app/v2-preview/dashboard', '/app/v2-preview/ventas', '/app/sandbox'], async (req, res, next) => {
   try {
