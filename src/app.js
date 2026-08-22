@@ -30,6 +30,7 @@ const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fisc
 const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
 const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
+const SIDEBAR_STABILITY_VERSION = 'tenant-card-server-slot-v1';
 const lineIcon = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 const tenantNavigationItems = Object.freeze([
   Object.freeze({ href: '/app/centro-de-control', label: 'Restaurante', subtitle: 'Operación principal', restaurantOnly: true, primaryVertical: true, icon: lineIcon('<path d="M6 3v8M9 3v8M6 7h3M7.5 11v10M15 3v8c0 2 1 3 3 3v7M18 3v11"/>') }),
@@ -53,7 +54,7 @@ html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
 .core-tenant-sidebar .brand{display:flex!important;align-items:center!important;gap:11px!important;padding:4px 8px 14px!important;font-weight:850!important;font-size:18px!important;color:#fff!important}
 .core-tenant-sidebar .core-brandmark{width:36px!important;height:36px!important;min-width:36px!important;border-radius:10px!important;background:#137a53!important;color:#fff!important;display:grid!important;place-items:center!important;font-weight:900!important;font-size:16px!important;box-shadow:0 8px 20px rgba(19,122,83,.25)!important}
 .core-tenant-sidebar .brand small{display:block!important;color:#d7dde0!important;font-weight:700!important;font-size:10px!important;margin-top:2px!important;letter-spacing:.08em!important}
-.core-v5-tenant{margin:0 5px 15px;padding:11px 12px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.07));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 22px rgba(20,24,27,.18)}
+.core-v5-tenant{height:51px;min-height:51px;box-sizing:border-box;margin:0 5px 15px;padding:9px 12px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.07));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 22px rgba(20,24,27,.18);overflow:hidden}
 .core-v5-tenant b{display:block;color:#fff;font-size:12px;line-height:1.25;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.core-v5-tenant span{display:block;margin-top:3px;color:#d0d7da;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .core-tenant-sidebar .nav-title,.core-v5-group-label{display:block!important;padding:8px 11px 5px!important;color:#d2d8db!important;font-size:9px!important;line-height:1.2!important;letter-spacing:.14em!important;text-transform:uppercase!important;font-weight:850!important}
 .core-tenant-sidebar .nav{display:flex!important;flex-direction:column!important;gap:3px!important}
@@ -101,7 +102,9 @@ function canonicalTenantNavHtml(requestPath) {
 }
 
 function canonicalTenantSidebarHtml(requestPath) {
-  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+  const sidebar = `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">VantixGC</b><span data-core-tenant-meta="true">Tenant activo</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+  const hydrate = `<script data-core-tenant-card-hydrator="true">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');const root=document.currentScript&&document.currentScript.previousElementSibling;if(!root||!s?.subdomain)return;const n=root.querySelector('[data-core-tenant-name]');const m=root.querySelector('[data-core-tenant-meta]');if(n)n.textContent=s.tenant?.nombreEmpresa||s.subdomain;if(m)m.textContent=s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')}catch{}})();</script>`;
+  return `${sidebar}${hydrate}`;
 }
 
 function replaceLegacyTenantSidebar(html, requestPath) {
@@ -129,6 +132,7 @@ async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags 
     res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
     res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION);
     res.set('X-VantixGC-Super-Core-Theme', SUPER_CORE_VISUAL_THEME);
+    res.set('X-VantixGC-Sidebar-Stability', SIDEBAR_STABILITY_VERSION);
     res.type('html').send(injectBeforeBody(withHead, bodyTags));
   } catch (error) {
     next(error);
