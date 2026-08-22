@@ -8,6 +8,7 @@ async function main() {
   const panelEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
   const shellJs = fs.readFileSync('src/web/restaurant-control-center.js', 'utf8');
   const shellCss = fs.readFileSync('src/web/restaurant-control-center.css', 'utf8');
+  const restaurantHtml = fs.readFileSync('src/web/restaurant.html', 'utf8');
   const operationalEngine = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
 
   assert.match(routes, /\/app\/centro-de-control/);
@@ -25,6 +26,10 @@ async function main() {
   assert.match(appSource, /restaurantApp: '\/app\/centro-de-control'/);
   assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
   assert.ok(!appSource.includes("href: '/app/restaurante', icon: '🍽', label: 'Restaurante'"));
+
+  // The Restaurant shell must expose one persistent, obvious way back to Core administration.
+  assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
+  assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true">← Administración<\/a>/);
 
   assert.match(shellJs, /data-cc-home/);
   assert.match(shellJs, /openOperationalTab/);
@@ -56,6 +61,8 @@ async function main() {
     assert.match(body, /restaurant-ui\.js/);
     assert.match(body, /restaurant-control-center\.css/);
     assert.match(body, /restaurant-control-center\.js/);
+    assert.match(body, /data-restaurant-admin-link="true"/);
+    assert.match(body, /← Administración/);
 
     const legacy = await fetch(base + '/app/restaurante', { redirect:'manual' });
     assert.equal(legacy.status, 302);
@@ -77,7 +84,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT OPERATIONAL CONTROL CENTER + ROUTE UNIFICATION SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + ADMIN BACK LINK + ROUTE UNIFICATION SMOKE OK');
 }
 
 main().catch((error) => {
