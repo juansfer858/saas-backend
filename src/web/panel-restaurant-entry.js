@@ -5,7 +5,6 @@
   const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
   const NAV_VERSION = 'core-nav-v7';
   const CONTROL_CENTER_PATH = '/app/centro-de-control';
-  const CLASSIC_RESTAURANT_PATH = '/app/restaurante';
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
@@ -100,18 +99,12 @@
     window.location.href = CONTROL_CENTER_PATH;
   }
 
-  function openRestaurantClassic() {
-    window.location.href = CLASSIC_RESTAURANT_PATH;
-  }
-
   function installRestaurantDashboardEntry() {
     const actions = document.querySelector('.pagehead .actions');
     const existing = actions?.querySelector('[data-restaurant-dashboard-entry]');
-    const existingClassic = actions?.querySelector('[data-restaurant-classic-entry]');
 
     if (!hasRestaurantAccess || currentPath() !== '/app/dashboard') {
       existing?.remove();
-      existingClassic?.remove();
       return;
     }
 
@@ -124,17 +117,6 @@
       button.title = 'Abrir el Centro de Control operativo conectado al restaurante real';
       button.addEventListener('click', openRestaurantControlCenter);
       actions.prepend(button);
-    }
-
-    if (actions && !existingClassic) {
-      const classicButton = document.createElement('button');
-      classicButton.type = 'button';
-      classicButton.className = 'btn';
-      classicButton.dataset.restaurantClassicEntry = 'true';
-      classicButton.textContent = '↩ Panel clásico';
-      classicButton.title = 'Ruta de respaldo: abre la interfaz anterior sin pasar por el Centro de Control';
-      classicButton.addEventListener('click', openRestaurantClassic);
-      actions.append(classicButton);
     }
   }
 
@@ -166,9 +148,7 @@
 
   window.VantixGCRestaurantNavigation = Object.freeze({
     controlCenterPath: CONTROL_CENTER_PATH,
-    classicPath: CLASSIC_RESTAURANT_PATH,
-    openControlCenter: openRestaurantControlCenter,
-    openClassic: openRestaurantClassic
+    openControlCenter: openRestaurantControlCenter
   });
   window.VantixGCCoreNavigationVersion = NAV_VERSION;
   window.VantixGCCoreSidebarRuntime = 'off';
