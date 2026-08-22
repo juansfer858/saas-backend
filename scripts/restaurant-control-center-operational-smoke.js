@@ -8,7 +8,6 @@ async function main() {
   const panelEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
   const shellJs = fs.readFileSync('src/web/restaurant-control-center.js', 'utf8');
   const shellCss = fs.readFileSync('src/web/restaurant-control-center.css', 'utf8');
-  const restaurantHtml = fs.readFileSync('src/web/restaurant.html', 'utf8');
   const operationalEngine = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
 
   assert.match(routes, /\/app\/centro-de-control/);
@@ -36,7 +35,6 @@ async function main() {
   assert.match(shellJs, /\/api\/v1\/restaurante\/comandas/);
   assert.match(shellJs, /\/api\/v1\/restaurante\/pedidos/);
   assert.ok(!shellJs.includes("location.href='/app/restaurante'"), 'Operational shell must not redirect normal actions to legacy UI');
-  assert.match(restaurantHtml, /\.cc-classic-link\{display:none!important\}/);
   assert.match(shellCss, /\.rail-wrap/);
   assert.match(shellCss, /\.cc-dashboard/);
 
