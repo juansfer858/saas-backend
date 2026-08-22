@@ -30,6 +30,10 @@ async function main() {
   assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v2'/);
   assert.match(routes, /X-VantixGC-UI-Sandbox-Runtime', 'self-contained'/);
 
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script, 'Sandbox must include an embedded runtime script');
+  new Function(script);
+
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
