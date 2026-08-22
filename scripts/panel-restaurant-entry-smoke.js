@@ -45,7 +45,8 @@ assert.ok(app.includes('<div class="nav-title">Navegación</div>'));
 assert.ok(app.includes('.core-tenant-sidebar .nav a'));
 assert.ok(app.includes("res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION)"));
 
-// Browser runtime remains OFF for the sidebar. No restyling, rebuilding or DOM observer.
+// Browser runtime remains OFF for structural sidebar ownership. V5 only skins and
+// promotes the existing permission-backed server navigation; it does not rebuild it.
 assert.ok(navigation.includes("const NAV_VERSION = 'core-nav-v7'"));
 assert.ok(navigation.includes("const CONTROL_CENTER_PATH = '/app/centro-de-control'"));
 assert.ok(navigation.includes("window.VantixGCCoreSidebarRuntime = 'off'"));
@@ -66,6 +67,25 @@ assert.ok(!navigation.includes('canonicalNavigationHtml'));
 assert.ok(!navigation.includes('CORE_NAV_ITEMS'));
 assert.ok(!navigation.includes("rol === 'ADMIN'"), 'Restaurant visibility must remain permission-backed');
 
+// Approved administrative identity: V5 silver/dark background + lighter navigation
+// buttons, green used as accent, and one consistent thin-line SVG icon system.
+assert.ok(navigation.includes("const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver'"));
+assert.ok(navigation.includes('linear-gradient(145deg,#a8b0b5 0%,#7f888f 28%,#5f676d 62%,#90989e 100%)'));
+assert.ok(navigation.includes('background:rgba(243,246,248,.34)'));
+assert.ok(navigation.includes('background:#137a53'));
+assert.ok(navigation.includes('stroke-width:1.7'));
+assert.ok(navigation.includes('const iconPaths = Object.freeze'));
+assert.ok(navigation.includes("window.VantixGCCoreSidebarVisualTheme = SUPER_CORE_VISUAL_THEME"));
+
+// The current vertical is the commercial protagonist. It is visually promoted ahead
+// of Dashboard without changing permissions or its canonical route.
+assert.ok(navigation.includes("primary.classList.add('core-v5-primary-vertical')"));
+assert.ok(navigation.includes("primary.dataset.coreVerticalPrimary = 'true'"));
+assert.ok(navigation.includes("small.textContent = 'Operación principal'"));
+assert.ok(navigation.includes('nav.prepend(primary)'));
+assert.ok(navigation.includes('.core-tenant-sidebar .nav a.core-v5-primary-vertical'));
+assert.ok(!/method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i.test(navigation), 'Visual/navigation layer must not perform business writes');
+
 assert.ok(app.includes("res.set('Cache-Control', 'no-store')"));
 assert.ok(app.includes('core-nav-structural-style'));
 assert.ok(app.includes('/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}'));
@@ -81,4 +101,4 @@ assert.ok(app.includes('sendTenantHtml(platformCoreConfigHtmlPath, req, res, nex
 assert.ok(app.includes('sendTenantHtml(accountingHtmlPath, req, res, next, [guardTag, tenantNavigationTag])'));
 assert.ok(app.includes('sendTenantHtml(panelHtmlPath, req, res, next, [integrationTag, tenantNavigationTag])'));
 
-console.log('PANEL SERVER-RENDERED CANONICAL SIDEBAR V1 + RESTAURANT CONTROL CENTER ROUTE SMOKE OK');
+console.log('PANEL SERVER SIDEBAR + APPROVED SUPER CORE V5 + PRIMARY VERTICAL SMOKE OK');
