@@ -29,33 +29,44 @@ const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fisc
 
 const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
+const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
+const lineIcon = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 const tenantNavigationItems = Object.freeze([
-  Object.freeze({ href: '/app/dashboard', icon: '▦', label: 'Dashboard' }),
-  Object.freeze({ href: '/app/centro-de-control', icon: '🍽', label: 'Restaurante', restaurantOnly: true }),
-  Object.freeze({ href: '/app/ventas', icon: '🛒', label: 'Ventas' }),
-  Object.freeze({ href: '/app/compras', icon: '🛍', label: 'Compras' }),
-  Object.freeze({ href: '/app/inventario', icon: '▣', label: 'Inventarios / Kardex' }),
-  Object.freeze({ href: '/app/tesoreria', icon: '🏦', label: 'Tesorería & Bancos' }),
-  Object.freeze({ href: '/app/cartera', icon: '📑', label: 'Cartera' }),
-  Object.freeze({ href: '/app/terceros', icon: '👥', label: 'Terceros' }),
-  Object.freeze({ href: '/app/contabilidad', icon: '📒', label: 'Contabilidad' }),
-  Object.freeze({ href: '/app/configuracion', icon: '⚙', label: 'Parametrización Contable' }),
-  Object.freeze({ href: '/app/configuracion-avanzada', icon: '🧩', label: 'Configuración avanzada' })
+  Object.freeze({ href: '/app/centro-de-control', label: 'Restaurante', subtitle: 'Operación principal', restaurantOnly: true, primaryVertical: true, icon: lineIcon('<path d="M6 3v8M9 3v8M6 7h3M7.5 11v10M15 3v8c0 2 1 3 3 3v7M18 3v11"/>') }),
+  Object.freeze({ href: '/app/dashboard', label: 'Dashboard', icon: lineIcon('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>') }),
+  Object.freeze({ href: '/app/ventas', label: 'Ventas', icon: lineIcon('<circle cx="9" cy="20" r="1"/><circle cx="19" cy="20" r="1"/><path d="M3 4h2l2.5 11h10.8l2-7H7"/>') }),
+  Object.freeze({ href: '/app/compras', label: 'Compras', icon: lineIcon('<path d="M4 7h16l-1 13H5L4 7Z"/><path d="M8 7a4 4 0 0 1 8 0"/>') }),
+  Object.freeze({ href: '/app/inventario', label: 'Inventarios / Kardex', icon: lineIcon('<path d="M4 7 12 3l8 4-8 4-8-4Z"/><path d="m4 7 8 4 8-4v10l-8 4-8-4V7Z"/>') }),
+  Object.freeze({ href: '/app/tesoreria', label: 'Tesorería & Bancos', icon: lineIcon('<path d="M3 9h18M5 9v9M9 9v9M15 9v9M19 9v9M3 18h18M12 3l9 4H3l9-4Z"/>') }),
+  Object.freeze({ href: '/app/cartera', label: 'Cartera', icon: lineIcon('<path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/>') }),
+  Object.freeze({ href: '/app/terceros', label: 'Terceros', icon: lineIcon('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 5c2 0 3 1 3 3s-1 3-3 3"/>') }),
+  Object.freeze({ href: '/app/contabilidad', label: 'Contabilidad', financeStart: true, icon: lineIcon('<path d="M5 3h12a2 2 0 0 1 2 2v16H7a2 2 0 0 1-2-2V3Z"/><path d="M7 3v18M10 8h6M10 12h6M10 16h4"/>') }),
+  Object.freeze({ href: '/app/configuracion', label: 'Parametrización Contable', icon: lineIcon('<path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/>') }),
+  Object.freeze({ href: '/app/configuracion-avanzada', label: 'Configuración avanzada', icon: lineIcon('<circle cx="12" cy="12" r="3"/><path d="M4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4"/>') })
 ]);
 
-const tenantNavigationHeadTag = `<style id="core-nav-structural-style">
+const tenantNavigationHeadTag = `<style id="core-nav-structural-style" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}">
 .core-nav-restaurant{visibility:hidden}
 html[data-core-restaurant-access="1"] .core-nav-restaurant{visibility:visible}
 html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
-.core-tenant-sidebar{background:#10241b!important;color:#fff!important;padding:20px 14px!important;position:sticky!important;top:0!important;height:100vh!important;overflow:auto!important;box-sizing:border-box!important}
-.core-tenant-sidebar .brand{display:flex!important;align-items:center!important;gap:11px!important;padding:4px 8px 22px!important;font-weight:800!important;font-size:18px!important;color:#fff!important}
-.core-tenant-sidebar .core-brandmark{width:34px!important;height:34px!important;min-width:34px!important;border-radius:11px!important;background:linear-gradient(145deg,#fff,#dff2e8)!important;color:#0d6b43!important;display:grid!important;place-items:center!important;font-weight:900!important;font-size:16px!important}
-.core-tenant-sidebar .brand small{display:block!important;color:#9db3a8!important;font-weight:500!important;font-size:12px!important;margin-top:2px!important}
-.core-tenant-sidebar .nav-title{display:block!important;font-size:11px!important;text-transform:uppercase!important;letter-spacing:.12em!important;color:#92aa9f!important;padding:14px 10px 8px!important}
-.core-tenant-sidebar .nav a{display:flex!important;align-items:center!important;gap:10px!important;text-decoration:none!important;color:#d9e6e0!important;padding:10px 11px!important;margin:3px 0!important;border-radius:10px!important;font-size:14px!important;line-height:20px!important}
-.core-tenant-sidebar .nav a:hover,.core-tenant-sidebar .nav a.active{background:#173429!important;color:#fff!important}
-.core-tenant-sidebar .nav .icon{display:inline-block!important;width:22px!important;min-width:22px!important;text-align:center!important}
-@media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}}
+.core-tenant-sidebar{background:linear-gradient(145deg,#a8b0b5 0%,#7f888f 28%,#5f676d 62%,#90989e 100%)!important;color:#eef2f3!important;padding:18px 14px!important;position:sticky!important;top:0!important;height:100vh!important;overflow:auto!important;box-sizing:border-box!important;box-shadow:8px 0 28px rgba(37,43,47,.16)!important}
+.core-tenant-sidebar .brand{display:flex!important;align-items:center!important;gap:11px!important;padding:4px 8px 14px!important;font-weight:850!important;font-size:18px!important;color:#fff!important}
+.core-tenant-sidebar .core-brandmark{width:36px!important;height:36px!important;min-width:36px!important;border-radius:10px!important;background:#137a53!important;color:#fff!important;display:grid!important;place-items:center!important;font-weight:900!important;font-size:16px!important;box-shadow:0 8px 20px rgba(19,122,83,.25)!important}
+.core-tenant-sidebar .brand small{display:block!important;color:#d7dde0!important;font-weight:700!important;font-size:10px!important;margin-top:2px!important;letter-spacing:.08em!important}
+.core-v5-tenant{margin:0 5px 15px;padding:11px 12px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.07));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 10px 22px rgba(20,24,27,.18)}
+.core-v5-tenant b{display:block;color:#fff;font-size:12px;line-height:1.25;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.core-v5-tenant span{display:block;margin-top:3px;color:#d0d7da;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.core-tenant-sidebar .nav-title,.core-v5-group-label{display:block!important;padding:8px 11px 5px!important;color:#d2d8db!important;font-size:9px!important;line-height:1.2!important;letter-spacing:.14em!important;text-transform:uppercase!important;font-weight:850!important}
+.core-tenant-sidebar .nav{display:flex!important;flex-direction:column!important;gap:3px!important}
+.core-tenant-sidebar .nav a{position:relative!important;display:flex!important;align-items:center!important;gap:10px!important;min-height:42px!important;margin:0!important;padding:9px 10px!important;border:1px solid rgba(255,255,255,.18)!important;border-radius:9px!important;background:rgba(243,246,248,.34)!important;color:#fff!important;text-decoration:none!important;font-size:12px!important;line-height:1.2!important;font-weight:700!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.10)!important;transition:background .15s ease,transform .15s ease,border-color .15s ease!important}
+.core-tenant-sidebar .nav a:hover{background:rgba(247,249,250,.44)!important;color:#fff!important;transform:translateX(1px)!important}
+.core-tenant-sidebar .nav a.active{background:linear-gradient(90deg,rgba(19,122,83,.40),rgba(255,255,255,.28))!important;color:#fff!important;border-color:rgba(255,255,255,.22)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.34),0 10px 22px rgba(20,24,27,.20)!important}
+.core-tenant-sidebar .nav a.active:before{content:'';position:absolute;left:-5px;top:8px;bottom:8px;width:3px;border-radius:3px;background:#3bc88d}
+.core-tenant-sidebar .nav .icon{display:grid!important;place-items:center!important;width:20px!important;min-width:20px!important;height:20px!important;color:inherit!important;text-align:center!important}.core-tenant-sidebar .nav .icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical{min-height:70px!important;margin:0 0 10px!important;padding:12px 11px!important;border-color:rgba(255,255,255,.28)!important;background:linear-gradient(135deg,rgba(247,249,250,.50),rgba(215,222,225,.30))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 12px 25px rgba(32,38,42,.18)!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical .icon{width:30px!important;min-width:30px!important;height:30px!important;border-radius:9px;background:rgba(19,122,83,.18);color:#fff}.core-tenant-sidebar .nav a.core-v5-primary-vertical .icon svg{width:21px;height:21px;stroke-width:1.8}
+.core-v5-primary-copy{display:flex;min-width:0;flex-direction:column;gap:3px}.core-v5-primary-copy strong{font-size:15px;line-height:1.05;color:#fff;font-weight:900}.core-v5-primary-copy small{font-size:9px;color:#eef3f1;font-weight:750;letter-spacing:.04em}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical.active{background:linear-gradient(90deg,rgba(19,122,83,.52),rgba(255,255,255,.30))!important}
+@media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}.core-v5-tenant{display:none}.core-tenant-sidebar .nav a.core-v5-primary-vertical{min-height:58px!important}}
 </style><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
 const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
@@ -77,15 +88,20 @@ function canonicalTenantNavHtml(requestPath) {
   const current = normalizeAppPath(requestPath);
   const links = tenantNavigationItems.map((item) => {
     const active = current === item.href || current.startsWith(`${item.href}/`);
-    const classes = [active ? 'active' : '', item.restaurantOnly ? 'core-nav-restaurant' : ''].filter(Boolean).join(' ');
+    const classes = [active ? 'active' : '', item.restaurantOnly ? 'core-nav-restaurant' : '', item.primaryVertical ? 'core-v5-primary-vertical' : ''].filter(Boolean).join(' ');
     const restaurantAttr = item.restaurantOnly ? ' data-restaurant-entry="true"' : '';
-    return `<a href="${item.href}" class="${classes}" data-core-full-route="true"${restaurantAttr}><span class="icon">${item.icon}</span><span>${item.label}</span></a>`;
+    const primaryAttr = item.primaryVertical ? ' data-core-vertical-primary="true"' : '';
+    const label = item.primaryVertical
+      ? `<span class="core-v5-primary-copy"><strong>${item.label}</strong><small>${item.subtitle || 'Operación principal'}</small></span>`
+      : `<span>${item.label}</span>`;
+    const group = item.financeStart ? '<div class="core-v5-group-label">Finanzas y sistema</div>' : '';
+    return `${group}<a href="${item.href}" class="${classes}" data-core-full-route="true"${restaurantAttr}${primaryAttr}><span class="icon">${item.icon}</span>${label}</a>`;
   }).join('');
-  return `<nav class="nav" data-core-navigation-version="${TENANT_NAV_VERSION}" data-core-navigation-structural="true">${links}</nav>`;
+  return `<nav class="nav" data-core-navigation-version="${TENANT_NAV_VERSION}" data-core-navigation-structural="true" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}">${links}</nav>`;
 }
 
 function canonicalTenantSidebarHtml(requestPath) {
-  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="nav-title">Navegación</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
 }
 
 function replaceLegacyTenantSidebar(html, requestPath) {
@@ -112,6 +128,7 @@ async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags 
     const withHead = injectBeforeHeadEnd(canonicalized, headTags);
     res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
     res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION);
+    res.set('X-VantixGC-Super-Core-Theme', SUPER_CORE_VISUAL_THEME);
     res.type('html').send(injectBeforeBody(withHead, bodyTags));
   } catch (error) {
     next(error);
