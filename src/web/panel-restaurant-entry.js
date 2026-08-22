@@ -96,24 +96,6 @@
     }
   }
 
-  function installTenantCard() {
-    const sidebar = document.querySelector('.core-tenant-sidebar');
-    const brand = sidebar?.querySelector('.brand');
-    const session = readSession();
-    if (!sidebar || !brand || !session?.subdomain || sidebar.querySelector('.core-v5-tenant')) return;
-
-    const tenant = document.createElement('div');
-    tenant.className = 'core-v5-tenant';
-    tenant.dataset.coreTenantCard = 'true';
-
-    const name = document.createElement('b');
-    name.textContent = session.tenant?.nombreEmpresa || session.subdomain;
-    const meta = document.createElement('span');
-    meta.textContent = `${session.subdomain}${session.tenant?.pais ? ` · ${session.tenant.pais}` : ''}`;
-    tenant.append(name, meta);
-    brand.insertAdjacentElement('afterend', tenant);
-  }
-
   function openRestaurantControlCenter() {
     window.location.href = CONTROL_CENTER_PATH;
   }
@@ -148,7 +130,6 @@
   }
 
   function installCurrentUi() {
-    installTenantCard();
     renameAccountingConfigurationHeading();
     installRestaurantDashboardEntry();
   }
