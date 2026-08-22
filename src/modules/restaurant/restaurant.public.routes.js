@@ -12,6 +12,22 @@ const { AppError } = require('../../utils/app-error');
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
 
+const sandboxWarmThemeBootstrap = `<style id="vantixgc-sandbox-warm-theme-v1">
+:root{--bg:#fffaf5;--panel:#fffdfb;--panel2:#fff7ed;--text:#111827;--muted:#4b5563;--line:#d6d3d1;--shadow:0 1px 2px rgba(67,20,7,.06),0 10px 30px rgba(67,20,7,.07)}
+.dark{--bg:#171311;--panel:#211b18;--panel2:#2b211c;--text:#fff7ed;--muted:#d6d3d1;--line:#57483f;--shadow:0 1px 2px rgba(0,0,0,.35),0 18px 42px rgba(0,0,0,.24)}
+.pagehead h1,.card-head h3,.table-card h3,.product b,.metric-value,.total{color:var(--text)!important;font-weight:800!important}
+.pagehead p,.activity-main span,.activity-side,.metric-label,.field label,.breadcrumb,.sandbox-note{color:var(--muted)!important;font-weight:550}
+.card,.table-card,.product,.input,.select,.textarea,.btn,.icon-btn,.tenant-select,.user-pill{border-color:var(--line)!important}
+.product,.table-card{background:var(--panel)!important;box-shadow:0 1px 2px rgba(67,20,7,.04)}
+.product:hover,.table-card:hover{border-color:var(--accent)!important;box-shadow:0 8px 22px rgba(234,88,12,.10)}
+.table th{color:#374151!important;font-weight:800!important}.dark .table th{color:#e7e5e4!important}
+.table td{font-weight:550}.cart-line{padding:12px 0!important}.cart-line button{min-height:38px!important;min-width:38px!important;padding:0 12px!important;border-radius:9px!important;font-weight:800!important;touch-action:manipulation}
+.qty{gap:7px!important}.qty button{width:38px!important;height:38px!important;background:#ffedd5!important;color:#9a3412!important;border:1px solid #fdba74!important;font-size:18px!important;line-height:1!important}
+.dark .qty button{background:#431407!important;color:#fed7aa!important;border-color:#9a3412!important}
+.cart-line .btn.danger,.cart-line button:last-child{background:#fff1f2!important;color:#b91c1c!important;border-color:#fecdd3!important}.dark .cart-line .btn.danger,.dark .cart-line button:last-child{background:#450a0a!important;color:#fecaca!important;border-color:#7f1d1d!important}
+.btn.primary{box-shadow:0 6px 16px rgba(234,88,12,.16)}
+</style><script id="vantixgc-sandbox-warm-theme-migration">(()=>{try{const key='vantixgc_ui_sandbox_theme';let theme=null;try{theme=JSON.parse(localStorage.getItem(key)||'null')}catch{}if(!theme||!theme.accent||String(theme.accent).toLowerCase()==='#2563eb'){localStorage.setItem(key,JSON.stringify({mode:theme?.mode||'light',accent:'#EA580C',soft:'#FFF7ED',font:theme?.font||'Inter,ui-sans-serif,system-ui,sans-serif'}))}}catch{}})();</script>`;
+
 function parse(schema, value) {
   const result = schema.safeParse(value);
   if (!result.success) throw new AppError(400, 'Autopedido inválido', 'VALIDATION_ERROR', result.error.flatten());
@@ -50,11 +66,16 @@ router.get('/app/restaurant-ui.js', (_req, res) => res.type('application/javascr
 router.get('/app/restaurant-qr-ui.js', (_req, res) => res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-ui.js')));
 
 // Isolated UI/UX sandbox. Self-contained: no CDN, no tenant API, no production writes.
-router.get(['/app/v2-preview', '/app/sandbox'], (_req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.set('X-VantixGC-UI-Sandbox', 'mock-local-v2');
-  res.set('X-VantixGC-UI-Sandbox-Runtime', 'self-contained');
-  res.type('html').sendFile(path.join(webRoot, 'ui-sandbox.html'));
+router.get(['/app/v2-preview', '/app/sandbox'], async (_req, res, next) => {
+  try {
+    const html = await fs.promises.readFile(path.join(webRoot, 'ui-sandbox.html'), 'utf8');
+    const rendered = html.includes('</head>') ? html.replace('</head>', `${sandboxWarmThemeBootstrap}</head>`) : `${sandboxWarmThemeBootstrap}${html}`;
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-UI-Sandbox', 'mock-local-v3-warm');
+    res.set('X-VantixGC-UI-Sandbox-Runtime', 'self-contained');
+    res.set('X-VantixGC-UI-Theme', 'restaurant-warm-v1');
+    res.type('html').send(rendered);
+  } catch (error) { next(error); }
 });
 
 router.get('/api/public/restaurante/build-marker', (_req, res) => {

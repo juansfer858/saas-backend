@@ -26,9 +26,16 @@ async function main() {
   assert.ok(!html.includes('type="module"'), 'Sandbox must not require module imports');
   assert.ok(!html.includes("fetch('/api/"), 'Sandbox must not call production tenant APIs');
   assert.ok(!html.includes('Authorization:'), 'Sandbox must not use production auth tokens');
+
   assert.match(routes, /\['\/app\/v2-preview', '\/app\/sandbox'\]/);
-  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v2'/);
+  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v3-warm'/);
   assert.match(routes, /X-VantixGC-UI-Sandbox-Runtime', 'self-contained'/);
+  assert.match(routes, /X-VantixGC-UI-Theme', 'restaurant-warm-v1'/);
+  assert.match(routes, /vantixgc-sandbox-warm-theme-v1/);
+  assert.match(routes, /#EA580C/);
+  assert.match(routes, /--text:#111827/);
+  assert.match(routes, /--line:#d6d3d1/);
+  assert.match(routes, /\.qty button\{width:38px!important;height:38px!important/);
 
   const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, 'Sandbox must include an embedded runtime script');
@@ -42,18 +49,21 @@ async function main() {
       const response = await fetch(base + path);
       const body = await response.text();
       assert.equal(response.status, 200, path);
-      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v2');
+      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v3-warm');
       assert.equal(response.headers.get('x-vantixgc-ui-sandbox-runtime'), 'self-contained');
+      assert.equal(response.headers.get('x-vantixgc-ui-theme'), 'restaurant-warm-v1');
       assert.match(body, /UI Sandbox/);
       assert.match(body, /function useState\(/);
       assert.match(body, /Personalizar interfaz/);
+      assert.match(body, /vantixgc-sandbox-warm-theme-v1/);
+      assert.match(body, /#EA580C/);
       assert.ok(!body.includes('https://esm.sh'));
     }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('UI SANDBOX SELF-CONTAINED MOCK-ONLY INTERACTIVE STATE SMOKE OK');
+  console.log('UI SANDBOX WARM RESTAURANT THEME + SELF-CONTAINED MOCK-ONLY SMOKE OK');
 }
 
 main().catch((error) => {
