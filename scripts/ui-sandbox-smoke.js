@@ -27,15 +27,23 @@ async function main() {
   assert.ok(!html.includes("fetch('/api/"), 'Sandbox must not call production tenant APIs');
   assert.ok(!html.includes('Authorization:'), 'Sandbox must not use production auth tokens');
 
-  assert.match(routes, /\['\/app\/v2-preview', '\/app\/sandbox'\]/);
-  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v3-warm'/);
+  assert.match(routes, /\/app\/v2-preview\/dashboard/);
+  assert.match(routes, /\/app\/v2-preview\/ventas/);
+  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v4-pos-impact'/);
   assert.match(routes, /X-VantixGC-UI-Sandbox-Runtime', 'self-contained'/);
-  assert.match(routes, /X-VantixGC-UI-Theme', 'restaurant-warm-v1'/);
-  assert.match(routes, /vantixgc-sandbox-warm-theme-v1/);
-  assert.match(routes, /#EA580C/);
-  assert.match(routes, /--text:#111827/);
-  assert.match(routes, /--line:#d6d3d1/);
-  assert.match(routes, /\.qty button\{width:38px!important;height:38px!important/);
+  assert.match(routes, /X-VantixGC-UI-Theme', 'restaurant-pos-impact-v1'/);
+  assert.match(routes, /X-VantixGC-UI-Preview-View/);
+  assert.match(routes, /vantixgc-sandbox-pos-impact-v1/);
+  assert.match(routes, /background:#0f172a!important/);
+  assert.match(routes, /color:#fb923c!important/);
+  assert.match(routes, /background:#f97316!important/);
+  assert.match(routes, /border-radius:18px!important/);
+  assert.match(routes, /metric-value\{font-size:27px!important/);
+  assert.match(routes, /nth-child\(1\) \.metric-icon/);
+  assert.match(routes, /nth-child\(4\) \.metric-icon/);
+  assert.match(routes, /@keyframes posStatusPulse/);
+  assert.match(routes, /tbody tr:hover td\{background:#fff7ed!important/);
+  assert.match(routes, /initialView = req\.path\.endsWith\('\/ventas'\) \? 'ventas' : 'dashboard'/);
 
   const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, 'Sandbox must include an embedded runtime script');
@@ -45,25 +53,33 @@ async function main() {
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    for (const path of ['/app/v2-preview', '/app/sandbox']) {
+    const cases = [
+      ['/app/v2-preview', 'dashboard'],
+      ['/app/v2-preview/dashboard', 'dashboard'],
+      ['/app/v2-preview/ventas', 'ventas'],
+      ['/app/sandbox', 'dashboard']
+    ];
+    for (const [path, expectedView] of cases) {
       const response = await fetch(base + path);
       const body = await response.text();
       assert.equal(response.status, 200, path);
-      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v3-warm');
+      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v4-pos-impact');
       assert.equal(response.headers.get('x-vantixgc-ui-sandbox-runtime'), 'self-contained');
-      assert.equal(response.headers.get('x-vantixgc-ui-theme'), 'restaurant-warm-v1');
+      assert.equal(response.headers.get('x-vantixgc-ui-theme'), 'restaurant-pos-impact-v1');
+      assert.equal(response.headers.get('x-vantixgc-ui-preview-view'), expectedView);
       assert.match(body, /UI Sandbox/);
-      assert.match(body, /function useState\(/);
-      assert.match(body, /Personalizar interfaz/);
-      assert.match(body, /vantixgc-sandbox-warm-theme-v1/);
-      assert.match(body, /#EA580C/);
+      assert.match(body, /vantixgc-sandbox-pos-impact-v1/);
+      assert.match(body, /#0f172a/);
+      assert.match(body, /#f97316/);
       assert.ok(!body.includes('https://esm.sh'));
+      if (expectedView === 'ventas') assert.match(body, /const defaults=\{view:'ventas'/);
+      else assert.match(body, /const defaults=\{view:'dashboard'/);
     }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('UI SANDBOX WARM RESTAURANT THEME + SELF-CONTAINED MOCK-ONLY SMOKE OK');
+  console.log('UI SANDBOX POS IMPACT DASHBOARD + SALES PREVIEW SMOKE OK');
 }
 
 main().catch((error) => {
