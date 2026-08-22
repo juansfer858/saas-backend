@@ -96,6 +96,15 @@
     }
   }
 
+  function hydrateTenantCard() {
+    const session = readSession();
+    if (!session?.subdomain) return;
+    const name = document.querySelector('[data-core-tenant-name]');
+    const meta = document.querySelector('[data-core-tenant-meta]');
+    if (name) name.textContent = session.tenant?.nombreEmpresa || session.subdomain;
+    if (meta) meta.textContent = `${session.subdomain}${session.tenant?.pais ? ` · ${session.tenant.pais}` : ''}`;
+  }
+
   function openRestaurantControlCenter() {
     window.location.href = CONTROL_CENTER_PATH;
   }
@@ -130,6 +139,7 @@
   }
 
   function installCurrentUi() {
+    hydrateTenantCard();
     renameAccountingConfigurationHeading();
     installRestaurantDashboardEntry();
   }
