@@ -29,20 +29,26 @@ async function main() {
 
   assert.match(routes, /\/app\/v2-preview\/dashboard/);
   assert.match(routes, /\/app\/v2-preview\/ventas/);
-  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v4-pos-impact'/);
+  assert.match(routes, /X-VantixGC-UI-Sandbox', 'mock-local-v5-solid-pos'/);
   assert.match(routes, /X-VantixGC-UI-Sandbox-Runtime', 'self-contained'/);
-  assert.match(routes, /X-VantixGC-UI-Theme', 'restaurant-pos-impact-v1'/);
+  assert.match(routes, /X-VantixGC-UI-Theme', 'restaurant-solid-pos-v1'/);
+  assert.match(routes, /X-VantixGC-UI-Style', 'solid-robust-v1'/);
   assert.match(routes, /X-VantixGC-UI-Preview-View/);
-  assert.match(routes, /vantixgc-sandbox-pos-impact-v1/);
   assert.match(routes, /background:#0f172a!important/);
-  assert.match(routes, /color:#fb923c!important/);
-  assert.match(routes, /background:#f97316!important/);
-  assert.match(routes, /border-radius:18px!important/);
-  assert.match(routes, /metric-value\{font-size:27px!important/);
-  assert.match(routes, /nth-child\(1\) \.metric-icon/);
-  assert.match(routes, /nth-child\(4\) \.metric-icon/);
+  assert.match(routes, /border:2px solid var\(--line\)!important/);
+  assert.match(routes, /background:#ea580c!important/);
+  assert.match(routes, /box-shadow:0 14px 30px rgba\(234,88,12,.34\)!important/);
+  assert.match(routes, /\.qty button\{width:44px!important;height:44px!important;background:#0f172a!important;color:#fff!important/);
+  assert.match(routes, /background:#dc2626!important;color:#fff!important/);
+  assert.match(routes, /\.product:before\{/);
+  assert.match(routes, /content:'FUERTES';background:#ea580c/);
+  assert.match(routes, /content:'BEBIDAS';background:#2563eb/);
+  assert.match(routes, /content:'POSTRES';background:#7c3aed/);
+  assert.match(routes, /\.product strong\{display:inline-flex!important/);
+  assert.match(routes, /background:#0f172a!important;color:#fff!important/);
+  assert.match(routes, /replace\('Confirmar visualmente', 'Confirmar \/ Cobrar'\)/);
   assert.match(routes, /@keyframes posStatusPulse/);
-  assert.match(routes, /tbody tr:hover td\{background:#fff7ed!important/);
+  assert.match(routes, /tbody tr:hover td\{background:#ffedd5!important/);
   assert.match(routes, /initialView = req\.path\.endsWith\('\/ventas'\) \? 'ventas' : 'dashboard'/);
 
   const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
@@ -63,23 +69,26 @@ async function main() {
       const response = await fetch(base + path);
       const body = await response.text();
       assert.equal(response.status, 200, path);
-      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v4-pos-impact');
+      assert.equal(response.headers.get('x-vantixgc-ui-sandbox'), 'mock-local-v5-solid-pos');
       assert.equal(response.headers.get('x-vantixgc-ui-sandbox-runtime'), 'self-contained');
-      assert.equal(response.headers.get('x-vantixgc-ui-theme'), 'restaurant-pos-impact-v1');
+      assert.equal(response.headers.get('x-vantixgc-ui-theme'), 'restaurant-solid-pos-v1');
+      assert.equal(response.headers.get('x-vantixgc-ui-style'), 'solid-robust-v1');
       assert.equal(response.headers.get('x-vantixgc-ui-preview-view'), expectedView);
       assert.match(body, /UI Sandbox/);
-      assert.match(body, /vantixgc-sandbox-pos-impact-v1/);
-      assert.match(body, /#0f172a/);
-      assert.match(body, /#f97316/);
+      assert.match(body, /content:'FUERTES'/);
+      assert.match(body, /content:'BEBIDAS'/);
+      assert.match(body, /background:#dc2626!important/);
       assert.ok(!body.includes('https://esm.sh'));
-      if (expectedView === 'ventas') assert.match(body, /const defaults=\{view:'ventas'/);
-      else assert.match(body, /const defaults=\{view:'dashboard'/);
+      if (expectedView === 'ventas') {
+        assert.match(body, /const defaults=\{view:'ventas'/);
+        assert.match(body, /Confirmar \/ Cobrar/);
+      } else assert.match(body, /const defaults=\{view:'dashboard'/);
     }
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('UI SANDBOX POS IMPACT DASHBOARD + SALES PREVIEW SMOKE OK');
+  console.log('UI SANDBOX SOLID ROBUST POS STYLE SMOKE OK');
 }
 
 main().catch((error) => {
