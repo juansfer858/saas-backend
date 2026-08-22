@@ -22,10 +22,11 @@ async function main() {
   assert.ok(!panelEntry.includes('Panel clásico'));
   assert.ok(!panelEntry.includes('openRestaurantClassic'));
 
-  assert.match(appSource, /href: '\/app\/centro-de-control', icon: '🍽', label: 'Restaurante'/);
+  assert.match(appSource, /href: '\/app\/centro-de-control',[\s\S]*?label: 'Restaurante',[\s\S]*?primaryVertical: true/);
+  assert.match(appSource, /subtitle: 'Operación principal'/);
   assert.match(appSource, /restaurantApp: '\/app\/centro-de-control'/);
   assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
-  assert.ok(!appSource.includes("href: '/app/restaurante', icon: '🍽', label: 'Restaurante'"));
+  assert.ok(!appSource.includes("href: '/app/restaurante'"));
 
   // The Restaurant shell must expose one persistent, obvious way back to Core administration.
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
@@ -73,7 +74,9 @@ async function main() {
       const response = await fetch(base + route);
       const html = await response.text();
       assert.equal(response.status, 200, route);
-      assert.match(html, /href="\/app\/centro-de-control"[^>]*data-restaurant-entry="true"/);
+      assert.equal(response.headers.get('x-vantixgc-super-core-theme'), 'super-core-v5-silver-server');
+      assert.match(html, /href="\/app\/centro-de-control"[^>]*data-restaurant-entry="true"[^>]*data-core-vertical-primary="true"/);
+      assert.match(html, /<strong>Restaurante<\/strong><small>Operación principal<\/small>/);
       assert.ok(!/href="\/app\/restaurante"[^>]*data-restaurant-entry="true"/.test(html), `${route}: sidebar must not point to legacy Restaurant`);
     }
 
@@ -84,7 +87,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + ADMIN BACK LINK + ROUTE UNIFICATION SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + ADMIN BACK LINK + V5 SERVER ROUTE SMOKE OK');
 }
 
 main().catch((error) => {
