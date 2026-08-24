@@ -42,7 +42,10 @@ function parseEnvFile(file) {
 }
 
 function runtimeEnv() {
-  return { ...process.env, ...parseEnvFile(ENV_FILE) };
+  const env = { ...process.env, ...parseEnvFile(ENV_FILE) };
+  if (!env.EDGE_INSTALL_ROOT) env.EDGE_INSTALL_ROOT = ROOT;
+  if (!env.EDGE_DATA_DIR) env.EDGE_DATA_DIR = DATA;
+  return env;
 }
 
 function currentEntry() {
@@ -110,28 +113,25 @@ async function rollbackPending(reason) {
   if (!marker) { updateBusy = false; return; }
   try {
     const currentLink = marker.currentLink || path.join(ROOT, 'current');
+    let fallbackBase = false;
     if (marker.previousTarget) {
       const tmp = `${currentLink}.rollback`;
       fs.rmSync(tmp, { recursive: true, force: true });
       fs.symlinkSync(marker.previousTarget, tmp, process.platform === 'win32' ? 'junction' : 'dir');
       fs.rmSync(currentLink, { recursive: true, force: true });
       fs.renameSync(tmp, currentLink);
-      await reportUpdate(marker, 'ROLLED_BACK', {
-        errorCode: 'EDGE_UPDATE_HEALTH_FAILED',
-        errorMessage: reason,
-        evidence: { supervisorRollback: true, pendingHealthFailures }
-      });
-      writeLastResult({ state: 'ROLLED_BACK', deploymentId: marker.deploymentId, targetVersion: marker.targetVersion, reason });
-      log('UPDATE_ROLLBACK', marker.targetVersion || '', reason);
     } else {
-      await reportUpdate(marker, 'FAILED', {
-        errorCode: 'EDGE_UPDATE_HEALTH_FAILED',
-        errorMessage: reason,
-        evidence: { supervisorRollback: false, noPreviousVersion: true }
-      });
-      writeLastResult({ state: 'FAILED', deploymentId: marker.deploymentId, targetVersion: marker.targetVersion, reason });
-      log('UPDATE_FAILED_NO_PREVIOUS', marker.targetVersion || '', reason);
+      // First managed update: deleting current makes currentEntry() return to ROOT/agent/server.js.
+      fs.rmSync(currentLink, { recursive: true, force: true });
+      fallbackBase = true;
     }
+    await reportUpdate(marker, 'ROLLED_BACK', {
+      errorCode: 'EDGE_UPDATE_HEALTH_FAILED',
+      errorMessage: reason,
+      evidence: { supervisorRollback: true, fallbackBase, pendingHealthFailures }
+    });
+    writeLastResult({ state: 'ROLLED_BACK', deploymentId: marker.deploymentId, targetVersion: marker.targetVersion, reason, fallbackBase });
+    log('UPDATE_ROLLBACK', marker.targetVersion || '', fallbackBase ? 'BASE_AGENT' : 'PREVIOUS_RELEASE', reason);
     fs.rmSync(UPDATE_MARKER, { force: true });
     pendingHealthFailures = 0;
     failures = 0;
