@@ -49,6 +49,7 @@ assert.match(panelEntry, /Trabajar en sede/);
 assert.match(panelEntry, /local-access-grant/);
 assert.match(panelEntry, /installLocalWorkspaceEntry/);
 assert.match(panelEntry, /new URLSearchParams\(location\.search\)\.get\('edge'\)/);
-assert.match(app, /core-nav-v8-edge-workspace/);
+assert.match(app, /core-nav-v7/);
+assert.doesNotMatch(app, /core-nav-v8-edge-workspace/);
 
 console.log('EDGE WORKSPACE V1 STATIC SMOKE OK');
