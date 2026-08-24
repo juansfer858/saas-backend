@@ -22,5 +22,16 @@
   </div>
   <script src="/app/restaurant-theme.js?v=la-riel-v1"></script>
   <script src="/app/restaurant-ui.js?v=identity-core-v1"></script>
+  <script>
+  (()=>{
+    const SESSION_KEY='vantixgc_core_session_v1';let session=null;try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
+    if(!session?.token||!session?.subdomain)return;
+    const api=async(path,opts={})=>{const r=await fetch(path,{...opts,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.token}`,'x-tenant-subdomain':session.subdomain,...(opts.headers||{})}});let b={};try{b=await r.json()}catch{}if(!r.ok)throw new Error(b?.error?.message||b?.message||`HTTP ${r.status}`);return b.data};
+    async function grant(agentId,button){try{if(button){button.disabled=true;button.textContent='Abriendo sede…'}const data=await api(`/api/v1/edge/agents/${encodeURIComponent(agentId)}/local-access-grant`,{method:'POST',body:'{}'});location.href=data.localUrl}catch(e){if(button){button.disabled=false;button.textContent='Trabajar en sede'}const m=document.querySelector('#message');if(m)m.innerHTML=`<div class="ri-error">${String(e.message).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[x]))}</div>`}}
+    async function init(){try{const rows=await api('/api/v1/edge/installations');const online=(rows||[]).filter(x=>x.agent?.state==='ACTIVE'&&x.installation?.online&&x.installation?.lanHost);if(!online.length)return;const box=document.querySelector('.ri-user');if(!box)return;const b=document.createElement('button');b.type='button';b.className='ri-btn small primary';b.style.marginTop='8px';b.textContent='Trabajar en sede';b.title='Abrir el Centro de Control servido por el Edge local de este restaurante';box.appendChild(document.createElement('br'));box.appendChild(b);const requested=new URLSearchParams(location.search).get('edge');const chosen=online.find(x=>x.agent.id===requested)||online[0];b.onclick=()=>grant(chosen.agent.id,b);if(requested&&chosen.agent.id===requested)setTimeout(()=>grant(chosen.agent.id,b),150)}catch{}
+    }
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  })();
+  </script>
 </body>
 </html>
