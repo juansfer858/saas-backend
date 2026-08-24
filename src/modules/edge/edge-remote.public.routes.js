@@ -32,6 +32,15 @@ function noStore(res) {
   res.set('X-Robots-Tag', 'noindex, nofollow');
 }
 
+function tableChannelOpen(context) {
+  if (context?.channel?.type !== 'MESA') return true;
+  return ['OCUPADA', 'CUENTA_PEDIDA'].includes(context.channel.table?.state);
+}
+
+function decorateContext(context) {
+  return { ...context, availableForOrder: tableChannelOpen(context) };
+}
+
 router.get('/:token', async (req, res, next) => {
   try {
     // Validate before serving the shell so revoked/rotated tokens fail closed.
@@ -44,13 +53,17 @@ router.get('/:token', async (req, res, next) => {
 router.get('/:token/context', async (req, res, next) => {
   try {
     noStore(res);
-    res.json({ ok: true, data: await platform.getRemoteContext(req.params.token) });
+    res.json({ ok: true, data: decorateContext(await platform.getRemoteContext(req.params.token)) });
   } catch (error) { next(error); }
 });
 
 router.post('/:token/orders', async (req, res, next) => {
   try {
     noStore(res);
+    const context = await platform.getRemoteContext(req.params.token);
+    if (!tableChannelOpen(context)) {
+      throw new AppError(409, 'La mesa debe estar abierta antes de enviar un autopedido', 'EDGE_REMOTE_TABLE_NOT_OPEN');
+    }
     const order = await platform.createRemoteOrder(req.params.token, parse(orderSchema, req.body || {}));
     res.status(201).json({
       ok: true,
