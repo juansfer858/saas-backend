@@ -153,9 +153,9 @@
   function showLocalEntryError(message) {
     const target = document.querySelector('#message, .content .pagehead, .content');
     if (!target) return;
-    const box = document.createElement('div');
+    const box = document.createElement('span');
     box.className = 'ri-error';
-    box.style.margin = '10px 0';
+    box.style.cssText = 'display:block;margin:10px 0';
     box.textContent = message;
     target.prepend(box);
     setTimeout(() => box.remove(), 7000);
