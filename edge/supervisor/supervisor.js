@@ -1,9 +1,228 @@
-const fs=require('node:fs');const path=require('node:path');const {spawn}=require('node:child_process');
-const ROOT=path.resolve(__dirname,'..');const DATA=process.env.EDGE_DATA_DIR||path.join(ROOT,'data');const LOG=path.join(DATA,'supervisor.log');const HEALTH=process.env.EDGE_SUPERVISOR_HEALTH_URL||`http://127.0.0.1:${process.env.EDGE_PORT||8788}/api/status`;const NODE=process.env.EDGE_NODE_PATH||process.execPath;const ENTRY=process.env.EDGE_AGENT_ENTRY||path.join(ROOT,'agent','server.js');let child=null,stopping=false,failures=0,timer=null;
-fs.mkdirSync(DATA,{recursive:true});function log(...args){const line=`${new Date().toISOString()} ${args.join(' ')}\n`;fs.appendFileSync(LOG,line);process.stdout.write(line)}
-async function health(){try{const r=await fetch(HEALTH,{signal:AbortSignal.timeout(3000)});return r.ok}catch{return false}}
-function schedule(){if(stopping)return;const wait=Math.min(1000*(2**Math.min(failures,6)),60000);clearTimeout(timer);timer=setTimeout(start,wait);timer.unref?.()}
-function start(){if(stopping||child)return;log('START',NODE,ENTRY);child=spawn(NODE,[ENTRY],{cwd:ROOT,env:process.env,stdio:['ignore','pipe','pipe'],windowsHide:true});child.stdout.on('data',d=>fs.appendFileSync(LOG,d));child.stderr.on('data',d=>fs.appendFileSync(LOG,d));child.on('exit',(code,signal)=>{log('EXIT',String(code),String(signal));child=null;failures+=1;schedule()});}
-setInterval(async()=>{if(stopping)return;if(await health()){failures=0;return}if(child){log('HEALTH_FAIL restart');try{child.kill('SIGTERM')}catch{}}else schedule()},10000).unref();
-function stop(){stopping=true;clearTimeout(timer);log('SUPERVISOR_STOP');if(child){try{child.kill('SIGTERM')}catch{}}setTimeout(()=>process.exit(0),3000).unref()}
-process.on('SIGINT',stop);process.on('SIGTERM',stop);start();
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+
+const ROOT = path.resolve(__dirname, '..');
+const DATA = process.env.EDGE_DATA_DIR || path.join(ROOT, 'data');
+const LOG = path.join(DATA, 'supervisor.log');
+const ENV_FILE = path.join(ROOT, '.env');
+const UPDATE_MARKER = path.join(DATA, 'update-pending.json');
+const LAST_UPDATE_RESULT = path.join(DATA, 'update-last-result.json');
+const NODE = process.env.EDGE_NODE_PATH || (fs.existsSync(path.join(ROOT, 'runtime', 'node.exe')) ? path.join(ROOT, 'runtime', 'node.exe') : process.execPath);
+
+let child = null;
+let stopping = false;
+let failures = 0;
+let pendingHealthFailures = 0;
+let timer = null;
+let updateBusy = false;
+
+fs.mkdirSync(DATA, { recursive: true });
+
+function log(...args) {
+  const line = `${new Date().toISOString()} ${args.join(' ')}\n`;
+  fs.appendFileSync(LOG, line);
+  process.stdout.write(line);
+}
+
+function parseEnvFile(file) {
+  const out = {};
+  if (!fs.existsSync(file)) return out;
+  for (const raw of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const index = line.indexOf('=');
+    if (index <= 0) continue;
+    const key = line.slice(0, index).trim();
+    let value = line.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    out[key] = value;
+  }
+  return out;
+}
+
+function runtimeEnv() {
+  return { ...process.env, ...parseEnvFile(ENV_FILE) };
+}
+
+function currentEntry() {
+  const env = runtimeEnv();
+  if (env.EDGE_AGENT_ENTRY) return env.EDGE_AGENT_ENTRY;
+  const activated = path.join(ROOT, 'current', 'agent', 'server.js');
+  return fs.existsSync(activated) ? activated : path.join(ROOT, 'agent', 'server.js');
+}
+
+function healthUrl() {
+  const env = runtimeEnv();
+  return env.EDGE_SUPERVISOR_HEALTH_URL || `http://127.0.0.1:${env.EDGE_PORT || 8788}/api/status`;
+}
+
+async function health() {
+  try {
+    const response = await fetch(healthUrl(), { signal: AbortSignal.timeout(3000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function readMarker() {
+  try { return JSON.parse(fs.readFileSync(UPDATE_MARKER, 'utf8')); } catch { return null; }
+}
+
+function writeLastResult(result) {
+  try { fs.writeFileSync(LAST_UPDATE_RESULT, JSON.stringify({ ...result, recordedAt: new Date().toISOString() }, null, 2)); } catch {}
+}
+
+async function reportUpdate(marker, state, extra = {}) {
+  const env = runtimeEnv();
+  const core = String(env.CORE_BASE_URL || '').replace(/\/$/, '');
+  if (!core || !env.EDGE_AGENT_ID || !env.EDGE_AGENT_KEY || !marker?.deploymentId) return false;
+  try {
+    const response = await fetch(`${core}/edge/api/v1/update/report`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(Number(env.EDGE_HTTP_TIMEOUT_MS || 5000)),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-vantix-edge-id': env.EDGE_AGENT_ID,
+        'x-vantix-edge-key': env.EDGE_AGENT_KEY
+      },
+      body: JSON.stringify({ deploymentId: marker.deploymentId, state, ...extra })
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function schedule() {
+  if (stopping) return;
+  const wait = Math.min(1000 * (2 ** Math.min(failures, 6)), 60000);
+  clearTimeout(timer);
+  timer = setTimeout(start, wait);
+  timer.unref?.();
+}
+
+async function rollbackPending(reason) {
+  if (updateBusy) return;
+  updateBusy = true;
+  const marker = readMarker();
+  if (!marker) { updateBusy = false; return; }
+  try {
+    const currentLink = marker.currentLink || path.join(ROOT, 'current');
+    if (marker.previousTarget) {
+      const tmp = `${currentLink}.rollback`;
+      fs.rmSync(tmp, { recursive: true, force: true });
+      fs.symlinkSync(marker.previousTarget, tmp, process.platform === 'win32' ? 'junction' : 'dir');
+      fs.rmSync(currentLink, { recursive: true, force: true });
+      fs.renameSync(tmp, currentLink);
+      await reportUpdate(marker, 'ROLLED_BACK', {
+        errorCode: 'EDGE_UPDATE_HEALTH_FAILED',
+        errorMessage: reason,
+        evidence: { supervisorRollback: true, pendingHealthFailures }
+      });
+      writeLastResult({ state: 'ROLLED_BACK', deploymentId: marker.deploymentId, targetVersion: marker.targetVersion, reason });
+      log('UPDATE_ROLLBACK', marker.targetVersion || '', reason);
+    } else {
+      await reportUpdate(marker, 'FAILED', {
+        errorCode: 'EDGE_UPDATE_HEALTH_FAILED',
+        errorMessage: reason,
+        evidence: { supervisorRollback: false, noPreviousVersion: true }
+      });
+      writeLastResult({ state: 'FAILED', deploymentId: marker.deploymentId, targetVersion: marker.targetVersion, reason });
+      log('UPDATE_FAILED_NO_PREVIOUS', marker.targetVersion || '', reason);
+    }
+    fs.rmSync(UPDATE_MARKER, { force: true });
+    pendingHealthFailures = 0;
+    failures = 0;
+    if (child) {
+      try { child.kill('SIGTERM'); } catch {}
+    } else schedule();
+  } finally {
+    updateBusy = false;
+  }
+}
+
+async function completePendingIfHealthy() {
+  if (updateBusy) return;
+  const marker = readMarker();
+  if (!marker) return;
+  updateBusy = true;
+  try {
+    const reported = await reportUpdate(marker, 'SUCCESS', {
+      backupPath: marker.backupPath || null,
+      evidence: {
+        supervisorHealthCheck: true,
+        target: marker.target || null,
+        sha256: marker.sha256 || null
+      }
+    });
+    if (!reported) return;
+    writeLastResult({ state: 'SUCCESS', deploymentId: marker.deploymentId, targetVersion: marker.targetVersion });
+    fs.rmSync(UPDATE_MARKER, { force: true });
+    pendingHealthFailures = 0;
+    log('UPDATE_SUCCESS', marker.targetVersion || '');
+  } finally {
+    updateBusy = false;
+  }
+}
+
+function start() {
+  if (stopping || child) return;
+  const entry = currentEntry();
+  const env = runtimeEnv();
+  log('START', NODE, entry);
+  child = spawn(NODE, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  child.stdout.on('data', (d) => fs.appendFileSync(LOG, d));
+  child.stderr.on('data', (d) => fs.appendFileSync(LOG, d));
+  child.on('exit', (code, signal) => {
+    log('EXIT', String(code), String(signal));
+    child = null;
+    failures += 1;
+    if (readMarker()) {
+      pendingHealthFailures += 1;
+      if (pendingHealthFailures >= 3) {
+        void rollbackPending(`La nueva versión terminó repetidamente antes de quedar saludable. exit=${code} signal=${signal}`);
+        return;
+      }
+    }
+    schedule();
+  });
+}
+
+setInterval(async () => {
+  if (stopping) return;
+  if (await health()) {
+    failures = 0;
+    pendingHealthFailures = 0;
+    await completePendingIfHealthy();
+    return;
+  }
+  if (readMarker()) {
+    pendingHealthFailures += 1;
+    if (pendingHealthFailures >= 3) {
+      await rollbackPending('La nueva versión no respondió correctamente al health check del supervisor.');
+      return;
+    }
+  }
+  if (child) {
+    log('HEALTH_FAIL restart');
+    try { child.kill('SIGTERM'); } catch {}
+  } else {
+    schedule();
+  }
+}, 10000).unref();
+
+function stop() {
+  stopping = true;
+  clearTimeout(timer);
+  log('SUPERVISOR_STOP');
+  if (child) {
+    try { child.kill('SIGTERM'); } catch {}
+  }
+  setTimeout(() => process.exit(0), 3000).unref();
+}
+
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
+start();
