@@ -97,6 +97,32 @@ async function suspend(tenantId, verticalValue, options = {}) {
   return suspendWithClient(prisma, tenantId, verticalValue, options);
 }
 
+async function setFromPlatform(superAdminId, tenantId, verticalValue, active, metadata = null) {
+  const vertical = registry.getVertical(verticalValue);
+  if (!vertical) throw new AppError(400, 'Vertical VantixGC inválido', 'VERTICAL_INVALID');
+  if (active && vertical.state !== 'AVAILABLE') throw new AppError(409, 'Ese vertical todavía no está disponible para activación', 'VERTICAL_NOT_AVAILABLE');
+
+  return prisma.$transaction(async (tx) => {
+    const admin = await tx.platformSuperAdmin.findFirst({ where: { id: superAdminId, active: true }, select: { id: true } });
+    if (!admin) throw new AppError(401, 'Super-administrador de plataforma no válido', 'PLATFORM_AUTH_INVALID');
+    const row = active
+      ? await activateWithClient(tx, tenantId, vertical.code, { source: 'PLATFORM_ADMIN', metadata: metadata || undefined })
+      : await suspendWithClient(tx, tenantId, vertical.code, { metadata: metadata || undefined });
+
+    await tx.platformAudit.create({
+      data: {
+        superAdminId,
+        action: active ? 'VERTICAL_ENTITLEMENT_ACTIVATE' : 'VERTICAL_ENTITLEMENT_SUSPEND',
+        entity: 'TENANT_VERTICAL_ENTITLEMENT',
+        entityId: row.id,
+        tenantId,
+        metadata: { verticalCode: vertical.code, active, metadata }
+      }
+    });
+    return { ...row, vertical };
+  });
+}
+
 async function edgeManifest(tenantId) {
   const verticals = await activeVerticals(tenantId);
   return {
@@ -126,5 +152,6 @@ module.exports = {
   hasVertical,
   activate,
   suspend,
+  setFromPlatform,
   edgeManifest
 };
