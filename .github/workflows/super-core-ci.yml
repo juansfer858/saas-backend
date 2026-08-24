@@ -92,6 +92,9 @@ jobs:
       - name: Validate Edge V2 architecture 1-10, secure LAN, updater and remote queues
         run: node scripts/edge-platform-v2-smoke.js
 
+      - name: Validate Edge Workspace normal local Restaurant runtime
+        run: node scripts/edge-workspace-v1-smoke.js
+
       - name: Validate Notifications fifth block and Embedded Signup contract
         run: node scripts/notifications-ui-smoke.js
 
@@ -203,6 +206,9 @@ jobs:
 
       - name: Validate Edge runtime schema self-heal after missing V2 tables
         run: node scripts/edge-runtime-schema-self-heal-smoke.js
+
+      - name: Validate Edge Workspace one-time user grant against PostgreSQL
+        run: node scripts/edge-workspace-v1-db-smoke.js
 
       - name: Validate Edge V2 heartbeat persistence and installations listing against PostgreSQL
         run: node scripts/edge-platform-v2-runtime-db-smoke.js
