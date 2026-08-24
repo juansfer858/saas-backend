@@ -6,6 +6,7 @@ const dianTransmission = require('./src/modules/platform/dian/dian-transmission.
 const notifications = require('./src/modules/notifications/notifications.service');
 const { ensureRestaurantDemoTenant } = require('./scripts/ensure-restaurant-demo-tenant');
 const { ensureRestaurantRuntimeSchema } = require('./scripts/ensure-restaurant-runtime-schema');
+const { ensureEdgeRuntimeSchema } = require('./scripts/ensure-edge-runtime-schema');
 const demoBootstrapState = require('./src/modules/restaurant/restaurant-demo-bootstrap-state');
 
 const PORT = process.env.PORT || 3000;
@@ -13,12 +14,15 @@ const DIAN_QUEUE_INTERVAL_MS = Math.max(Number(process.env.DIAN_QUEUE_INTERVAL_M
 const NOTIFICATION_QUEUE_INTERVAL_MS = Math.max(Number(process.env.NOTIFICATION_QUEUE_INTERVAL_MS) || 30000, 5000);
 const RESTAURANT_DEMO_RETRY_MS = Math.max(Number(process.env.RESTAURANT_DEMO_RETRY_MS) || 5000, 1000);
 const RESTAURANT_DEMO_MAX_ATTEMPTS = Math.max(Number(process.env.RESTAURANT_DEMO_MAX_ATTEMPTS) || 12, 1);
+const EDGE_SCHEMA_RETRY_MS = Math.max(Number(process.env.EDGE_SCHEMA_RETRY_MS) || 5000, 1000);
+const EDGE_SCHEMA_MAX_ATTEMPTS = Math.max(Number(process.env.EDGE_SCHEMA_MAX_ATTEMPTS) || 12, 1);
 let dianWorkerBusy = false;
 let notificationWorkerBusy = false;
 let server = null;
 let dianTimer = null;
 let notificationTimer = null;
 let restaurantDemoTimer = null;
+let edgeSchemaTimer = null;
 
 async function runDianQueue() {
   if (dianWorkerBusy) return;
@@ -43,6 +47,23 @@ async function runNotificationQueue() {
     console.error(`NOTIFICATION_QUEUE_ERROR: ${error.message}`);
   } finally {
     notificationWorkerBusy = false;
+  }
+}
+
+async function ensureEdgeSchemaInBackground(attempt = 1) {
+  try {
+    const schema = await ensureEdgeRuntimeSchema();
+    if (schema.changed) console.log('EDGE_SCHEMA_SYNC_APPLIED');
+    console.log(`EDGE_SCHEMA_RUNTIME_READY attempt=${attempt}`);
+  } catch (error) {
+    const terminal = attempt >= EDGE_SCHEMA_MAX_ATTEMPTS;
+    console.error(`EDGE_SCHEMA_RUNTIME_RETRY attempt=${attempt} error=${error.message}`);
+    if (!terminal) {
+      edgeSchemaTimer = setTimeout(() => ensureEdgeSchemaInBackground(attempt + 1), EDGE_SCHEMA_RETRY_MS);
+      edgeSchemaTimer.unref?.();
+    } else {
+      console.error(`EDGE_SCHEMA_RUNTIME_FAILED attempts=${attempt}`);
+    }
   }
 }
 
@@ -87,6 +108,9 @@ function startRuntime() {
   notificationTimer.unref?.();
   setTimeout(runNotificationQueue, 2500).unref?.();
 
+  edgeSchemaTimer = setTimeout(() => ensureEdgeSchemaInBackground(1), 0);
+  edgeSchemaTimer.unref?.();
+
   restaurantDemoTimer = setTimeout(() => ensureRestaurantDemoInBackground(1), 0);
   restaurantDemoTimer.unref?.();
 }
@@ -96,6 +120,7 @@ async function shutdown(signal) {
   if (dianTimer) clearInterval(dianTimer);
   if (notificationTimer) clearInterval(notificationTimer);
   if (restaurantDemoTimer) clearTimeout(restaurantDemoTimer);
+  if (edgeSchemaTimer) clearTimeout(edgeSchemaTimer);
 
   if (!server) {
     await prisma.$disconnect();
