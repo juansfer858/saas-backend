@@ -17,7 +17,8 @@ const EDGE_TABLE_KEYS = Object.freeze({
   deployment: 'EdgeDeployment',
   relayRequest: 'EdgeRelayRequest',
   remoteChannel: 'EdgeRemoteChannel',
-  remoteOrder: 'EdgeRemoteOrder'
+  remoteOrder: 'EdgeRemoteOrder',
+  localAccessGrant: 'EdgeLocalAccessGrant'
 });
 
 async function readEdgeSchemaState() {
