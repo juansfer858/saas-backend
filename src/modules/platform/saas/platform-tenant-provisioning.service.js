@@ -3,15 +3,22 @@ const { prisma } = require('../../../config/prisma');
 const { AppError } = require('../../../utils/app-error');
 const { seedTenantDefaults } = require('../../../services/tenant-seed.service');
 const { seedPlatformDefaults } = require('../../../services/platform-seed.service');
+const verticalRegistry = require('../verticals/vertical-registry');
+const verticalEntitlements = require('../verticals/vertical-entitlement.service');
 
 const TEMPLATE_DEFINITIONS = Object.freeze({
-  CORE: { code: 'CORE', label: 'Core genérico', available: true, nicho: 'CORE' },
-  RESTAURANTE: { code: 'RESTAURANTE', label: 'Restaurante', available: true, nicho: 'RESTAURANTE' },
-  PAPELERIA: { code: 'PAPELERIA', label: 'Papelería', available: false, nicho: 'PAPELERIA', comingSoon: true }
+  CORE: { code: 'CORE', label: 'Core genérico', available: true, nicho: 'CORE', verticalCode: null },
+  RESTAURANTE: { code: 'RESTAURANTE', label: 'Restaurante', available: true, nicho: 'RESTAURANTE', verticalCode: 'RESTAURANT' },
+  LITOGRAFIA: { code: 'LITOGRAFIA', label: 'Litografía', available: false, nicho: 'LITOGRAFIA', verticalCode: 'LITHOGRAPHY', comingSoon: true },
+  MASCOTAS: { code: 'MASCOTAS', label: 'Mascotas', available: false, nicho: 'MASCOTAS', verticalCode: 'PETS', comingSoon: true },
+  PAPELERIA: { code: 'PAPELERIA', label: 'Papelería', available: false, nicho: 'PAPELERIA', verticalCode: null, comingSoon: true }
 });
 
 function templates() {
-  return Object.values(TEMPLATE_DEFINITIONS).map((x) => ({ ...x }));
+  return Object.values(TEMPLATE_DEFINITIONS).map((x) => ({
+    ...x,
+    vertical: x.verticalCode ? verticalRegistry.getVertical(x.verticalCode) : null
+  }));
 }
 
 function slugBase(value) {
@@ -42,6 +49,7 @@ async function createTenant(superAdminId, input) {
     throw new AppError(400, 'La plantilla solicitada todavía no está disponible para altas', 'PLATFORM_TEMPLATE_NOT_AVAILABLE');
   }
 
+  if (template.verticalCode) verticalRegistry.requireAvailableVertical(template.verticalCode);
   const passwordHash = await bcrypt.hash(input.admin.password, 12);
 
   try {
@@ -80,11 +88,19 @@ async function createTenant(superAdminId, input) {
       await seedTenantDefaults(tx, tenant);
       await seedPlatformDefaults(tx, tenant, tenantAdmin);
 
-      if (template.code === 'RESTAURANTE') {
+      if (template.verticalCode === 'RESTAURANT') {
         await tx.restaurantConfig.upsert({
           where: { tenantId: tenant.id },
           create: { tenantId: tenant.id },
           update: {}
+        });
+      }
+
+      let entitlement = null;
+      if (template.verticalCode) {
+        entitlement = await verticalEntitlements.activateWithClient(tx, tenant.id, template.verticalCode, {
+          source: 'TENANT_TEMPLATE',
+          metadata: { templateCode: template.code }
         });
       }
 
@@ -103,6 +119,7 @@ async function createTenant(superAdminId, input) {
           tenantId: tenant.id,
           metadata: {
             templateCode: template.code,
+            verticalCode: template.verticalCode,
             subdomain,
             adminEmail: tenantAdmin.email,
             createdBy: { id: admin.id, email: admin.email }
@@ -123,7 +140,8 @@ async function createTenant(superAdminId, input) {
         },
         admin: tenantAdmin,
         control,
-        template: { code: template.code, label: template.label },
+        entitlement,
+        template: { code: template.code, label: template.label, verticalCode: template.verticalCode },
         access: {
           loginUrl: '/app',
           subdomain,
