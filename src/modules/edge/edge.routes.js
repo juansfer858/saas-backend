@@ -8,6 +8,7 @@ const platform = require('./edge-platform.service');
 const restaurantSync = require('./edge-restaurant-sync.service');
 const remoteAgent = require('./edge-remote-agent.service');
 const workspace = require('./edge-workspace.service');
+const verticalEntitlements = require('../platform/verticals/vertical-entitlement.service');
 
 const tenantRouter = express.Router();
 const publicRouter = express.Router();
@@ -111,7 +112,12 @@ tenantRouter.post('/agents/:id/rotate-key', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.rotateCredential(req.tenantId, req.params.id) }); } catch (error) { next(error); }
 });
 tenantRouter.post('/agents/:id/local-access-grant', async (req, res, next) => {
-  try { res.status(201).json({ ok: true, data: await workspace.createLocalAccessGrant(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
+  try {
+    if (!(await verticalEntitlements.hasVertical(req.tenantId, 'RESTAURANT'))) {
+      throw new AppError(403, 'Este tenant no tiene activo VantixGC Restaurantes', 'RESTAURANT_VERTICAL_REQUIRED');
+    }
+    res.status(201).json({ ok: true, data: await workspace.createLocalAccessGrant(req.tenantId, req.user, req.params.id) });
+  } catch (error) { next(error); }
 });
 tenantRouter.patch('/agents/:id/release-channel', async (req, res, next) => {
   try {
@@ -181,6 +187,9 @@ tenantRouter.post('/alerts/:id/ack', async (req, res, next) => {
 publicRouter.use('/remote', edgeRemotePublicRouter);
 publicRouter.use(edgeAuth);
 publicRouter.get('/ping', (req, res) => res.json({ ok: true, connected: true, serverTime: new Date().toISOString(), edgeAgentId: req.edgeAgent.id, tenantId: req.edgeAgent.tenantId }));
+publicRouter.get('/vertical-manifest', async (req, res, next) => {
+  try { res.json({ ok: true, data: await verticalEntitlements.edgeManifest(req.edgeAgent.tenantId) }); } catch (error) { next(error); }
+});
 publicRouter.post('/local-access/consume', async (req, res, next) => {
   try {
     const input = parse(localGrantConsumeSchema, req.body || {});
@@ -191,13 +200,19 @@ publicRouter.get('/bootstrap', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.buildBootstrap(req.edgeAgent) }); } catch (error) { next(error); }
 });
 publicRouter.get('/restaurant/bootstrap', async (req, res, next) => {
-  try { res.json({ ok: true, data: await restaurantSync.buildRestaurantBootstrap(req.edgeAgent) }); } catch (error) { next(error); }
+  try {
+    if (!(await verticalEntitlements.hasVertical(req.edgeAgent.tenantId, 'RESTAURANT'))) throw new AppError(404, 'Vertical Restaurante no activo', 'RESTAURANT_VERTICAL_NOT_ACTIVE');
+    res.json({ ok: true, data: await restaurantSync.buildRestaurantBootstrap(req.edgeAgent) });
+  } catch (error) { next(error); }
 });
 publicRouter.post('/sync/operations', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.processOperations(req.edgeAgent, parse(operationsSchema, req.body).operations) }); } catch (error) { next(error); }
 });
 publicRouter.post('/sync/restaurant-operations', async (req, res, next) => {
-  try { res.json({ ok: true, data: await restaurantSync.processOperations(req.edgeAgent, parse(operationsSchema, req.body).operations) }); } catch (error) { next(error); }
+  try {
+    if (!(await verticalEntitlements.hasVertical(req.edgeAgent.tenantId, 'RESTAURANT'))) throw new AppError(403, 'Vertical Restaurante no activo', 'RESTAURANT_VERTICAL_NOT_ACTIVE');
+    res.json({ ok: true, data: await restaurantSync.processOperations(req.edgeAgent, parse(operationsSchema, req.body).operations) });
+  } catch (error) { next(error); }
 });
 publicRouter.post('/heartbeat', async (req, res, next) => {
   try { res.json({ ok: true, data: await platform.heartbeat(req.edgeAgent, parse(heartbeatSchema, req.body)) }); } catch (error) { next(error); }
