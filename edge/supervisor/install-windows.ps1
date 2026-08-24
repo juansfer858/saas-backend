@@ -14,6 +14,7 @@ $ErrorActionPreference = 'Stop'
 $Source = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ExistingEnvPath = Join-Path $InstallDir '.env'
 $Existing = @{}
+$TaskName = 'VantixGC Edge Supervisor'
 
 function Read-DotEnv([string]$Path) {
   $Map = @{}
@@ -32,6 +33,55 @@ function New-Secret {
   return ([guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N'))
 }
 
+function Stop-ExistingEdge([string]$Root) {
+  Write-Host 'Detectando instalación Edge existente...' -ForegroundColor DarkCyan
+  try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
+  Start-Sleep -Milliseconds 800
+
+  $NormalizedRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
+  try {
+    $Processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($NormalizedRoot, [System.StringComparison]::OrdinalIgnoreCase)) -or
+      ($_.CommandLine -and $_.CommandLine.IndexOf($NormalizedRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+    }
+    foreach ($Process in $Processes) {
+      if ($Process.ProcessId -and $Process.ProcessId -ne $PID) {
+        try { Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+      }
+    }
+  } catch {}
+
+  $RuntimeNode = Join-Path $Root 'runtime\node.exe'
+  for ($i = 0; $i -lt 20; $i++) {
+    $Locked = $false
+    if (Test-Path $RuntimeNode) {
+      try {
+        $Stream = [System.IO.File]::Open($RuntimeNode, 'Open', 'ReadWrite', 'None')
+        $Stream.Close()
+      } catch { $Locked = $true }
+    }
+    if (-not $Locked) { return }
+    Start-Sleep -Milliseconds 500
+  }
+  throw "No fue posible detener completamente la instalación Edge existente en $Root."
+}
+
+function Copy-EdgeFiles([string]$From, [string]$To) {
+  $Last = $null
+  for ($Attempt = 1; $Attempt -le 5; $Attempt++) {
+    try {
+      Copy-Item -Path (Join-Path $From '*') -Destination $To -Recurse -Force
+      return
+    } catch {
+      $Last = $_
+      if ($Attempt -ge 5) { break }
+      Start-Sleep -Seconds 1
+      Stop-ExistingEdge $To
+    }
+  }
+  throw $Last
+}
+
 if (Test-Path $ExistingEnvPath) { $Existing = Read-DotEnv $ExistingEnvPath }
 if (-not $CoreBaseUrl) { $CoreBaseUrl = $Existing['CORE_BASE_URL'] }
 if (-not $EdgeAgentId) { $EdgeAgentId = $Existing['EDGE_AGENT_ID'] }
@@ -46,7 +96,8 @@ if (-not $LocalEncryptionKey) { $LocalEncryptionKey = New-Secret }
 if (-not $LanKey) { $LanKey = New-Secret }
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-Copy-Item -Path (Join-Path $Source '*') -Destination $InstallDir -Recurse -Force
+Stop-ExistingEdge $InstallDir
+Copy-EdgeFiles $Source $InstallDir
 
 $EmbeddedNode = Join-Path $InstallDir 'runtime\node.exe'
 if (-not $NodePath -and (Test-Path $EmbeddedNode)) { $NodePath = $EmbeddedNode }
@@ -84,8 +135,8 @@ $Supervisor = Join-Path $InstallDir 'supervisor\supervisor.js'
 $Action = New-ScheduledTaskAction -Execute $NodePath -Argument ('"' + $Supervisor + '"') -WorkingDirectory $InstallDir
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-Register-ScheduledTask -TaskName 'VantixGC Edge Supervisor' -Action $Action -Trigger $Trigger -Settings $Settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
-Start-ScheduledTask -TaskName 'VantixGC Edge Supervisor'
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+Start-ScheduledTask -TaskName $TaskName
 
 Write-Host "VantixGC Edge instalado en $InstallDir."
 Write-Host "Supervisor configurado para iniciar con Windows."
