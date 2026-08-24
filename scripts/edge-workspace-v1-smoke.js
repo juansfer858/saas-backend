@@ -13,12 +13,16 @@ const routes = read('src/modules/edge/edge.routes.js');
 const service = read('src/modules/edge/edge-workspace.service.js');
 const schema = read('prisma/edge-workspace-v1.prisma');
 const restaurantHtml = read('src/web/restaurant.html');
+const panelEntry = read('src/web/panel-restaurant-entry.js');
+const app = read('src/app.js');
+const version = JSON.parse(read('edge/version.json'));
 
-for (const file of ['edge/agent/workspace-entry.js','src/modules/edge/edge-workspace.service.js']) {
+for (const file of ['edge/agent/workspace-entry.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js']) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
 
+assert.equal(version.version, '2.1.0-workspace.1');
 assert.match(schema, /model EdgeLocalAccessGrant/);
 assert.match(service, /createLocalAccessGrant/);
 assert.match(service, /consumeLocalAccessGrant/);
@@ -41,5 +45,10 @@ assert.match(installer, /VantixGC Restaurantes\.url/);
 assert.match(installer, /app\/centro-de-control/);
 assert.match(restaurantHtml, /Trabajar en sede/);
 assert.match(restaurantHtml, /local-access-grant/);
+assert.match(panelEntry, /Trabajar en sede/);
+assert.match(panelEntry, /local-access-grant/);
+assert.match(panelEntry, /installLocalWorkspaceEntry/);
+assert.match(panelEntry, /new URLSearchParams\(location\.search\)\.get\('edge'\)/);
+assert.match(app, /core-nav-v8-edge-workspace/);
 
 console.log('EDGE WORKSPACE V1 STATIC SMOKE OK');
