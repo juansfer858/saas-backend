@@ -201,6 +201,9 @@ jobs:
       - name: Validate Edge central reconciliation, negative stock, policy and audited drift review
         run: node scripts/edge-offline-core-smoke.js
 
+      - name: Validate Edge runtime schema self-heal after missing V2 tables
+        run: node scripts/edge-runtime-schema-self-heal-smoke.js
+
       - name: Validate Edge V2 heartbeat persistence and installations listing against PostgreSQL
         run: node scripts/edge-platform-v2-runtime-db-smoke.js
 
