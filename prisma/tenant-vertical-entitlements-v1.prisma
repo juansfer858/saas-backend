@@ -1,0 +1,16 @@
+model TenantVerticalEntitlement {
+  id           String   @id @default(uuid())
+  tenantId     String
+  verticalCode String
+  state        String   @default("ACTIVE")
+  source       String   @default("PLATFORM")
+  metadata     Json?
+  activatedAt  DateTime @default(now())
+  suspendedAt  DateTime?
+  creadoEn     DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([tenantId, verticalCode])
+  @@index([tenantId, state])
+  @@index([verticalCode, state])
+}
