@@ -51,11 +51,15 @@ function runtimeEnv() {
 function currentEntry() {
   const env = runtimeEnv();
   if (env.EDGE_AGENT_ENTRY) return env.EDGE_AGENT_ENTRY;
+  const activatedUniversal = path.join(ROOT, 'current', 'agent', 'universal-entry.js');
   const activatedWorkspace = path.join(ROOT, 'current', 'agent', 'workspace-entry.js');
   const activatedServer = path.join(ROOT, 'current', 'agent', 'server.js');
+  const baseUniversal = path.join(ROOT, 'agent', 'universal-entry.js');
   const baseWorkspace = path.join(ROOT, 'agent', 'workspace-entry.js');
+  if (fs.existsSync(activatedUniversal)) return activatedUniversal;
   if (fs.existsSync(activatedWorkspace)) return activatedWorkspace;
   if (fs.existsSync(activatedServer)) return activatedServer;
+  if (fs.existsSync(baseUniversal)) return baseUniversal;
   return fs.existsSync(baseWorkspace) ? baseWorkspace : path.join(ROOT, 'agent', 'server.js');
 }
 
