@@ -89,6 +89,18 @@ class EdgeUpdater {
     }
   }
 
+  async validateStagedRelease(staged) {
+    const required = [
+      path.join(staged, 'agent', 'server.js'),
+      path.join(staged, 'agent', 'store.js'),
+      path.join(staged, 'print-spooler', 'escpos.js')
+    ];
+    for (const file of required) {
+      try { await fsp.access(file, fs.constants.R_OK); }
+      catch { throw Object.assign(new Error(`El paquete Edge no contiene ${path.relative(staged, file)}`), { code: 'EDGE_UPDATE_PACKAGE_INVALID' }); }
+    }
+  }
+
   async atomicInstall(staged, deployment) {
     const releases = path.join(this.appRoot, 'releases');
     const target = path.join(releases, deployment.targetVersion);
@@ -107,7 +119,12 @@ class EdgeUpdater {
   }
 
   async rollback(install) {
-    if (!install?.previous) return false;
+    if (!install?.currentLink) return false;
+    if (!install.previous) {
+      // First managed release: remove current so the supervisor falls back to the base agent shipped by the installer.
+      await fsp.rm(install.currentLink, { force: true, recursive: true });
+      return true;
+    }
     const tmp = `${install.currentLink}.rollback`;
     await fsp.rm(tmp, { force: true, recursive: true });
     await fsp.symlink(install.previous, tmp, process.platform === 'win32' ? 'junction' : 'dir');
@@ -161,6 +178,7 @@ class EdgeUpdater {
       }
       const backupPath = await this.backup(deploymentId, manifest.deployment.previousVersion);
       await this.extract(zip, staged);
+      await this.validateStagedRelease(staged);
       await this.report(deploymentId, 'INSTALLING', { backupPath });
       install = await this.atomicInstall(staged, manifest.deployment);
       const marker = await this.writePendingActivation({
