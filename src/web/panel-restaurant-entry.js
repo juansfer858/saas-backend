@@ -3,7 +3,7 @@
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
-  const NAV_VERSION = 'core-nav-v8-edge-workspace';
+  const NAV_VERSION = 'core-nav-v7';
   const CONTROL_CENTER_PATH = '/app/centro-de-control';
   const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
 
