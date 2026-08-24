@@ -9,7 +9,6 @@
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
-  let localEntryBusy = false;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -55,25 +54,6 @@
 
   function currentPath() {
     return String(window.location.pathname || '/app/dashboard').replace(/\/$/, '') || '/app';
-  }
-
-  async function tenantApi(path, opts = {}) {
-    const session = readSession();
-    if (!session?.token || !session?.subdomain) throw new Error('Sesión VantixGC requerida');
-    const response = await fetch(path, {
-      ...opts,
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.token}`,
-        'x-tenant-subdomain': session.subdomain,
-        ...(opts.headers || {})
-      }
-    });
-    let body = {};
-    try { body = await response.json(); } catch {}
-    if (!response.ok) throw new Error(body?.error?.message || body?.message || `HTTP ${response.status}`);
-    return body.data;
   }
 
   async function checkRestaurantAccess() {
@@ -150,65 +130,6 @@
     }
   }
 
-  function showLocalEntryError(message) {
-    const target = document.querySelector('#message, .content .pagehead, .content');
-    if (!target) return;
-    const box = document.createElement('span');
-    box.className = 'ri-error';
-    box.style.cssText = 'display:block;margin:10px 0';
-    box.textContent = message;
-    target.prepend(box);
-    setTimeout(() => box.remove(), 7000);
-  }
-
-  async function openLocalEdge(agentId, button = null) {
-    if (localEntryBusy) return;
-    localEntryBusy = true;
-    const previous = button?.textContent;
-    try {
-      if (button) { button.disabled = true; button.textContent = 'Abriendo sede…'; }
-      const data = await tenantApi(`/api/v1/edge/agents/${encodeURIComponent(agentId)}/local-access-grant`, { method: 'POST', body: '{}' });
-      window.location.href = data.localUrl;
-    } catch (error) {
-      if (button) { button.disabled = false; button.textContent = previous || 'Trabajar en sede'; }
-      localEntryBusy = false;
-      showLocalEntryError(error.message);
-    }
-  }
-
-  async function installLocalWorkspaceEntry() {
-    if (!hasRestaurantAccess || currentPath() !== CONTROL_CENTER_PATH) return;
-    let rows;
-    try { rows = await tenantApi('/api/v1/edge/installations'); }
-    catch { return; }
-    const online = (rows || []).filter((row) => row.agent?.state === 'ACTIVE' && row.installation?.online && row.installation?.lanHost && row.installation?.lanPort);
-    if (!online.length) return;
-
-    const requested = new URLSearchParams(location.search).get('edge');
-    const chosen = online.find((row) => row.agent.id === requested) || online[0];
-    let actions = document.querySelector('.pagehead .actions, .cc-head .cc-view-actions, .cc-head');
-    if (!actions) actions = document.querySelector('.content, main');
-    let button = document.querySelector('[data-edge-workspace-entry]');
-    if (!button && actions) {
-      button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'btn cc-core-link';
-      button.dataset.edgeWorkspaceEntry = 'true';
-      button.textContent = 'Trabajar en sede';
-      button.title = `Abrir ${chosen.agent.pointCode} por LAN · ${chosen.installation.lanHost}:${chosen.installation.lanPort}`;
-      button.addEventListener('click', () => openLocalEdge(chosen.agent.id, button));
-      actions.appendChild(button);
-    }
-
-    if (requested && chosen.agent.id === requested) {
-      const url = new URL(location.href);
-      url.searchParams.delete('edge');
-      url.searchParams.delete('return');
-      history.replaceState(history.state, '', url.pathname + (url.search ? url.search : ''));
-      setTimeout(() => openLocalEdge(chosen.agent.id, button), 120);
-    }
-  }
-
   function renameAccountingConfigurationHeading() {
     if (currentPath() !== '/app/configuracion') return;
     const heading = document.querySelector('.content .pagehead h1, .content .head h1');
@@ -231,7 +152,6 @@
       await checkRestaurantAccess();
       installCurrentUi();
     }
-    await installLocalWorkspaceEntry();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
@@ -239,8 +159,7 @@
 
   window.VantixGCRestaurantNavigation = Object.freeze({
     controlCenterPath: CONTROL_CENTER_PATH,
-    openControlCenter: openRestaurantControlCenter,
-    openLocalEdge
+    openControlCenter: openRestaurantControlCenter
   });
   window.VantixGCCoreNavigationVersion = NAV_VERSION;
   window.VantixGCCoreSidebarRuntime = 'off';
