@@ -1,0 +1,9 @@
+const fs=require('node:fs');const path=require('node:path');const {spawn}=require('node:child_process');
+const ROOT=path.resolve(__dirname,'..');const DATA=process.env.EDGE_DATA_DIR||path.join(ROOT,'data');const LOG=path.join(DATA,'supervisor.log');const HEALTH=process.env.EDGE_SUPERVISOR_HEALTH_URL||`http://127.0.0.1:${process.env.EDGE_PORT||8788}/api/status`;const NODE=process.env.EDGE_NODE_PATH||process.execPath;const ENTRY=process.env.EDGE_AGENT_ENTRY||path.join(ROOT,'agent','server.js');let child=null,stopping=false,failures=0,timer=null;
+fs.mkdirSync(DATA,{recursive:true});function log(...args){const line=`${new Date().toISOString()} ${args.join(' ')}\n`;fs.appendFileSync(LOG,line);process.stdout.write(line)}
+async function health(){try{const r=await fetch(HEALTH,{signal:AbortSignal.timeout(3000)});return r.ok}catch{return false}}
+function schedule(){if(stopping)return;const wait=Math.min(1000*(2**Math.min(failures,6)),60000);clearTimeout(timer);timer=setTimeout(start,wait);timer.unref?.()}
+function start(){if(stopping||child)return;log('START',NODE,ENTRY);child=spawn(NODE,[ENTRY],{cwd:ROOT,env:process.env,stdio:['ignore','pipe','pipe'],windowsHide:true});child.stdout.on('data',d=>fs.appendFileSync(LOG,d));child.stderr.on('data',d=>fs.appendFileSync(LOG,d));child.on('exit',(code,signal)=>{log('EXIT',String(code),String(signal));child=null;failures+=1;schedule()});}
+setInterval(async()=>{if(stopping)return;if(await health()){failures=0;return}if(child){log('HEALTH_FAIL restart');try{child.kill('SIGTERM')}catch{}}else schedule()},10000).unref();
+function stop(){stopping=true;clearTimeout(timer);log('SUPERVISOR_STOP');if(child){try{child.kill('SIGTERM')}catch{}}setTimeout(()=>process.exit(0),3000).unref()}
+process.on('SIGINT',stop);process.on('SIGTERM',stop);start();
