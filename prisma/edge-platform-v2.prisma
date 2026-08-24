@@ -1,0 +1,176 @@
+enum EdgeReleaseChannel {
+  PILOT
+  STABLE
+}
+
+enum EdgeDeploymentState {
+  PENDING
+  DOWNLOADING
+  BACKUP
+  INSTALLING
+  HEALTHCHECK
+  SUCCESS
+  ROLLED_BACK
+  FAILED
+  CANCELED
+}
+
+enum EdgeRelayState {
+  PENDING
+  CLAIMED
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum EdgeRemoteChannelType {
+  MESA
+  DOMICILIO
+  RECOGER
+}
+
+enum EdgeRemoteOrderState {
+  NEW
+  PENDING_CONFIRMATION
+  APPROVED
+  PREPARING
+  READY
+  IN_TRANSIT
+  DELIVERED
+  PICKED_UP
+  REJECTED
+  CANCELED
+}
+
+model EdgeInstallation {
+  id               String             @id @default(uuid())
+  tenantId         String
+  edgeAgentId      String             @unique
+  installationId   String             @unique
+  deviceName       String?
+  os               String?
+  architecture     String?
+  lanHost          String?
+  lanPort          Int?
+  softwareVersion  String?
+  desiredVersion   String?
+  releaseChannel   EdgeReleaseChannel @default(PILOT)
+  healthStatus     String             @default("UNKNOWN")
+  lastHeartbeatAt  DateTime?
+  lastHealth       Json?
+  relayConnected   Boolean            @default(false)
+  lastRelayAt      DateTime?
+  updaterState     String             @default("IDLE")
+  lastBackupAt     DateTime?
+  lastUpdateAt     DateTime?
+  rollbackVersion  String?
+  creadoEn         DateTime           @default(now())
+  actualizadoEn    DateTime           @updatedAt
+
+  @@unique([tenantId, installationId])
+  @@index([tenantId, healthStatus, lastHeartbeatAt])
+  @@index([releaseChannel, desiredVersion])
+}
+
+model EdgeRelease {
+  id              String             @id @default(uuid())
+  tenantId        String?
+  version         String
+  channel         EdgeReleaseChannel @default(PILOT)
+  artifactUrl     String
+  sha256          String
+  releaseNotes    String?
+  minCoreVersion  String?
+  mandatory       Boolean            @default(false)
+  enabled         Boolean            @default(true)
+  createdByUserId String?
+  creadoEn        DateTime           @default(now())
+
+  @@unique([tenantId, version])
+  @@index([tenantId, channel, enabled, creadoEn])
+}
+
+model EdgeDeployment {
+  id                String              @id @default(uuid())
+  tenantId          String
+  edgeAgentId       String
+  installationId   String?
+  releaseId         String
+  targetVersion     String
+  state             EdgeDeploymentState @default(PENDING)
+  requestedByUserId String?
+  requestedAt       DateTime            @default(now())
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  backupPath        String?
+  previousVersion   String?
+  errorCode         String?
+  errorMessage      String?
+  evidence          Json?
+  actualizadoEn     DateTime            @updatedAt
+
+  @@index([tenantId, edgeAgentId, state])
+  @@index([releaseId, state])
+}
+
+model EdgeRelayRequest {
+  id            String         @id @default(uuid())
+  tenantId      String
+  edgeAgentId   String
+  action        String
+  requestBody   Json?
+  responseBody  Json?
+  state         EdgeRelayState @default(PENDING)
+  claimedAt     DateTime?
+  completedAt   DateTime?
+  expiresAt     DateTime
+  errorCode     String?
+  errorMessage  String?
+  creadoEn      DateTime       @default(now())
+
+  @@index([edgeAgentId, state, creadoEn])
+  @@index([tenantId, state, creadoEn])
+}
+
+model EdgeRemoteChannel {
+  id            String                @id @default(uuid())
+  tenantId      String
+  edgeAgentId   String
+  type          EdgeRemoteChannelType
+  name          String
+  tableId       String?
+  tokenHash     String                @unique
+  active        Boolean               @default(true)
+  creadoEn      DateTime              @default(now())
+  actualizadoEn DateTime              @updatedAt
+
+  @@index([tenantId, edgeAgentId, type, active])
+}
+
+model EdgeRemoteOrder {
+  id                String               @id @default(uuid())
+  tenantId          String
+  edgeAgentId       String
+  remoteChannelId   String
+  channelType       EdgeRemoteChannelType
+  state             EdgeRemoteOrderState @default(NEW)
+  customerName      String?
+  customerPhone     String?
+  deliveryAddress   String?
+  notes             String?
+  items             Json
+  quotedTotal       Decimal              @default(0) @db.Decimal(18, 2)
+  paymentMode       String               @default("CASH")
+  localOperationId  String?
+  originDocumentId  String?
+  acceptedAt        DateTime?
+  readyAt           DateTime?
+  completedAt       DateTime?
+  rejectedAt        DateTime?
+  creadoEn          DateTime             @default(now())
+  actualizadoEn     DateTime             @updatedAt
+
+  @@index([tenantId, state, creadoEn])
+  @@index([edgeAgentId, state, creadoEn])
+  @@index([remoteChannelId, creadoEn])
+}

@@ -89,6 +89,9 @@ jobs:
       - name: Validate Edge production-closure policy UI, backoff and evidence store
         run: node scripts/edge-offline-closure-ui-smoke.js
 
+      - name: Validate Edge V2 architecture 1-10, secure LAN, updater and remote queues
+        run: node scripts/edge-platform-v2-smoke.js
+
       - name: Validate Notifications fifth block and Embedded Signup contract
         run: node scripts/notifications-ui-smoke.js
 
