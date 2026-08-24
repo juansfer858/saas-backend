@@ -82,6 +82,20 @@ function Copy-EdgeFiles([string]$From, [string]$To) {
   throw $Last
 }
 
+function Install-RestaurantShortcut([int]$Port) {
+  try {
+    $Desktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+    if (-not $Desktop) { return }
+    $Shortcut = Join-Path $Desktop 'VantixGC Restaurantes.url'
+    @"
+[InternetShortcut]
+URL=http://127.0.0.1:$Port/app/centro-de-control
+"@ | Set-Content -LiteralPath $Shortcut -Encoding ASCII
+  } catch {
+    Write-Warning "No se pudo crear el acceso directo VantixGC Restaurantes: $($_.Exception.Message)"
+  }
+}
+
 if (Test-Path $ExistingEnvPath) { $Existing = Read-DotEnv $ExistingEnvPath }
 if (-not $CoreBaseUrl) { $CoreBaseUrl = $Existing['CORE_BASE_URL'] }
 if (-not $EdgeAgentId) { $EdgeAgentId = $Existing['EDGE_AGENT_ID'] }
@@ -118,7 +132,6 @@ EDGE_DATA_DIR=$InstallDir\data
 EDGE_DB_PATH=$InstallDir\data\vantixgc-edge.sqlite
 "@ | Set-Content -LiteralPath $EnvFile -Encoding UTF8
 
-# Restrict the file containing device credentials to SYSTEM and local Administrators.
 try {
   $System = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
   $Admins = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')
@@ -137,8 +150,11 @@ $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
+Install-RestaurantShortcut $EdgePort
 
-Write-Host "VantixGC Edge instalado en $InstallDir."
+Write-Host "VantixGC Restaurantes instalado en $InstallDir."
+Write-Host "Centro de Control local: http://127.0.0.1:$EdgePort/app/centro-de-control"
+Write-Host "Se creó el acceso directo 'VantixGC Restaurantes' en el escritorio."
 Write-Host "Supervisor configurado para iniciar con Windows."
 Write-Host "LAN discovery activo en el puerto UDP 8789; las escrituras LAN requieren clave de emparejamiento."
 Write-Host "La clave LAN fue guardada localmente y no se publica en discovery."
