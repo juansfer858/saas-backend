@@ -26,6 +26,12 @@ const platformRestaurantFiscalGovernancePath = path.join(__dirname, 'web', 'plat
 const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
+const restaurantHtmlPath = path.join(__dirname, 'web', 'restaurant.html');
+const restaurantThemeCssPath = path.join(__dirname, 'web', 'restaurant-theme.css');
+const restaurantThemeJsPath = path.join(__dirname, 'web', 'restaurant-theme.js');
+const restaurantUiPath = path.join(__dirname, 'web', 'restaurant-ui.js');
+const restaurantControlCenterCssPath = path.join(__dirname, 'web', 'restaurant-control-center.css');
+const restaurantControlCenterJsPath = path.join(__dirname, 'web', 'restaurant-control-center.js');
 
 const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
@@ -190,6 +196,28 @@ app.use('/edge/api/v1', edgePublicRouter);
 app.get('/r/:token', (_req, res) => res.sendFile(restaurantQrHtmlPath));
 app.get('/app/restaurant-fiscal-warning.js', (_req, res) => {
   res.type('application/javascript').sendFile(restaurantFiscalWarningPath);
+});
+app.get('/app/restaurant-theme.css', (_req, res) => {
+  res.type('text/css').sendFile(restaurantThemeCssPath);
+});
+app.get('/app/restaurant-theme.js', (_req, res) => {
+  res.type('application/javascript').sendFile(restaurantThemeJsPath);
+});
+app.get('/app/restaurant-ui.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(restaurantUiPath);
+});
+app.get('/app/restaurant-control-center.css', (_req, res) => {
+  res.type('text/css').sendFile(restaurantControlCenterCssPath);
+});
+app.get('/app/restaurant-control-center.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(restaurantControlCenterJsPath);
+});
+app.get('/app/centro-de-control', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-VantixGC-Vertical', 'RESTAURANT');
+  res.sendFile(restaurantHtmlPath);
 });
 app.get('/app/restaurante', (_req, res) => {
   res.set('Cache-Control', 'no-store');
