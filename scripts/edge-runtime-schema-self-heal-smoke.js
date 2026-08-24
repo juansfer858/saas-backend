@@ -19,6 +19,7 @@ assert.match(serverSource, /ensureEdgeSchemaInBackground/);
     assert.equal(initial.ready, true, 'El esquema Edge debe estar completo después de prisma db push inicial');
 
     const v2Tables = [
+      EDGE_TABLE_KEYS.localAccessGrant,
       EDGE_TABLE_KEYS.remoteOrder,
       EDGE_TABLE_KEYS.remoteChannel,
       EDGE_TABLE_KEYS.relayRequest,
@@ -33,6 +34,7 @@ assert.match(serverSource, /ensureEdgeSchemaInBackground/);
     const broken = await readEdgeSchemaState();
     assert.equal(broken.ready, false, 'La prueba debe reproducir un esquema Edge V2 incompleto');
     assert.equal(Boolean(broken.state.installation), false, 'EdgeInstallation debe quedar ausente antes del self-heal');
+    assert.equal(Boolean(broken.state.localAccessGrant), false, 'EdgeLocalAccessGrant debe quedar ausente antes del self-heal');
 
     const healed = await ensureEdgeRuntimeSchema();
     assert.equal(healed.ready, true);
@@ -47,6 +49,7 @@ assert.match(serverSource, /ensureEdgeSchemaInBackground/);
     console.log('EDGE RUNTIME SCHEMA SELF-HEAL OK');
     console.log(JSON.stringify({
       reproducedMissingEdgeV2Tables: true,
+      workspaceGrantRecovered: true,
       prismaDbPushSelfHeal: true,
       startupHookPresent: true,
       edgeSchemaReady: true
