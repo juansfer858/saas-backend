@@ -27,7 +27,7 @@ const edgeConfigHtmlPath = path.join(__dirname, 'web', 'edge-config.html');
 const restaurantQrHtmlPath = path.join(__dirname, 'web', 'restaurant-qr.html');
 const restaurantFiscalWarningPath = path.join(__dirname, 'web', 'restaurant-fiscal-warning.js');
 
-const TENANT_NAV_VERSION = 'core-nav-v8-edge-workspace';
+const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
 const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
 const SIDEBAR_STABILITY_VERSION = 'tenant-card-server-slot-v1';
