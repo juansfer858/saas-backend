@@ -1,70 +1,32 @@
-const express = require('express');
-const { z } = require('zod');
-const { AppError } = require('../../utils/app-error');
-const { edgeAuth } = require('./edge.auth');
-const { edgeRemotePublicRouter } = require('./edge-remote.public.routes');
-const service = require('./edge.service');
-const platform = require('./edge-platform.service');
+const express=require('express');
+const {z}=require('zod');
+const {AppError}=require('../../utils/app-error');
+const {edgeAuth}=require('./edge.auth');
+const {edgeRemotePublicRouter}=require('./edge-remote.public.routes');
+const service=require('./edge.service');
+const platform=require('./edge-platform.service');
+const restaurantSync=require('./edge-restaurant-sync.service');
+const tenantRouter=express.Router(),publicRouter=express.Router();
+function parse(schema,value){const r=schema.safeParse(value);if(!r.success)throw new AppError(400,'Datos Edge inválidos','VALIDATION_ERROR',r.error.flatten());return r.data}
+const agentSchema=z.object({name:z.string().trim().min(2).max(100),pointCode:z.string().trim().min(2).max(50),defaultCustomerId:z.string().uuid().optional().nullable(),defaultCashAccountId:z.string().uuid().optional().nullable(),softwareVersion:z.string().trim().max(50).optional().nullable()});
+const offlinePolicySchema=z.object({paymentPolicy:z.enum(['CASH_ONLY','MANUAL_EXTERNAL_PENDING','PAUSE_SALES']),manualPaymentNote:z.string().trim().max(500).optional().nullable()});
+const operation=z.object({id:z.string().trim().min(8).max(120),type:z.string().trim().min(2).max(80),localTimestamp:z.coerce.date(),payload:z.record(z.string(),z.any())});
+const operationsSchema=z.object({operations:z.array(operation).min(1).max(200)});
+const heartbeatSchema=z.object({installationId:z.string().trim().min(8).max(160),deviceName:z.string().trim().max(160).optional().nullable(),os:z.string().trim().max(80).optional().nullable(),architecture:z.string().trim().max(50).optional().nullable(),lanHost:z.string().trim().max(120).optional().nullable(),lanPort:z.coerce.number().int().min(1).max(65535).optional().nullable(),softwareVersion:z.string().trim().max(80).optional().nullable(),healthStatus:z.string().trim().max(40).optional(),health:z.record(z.string(),z.any()).optional().nullable(),relayConnected:z.boolean().optional(),updaterState:z.string().trim().max(60).optional()});
+const releaseSchema=z.object({version:z.string().trim().min(1).max(80),channel:z.enum(['PILOT','STABLE']).optional(),artifactUrl:z.string().url().max(2000),sha256:z.string().regex(/^[a-fA-F0-9]{64}$/),releaseNotes:z.string().max(5000).optional().nullable(),minCoreVersion:z.string().trim().max(80).optional().nullable(),mandatory:z.boolean().optional(),enabled:z.boolean().optional()});
+const deploymentReportSchema=z.object({deploymentId:z.string().uuid(),state:z.enum(['DOWNLOADING','BACKUP','INSTALLING','HEALTHCHECK','SUCCESS','ROLLED_BACK','FAILED']),backupPath:z.string().max(1000).optional().nullable(),errorCode:z.string().max(120).optional().nullable(),errorMessage:z.string().max(2000).optional().nullable(),evidence:z.record(z.string(),z.any()).optional().nullable()});
+const relaySchema=z.object({edgeAgentId:z.string().uuid(),action:z.enum(['STATUS','SYNC_NOW','CATALOG','PRINT_QUEUE','REMOTE_ORDERS','UPDATE_CHECK']),requestBody:z.record(z.string(),z.any()).optional().nullable(),ttlSeconds:z.coerce.number().int().min(15).max(300).optional()});
+const relayCompleteSchema=z.object({ok:z.boolean().optional(),response:z.record(z.string(),z.any()).optional().nullable(),errorCode:z.string().max(120).optional().nullable(),errorMessage:z.string().max(2000).optional().nullable()});
+const remoteChannelSchema=z.object({edgeAgentId:z.string().uuid(),type:z.enum(['MESA','DOMICILIO','RECOGER']),name:z.string().trim().min(1).max(120),tableId:z.string().uuid().optional().nullable()});
+const remoteReportSchema=z.object({state:z.enum(['APPROVED','PREPARING','READY','IN_TRANSIT','DELIVERED','PICKED_UP','REJECTED','CANCELED']).optional(),localOperationId:z.string().trim().max(120).optional().nullable(),originDocumentId:z.string().trim().max(120).optional().nullable()});
 
-const tenantRouter = express.Router();
-const publicRouter = express.Router();
+tenantRouter.get('/policy',async(r,s,n)=>{try{s.json({ok:true,data:await service.getOfflinePolicy(r.tenantId)})}catch(e){n(e)}});tenantRouter.put('/policy',async(r,s,n)=>{try{s.json({ok:true,data:await service.saveOfflinePolicy(r.tenantId,r.userId,parse(offlinePolicySchema,r.body))})}catch(e){n(e)}});tenantRouter.get('/agents',async(r,s,n)=>{try{s.json({ok:true,data:await service.listAgents(r.tenantId)})}catch(e){n(e)}});tenantRouter.post('/agents',async(r,s,n)=>{try{s.status(201).json({ok:true,data:await service.provisionAgent(r.tenantId,r.userId,parse(agentSchema,r.body))})}catch(e){n(e)}});tenantRouter.post('/agents/:id/revoke',async(r,s,n)=>{try{s.json({ok:true,data:await service.revokeAgent(r.tenantId,r.userId,r.params.id)})}catch(e){n(e)}});tenantRouter.post('/agents/:id/rotate-key',async(r,s,n)=>{try{s.json({ok:true,data:await service.rotateCredential(r.tenantId,r.params.id)})}catch(e){n(e)}});tenantRouter.patch('/agents/:id/release-channel',async(r,s,n)=>{try{const i=parse(z.object({channel:z.enum(['PILOT','STABLE'])}),r.body);s.json({ok:true,data:await platform.setReleaseChannel(r.tenantId,r.params.id,i.channel)})}catch(e){n(e)}});tenantRouter.get('/installations',async(r,s,n)=>{try{s.json({ok:true,data:await platform.listInstallations(r.tenantId)})}catch(e){n(e)}});tenantRouter.get('/releases',async(r,s,n)=>{try{s.json({ok:true,data:await platform.listReleases(r.tenantId)})}catch(e){n(e)}});tenantRouter.post('/releases',async(r,s,n)=>{try{s.status(201).json({ok:true,data:await platform.createRelease(r.tenantId,r.userId,parse(releaseSchema,r.body))})}catch(e){n(e)}});tenantRouter.post('/agents/:id/deploy',async(r,s,n)=>{try{const i=parse(z.object({releaseId:z.string().uuid()}),r.body);s.status(201).json({ok:true,data:await platform.requestDeployment(r.tenantId,r.userId,r.params.id,i.releaseId)})}catch(e){n(e)}});tenantRouter.post('/relay/requests',async(r,s,n)=>{try{const i=parse(relaySchema,r.body);s.status(201).json({ok:true,data:await platform.createRelayRequest(r.tenantId,i.edgeAgentId,i.action,i.requestBody,i.ttlSeconds)})}catch(e){n(e)}});tenantRouter.get('/relay/requests/:id',async(r,s,n)=>{try{s.json({ok:true,data:await platform.getRelayRequest(r.tenantId,r.params.id)})}catch(e){n(e)}});tenantRouter.get('/remote-channels',async(r,s,n)=>{try{s.json({ok:true,data:await platform.listRemoteChannels(r.tenantId)})}catch(e){n(e)}});tenantRouter.post('/remote-channels',async(r,s,n)=>{try{const i=parse(remoteChannelSchema,r.body),d=await platform.createRemoteChannel(r.tenantId,i.edgeAgentId,i);d.publicPath=`/edge/api/v1/remote/${d.token}`;s.status(201).json({ok:true,data:d})}catch(e){n(e)}});tenantRouter.post('/remote-channels/:id/rotate-token',async(r,s,n)=>{try{const d=await platform.rotateRemoteChannel(r.tenantId,r.params.id);d.publicPath=`/edge/api/v1/remote/${d.token}`;s.json({ok:true,data:d})}catch(e){n(e)}});tenantRouter.get('/remote-orders',async(r,s,n)=>{try{s.json({ok:true,data:await platform.listRemoteOrders(r.tenantId,r.query)})}catch(e){n(e)}});tenantRouter.post('/remote-orders/:id/approve',async(r,s,n)=>{try{s.json({ok:true,data:await platform.decideRemoteOrder(r.tenantId,r.params.id,'APPROVE')})}catch(e){n(e)}});tenantRouter.post('/remote-orders/:id/reject',async(r,s,n)=>{try{s.json({ok:true,data:await platform.decideRemoteOrder(r.tenantId,r.params.id,'REJECT')})}catch(e){n(e)}});tenantRouter.get('/alerts',async(r,s,n)=>{try{s.json({ok:true,data:await service.listAlerts(r.tenantId,r.query)})}catch(e){n(e)}});tenantRouter.post('/alerts/:id/ack',async(r,s,n)=>{try{s.json({ok:true,data:await service.acknowledgeAlert(r.tenantId,r.userId,r.params.id)})}catch(e){n(e)}});
 
-function parse(schema, value) {
-  const result = schema.safeParse(value);
-  if (!result.success) throw new AppError(400, 'Datos Edge inválidos', 'VALIDATION_ERROR', result.error.flatten());
-  return result.data;
-}
-
-const agentSchema = z.object({
-  name: z.string().trim().min(2).max(100), pointCode: z.string().trim().min(2).max(50),
-  defaultCustomerId: z.string().uuid().optional().nullable(), defaultCashAccountId: z.string().uuid().optional().nullable(),
-  softwareVersion: z.string().trim().max(50).optional().nullable()
-});
-const offlinePolicySchema = z.object({ paymentPolicy: z.enum(['CASH_ONLY','MANUAL_EXTERNAL_PENDING','PAUSE_SALES']), manualPaymentNote: z.string().trim().max(500).optional().nullable() });
-const operationsSchema = z.object({ operations: z.array(z.object({ id:z.string().trim().min(8).max(120), type:z.string().trim().min(2).max(80), localTimestamp:z.coerce.date(), payload:z.record(z.string(),z.any()) })).min(1).max(200) });
-const heartbeatSchema = z.object({ installationId:z.string().trim().min(8).max(160), deviceName:z.string().trim().max(160).optional().nullable(), os:z.string().trim().max(80).optional().nullable(), architecture:z.string().trim().max(50).optional().nullable(), lanHost:z.string().trim().max(120).optional().nullable(), lanPort:z.coerce.number().int().min(1).max(65535).optional().nullable(), softwareVersion:z.string().trim().max(80).optional().nullable(), healthStatus:z.string().trim().max(40).optional(), health:z.record(z.string(),z.any()).optional().nullable(), relayConnected:z.boolean().optional(), updaterState:z.string().trim().max(60).optional() });
-const releaseSchema = z.object({ version:z.string().trim().min(1).max(80), channel:z.enum(['PILOT','STABLE']).optional(), artifactUrl:z.string().url().max(2000), sha256:z.string().regex(/^[a-fA-F0-9]{64}$/), releaseNotes:z.string().max(5000).optional().nullable(), minCoreVersion:z.string().trim().max(80).optional().nullable(), mandatory:z.boolean().optional(), enabled:z.boolean().optional() });
-const deploymentReportSchema = z.object({ deploymentId:z.string().uuid(), state:z.enum(['DOWNLOADING','BACKUP','INSTALLING','HEALTHCHECK','SUCCESS','ROLLED_BACK','FAILED']), backupPath:z.string().max(1000).optional().nullable(), errorCode:z.string().max(120).optional().nullable(), errorMessage:z.string().max(2000).optional().nullable(), evidence:z.record(z.string(),z.any()).optional().nullable() });
-const relaySchema = z.object({ edgeAgentId:z.string().uuid(), action:z.enum(['STATUS','SYNC_NOW','CATALOG','PRINT_QUEUE','REMOTE_ORDERS','UPDATE_CHECK']), requestBody:z.record(z.string(),z.any()).optional().nullable(), ttlSeconds:z.coerce.number().int().min(15).max(300).optional() });
-const relayCompleteSchema = z.object({ ok:z.boolean().optional(), response:z.record(z.string(),z.any()).optional().nullable(), errorCode:z.string().max(120).optional().nullable(), errorMessage:z.string().max(2000).optional().nullable() });
-const remoteChannelSchema = z.object({ edgeAgentId:z.string().uuid(), type:z.enum(['MESA','DOMICILIO','RECOGER']), name:z.string().trim().min(1).max(120), tableId:z.string().uuid().optional().nullable() });
-const remoteReportSchema = z.object({ state:z.enum(['APPROVED','PREPARING','READY','IN_TRANSIT','DELIVERED','PICKED_UP','REJECTED','CANCELED']).optional(), localOperationId:z.string().trim().max(120).optional().nullable(), originDocumentId:z.string().trim().max(120).optional().nullable() });
-
-tenantRouter.get('/policy', async (req,res,next)=>{ try{res.json({ok:true,data:await service.getOfflinePolicy(req.tenantId)})}catch(e){next(e)} });
-tenantRouter.put('/policy', async (req,res,next)=>{ try{res.json({ok:true,data:await service.saveOfflinePolicy(req.tenantId,req.userId,parse(offlinePolicySchema,req.body))})}catch(e){next(e)} });
-tenantRouter.get('/agents', async (req,res,next)=>{ try{res.json({ok:true,data:await service.listAgents(req.tenantId)})}catch(e){next(e)} });
-tenantRouter.post('/agents', async (req,res,next)=>{ try{res.status(201).json({ok:true,data:await service.provisionAgent(req.tenantId,req.userId,parse(agentSchema,req.body))})}catch(e){next(e)} });
-tenantRouter.post('/agents/:id/revoke', async (req,res,next)=>{ try{res.json({ok:true,data:await service.revokeAgent(req.tenantId,req.userId,req.params.id)})}catch(e){next(e)} });
-tenantRouter.post('/agents/:id/rotate-key', async (req,res,next)=>{ try{res.json({ok:true,data:await service.rotateCredential(req.tenantId,req.params.id)})}catch(e){next(e)} });
-tenantRouter.patch('/agents/:id/release-channel', async (req,res,next)=>{ try{const i=parse(z.object({channel:z.enum(['PILOT','STABLE'])}),req.body);res.json({ok:true,data:await platform.setReleaseChannel(req.tenantId,req.params.id,i.channel)})}catch(e){next(e)} });
-tenantRouter.get('/installations', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.listInstallations(req.tenantId)})}catch(e){next(e)} });
-tenantRouter.get('/releases', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.listReleases(req.tenantId)})}catch(e){next(e)} });
-tenantRouter.post('/releases', async (req,res,next)=>{ try{res.status(201).json({ok:true,data:await platform.createRelease(req.tenantId,req.userId,parse(releaseSchema,req.body))})}catch(e){next(e)} });
-tenantRouter.post('/agents/:id/deploy', async (req,res,next)=>{ try{const i=parse(z.object({releaseId:z.string().uuid()}),req.body);res.status(201).json({ok:true,data:await platform.requestDeployment(req.tenantId,req.userId,req.params.id,i.releaseId)})}catch(e){next(e)} });
-tenantRouter.post('/relay/requests', async (req,res,next)=>{ try{const i=parse(relaySchema,req.body);res.status(201).json({ok:true,data:await platform.createRelayRequest(req.tenantId,i.edgeAgentId,i.action,i.requestBody,i.ttlSeconds)})}catch(e){next(e)} });
-tenantRouter.get('/relay/requests/:id', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.getRelayRequest(req.tenantId,req.params.id)})}catch(e){next(e)} });
-tenantRouter.get('/remote-channels', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.listRemoteChannels(req.tenantId)})}catch(e){next(e)} });
-tenantRouter.post('/remote-channels', async (req,res,next)=>{ try{const i=parse(remoteChannelSchema,req.body);const d=await platform.createRemoteChannel(req.tenantId,i.edgeAgentId,i);d.publicPath=`/edge/api/v1/remote/${d.token}`;res.status(201).json({ok:true,data:d})}catch(e){next(e)} });
-tenantRouter.post('/remote-channels/:id/rotate-token', async (req,res,next)=>{ try{const d=await platform.rotateRemoteChannel(req.tenantId,req.params.id);d.publicPath=`/edge/api/v1/remote/${d.token}`;res.json({ok:true,data:d})}catch(e){next(e)} });
-tenantRouter.get('/remote-orders', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.listRemoteOrders(req.tenantId,req.query)})}catch(e){next(e)} });
-tenantRouter.post('/remote-orders/:id/approve', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.decideRemoteOrder(req.tenantId,req.params.id,'APPROVE')})}catch(e){next(e)} });
-tenantRouter.post('/remote-orders/:id/reject', async (req,res,next)=>{ try{res.json({ok:true,data:await platform.decideRemoteOrder(req.tenantId,req.params.id,'REJECT')})}catch(e){next(e)} });
-tenantRouter.get('/alerts', async (req,res,next)=>{ try{res.json({ok:true,data:await service.listAlerts(req.tenantId,req.query)})}catch(e){next(e)} });
-tenantRouter.post('/alerts/:id/ack', async (req,res,next)=>{ try{res.json({ok:true,data:await service.acknowledgeAlert(req.tenantId,req.userId,req.params.id)})}catch(e){next(e)} });
-
-// Token-only customer channels are public, but remain under the already mounted Edge namespace.
-// They are intentionally registered BEFORE device authentication.
-publicRouter.use('/remote', edgeRemotePublicRouter);
-publicRouter.use(edgeAuth);
-publicRouter.get('/ping',(req,res)=>res.json({ok:true,connected:true,serverTime:new Date().toISOString(),edgeAgentId:req.edgeAgent.id,tenantId:req.edgeAgent.tenantId}));
-publicRouter.get('/bootstrap',async(req,res,next)=>{try{res.json({ok:true,data:await service.buildBootstrap(req.edgeAgent)})}catch(e){next(e)}});
-publicRouter.post('/sync/operations',async(req,res,next)=>{try{const i=parse(operationsSchema,req.body);res.json({ok:true,data:await service.processOperations(req.edgeAgent,i.operations)})}catch(e){next(e)}});
-publicRouter.post('/heartbeat',async(req,res,next)=>{try{res.json({ok:true,data:await platform.heartbeat(req.edgeAgent,parse(heartbeatSchema,req.body))})}catch(e){next(e)}});
-publicRouter.get('/update/manifest',async(req,res,next)=>{try{res.json({ok:true,data:await platform.updateManifest(req.edgeAgent)})}catch(e){next(e)}});
-publicRouter.post('/update/report',async(req,res,next)=>{try{res.json({ok:true,data:await platform.reportDeployment(req.edgeAgent,parse(deploymentReportSchema,req.body))})}catch(e){next(e)}});
-publicRouter.get('/relay/pull',async(req,res,next)=>{try{res.json({ok:true,data:await platform.pullRelayRequests(req.edgeAgent,req.query.limit)})}catch(e){next(e)}});
-publicRouter.post('/relay/:id/complete',async(req,res,next)=>{try{res.json({ok:true,data:await platform.completeRelayRequest(req.edgeAgent,req.params.id,parse(relayCompleteSchema,req.body||{}))})}catch(e){next(e)}});
-publicRouter.get('/remote-orders/pull',async(req,res,next)=>{try{res.json({ok:true,data:await platform.pullRemoteOrders(req.edgeAgent,req.query.limit)})}catch(e){next(e)}});
-publicRouter.post('/remote-orders/:id/report',async(req,res,next)=>{try{res.json({ok:true,data:await platform.reportRemoteOrder(req.edgeAgent,req.params.id,parse(remoteReportSchema,req.body||{}))})}catch(e){next(e)}});
-
+publicRouter.use('/remote',edgeRemotePublicRouter);publicRouter.use(edgeAuth);
+publicRouter.get('/ping',(r,s)=>s.json({ok:true,connected:true,serverTime:new Date().toISOString(),edgeAgentId:r.edgeAgent.id,tenantId:r.edgeAgent.tenantId}));
+publicRouter.get('/bootstrap',async(r,s,n)=>{try{s.json({ok:true,data:await service.buildBootstrap(r.edgeAgent)})}catch(e){n(e)}});
+publicRouter.get('/restaurant/bootstrap',async(r,s,n)=>{try{s.json({ok:true,data:await restaurantSync.buildRestaurantBootstrap(r.edgeAgent)})}catch(e){n(e)}});
+publicRouter.post('/sync/operations',async(r,s,n)=>{try{const i=parse(operationsSchema,r.body);s.json({ok:true,data:await service.processOperations(r.edgeAgent,i.operations)})}catch(e){n(e)}});
+publicRouter.post('/sync/restaurant-operations',async(r,s,n)=>{try{const i=parse(operationsSchema,r.body);s.json({ok:true,data:await restaurantSync.processOperations(r.edgeAgent,i.operations)})}catch(e){n(e)}});
+publicRouter.post('/heartbeat',async(r,s,n)=>{try{s.json({ok:true,data:await platform.heartbeat(r.edgeAgent,parse(heartbeatSchema,r.body))})}catch(e){n(e)}});publicRouter.get('/update/manifest',async(r,s,n)=>{try{s.json({ok:true,data:await platform.updateManifest(r.edgeAgent)})}catch(e){n(e)}});publicRouter.post('/update/report',async(r,s,n)=>{try{s.json({ok:true,data:await platform.reportDeployment(r.edgeAgent,parse(deploymentReportSchema,r.body))})}catch(e){n(e)}});publicRouter.get('/relay/pull',async(r,s,n)=>{try{s.json({ok:true,data:await platform.pullRelayRequests(r.edgeAgent,r.query.limit)})}catch(e){n(e)}});publicRouter.post('/relay/:id/complete',async(r,s,n)=>{try{s.json({ok:true,data:await platform.completeRelayRequest(r.edgeAgent,r.params.id,parse(relayCompleteSchema,r.body||{}))})}catch(e){n(e)}});publicRouter.get('/remote-orders/pull',async(r,s,n)=>{try{s.json({ok:true,data:await platform.pullRemoteOrders(r.edgeAgent,r.query.limit)})}catch(e){n(e)}});publicRouter.post('/remote-orders/:id/report',async(r,s,n)=>{try{s.json({ok:true,data:await platform.reportRemoteOrder(r.edgeAgent,r.params.id,parse(remoteReportSchema,r.body||{}))})}catch(e){n(e)}});
 module.exports={edgeTenantRouter:tenantRouter,edgePublicRouter:publicRouter};
