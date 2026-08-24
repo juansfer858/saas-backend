@@ -17,7 +17,7 @@ const panelEntry = read('src/web/panel-restaurant-entry.js');
 const app = read('src/app.js');
 const version = JSON.parse(read('edge/version.json'));
 
-for (const file of ['edge/agent/workspace-entry.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js']) {
+for (const file of ['edge/agent/workspace-entry.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js','src/web/restaurant-control-center.js']) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
@@ -43,12 +43,23 @@ assert.doesNotMatch(workspaceHtml, /emergencia/i);
 assert.match(supervisor, /workspace-entry\.js/);
 assert.match(installer, /VantixGC Restaurantes\.url/);
 assert.match(installer, /app\/centro-de-control/);
+
+// Cloud vertical: Restaurant owns its UI and the write-capable Edge handoff.
 assert.match(restaurantHtml, /Trabajar en sede/);
 assert.match(restaurantHtml, /local-access-grant/);
-assert.match(panelEntry, /Trabajar en sede/);
-assert.match(panelEntry, /local-access-grant/);
-assert.match(panelEntry, /installLocalWorkspaceEntry/);
-assert.match(panelEntry, /new URLSearchParams\(location\.search\)\.get\('edge'\)/);
+assert.match(restaurantHtml, /restaurant-control-center\.css/);
+assert.match(restaurantHtml, /restaurant-control-center\.js/);
+assert.match(app, /const restaurantHtmlPath/);
+assert.match(app, /app\.get\('\/app\/centro-de-control'/);
+assert.match(app, /X-VantixGC-Vertical', 'RESTAURANT'/);
+assert.match(app, /app\.get\('\/app\/restaurant-theme\.css'/);
+assert.match(app, /app\.get\('\/app\/restaurant-ui\.js'/);
+assert.match(app, /app\.get\('\/app\/restaurant-control-center\.js'/);
+
+// Universal tenant shell stays read-only and vertical-agnostic except for discovery/navigation.
+assert.doesNotMatch(panelEntry, /local-access-grant/);
+assert.doesNotMatch(panelEntry, /method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i);
+assert.match(panelEntry, /CONTROL_CENTER_PATH/);
 assert.match(app, /core-nav-v7/);
 assert.doesNotMatch(app, /core-nav-v8-edge-workspace/);
 
