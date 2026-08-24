@@ -74,7 +74,8 @@ model EdgeInstallation {
 
 model EdgeRelease {
   id              String             @id @default(uuid())
-  version         String             @unique
+  tenantId        String?
+  version         String
   channel         EdgeReleaseChannel @default(PILOT)
   artifactUrl     String
   sha256          String
@@ -85,7 +86,8 @@ model EdgeRelease {
   createdByUserId String?
   creadoEn        DateTime           @default(now())
 
-  @@index([channel, enabled, creadoEn])
+  @@unique([tenantId, version])
+  @@index([tenantId, channel, enabled, creadoEn])
 }
 
 model EdgeDeployment {
