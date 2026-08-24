@@ -3,6 +3,7 @@ const express = require('express');
 const service = require('./notifications.service');
 const techProvider = require('./meta-tech-provider.service');
 const { AppError } = require('../../utils/app-error');
+const { publicInstallerRouter } = require('../public-installer/public-installer.routes');
 
 const router = express.Router();
 
@@ -20,6 +21,9 @@ function verifyMetaSignature(req) {
 function hasAccountUpdate(payload) {
   return (payload?.entry || []).some((entry) => (entry.changes || []).some((change) => String(change.field || '').toLowerCase() === 'account_update'));
 }
+
+// Public installer landing: /instalar, /instalar-restaurantes and /demo-restaurantes.
+router.use('/', publicInstallerRouter);
 
 router.get('/webhooks/whatsapp', async (req, res, next) => {
   try {
