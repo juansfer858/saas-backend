@@ -201,6 +201,9 @@ jobs:
       - name: Validate Edge central reconciliation, negative stock, policy and audited drift review
         run: node scripts/edge-offline-core-smoke.js
 
+      - name: Validate Edge V2 heartbeat persistence and installations listing against PostgreSQL
+        run: node scripts/edge-platform-v2-runtime-db-smoke.js
+
       - name: Validate Edge actual network drop, policy UI, evidence and automatic reconnect
         run: node scripts/edge-agent-real-network-drop-smoke.js
 
