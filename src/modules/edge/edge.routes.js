@@ -7,6 +7,7 @@ const service = require('./edge.service');
 const platform = require('./edge-platform.service');
 const restaurantSync = require('./edge-restaurant-sync.service');
 const remoteAgent = require('./edge-remote-agent.service');
+const workspace = require('./edge-workspace.service');
 
 const tenantRouter = express.Router();
 const publicRouter = express.Router();
@@ -89,6 +90,7 @@ const remoteReportSchema = z.object({
   localOperationId: z.string().trim().max(120).optional().nullable(),
   originDocumentId: z.string().trim().max(120).optional().nullable()
 });
+const localGrantConsumeSchema = z.object({ token: z.string().trim().min(20).max(300) });
 
 tenantRouter.get('/policy', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.getOfflinePolicy(req.tenantId) }); } catch (error) { next(error); }
@@ -107,6 +109,9 @@ tenantRouter.post('/agents/:id/revoke', async (req, res, next) => {
 });
 tenantRouter.post('/agents/:id/rotate-key', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.rotateCredential(req.tenantId, req.params.id) }); } catch (error) { next(error); }
+});
+tenantRouter.post('/agents/:id/local-access-grant', async (req, res, next) => {
+  try { res.status(201).json({ ok: true, data: await workspace.createLocalAccessGrant(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
 });
 tenantRouter.patch('/agents/:id/release-channel', async (req, res, next) => {
   try {
@@ -176,6 +181,12 @@ tenantRouter.post('/alerts/:id/ack', async (req, res, next) => {
 publicRouter.use('/remote', edgeRemotePublicRouter);
 publicRouter.use(edgeAuth);
 publicRouter.get('/ping', (req, res) => res.json({ ok: true, connected: true, serverTime: new Date().toISOString(), edgeAgentId: req.edgeAgent.id, tenantId: req.edgeAgent.tenantId }));
+publicRouter.post('/local-access/consume', async (req, res, next) => {
+  try {
+    const input = parse(localGrantConsumeSchema, req.body || {});
+    res.json({ ok: true, data: await workspace.consumeLocalAccessGrant(req.edgeAgent, input.token) });
+  } catch (error) { next(error); }
+});
 publicRouter.get('/bootstrap', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.buildBootstrap(req.edgeAgent) }); } catch (error) { next(error); }
 });

@@ -51,8 +51,12 @@ function runtimeEnv() {
 function currentEntry() {
   const env = runtimeEnv();
   if (env.EDGE_AGENT_ENTRY) return env.EDGE_AGENT_ENTRY;
-  const activated = path.join(ROOT, 'current', 'agent', 'server.js');
-  return fs.existsSync(activated) ? activated : path.join(ROOT, 'agent', 'server.js');
+  const activatedWorkspace = path.join(ROOT, 'current', 'agent', 'workspace-entry.js');
+  const activatedServer = path.join(ROOT, 'current', 'agent', 'server.js');
+  const baseWorkspace = path.join(ROOT, 'agent', 'workspace-entry.js');
+  if (fs.existsSync(activatedWorkspace)) return activatedWorkspace;
+  if (fs.existsSync(activatedServer)) return activatedServer;
+  return fs.existsSync(baseWorkspace) ? baseWorkspace : path.join(ROOT, 'agent', 'server.js');
 }
 
 function healthUrl() {
@@ -121,7 +125,6 @@ async function rollbackPending(reason) {
       fs.rmSync(currentLink, { recursive: true, force: true });
       fs.renameSync(tmp, currentLink);
     } else {
-      // First managed update: deleting current makes currentEntry() return to ROOT/agent/server.js.
       fs.rmSync(currentLink, { recursive: true, force: true });
       fallbackBase = true;
     }

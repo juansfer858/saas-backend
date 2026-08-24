@@ -1,0 +1,14 @@
+model EdgeLocalAccessGrant {
+  id            String   @id @default(uuid())
+  tenantId      String
+  edgeAgentId   String
+  userId        String
+  tokenHash     String   @unique
+  snapshot      Json
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  creadoEn      DateTime @default(now())
+
+  @@index([tenantId, edgeAgentId, expiresAt])
+  @@index([userId, expiresAt])
+}
