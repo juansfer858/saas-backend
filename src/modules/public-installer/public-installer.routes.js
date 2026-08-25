@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('node:fs');
 const path = require('node:path');
 const { restaurantSelfServicePublicRouter } = require('../self-service/restaurant-self-service.routes');
 
@@ -9,25 +10,33 @@ const restaurantLandingPath = path.join(webRoot, 'restaurant-public.html');
 const restaurantDemoPath = path.join(webRoot, 'restaurant-public-demo.html');
 const restaurantSignupPath = path.join(webRoot, 'restaurant-signup.html');
 const restaurantOnboardingPath = path.join(webRoot, 'restaurant-onboarding.html');
+const restaurantPublicThemePath = path.join(webRoot, 'restaurant-public-theme.css');
 
 router.use('/api/public/restaurantes', restaurantSelfServicePublicRouter);
 
-router.get('/restaurantes', (_req, res) => {
+async function sendRestaurantPublicHtml(filePath, res, next) {
+  try {
+    const html = await fs.promises.readFile(filePath, 'utf8');
+    const themeTag = '<link rel="stylesheet" href="/restaurantes/theme-v1.css">';
+    const themed = (html.includes('</head>') ? html.replace('</head>', `${themeTag}</head>`) : `${themeTag}${html}`)
+      .replace(/<body(\s[^>]*)?>/i, (match, attrs = '') => {
+        if (/class\s*=/.test(attrs)) return match.replace(/class=(['"])(.*?)\1/i, (_m, q, classes) => `class=${q}${classes} vr-public-theme${q}`);
+        return `<body${attrs} class="vr-public-theme">`;
+      });
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.type('html').send(themed);
+  } catch (error) { next(error); }
+}
+
+router.get('/restaurantes/theme-v1.css', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
-  res.type('html').sendFile(restaurantLandingPath);
+  res.type('text/css').sendFile(restaurantPublicThemePath);
 });
-router.get('/restaurantes/demo', (_req, res) => {
-  res.set('Cache-Control', 'no-store, max-age=0');
-  res.type('html').sendFile(restaurantDemoPath);
-});
-router.get('/restaurantes/crear', (_req, res) => {
-  res.set('Cache-Control', 'no-store, max-age=0');
-  res.type('html').sendFile(restaurantSignupPath);
-});
-router.get('/app/onboarding', (_req, res) => {
-  res.set('Cache-Control', 'no-store, max-age=0');
-  res.type('html').sendFile(restaurantOnboardingPath);
-});
+
+router.get('/restaurantes', (_req, res, next) => sendRestaurantPublicHtml(restaurantLandingPath, res, next));
+router.get('/restaurantes/demo', (_req, res, next) => sendRestaurantPublicHtml(restaurantDemoPath, res, next));
+router.get('/restaurantes/crear', (_req, res, next) => sendRestaurantPublicHtml(restaurantSignupPath, res, next));
+router.get('/app/onboarding', (_req, res, next) => sendRestaurantPublicHtml(restaurantOnboardingPath, res, next));
 
 router.get('/instalar', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');

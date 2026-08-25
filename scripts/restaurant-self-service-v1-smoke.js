@@ -20,6 +20,7 @@ const demo = read('src/web/restaurant-public-demo.html');
 const signup = read('src/web/restaurant-signup.html');
 const onboarding = read('src/web/restaurant-onboarding.html');
 const restaurant = read('src/web/restaurant.html');
+const publicTheme = read('src/web/restaurant-public-theme.css');
 
 for (const file of [
   'src/modules/self-service/restaurant-self-service.service.js',
@@ -55,6 +56,9 @@ assert.match(publicRoutes, /\/restaurantes\/demo/);
 assert.match(publicRoutes, /\/restaurantes\/crear/);
 assert.match(publicRoutes, /\/app\/onboarding/);
 assert.match(publicRoutes, /\/api\/public\/restaurantes/);
+assert.match(publicRoutes, /\/restaurantes\/theme-v1\.css/);
+assert.match(publicRoutes, /vr-public-theme/);
+assert.match(publicRoutes, /restaurant-public-theme\.css/);
 assert.match(coreRoutes, /\/autoservicio/);
 assert.match(installer, /InstallClaimToken/);
 assert.match(installer, /install-claims\/consume/);
@@ -86,5 +90,19 @@ assert.doesNotMatch(onboarding, /EDGE_AGENT_ID/);
 assert.match(restaurant, /Estás trabajando en VantixGC Cloud/);
 assert.match(restaurant, /Instalar esta sede/);
 assert.match(restaurant, /Sede instalada y ONLINE/);
+assert.match(restaurant, /\/restaurantes\/theme-v1\.css/);
+
+// Public Restaurant visual system: one shared warm/orange theme, traditional Lora typography.
+assert.match(publicTheme, /family=Lora/);
+assert.match(publicTheme, /font-family:\s*'Lora'/);
+assert.match(publicTheme, /--vr-orange:\s*#f97316/i);
+assert.match(publicTheme, /--vr-orange-strong:\s*#ea580c/i);
+assert.match(publicTheme, /--vr-orange-deep:\s*#c2410c/i);
+assert.match(publicTheme, /--green:\s*#f97316/i, 'Legacy public --green token must render orange');
+assert.match(publicTheme, /--gold:\s*#fb923c/i, 'Legacy public --gold token must render orange');
+assert.doesNotMatch(publicTheme, /#0d6b43/i);
+assert.doesNotMatch(publicTheme, /#118a57/i);
+assert.doesNotMatch(publicTheme, /#d4a62a/i);
+assert.match(publicTheme, /\[data-edge-install-status\]/);
 
 console.log('RESTAURANT SELF SERVICE V1 STATIC SMOKE OK');
