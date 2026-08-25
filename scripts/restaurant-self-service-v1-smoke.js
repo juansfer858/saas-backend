@@ -92,9 +92,11 @@ assert.match(restaurant, /Instalar esta sede/);
 assert.match(restaurant, /Sede instalada y ONLINE/);
 assert.match(restaurant, /\/restaurantes\/theme-v1\.css/);
 
-// Public Restaurant visual system: one shared warm/orange theme, traditional Lora typography.
-assert.match(publicTheme, /family=Lora/);
-assert.match(publicTheme, /font-family:\s*'Lora'/);
+// Public Restaurant visual system: one shared warm/orange theme with friendly Nunito Sans typography.
+assert.match(publicTheme, /family=Nunito\+Sans/);
+assert.match(publicTheme, /font-family:\s*'Nunito Sans'/);
+assert.doesNotMatch(publicTheme, /family=Lora/);
+assert.doesNotMatch(publicTheme, /font-family:\s*'Lora'/);
 assert.match(publicTheme, /--vr-orange:\s*#f97316/i);
 assert.match(publicTheme, /--vr-orange-strong:\s*#ea580c/i);
 assert.match(publicTheme, /--vr-orange-deep:\s*#c2410c/i);
