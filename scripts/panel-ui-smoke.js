@@ -107,6 +107,18 @@ async function main() {
       canonicalHtml = html;
     }
 
+    assert.match(canonicalHtml, /\/app\/super-core-workspace-v6\.css\?v=core-workspace-v6-static/);
+    const workspaceLinkAt = canonicalHtml.indexOf('/app/super-core-workspace-v6.css?v=core-workspace-v6-static');
+    const firstBodyAt = canonicalHtml.indexOf('<body');
+    assert.ok(workspaceLinkAt >= 0 && (firstBodyAt < 0 || workspaceLinkAt < firstBodyAt), 'V6 debe cargarse en head antes del primer paint');
+    assert.ok(canonicalHtml.includes('background:rgba(250,252,253,.72)!important'), 'botones claros deben venir en CSS inicial del servidor');
+    assert.ok(canonicalHtml.includes('color:#17212b!important'), 'texto oscuro debe venir en CSS inicial del servidor');
+    const workspaceCssResponse = await fetch(base + '/app/super-core-workspace-v6.css');
+    const workspaceCss = await workspaceCssResponse.text();
+    assert.equal(workspaceCssResponse.status, 200);
+    assert.match(workspaceCss, /--core-v6-orange:#f97316/);
+    assert.match(workspaceCss, /body\{background:var\(--core-v6-bg\)!important/);
+
     const salesResponse = await fetch(base + '/app/ventas');
     const salesHtml = await salesResponse.text();
     assert.equal(salesResponse.status, 200);
@@ -160,10 +172,6 @@ async function main() {
     assert.match(sharedEntry, /data-core-tenant-name/);
     assert.match(sharedEntry, /data-core-tenant-meta/);
     assert.match(sharedEntry, /const SIDEBAR_TEXT_COLOR = '#17212b'/);
-    assert.match(sharedEntry, /Persistent CSS, never per-element JS patches/);
-    assert.match(sharedEntry, /background:rgba\(250,252,253,.66\)!important/);
-    assert.match(sharedEntry, /\.core-tenant-sidebar \.nav a\.active\{background:linear-gradient/);
-    assert.match(sharedEntry, /color:\$\{SIDEBAR_TEXT_COLOR\}!important/);
     assert.ok(!sharedEntry.includes('applyFlatDarkSidebarText'));
     assert.ok(!sharedEntry.includes("style.setProperty('color'"));
     assert.ok(!sharedEntry.includes('installTenantCard'));
@@ -173,6 +181,9 @@ async function main() {
     assert.ok(!sharedEntry.includes('document.createElement(\'style\')'));
     assert.ok(!sharedEntry.includes('nav.prepend'));
     assert.ok(!sharedEntry.includes('MutationObserver'));
+    assert.ok(!sharedEntry.includes('installWorkspaceTheme'));
+    assert.ok(!sharedEntry.includes('insertAdjacentHTML'));
+    assert.ok(!sharedEntry.includes('super-core-workspace-v6-style'));
 
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
