@@ -7,8 +7,8 @@
   const CONTROL_CENTER_PATH = '/app/centro-de-control';
   const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
   const WORKSPACE_THEME = 'super-core-workspace-v6';
-  const SIDEBAR_TEXT_COLOR = '#27323a';
-  const SIDEBAR_META_COLOR = '#3f4b53';
+  const SIDEBAR_TEXT_COLOR = '#17212b';
+  const SIDEBAR_META_COLOR = '#46515a';
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
@@ -36,6 +36,20 @@ body{background:var(--core-v6-bg)!important;color:var(--core-v6-ink)!important;f
 .login-wrap{background:linear-gradient(135deg,#eff6ff 0%,#fff 52%,#fff7ed 100%)!important}.login{padding:30px!important}.login h1{font-size:27px!important;letter-spacing:-.025em!important;color:#111827!important}.field label{color:#475467!important;font-weight:650!important}
 .modal-back{background:rgba(15,23,42,.48)!important}.modal{padding:24px!important}.empty,.loading,.muted{color:#7b8794!important}
 .total-row.final{color:#111827!important}.kv div:nth-child(odd){color:#7b8794!important}
+
+/* Canonical Super Core sidebar appearance. Persistent CSS, never per-element JS patches. */
+.core-tenant-sidebar .core-v5-tenant{background:linear-gradient(180deg,rgba(252,253,254,.68),rgba(235,240,243,.58))!important;border-color:rgba(255,255,255,.38)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.30),0 8px 18px rgba(20,24,27,.12)!important}
+.core-tenant-sidebar .core-v5-tenant b{color:${SIDEBAR_TEXT_COLOR}!important}.core-tenant-sidebar .core-v5-tenant span{color:${SIDEBAR_META_COLOR}!important}
+.core-tenant-sidebar .nav a{background:rgba(250,252,253,.66)!important;color:${SIDEBAR_TEXT_COLOR}!important;border-color:rgba(255,255,255,.34)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.24)!important}
+.core-tenant-sidebar .nav a:hover{background:rgba(255,255,255,.80)!important;color:${SIDEBAR_TEXT_COLOR}!important;border-color:rgba(255,255,255,.48)!important}
+.core-tenant-sidebar .nav a.active{background:linear-gradient(90deg,rgba(210,237,229,.90),rgba(250,252,253,.78))!important;color:${SIDEBAR_TEXT_COLOR}!important;border-color:rgba(255,255,255,.50)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.36),0 7px 16px rgba(20,24,27,.12)!important}
+.core-tenant-sidebar .nav a .icon{color:${SIDEBAR_TEXT_COLOR}!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical{background:linear-gradient(135deg,rgba(252,253,254,.80),rgba(235,240,243,.70))!important;color:${SIDEBAR_TEXT_COLOR}!important;border-color:rgba(255,255,255,.48)!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical.active{background:linear-gradient(90deg,rgba(210,237,229,.94),rgba(250,252,253,.82))!important;color:${SIDEBAR_TEXT_COLOR}!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical .icon{color:${SIDEBAR_TEXT_COLOR}!important;background:rgba(19,122,83,.14)!important}
+.core-tenant-sidebar .core-v5-primary-copy strong{color:${SIDEBAR_TEXT_COLOR}!important}.core-tenant-sidebar .core-v5-primary-copy small{color:${SIDEBAR_META_COLOR}!important}
+.core-tenant-sidebar .brand,.core-tenant-sidebar .brand small,.core-tenant-sidebar .nav-title,.core-tenant-sidebar .core-v5-group-label{color:#f7f9fa!important}
+
 @media(max-width:760px){.content{padding:20px 13px!important}.topbar{height:64px!important}.pagehead{align-items:flex-start!important}.pagehead h1{font-size:24px!important}.cards{gap:12px!important}}
 </style>`);
     document.documentElement.dataset.superCoreWorkspace = WORKSPACE_THEME;
@@ -136,26 +150,6 @@ body{background:var(--core-v6-bg)!important;color:var(--core-v6-ink)!important;f
     if (meta) meta.textContent = `${session.subdomain}${session.tenant?.pais ? ` · ${session.tenant.pais}` : ''}`;
   }
 
-  function applyFlatDarkSidebarText() {
-    const sidebar = document.querySelector('.core-tenant-sidebar');
-    if (!sidebar) return;
-
-    sidebar.querySelectorAll('.nav a').forEach((node) => {
-      node.style.setProperty('color', SIDEBAR_TEXT_COLOR, 'important');
-    });
-    sidebar.querySelectorAll('.nav a .icon, .core-v5-primary-copy strong').forEach((node) => {
-      node.style.setProperty('color', SIDEBAR_TEXT_COLOR, 'important');
-    });
-    sidebar.querySelectorAll('.core-v5-primary-copy small').forEach((node) => {
-      node.style.setProperty('color', SIDEBAR_META_COLOR, 'important');
-    });
-
-    const tenantName = sidebar.querySelector('[data-core-tenant-name]');
-    const tenantMeta = sidebar.querySelector('[data-core-tenant-meta]');
-    tenantName?.style.setProperty('color', SIDEBAR_TEXT_COLOR, 'important');
-    tenantMeta?.style.setProperty('color', SIDEBAR_META_COLOR, 'important');
-  }
-
   function openRestaurantControlCenter() {
     window.location.href = CONTROL_CENTER_PATH;
   }
@@ -191,7 +185,6 @@ body{background:var(--core-v6-bg)!important;color:var(--core-v6-ink)!important;f
 
   function installCurrentUi() {
     hydrateTenantCard();
-    applyFlatDarkSidebarText();
     renameAccountingConfigurationHeading();
     installRestaurantDashboardEntry();
   }
