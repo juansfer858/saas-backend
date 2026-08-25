@@ -7,15 +7,12 @@ const salesController = require('./sales.controller');
 const router = express.Router();
 const webRoot = path.join(__dirname, '../../web');
 
-// Runtime UI compartido. Se sirve dentro del Core autenticado para evitar duplicar
-// rutas públicas en app.js y mantener el Dashboard como una capacidad transversal.
+// Runtime de integración para módulos operativos del panel genérico.
+// El Dashboard no depende de este runtime: su render, eventos y exportación viven
+// en panel-restaurant-entry.js como única fuente de verdad.
 router.get('/ui-runtime/panel-integration-extras-core.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'panel-integration-extras-core.js'));
-});
-router.get('/ui-runtime/dashboard-interactions.js', (_req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.type('application/javascript').sendFile(path.join(webRoot, 'dashboard-interactions.js'));
 });
 
 // API genérica de documentos comerciales.
