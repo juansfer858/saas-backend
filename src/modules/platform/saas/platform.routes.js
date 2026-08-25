@@ -2,6 +2,8 @@ const express = require('express');
 const { z } = require('zod');
 const service = require('./platform.service');
 const provisioning = require('./platform-tenant-provisioning.service');
+const verticalRegistry = require('../verticals/vertical-registry');
+const verticalEntitlements = require('../verticals/vertical-entitlement.service');
 const { AppError } = require('../../../utils/app-error');
 
 const publicRouter = express.Router();
@@ -15,6 +17,7 @@ function parse(schema, value) {
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
 const activeSchema = z.object({ active: z.boolean(), reason: z.string().max(500).optional().nullable() });
+const verticalControlSchema = z.object({ active: z.boolean(), metadata: z.record(z.string(), z.any()).optional().nullable() });
 const controlSchema = z.object({
   planCode: z.string().trim().min(1).max(40).optional(),
   currentVersion: z.string().trim().max(60).optional().nullable(),
@@ -70,6 +73,10 @@ adminRouter.get('/tenant-templates', async (_req, res, next) => {
   try { res.json({ ok: true, data: provisioning.templates() }); }
   catch (error) { next(error); }
 });
+adminRouter.get('/verticals', async (_req, res, next) => {
+  try { res.json({ ok: true, data: verticalRegistry.listVerticals() }); }
+  catch (error) { next(error); }
+});
 adminRouter.post('/tenants', async (req, res, next) => {
   try {
     const input = parse(tenantCreateSchema, req.body);
@@ -79,6 +86,16 @@ adminRouter.post('/tenants', async (req, res, next) => {
 adminRouter.get('/tenants', async (_req, res, next) => {
   try { res.json({ ok: true, data: await service.listTenants() }); }
   catch (error) { next(error); }
+});
+adminRouter.get('/tenants/:tenantId/verticals', async (req, res, next) => {
+  try { res.json({ ok: true, data: await verticalEntitlements.listTenantEntitlements(req.params.tenantId) }); }
+  catch (error) { next(error); }
+});
+adminRouter.put('/tenants/:tenantId/verticals/:verticalCode', async (req, res, next) => {
+  try {
+    const input = parse(verticalControlSchema, req.body || {});
+    res.json({ ok: true, data: await verticalEntitlements.setFromPlatform(req.platformAdmin.id, req.params.tenantId, req.params.verticalCode, input.active, input.metadata || null) });
+  } catch (error) { next(error); }
 });
 adminRouter.get('/tenants/:tenantId/users', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listTenantUsers(req.params.tenantId) }); }
