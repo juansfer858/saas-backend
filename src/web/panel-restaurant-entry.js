@@ -409,3 +409,113 @@
   window.VantixGCCoreWorkspaceTheme = WORKSPACE_THEME;
   window.VantixGCCoreDashboardAnalyticsVersion = DASHBOARD_ANALYTICS_VERSION;
 })();
+
+(() => {
+  'use strict';
+  const ORIGIN_KEY = 'vantixgc_core_origin_v1';
+  const SESSION_KEY = 'vantixgc_core_session_v1';
+  const MAX_AGE_MS = 4 * 60 * 60 * 1000;
+
+  function session() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+    catch { return null; }
+  }
+
+  function internalPath(value) {
+    try {
+      const url = new URL(value, window.location.origin);
+      if (url.origin !== window.location.origin || !url.pathname.startsWith('/app/')) return null;
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch { return null; }
+  }
+
+  function readOrigin() {
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(ORIGIN_KEY) || 'null');
+      const active = session();
+      if (!raw || !raw.from || !raw.targetPath || !raw.createdAt) return null;
+      if (raw.tenant && active?.subdomain && raw.tenant !== active.subdomain) return null;
+      if (Date.now() - Number(raw.createdAt) > MAX_AGE_MS) return null;
+      const from = internalPath(raw.from);
+      const target = internalPath(raw.targetPath);
+      if (!from || !target) return null;
+      return { ...raw, from, targetPath: new URL(target, window.location.origin).pathname.replace(/\/$/, '') || '/app' };
+    } catch { return null; }
+  }
+
+  function clearOrigin() {
+    try { sessionStorage.removeItem(ORIGIN_KEY); } catch {}
+    document.querySelector('[data-core-origin-return]')?.remove();
+  }
+
+  function currentPath() {
+    return (window.location.pathname || '/app').replace(/\/$/, '') || '/app';
+  }
+
+  function matchesTarget(origin) {
+    const current = currentPath();
+    return current === origin.targetPath || current.startsWith(`${origin.targetPath}/`);
+  }
+
+  function installStyle() {
+    if (document.getElementById('core-origin-return-style')) return;
+    const style = document.createElement('style');
+    style.id = 'core-origin-return-style';
+    style.textContent = '.core-origin-return{display:flex;align-items:center;gap:9px;margin:0 0 12px!important;min-height:34px}.core-origin-return .btn{min-height:34px!important;height:34px!important;padding:0 11px!important;font-size:12px!important}.core-origin-return span{color:#7b8794;font-size:12px;font-weight:600}@media(max-width:760px){.core-origin-return{margin-bottom:10px!important}.core-origin-return span{display:none}}';
+    document.head.appendChild(style);
+  }
+
+  function goBack() {
+    const origin = readOrigin();
+    if (!origin) return;
+    const destination = origin.from;
+    clearOrigin();
+    window.location.assign(destination);
+  }
+
+  function mount() {
+    installStyle();
+    const origin = readOrigin();
+    const current = currentPath();
+    const existing = document.querySelector('[data-core-origin-return]');
+    if (!origin) {
+      existing?.remove();
+      return;
+    }
+    const sourcePath = new URL(origin.from, window.location.origin).pathname.replace(/\/$/, '') || '/app';
+    if (current === sourcePath) {
+      clearOrigin();
+      return;
+    }
+    if (!matchesTarget(origin)) {
+      existing?.remove();
+      return;
+    }
+    const host = document.querySelector('.content');
+    if (!host) return;
+    if (existing && host.contains(existing)) return;
+    existing?.remove();
+    const row = document.createElement('div');
+    row.className = 'core-origin-return';
+    row.dataset.coreOriginReturn = 'true';
+    const label = String(origin.fromLabel || 'pantalla anterior');
+    row.innerHTML = `<button type="button" class="btn small" data-core-origin-back>← Atrás</button><span>Volver a ${label}</span>`;
+    row.querySelector('[data-core-origin-back]')?.addEventListener('click', goBack);
+    host.prepend(row);
+  }
+
+  const schedule = () => setTimeout(mount, 0);
+  window.addEventListener('popstate', schedule);
+  const originalPush = history.pushState.bind(history);
+  history.pushState = function (...args) { const out = originalPush(...args); schedule(); return out; };
+  const originalReplace = history.replaceState.bind(history);
+  history.replaceState = function (...args) { const out = originalReplace(...args); schedule(); return out; };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
+  else mount();
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 30000);
+
+  window.VantixGCCoreOriginBack = Object.freeze({ mount, clear: clearOrigin, back: goBack });
+})();

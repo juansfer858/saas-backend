@@ -2,6 +2,7 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
+  const ORIGIN_KEY = 'vantixgc_core_origin_v1';
   const DASHBOARD_PATH = '/app/dashboard';
   const ANALYTICS_ENDPOINT = '/api/v1/comercial/ventas/dashboard';
   let analytics = null;
@@ -26,7 +27,23 @@
     return `${y}-${m}-01`;
   }
 
+  function rememberOrigin(target) {
+    try {
+      const session = readSession();
+      const targetUrl = new URL(target, window.location.origin);
+      if (!targetUrl.pathname.startsWith('/app/')) return;
+      sessionStorage.setItem(ORIGIN_KEY, JSON.stringify({
+        tenant: session?.subdomain || '',
+        from: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+        fromLabel: 'Dashboard',
+        targetPath: targetUrl.pathname.replace(/\/$/, '') || '/app',
+        createdAt: Date.now()
+      }));
+    } catch {}
+  }
+
   function navigate(path) {
+    rememberOrigin(path);
     window.location.href = path;
   }
 

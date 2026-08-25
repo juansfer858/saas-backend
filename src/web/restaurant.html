@@ -27,6 +27,21 @@
   <script src="/app/restaurant-control-center.js?v=workspace-v1"></script>
   <script>
   (()=>{
+    const ORIGIN_KEY='vantixgc_core_origin_v1',SESSION_KEY='vantixgc_core_session_v1',MAX_AGE_MS=4*60*60*1000;
+    try{
+      const session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+      const origin=JSON.parse(sessionStorage.getItem(ORIGIN_KEY)||'null');
+      if(!origin||!origin.from||origin.targetPath!=='/app/centro-de-control'||Date.now()-Number(origin.createdAt||0)>MAX_AGE_MS)return;
+      if(origin.tenant&&session?.subdomain&&origin.tenant!==session.subdomain)return;
+      const from=new URL(origin.from,location.origin);if(from.origin!==location.origin||!from.pathname.startsWith('/app/'))return;
+      const back=()=>{sessionStorage.removeItem(ORIGIN_KEY);location.assign(`${from.pathname}${from.search}${from.hash}`)};
+      const admin=document.querySelector('[data-restaurant-admin-link]');if(admin){admin.href=`${from.pathname}${from.search}${from.hash}`;admin.textContent='← Atrás';admin.title='Volver a '+String(origin.fromLabel||'la pantalla anterior');admin.addEventListener('click',e=>{e.preventDefault();back()})}
+      const core=document.querySelector('#coreLink');if(core){core.href=`${from.pathname}${from.search}${from.hash}`;core.textContent='← Atrás';core.addEventListener('click',e=>{e.preventDefault();back()})}
+    }catch{}
+  })();
+  </script>
+  <script>
+  (()=>{
     const SESSION_KEY='vantixgc_core_session_v1';let session=null;try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
     if(!session?.token||!session?.subdomain)return;
     const api=async(path,opts={})=>{const r=await fetch(path,{...opts,cache:'no-store',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.token}`,'x-tenant-subdomain':session.subdomain,...(opts.headers||{})}});let b={};try{b=await r.json()}catch{}if(!r.ok)throw new Error(b?.error?.message||b?.message||`HTTP ${r.status}`);return b.data};
