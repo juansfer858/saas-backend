@@ -3,8 +3,10 @@
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const ACCESS_CACHE_PREFIX = 'vantixgc_core_restaurant_access_v2';
+  const ORIGIN_KEY = 'vantixgc_core_origin_v1';
   const NAV_VERSION = 'core-nav-v7';
   const CONTROL_CENTER_PATH = '/app/centro-de-control';
+  const DASHBOARD_PATH = '/app/dashboard';
   const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
   const WORKSPACE_THEME = 'super-core-workspace-v6';
   const SIDEBAR_TEXT_COLOR = '#17212b';
@@ -14,6 +16,9 @@
   let accessChecked = false;
   let hasRestaurantAccess = false;
   let dashboardSequence = 0;
+  let dashboardAnalytics = null;
+  let dashboardLoading = false;
+  let dashboardEventsInstalled = false;
 
   document.documentElement.dataset.superCoreWorkspace = WORKSPACE_THEME;
 
@@ -60,7 +65,23 @@
   }
 
   function currentPath() {
-    return String(window.location.pathname || '/app/dashboard').replace(/\/$/, '') || '/app';
+    return String(window.location.pathname || DASHBOARD_PATH).replace(/\/$/, '') || '/app';
+  }
+
+  function currentLocation() {
+    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  }
+
+  function localMonthStart() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+
+  function titleCase(value) {
+    return String(value || 'CORE')
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/(^|\s)\S/g, (match) => match.toUpperCase());
   }
 
   async function checkRestaurantAccess() {
@@ -112,29 +133,29 @@
     if (meta) meta.textContent = `${session.subdomain}${session.tenant?.pais ? ` · ${session.tenant.pais}` : ''}`;
   }
 
+  function rememberOrigin(target, fromLabel = 'Dashboard') {
+    try {
+      const session = readSession();
+      const targetUrl = new URL(target, window.location.origin);
+      if (targetUrl.origin !== window.location.origin || !targetUrl.pathname.startsWith('/app/')) return;
+      sessionStorage.setItem(ORIGIN_KEY, JSON.stringify({
+        tenant: session?.subdomain || '',
+        from: currentLocation(),
+        fromLabel,
+        targetPath: targetUrl.pathname.replace(/\/$/, '') || '/app',
+        createdAt: Date.now()
+      }));
+    } catch {}
+  }
+
   function openRestaurantControlCenter() {
-    window.location.href = CONTROL_CENTER_PATH;
+    rememberOrigin(CONTROL_CENTER_PATH, 'Dashboard');
+    window.location.assign(CONTROL_CENTER_PATH);
   }
 
   function installRestaurantDashboardEntry() {
-    const actions = document.querySelector('.pagehead .actions');
-    const existing = actions?.querySelector('[data-restaurant-dashboard-entry]');
-
-    if (!hasRestaurantAccess || currentPath() !== '/app/dashboard') {
-      existing?.remove();
-      return;
-    }
-
-    if (actions && !existing) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'btn';
-      button.dataset.restaurantDashboardEntry = 'true';
-      button.textContent = 'Abrir Restaurante';
-      button.title = 'Abrir el Centro de Control operativo conectado al restaurante real';
-      button.addEventListener('click', openRestaurantControlCenter);
-      actions.prepend(button);
-    }
+    if (!hasRestaurantAccess || currentPath() !== DASHBOARD_PATH) return '';
+    return '<button class="btn" type="button" data-restaurant-dashboard-entry="true" data-dashboard-action="restaurant">Abrir Restaurante</button>';
   }
 
   function renameAccountingConfigurationHeading() {
@@ -148,7 +169,7 @@
   function installCurrentUi() {
     hydrateTenantCard();
     renameAccountingConfigurationHeading();
-    installRestaurantDashboardEntry();
+    window.VantixGCCoreOriginBack?.mount?.();
   }
 
   function htmlEscape(value) {
@@ -171,7 +192,7 @@
   }
 
   function trendText(value, comparison) {
-    if (value === null || value === undefined) return `<span class="core-dash-trend neutral">Sin base anterior</span>`;
+    if (value === null || value === undefined) return '<span class="core-dash-trend neutral">Sin base anterior</span>';
     const n = Number(value || 0);
     const cls = n > 0 ? 'up' : n < 0 ? 'down' : 'neutral';
     const arrow = n > 0 ? '↑' : n < 0 ? '↓' : '→';
@@ -214,6 +235,10 @@
     return label.charAt(0).toUpperCase() + label.slice(1);
   }
 
+  function routeAttr(path) {
+    return htmlEscape(path);
+  }
+
   function buildSalesBars(items) {
     const days = Array.isArray(items) ? items : [];
     const max = Math.max(...days.map((row) => Number(row.total || 0)), 1);
@@ -221,7 +246,8 @@
       const total = Number(row.total || 0);
       const pct = total > 0 ? Math.max((total / max) * 100, 4) : 1.5;
       const tone = index === 4 ? 'orange' : index >= 5 ? 'green' : 'blue';
-      return `<div class="core-dash-bar-slot"><div class="core-dash-bar-value">${total ? dashboardMoney(total) : '$ 0'}</div><div class="core-dash-bar-track"><div class="core-dash-bar ${tone}" style="height:${pct.toFixed(1)}%"></div></div><div class="core-dash-day">${htmlEscape(dayLabel(row.date))}</div></div>`;
+      const route = `/app/ventas?desde=${encodeURIComponent(row.date)}&hasta=${encodeURIComponent(row.date)}`;
+      return `<div class="core-dash-bar-slot" role="button" tabindex="0" data-dashboard-route="${routeAttr(route)}" style="cursor:pointer"><div class="core-dash-bar-value">${total ? dashboardMoney(total) : '$ 0'}</div><div class="core-dash-bar-track"><div class="core-dash-bar ${tone}" style="height:${pct.toFixed(1)}%"></div></div><div class="core-dash-day">${htmlEscape(dayLabel(row.date))}</div></div>`;
     }).join('');
   }
 
@@ -246,7 +272,9 @@
       cursor += segment.share;
       return `${segment.color} ${start.toFixed(1)}% ${Math.min(cursor, 100).toFixed(1)}%`;
     }).join(',') : '#e5e7eb 0 100%';
-    const legend = segments.length ? segments.map((segment) => `<div class="core-dash-legend-row"><span class="core-dash-dot" style="background:${segment.color}"></span><span class="core-dash-legend-name">${htmlEscape(segment.label)}</span><strong>${dashboardNumber(segment.share, 1)}%</strong><span>${dashboardMoney(segment.sales)}</span></div>`).join('') : '<div class="core-dash-empty-small">Aún no hay productos vendidos este mes.</div>';
+    const legend = segments.length
+      ? segments.map((segment) => `<div class="core-dash-legend-row"><span class="core-dash-dot" style="background:${segment.color}"></span><span class="core-dash-legend-name">${htmlEscape(segment.label)}</span><strong>${dashboardNumber(segment.share, 1)}%</strong><span>${dashboardMoney(segment.sales)}</span></div>`).join('')
+      : '<div class="core-dash-empty-small">Aún no hay productos vendidos este mes.</div>';
     return `<div class="core-dash-donut-wrap"><div class="core-dash-donut" style="background:conic-gradient(${gradient})"><div class="core-dash-donut-center"><small>Ventas productos</small><strong>${dashboardMoney(productSalesTotal || 0)}</strong></div></div><div class="core-dash-legend">${legend}</div></div>`;
   }
 
@@ -256,7 +284,8 @@
     const maxQty = Math.max(...rows.map((row) => Number(row.cantidad || 0)), 1);
     return rows.map((row, index) => {
       const width = Math.max((Number(row.cantidad || 0) / maxQty) * 100, 3);
-      return `<div class="core-dash-ranking-row"><span class="core-dash-rank">${index + 1}.</span><div class="core-dash-product-copy"><strong>${htmlEscape(row.nombre)}</strong><small>${dashboardNumber(row.cantidad, 2)} uds.</small></div><div class="core-dash-rank-track"><span style="width:${width.toFixed(1)}%"></span></div><strong class="core-dash-product-money">${dashboardMoney(row.ventas)}</strong></div>`;
+      const route = row.productoId ? `/app/inventario?productoId=${encodeURIComponent(row.productoId)}` : '/app/inventario';
+      return `<div class="core-dash-ranking-row" role="button" tabindex="0" data-dashboard-route="${routeAttr(route)}" style="cursor:pointer"><span class="core-dash-rank">${index + 1}.</span><div class="core-dash-product-copy"><strong>${htmlEscape(row.nombre)}</strong><small>${dashboardNumber(row.cantidad, 2)} uds.</small></div><div class="core-dash-rank-track"><span style="width:${width.toFixed(1)}%"></span></div><strong class="core-dash-product-money">${dashboardMoney(row.ventas)}</strong></div>`;
     }).join('');
   }
 
@@ -284,34 +313,49 @@
     const indicators = data?.indicators || {};
     const kpis = data?.kpis || {};
     const rows = restaurant ? [
-      { tone: 'blue', icon: 'orders', label: 'Pedidos activos', value: restaurant.pedidosActivos, note: 'En operación' },
-      { tone: 'orange', icon: 'stock', label: 'Stock crítico', value: indicators.stockCritico, note: 'Existencia ≤ 5' },
-      { tone: 'green', icon: 'tables', label: 'Mesas ocupadas', value: restaurant.mesasOcupadas, note: `De ${restaurant.mesasTotales} disponibles` },
-      { tone: 'purple', icon: 'cartera', label: 'Cobros pendientes', value: kpis.carteraDocumentos, note: 'Facturas abiertas' }
+      { tone: 'blue', icon: 'orders', label: 'Pedidos activos', value: restaurant.pedidosActivos, note: 'En operación', route: CONTROL_CENTER_PATH },
+      { tone: 'orange', icon: 'stock', label: 'Stock crítico', value: indicators.stockCritico, note: 'Existencia ≤ 5', route: '/app/inventario?stockCritico=1' },
+      { tone: 'green', icon: 'tables', label: 'Mesas ocupadas', value: restaurant.mesasOcupadas, note: `De ${restaurant.mesasTotales} disponibles`, route: CONTROL_CENTER_PATH },
+      { tone: 'purple', icon: 'cartera', label: 'Cobros pendientes', value: kpis.carteraDocumentos, note: 'Facturas abiertas', route: '/app/cartera' }
     ] : [
-      { tone: 'blue', icon: 'sales', label: 'Ventas del mes', value: kpis.ventasMesCantidad, note: 'Documentos emitidos' },
-      { tone: 'orange', icon: 'stock', label: 'Stock crítico', value: indicators.stockCritico, note: 'Existencia ≤ 5' },
-      { tone: 'green', icon: 'products', label: 'Productos activos', value: indicators.productosActivos, note: 'Catálogo disponible' },
-      { tone: 'purple', icon: 'cartera', label: 'Cobros pendientes', value: kpis.carteraDocumentos, note: 'Facturas abiertas' }
+      { tone: 'blue', icon: 'sales', label: 'Ventas del mes', value: kpis.ventasMesCantidad, note: 'Documentos emitidos', route: `/app/ventas?desde=${encodeURIComponent(localMonthStart())}` },
+      { tone: 'orange', icon: 'stock', label: 'Stock crítico', value: indicators.stockCritico, note: 'Existencia ≤ 5', route: '/app/inventario?stockCritico=1' },
+      { tone: 'green', icon: 'products', label: 'Productos activos', value: indicators.productosActivos, note: 'Catálogo disponible', route: '/app/inventario' },
+      { tone: 'purple', icon: 'cartera', label: 'Cobros pendientes', value: kpis.carteraDocumentos, note: 'Facturas abiertas', route: '/app/cartera' }
     ];
-    return rows.map((row) => `<div class="core-dash-op-card ${row.tone}"><div class="core-dash-op-icon">${dashboardIcon(row.icon)}</div><div><span>${htmlEscape(row.label)}</span><strong>${dashboardNumber(row.value)}</strong><small>${htmlEscape(row.note)}</small></div></div>`).join('');
+    return rows.map((row) => `<div class="core-dash-op-card ${row.tone}" role="button" tabindex="0" data-dashboard-route="${routeAttr(row.route)}" style="cursor:pointer"><div class="core-dash-op-icon">${dashboardIcon(row.icon)}</div><div><span>${htmlEscape(row.label)}</span><strong>${dashboardNumber(row.value)}</strong><small>${htmlEscape(row.note)}</small></div></div>`).join('');
+  }
+
+  function dashboardActionsMarkup() {
+    return `<div class="actions core-dashboard-actions" data-dashboard-actions="single-owner-v1">
+      ${installRestaurantDashboardEntry()}
+      <button class="btn" type="button" data-dashboard-action="refresh">Actualizar</button>
+      <button class="btn" type="button" data-dashboard-action="export" data-dashboard-format="excel">Exportar Excel</button>
+      <button class="btn primary" type="button" data-dashboard-action="export" data-dashboard-format="pdf">Exportar PDF</button>
+    </div>`;
   }
 
   function renderDashboardAnalyticsMarkup(data, restaurant) {
+    const session = readSession();
+    const niche = titleCase(session?.tenant?.nicho || 'CORE');
     const k = data?.kpis || {};
     const updated = data?.updatedAt ? new Date(data.updatedAt) : new Date();
     const updatedLabel = new Intl.DateTimeFormat('es-CO', { hour: 'numeric', minute: '2-digit' }).format(updated);
+    const today = data?.salesByDay?.at(-1)?.date;
+    const todayRoute = today ? `/app/ventas?desde=${encodeURIComponent(today)}&hasta=${encodeURIComponent(today)}` : '/app/ventas';
+    const monthRoute = `/app/ventas?desde=${encodeURIComponent(localMonthStart())}`;
+
     return `<div class="core-dash" data-core-dashboard-analytics="${DASHBOARD_ANALYTICS_VERSION}">
-      <div class="pagehead core-dash-pagehead"><div><h1>Dashboard</h1><p>Resumen operativo del tenant actual.</p></div></div>
+      <div class="pagehead core-dash-pagehead"><div><h1>Dashboard</h1><p>Resumen operativo · ${htmlEscape(niche)}</p></div>${dashboardActionsMarkup()}</div>
       <div class="core-dash-kpis">
-        <div class="core-dash-kpi blue"><div><span>VENTAS HOY</span><strong>${dashboardMoney(k.ventasHoy)}</strong>${trendText(k.tendenciaHoyPct, 'vs ayer')}</div><div class="core-dash-kpi-icon">${dashboardIcon('sales')}</div></div>
-        <div class="core-dash-kpi orange"><div><span>VENTAS DEL MES</span><strong>${dashboardMoney(k.ventasMes)}</strong>${trendText(k.tendenciaMesPct, 'vs mes anterior')}</div><div class="core-dash-kpi-icon">${dashboardIcon('month')}</div></div>
-        <div class="core-dash-kpi green"><div><span>TICKET PROMEDIO</span><strong>${dashboardMoney(k.ticketPromedio)}</strong><small>${dashboardNumber(k.ventasMesCantidad)} ventas emitidas</small></div><div class="core-dash-kpi-icon">${dashboardIcon('ticket')}</div></div>
-        <div class="core-dash-kpi blue"><div><span>CARTERA PENDIENTE</span><strong>${dashboardMoney(k.carteraPendiente)}</strong><small>${dashboardNumber(k.carteraDocumentos)} facturas abiertas</small></div><div class="core-dash-kpi-icon">${dashboardIcon('cartera')}</div></div>
+        <div class="core-dash-kpi blue" role="button" tabindex="0" data-dashboard-route="${routeAttr(todayRoute)}" style="cursor:pointer"><div><span>VENTAS HOY</span><strong>${dashboardMoney(k.ventasHoy)}</strong>${trendText(k.tendenciaHoyPct, 'vs ayer')}</div><div class="core-dash-kpi-icon">${dashboardIcon('sales')}</div></div>
+        <div class="core-dash-kpi orange" role="button" tabindex="0" data-dashboard-route="${routeAttr(monthRoute)}" style="cursor:pointer"><div><span>VENTAS DEL MES</span><strong>${dashboardMoney(k.ventasMes)}</strong>${trendText(k.tendenciaMesPct, 'vs mes anterior')}</div><div class="core-dash-kpi-icon">${dashboardIcon('month')}</div></div>
+        <div class="core-dash-kpi green" role="button" tabindex="0" data-dashboard-route="${routeAttr(monthRoute)}" style="cursor:pointer"><div><span>TICKET PROMEDIO</span><strong>${dashboardMoney(k.ticketPromedio)}</strong><small>${dashboardNumber(k.ventasMesCantidad)} ventas emitidas</small></div><div class="core-dash-kpi-icon">${dashboardIcon('ticket')}</div></div>
+        <div class="core-dash-kpi blue" role="button" tabindex="0" data-dashboard-route="/app/cartera" style="cursor:pointer"><div><span>CARTERA PENDIENTE</span><strong>${dashboardMoney(k.carteraPendiente)}</strong><small>${dashboardNumber(k.carteraDocumentos)} facturas abiertas</small></div><div class="core-dash-kpi-icon">${dashboardIcon('cartera')}</div></div>
       </div>
       <div class="core-dash-grid core-dash-grid-main">
         <section class="core-dash-panel"><header><div><h2>Ventas últimos 7 días</h2><p>Comportamiento diario</p></div><span class="core-dash-period">Últimos 7 días</span></header><div class="core-dash-bars">${buildSalesBars(data?.salesByDay)}</div></section>
-        <section class="core-dash-panel"><header><div><h2>Mix de productos</h2><p>Productos más vendidos este mes</p></div><span class="core-dash-period">Este mes</span></header>${buildProductMix(data?.topProducts, data?.productSalesTotal)}</section>
+        <section class="core-dash-panel" role="button" tabindex="0" data-dashboard-route="${routeAttr(monthRoute)}" style="cursor:pointer"><header><div><h2>Mix de productos</h2><p>Productos más vendidos este mes</p></div><span class="core-dash-period">Este mes</span></header>${buildProductMix(data?.topProducts, data?.productSalesTotal)}</section>
       </div>
       <div class="core-dash-grid core-dash-grid-bottom">
         <section class="core-dash-panel core-dash-top-products"><header><div><h2>Top productos</h2><p>Por unidades vendidas este mes</p></div></header><div class="core-dash-ranking">${buildTopProducts(data?.topProducts)}</div></section>
@@ -321,9 +365,104 @@
     </div>`;
   }
 
+  function filenameFromDisposition(disposition, format) {
+    const match = String(disposition || '').match(/filename="?([^";]+)"?/i);
+    if (match?.[1]) return match[1];
+    return `Informe_Dashboard.${format === 'pdf' ? 'pdf' : 'xls'}`;
+  }
+
+  async function exportDashboard(format, button) {
+    const session = readSession();
+    if (!session?.token || !session?.subdomain) return;
+    const original = button?.textContent || '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Generando…';
+    }
+    try {
+      const offset = new Date().getTimezoneOffset();
+      const response = await fetch(`/api/v1/comercial/ventas/dashboard/exportar?formato=${encodeURIComponent(format)}&tzOffsetMinutes=${encodeURIComponent(offset)}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'x-tenant-subdomain': session.subdomain
+        }
+      });
+      if (!response.ok) {
+        let body = {};
+        try { body = await response.json(); } catch {}
+        throw new Error(body?.error?.message || body?.message || `No fue posible generar el informe (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filenameFromDisposition(response.headers.get('content-disposition'), format);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      window.alert(`No fue posible exportar el Dashboard. ${error.message}`);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+  }
+
+  function dashboardNavigate(path) {
+    rememberOrigin(path, 'Dashboard');
+    window.location.assign(path);
+  }
+
+  async function handleDashboardAction(element) {
+    if (!element) return;
+    const action = element.dataset.dashboardAction;
+    if (action === 'refresh') {
+      await installDashboardAnalytics(true);
+      return;
+    }
+    if (action === 'export') {
+      await exportDashboard(element.dataset.dashboardFormat === 'pdf' ? 'pdf' : 'excel', element);
+      return;
+    }
+    if (action === 'restaurant') {
+      openRestaurantControlCenter();
+    }
+  }
+
+  function installDashboardEvents() {
+    if (dashboardEventsInstalled) return;
+    dashboardEventsInstalled = true;
+
+    document.addEventListener('click', (event) => {
+      const action = event.target.closest?.('[data-dashboard-action]');
+      if (action && currentPath() === DASHBOARD_PATH) {
+        event.preventDefault();
+        handleDashboardAction(action);
+        return;
+      }
+      const route = event.target.closest?.('[data-dashboard-route]');
+      if (route && currentPath() === DASHBOARD_PATH) {
+        event.preventDefault();
+        dashboardNavigate(route.dataset.dashboardRoute);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (currentPath() !== DASHBOARD_PATH || !['Enter', ' '].includes(event.key)) return;
+      const target = event.target.closest?.('[data-dashboard-route]');
+      if (!target) return;
+      event.preventDefault();
+      dashboardNavigate(target.dataset.dashboardRoute);
+    });
+  }
+
   async function waitForDashboardContent(maxAttempts = 40) {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      if (currentPath() !== '/app/dashboard') return null;
+      if (currentPath() !== DASHBOARD_PATH) return null;
       const content = document.querySelector('.content');
       const heading = content?.querySelector('.pagehead h1, .head h1');
       if (content && heading?.textContent.trim() === 'Dashboard') return content;
@@ -332,32 +471,42 @@
     return null;
   }
 
-  async function installDashboardAnalytics() {
-    if (currentPath() !== '/app/dashboard') return;
+  async function installDashboardAnalytics(force = false) {
+    if (currentPath() !== DASHBOARD_PATH || dashboardLoading) return;
     const content = await waitForDashboardContent();
-    if (!content || content.dataset.coreDashboardAnalytics === DASHBOARD_ANALYTICS_VERSION) return;
-    content.dataset.coreDashboardAnalytics = DASHBOARD_ANALYTICS_VERSION;
+    if (!content) return;
+    if (!force && content.dataset.coreDashboardAnalytics === DASHBOARD_ANALYTICS_VERSION && content.querySelector('[data-dashboard-actions="single-owner-v1"]')) return;
+
+    dashboardLoading = true;
     const sequence = ++dashboardSequence;
-    content.innerHTML = '<div class="pagehead core-dash-pagehead"><div><h1>Dashboard</h1><p>Resumen operativo del tenant actual.</p></div></div><div class="core-dash-loading"><span></span><span></span><span></span><span></span></div>';
+    content.dataset.coreDashboardAnalytics = 'loading';
+    content.innerHTML = `<div class="pagehead core-dash-pagehead"><div><h1>Dashboard</h1><p>Resumen operativo del tenant actual.</p></div></div><div class="core-dash-loading"><span></span><span></span><span></span><span></span></div>`;
+
     try {
       const offset = new Date().getTimezoneOffset();
       const [analytics, restaurant] = await Promise.all([
         coreGet(`/api/v1/comercial/ventas/dashboard?tzOffsetMinutes=${encodeURIComponent(offset)}`),
         loadRestaurantOperationalData()
       ]);
-      if (sequence !== dashboardSequence || currentPath() !== '/app/dashboard') return;
+      if (sequence !== dashboardSequence || currentPath() !== DASHBOARD_PATH) return;
       const activeContent = document.querySelector('.content');
       if (!activeContent || activeContent !== content) return;
+      dashboardAnalytics = analytics;
       content.innerHTML = renderDashboardAnalyticsMarkup(analytics, restaurant);
+      content.dataset.coreDashboardAnalytics = DASHBOARD_ANALYTICS_VERSION;
     } catch (error) {
-      if (sequence !== dashboardSequence || currentPath() !== '/app/dashboard') return;
-      content.innerHTML = `<div class="pagehead core-dash-pagehead"><div><h1>Dashboard</h1><p>Resumen operativo del tenant actual.</p></div></div><div class="error"><strong>No fue posible cargar los indicadores del Dashboard.</strong><br>${htmlEscape(error.message)}</div>`;
+      if (sequence !== dashboardSequence || currentPath() !== DASHBOARD_PATH) return;
+      content.dataset.coreDashboardAnalytics = 'error';
+      content.innerHTML = `<div class="pagehead core-dash-pagehead"><div><h1>Dashboard</h1><p>Resumen operativo del tenant actual.</p></div><div class="actions"><button class="btn" type="button" data-dashboard-action="refresh">Reintentar</button></div></div><div class="error"><strong>No fue posible cargar los indicadores del Dashboard.</strong><br>${htmlEscape(error.message)}</div>`;
+    } finally {
+      if (sequence === dashboardSequence) dashboardLoading = false;
     }
   }
 
   async function refreshCurrentUi() {
     installCurrentUi();
-    if (currentPath() === '/app/dashboard') await installDashboardAnalytics();
+    if (currentPath() === DASHBOARD_PATH) await installDashboardAnalytics(true);
+    window.VantixGCCoreOriginBack?.mount?.();
   }
 
   function installRenderHook() {
@@ -374,6 +523,7 @@
 
   async function start() {
     bootstrapRestaurantAccessCache();
+    installDashboardEvents();
     installRenderHook();
     installCurrentUi();
 
@@ -382,12 +532,15 @@
       installCurrentUi();
     }
     await installDashboardAnalytics();
+    window.VantixGCCoreOriginBack?.mount?.();
   }
 
   window.addEventListener('popstate', () => {
     dashboardSequence += 1;
+    dashboardLoading = false;
     setTimeout(() => { refreshCurrentUi(); }, 0);
   });
+
   document.addEventListener('click', (event) => {
     const link = event.target.closest?.('a[href="/app/dashboard"]');
     if (!link) return;
@@ -408,6 +561,7 @@
   window.VantixGCCoreSidebarTextColor = SIDEBAR_TEXT_COLOR;
   window.VantixGCCoreWorkspaceTheme = WORKSPACE_THEME;
   window.VantixGCCoreDashboardAnalyticsVersion = DASHBOARD_ANALYTICS_VERSION;
+  window.VantixGCCoreDashboardOwner = 'panel-restaurant-entry.js';
 })();
 
 (() => {
@@ -415,6 +569,7 @@
   const ORIGIN_KEY = 'vantixgc_core_origin_v1';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const MAX_AGE_MS = 4 * 60 * 60 * 1000;
+  let originEventsInstalled = false;
 
   function session() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -448,21 +603,13 @@
     document.querySelector('[data-core-origin-return]')?.remove();
   }
 
-  function currentPath() {
+  function originCurrentPath() {
     return (window.location.pathname || '/app').replace(/\/$/, '') || '/app';
   }
 
   function matchesTarget(origin) {
-    const current = currentPath();
+    const current = originCurrentPath();
     return current === origin.targetPath || current.startsWith(`${origin.targetPath}/`);
-  }
-
-  function installStyle() {
-    if (document.getElementById('core-origin-return-style')) return;
-    const style = document.createElement('style');
-    style.id = 'core-origin-return-style';
-    style.textContent = '.core-origin-return{display:flex;align-items:center;gap:9px;margin:0 0 12px!important;min-height:34px}.core-origin-return .btn{min-height:34px!important;height:34px!important;padding:0 11px!important;font-size:12px!important}.core-origin-return span{color:#7b8794;font-size:12px;font-weight:600}@media(max-width:760px){.core-origin-return{margin-bottom:10px!important}.core-origin-return span{display:none}}';
-    document.head.appendChild(style);
   }
 
   function goBack() {
@@ -474,14 +621,14 @@
   }
 
   function mount() {
-    installStyle();
     const origin = readOrigin();
-    const current = currentPath();
+    const current = originCurrentPath();
     const existing = document.querySelector('[data-core-origin-return]');
     if (!origin) {
       existing?.remove();
       return;
     }
+
     const sourcePath = new URL(origin.from, window.location.origin).pathname.replace(/\/$/, '') || '/app';
     if (current === sourcePath) {
       clearOrigin();
@@ -491,31 +638,36 @@
       existing?.remove();
       return;
     }
+
     const host = document.querySelector('.content');
     if (!host) return;
     if (existing && host.contains(existing)) return;
     existing?.remove();
+
     const row = document.createElement('div');
-    row.className = 'core-origin-return';
+    row.className = 'actions';
     row.dataset.coreOriginReturn = 'true';
-    const label = String(origin.fromLabel || 'pantalla anterior');
-    row.innerHTML = `<button type="button" class="btn small" data-core-origin-back>← Atrás</button><span>Volver a ${label}</span>`;
-    row.querySelector('[data-core-origin-back]')?.addEventListener('click', goBack);
+    row.style.justifyContent = 'flex-start';
+    row.style.margin = '0 0 12px';
+    row.innerHTML = `<button type="button" class="btn small" data-core-origin-back>← Atrás</button><span class="muted">Volver a ${String(origin.fromLabel || 'pantalla anterior')}</span>`;
     host.prepend(row);
   }
 
-  const schedule = () => setTimeout(mount, 0);
-  window.addEventListener('popstate', schedule);
-  const originalPush = history.pushState.bind(history);
-  history.pushState = function (...args) { const out = originalPush(...args); schedule(); return out; };
-  const originalReplace = history.replaceState.bind(history);
-  history.replaceState = function (...args) { const out = originalReplace(...args); schedule(); return out; };
+  function installOriginEvents() {
+    if (originEventsInstalled) return;
+    originEventsInstalled = true;
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest?.('[data-core-origin-back]');
+      if (!button) return;
+      event.preventDefault();
+      goBack();
+    });
+    window.addEventListener('popstate', () => setTimeout(mount, 0));
+  }
 
+  installOriginEvents();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
   else mount();
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 30000);
 
   window.VantixGCCoreOriginBack = Object.freeze({ mount, clear: clearOrigin, back: goBack });
 })();
