@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+const APPROVED_INSTALL_SOURCE = '40634cc4f6812686644ccb7109be283806f74e66';
 
 const service = read('src/modules/self-service/restaurant-self-service.service.js');
 const routes = read('src/modules/self-service/restaurant-self-service.routes.js');
@@ -37,6 +38,8 @@ assert.match(service, /activateWithClient\(tx, tenant\.id, 'RESTAURANT'/);
 assert.match(service, /createInstallClaim/);
 assert.match(service, /consumeInstallClaim/);
 assert.match(service, /installerPowerShell/);
+assert.ok(service.includes(`const INSTALL_SOURCE_COMMIT = '${APPROVED_INSTALL_SOURCE}';`));
+assert.ok(!service.includes('__PIN_AFTER_IMPLEMENTATION__'));
 assert.match(routes, /\/register/);
 assert.match(routes, /install-claims\/consume/);
 assert.match(routes, /onboarding\/install-claim/);
