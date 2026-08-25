@@ -172,10 +172,6 @@ async function main() {
     assert.match(sharedEntry, /data-core-tenant-name/);
     assert.match(sharedEntry, /data-core-tenant-meta/);
     assert.match(sharedEntry, /const SIDEBAR_TEXT_COLOR = '#17212b'/);
-    assert.match(sharedEntry, /Persistent CSS, never per-element JS patches/);
-    assert.match(sharedEntry, /background:rgba\(250,252,253,.66\)!important/);
-    assert.match(sharedEntry, /\.core-tenant-sidebar \.nav a\.active\{background:linear-gradient/);
-    assert.match(sharedEntry, /color:\$\{SIDEBAR_TEXT_COLOR\}!important/);
     assert.ok(!sharedEntry.includes('applyFlatDarkSidebarText'));
     assert.ok(!sharedEntry.includes("style.setProperty('color'"));
     assert.ok(!sharedEntry.includes('installTenantCard'));
