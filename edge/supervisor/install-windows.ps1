@@ -4,6 +4,7 @@ param(
   [string]$CoreBaseUrl = "",
   [string]$EdgeAgentId = "",
   [string]$EdgeAgentKey = "",
+  [string]$InstallClaimToken = "",
   [string]$LocalEncryptionKey = "",
   [string]$LanKey = "",
   [int]$EdgePort = 8788,
@@ -104,6 +105,24 @@ if (-not $LocalEncryptionKey) { $LocalEncryptionKey = $Existing['EDGE_LOCAL_ENCR
 if (-not $LanKey) { $LanKey = $Existing['EDGE_LAN_KEY'] }
 
 if (-not $CoreBaseUrl) { throw 'CoreBaseUrl es obligatorio en la primera instalación.' }
+
+if ($InstallClaimToken -and (-not $EdgeAgentId -or -not $EdgeAgentKey)) {
+  Write-Host 'Vinculando automáticamente esta sede con VantixGC...' -ForegroundColor Cyan
+  $ClaimUri = $CoreBaseUrl.TrimEnd('/') + '/api/public/restaurantes/install-claims/consume'
+  $ClaimBody = @{ token = $InstallClaimToken; deviceName = $env:COMPUTERNAME } | ConvertTo-Json -Compress
+  try {
+    $ClaimResponse = Invoke-RestMethod -UseBasicParsing -Method Post -Uri $ClaimUri -ContentType 'application/json' -Body $ClaimBody -TimeoutSec 30
+  } catch {
+    throw "No fue posible vincular esta sede con VantixGC. Genera un instalador nuevo desde el onboarding. $($_.Exception.Message)"
+  }
+  if (-not $ClaimResponse.ok -or -not $ClaimResponse.data.edgeAgentId -or -not $ClaimResponse.data.edgeKey) {
+    throw 'VantixGC no devolvió credenciales Edge válidas para esta sede.'
+  }
+  $EdgeAgentId = [string]$ClaimResponse.data.edgeAgentId
+  $EdgeAgentKey = [string]$ClaimResponse.data.edgeKey
+  Write-Host ('Sede vinculada: ' + [string]$ClaimResponse.data.pointCode) -ForegroundColor Green
+}
+
 if (-not $EdgeAgentId) { throw 'EdgeAgentId es obligatorio en la primera instalación.' }
 if (-not $EdgeAgentKey) { throw 'EdgeAgentKey es obligatorio en la primera instalación.' }
 if (-not $LocalEncryptionKey) { $LocalEncryptionKey = New-Secret }
