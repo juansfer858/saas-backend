@@ -168,6 +168,23 @@ async function main() {
     assertCanonicalSidebar(advancedHtml, '/app/configuracion-avanzada');
     assert.equal(stableSidebarSignature(advancedHtml), stableSignature, '/app/configuracion-avanzada: sidebar debe conservar la misma geometría');
 
+    const shellRoutes = ['/app/dashboard','/app/ventas','/app/compras','/app/inventario','/app/tesoreria','/app/cartera','/app/terceros','/app/contabilidad','/app/configuracion','/app/configuracion-avanzada'];
+    for (const route of shellRoutes) {
+      const response = await fetch(base + route);
+      const html = await response.text();
+      assert.equal(response.status, 200, route);
+      assert.equal(response.headers.get('x-vantixgc-tenant-shell'), 'core-shell-v1', route);
+      assert.match(html, /id=\"core-shell-bootstrap\"/, route);
+      assert.match(html, /data-core-shell-topbar=\"v1\"/, route);
+      assert.match(html, /window\.VantixGCCoreShell\?\.topbarHtml/, route);
+      assert.ok(!html.includes('<header class=\"top\">'), route + ': no debe conservar top legacy');
+      assert.ok(!html.includes('<header class=\"topbar\">'), route + ': no debe conservar topbar legacy');
+    }
+    assert.match(workspaceCss, /\.app\{grid-template-columns:250px minmax\(0,1fr\)!important\}/);
+    assert.match(workspaceCss, /\.core-shell-topbar\{/);
+    assert.match(workspaceCss, /\.core-shell-user-copy\{/);
+    assert.match(workspaceCss, /\.pagehead,\.head\{/);
+
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
     assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v7'/);
     assert.match(sharedEntry, /window\.VantixGCCoreSidebarRuntime = 'off'/);
