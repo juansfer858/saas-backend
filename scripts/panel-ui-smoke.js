@@ -159,6 +159,13 @@ async function main() {
     assert.match(sharedEntry, /function hydrateTenantCard\(\)/);
     assert.match(sharedEntry, /data-core-tenant-name/);
     assert.match(sharedEntry, /data-core-tenant-meta/);
+    assert.match(sharedEntry, /const SIDEBAR_TEXT_COLOR = '#17212b'/);
+    assert.match(sharedEntry, /Persistent CSS, never per-element JS patches/);
+    assert.match(sharedEntry, /background:rgba\(250,252,253,.66\)!important/);
+    assert.match(sharedEntry, /\.core-tenant-sidebar \.nav a\.active\{background:linear-gradient/);
+    assert.match(sharedEntry, /color:\$\{SIDEBAR_TEXT_COLOR\}!important/);
+    assert.ok(!sharedEntry.includes('applyFlatDarkSidebarText'));
+    assert.ok(!sharedEntry.includes("style.setProperty('color'"));
     assert.ok(!sharedEntry.includes('installTenantCard'));
     assert.ok(!sharedEntry.includes("document.createElement('div')"));
     assert.ok(!sharedEntry.includes('installSuperCoreV5Styles'));
@@ -175,7 +182,7 @@ async function main() {
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
 
-    console.log('SUPER CORE V5 STABLE SIDEBAR GEOMETRY + CACHED TENANT HYDRATION SMOKE OK');
+    console.log('SUPER CORE V5 STABLE SIDEBAR GEOMETRY + PERSISTENT DARK TEXT SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
