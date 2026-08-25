@@ -22,12 +22,21 @@ jobs:
           node-version: '22'
       - name: Apply canonical shell patch
         run: node scripts/apply-canonical-shell-v1.js
+      - name: Validate canonical shell before commit
+        run: node scripts/panel-ui-smoke.js
+        env:
+          DATABASE_URL: postgresql://postgres:dummy@localhost:5432/postgres
+          JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+          JWT_EXPIRES_IN: 8h
+          TENANT_BASE_DOMAIN: example.com
+          TENANT_PLATFORM_SUBDOMAINS: core
       - name: Commit patch and remove temporary patcher
         run: |
           rm .github/workflows/oneoff-canonical-shell-v1.yml
           rm scripts/apply-canonical-shell-v1.js
           git config user.name "vantixgc-ci"
           git config user.email "actions@users.noreply.github.com"
-          git add src/app.js src/web/super-core-workspace-v6.css scripts/core-canonical-shell-smoke.js .github/workflows/super-core-ci.yml .github/workflows/oneoff-canonical-shell-v1.yml scripts/apply-canonical-shell-v1.js
+          git add src/app.js src/web/super-core-workspace-v6.css scripts/panel-ui-smoke.js .github/workflows/oneoff-canonical-shell-v1.yml scripts/apply-canonical-shell-v1.js
           git commit -m "Unify Super Core shell across all tenant modules"
           git push origin HEAD:feature/super-core-canonical-shell-v1
