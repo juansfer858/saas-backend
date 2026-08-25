@@ -186,26 +186,30 @@ async function main() {
     assert.match(workspaceCss, /\.pagehead,\.head\{/);
 
     const sharedEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
-    assert.match(sharedEntry, /const NAV_VERSION = 'core-nav-v7'/);
-    assert.match(sharedEntry, /window\.VantixGCCoreSidebarRuntime = 'off'/);
-    assert.match(sharedEntry, /window\.VantixGCCoreSidebarShellSource = 'server'/);
-    assert.match(sharedEntry, /bootstrapRestaurantAccessCache/);
-    assert.match(sharedEntry, /function hydrateTenantCard\(\)/);
-    assert.match(sharedEntry, /data-core-tenant-name/);
-    assert.match(sharedEntry, /data-core-tenant-meta/);
-    assert.match(sharedEntry, /const SIDEBAR_TEXT_COLOR = '#17212b'/);
-    assert.ok(!sharedEntry.includes('applyFlatDarkSidebarText'));
-    assert.ok(!sharedEntry.includes("style.setProperty('color'"));
-    assert.ok(!sharedEntry.includes('installTenantCard'));
-    assert.ok(!sharedEntry.includes("document.createElement('div')"));
-    assert.ok(!sharedEntry.includes('installSuperCoreV5Styles'));
-    assert.ok(!sharedEntry.includes('installSuperCoreV5Navigation'));
-    assert.ok(!sharedEntry.includes('document.createElement(\'style\')'));
-    assert.ok(!sharedEntry.includes('nav.prepend'));
-    assert.ok(!sharedEntry.includes('MutationObserver'));
-    assert.ok(!sharedEntry.includes('installWorkspaceTheme'));
-    assert.ok(!sharedEntry.includes('insertAdjacentHTML'));
-    assert.ok(!sharedEntry.includes('super-core-workspace-v6-style'));
+    const originMarker = "\n(() => {\n  'use strict';\n  const ORIGIN_KEY = 'vantixgc_core_origin_v1';";
+    const sidebarRuntime = sharedEntry.split(originMarker)[0];
+    assert.match(sidebarRuntime, /const NAV_VERSION = 'core-nav-v7'/);
+    assert.match(sidebarRuntime, /window\.VantixGCCoreSidebarRuntime = 'off'/);
+    assert.match(sidebarRuntime, /window\.VantixGCCoreSidebarShellSource = 'server'/);
+    assert.match(sidebarRuntime, /bootstrapRestaurantAccessCache/);
+    assert.match(sidebarRuntime, /function hydrateTenantCard\(\)/);
+    assert.match(sidebarRuntime, /data-core-tenant-name/);
+    assert.match(sidebarRuntime, /data-core-tenant-meta/);
+    assert.match(sidebarRuntime, /const SIDEBAR_TEXT_COLOR = '#17212b'/);
+    assert.ok(!sidebarRuntime.includes('applyFlatDarkSidebarText'));
+    assert.ok(!sidebarRuntime.includes("style.setProperty('color'"));
+    assert.ok(!sidebarRuntime.includes('installTenantCard'));
+    assert.ok(!sidebarRuntime.includes("document.createElement('div')"));
+    assert.ok(!sidebarRuntime.includes('installSuperCoreV5Styles'));
+    assert.ok(!sidebarRuntime.includes('installSuperCoreV5Navigation'));
+    assert.ok(!sidebarRuntime.includes('document.createElement(\'style\')'));
+    assert.ok(!sidebarRuntime.includes('nav.prepend'));
+    assert.ok(!sidebarRuntime.includes('MutationObserver'));
+    assert.ok(!sidebarRuntime.includes('installWorkspaceTheme'));
+    assert.ok(!sidebarRuntime.includes('insertAdjacentHTML'));
+    assert.ok(!sidebarRuntime.includes('super-core-workspace-v6-style'));
+    assert.ok(sharedEntry.includes("const ORIGIN_KEY = 'vantixgc_core_origin_v1'"));
+    assert.ok(sharedEntry.includes('data-core-origin-return'));
 
     const script = canonicalHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(script, 'El panel debe contener su controlador SPA');
@@ -214,8 +218,9 @@ async function main() {
     const salesScript = salesHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1];
     assert.ok(salesScript, 'Ventas debe contener su controlador operativo');
     new Function(salesScript);
+    new Function(sharedEntry);
 
-    console.log('SUPER CORE V5 STABLE SIDEBAR GEOMETRY + PERSISTENT DARK TEXT SMOKE OK');
+    console.log('SUPER CORE V5 STABLE SIDEBAR GEOMETRY + PERSISTENT DARK TEXT + ORIGIN BACK SMOKE OK');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
