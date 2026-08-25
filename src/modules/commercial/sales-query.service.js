@@ -198,6 +198,7 @@ async function dashboard(tenantId, filters = {}) {
     },
     salesByDay,
     topProducts,
+    productSalesTotal: Number(totalProductRevenue.toFixed(2)),
     indicators: {
       productosActivos: activeProducts,
       stockCritico: criticalStock
