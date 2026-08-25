@@ -33,50 +33,53 @@ async function main() {
     assert.equal(pdf.mime, 'application/pdf');
     assert.equal(pdf.buffer.subarray(0, 4).toString('ascii'), '%PDF');
 
-    const interactions = fs.readFileSync('src/web/dashboard-interactions.js', 'utf8');
+    const dashboard = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
     const loader = fs.readFileSync('src/web/panel-integration-extras.js', 'utf8');
     const routes = fs.readFileSync('src/modules/commercial/commercial.routes.js', 'utf8');
-    const navigation = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
     const restaurantHtml = fs.readFileSync('src/web/restaurant.html', 'utf8');
 
     for (const marker of [
-      'Exportar Excel', 'Exportar PDF', 'Informes', 'Actualizar',
-      'Resumen operativo ·', 'core-dash-actionable', '/app/cartera',
-      '/app/inventario', '/app/centro-de-control'
-    ]) assert.ok(interactions.includes(marker), `Falta interacción ${marker}`);
+      'Exportar Excel', 'Exportar PDF', 'Actualizar', 'Resumen operativo ·',
+      'data-dashboard-route', '/app/cartera', '/app/inventario', '/app/centro-de-control'
+    ]) assert.ok(dashboard.includes(marker), `Falta interacción ${marker}`);
 
-    assert.ok(interactions.includes("tenant.nicho || 'CORE'"));
+    assert.ok(dashboard.includes("session?.tenant?.nicho || 'CORE'"));
+    assert.ok(dashboard.includes("window.VantixGCCoreDashboardOwner = 'panel-restaurant-entry.js'"));
+    assert.ok(dashboard.includes('data-dashboard-actions="single-owner-v1"'));
+    assert.ok(dashboard.includes('function installDashboardEvents()'));
+    assert.ok(dashboard.includes('sessionStorage.setItem(ORIGIN_KEY'));
+    assert.ok(dashboard.includes("fromLabel = 'Dashboard'"));
+    assert.ok(dashboard.includes('data-core-origin-return'));
+    assert.ok(dashboard.includes('← Atrás'));
+    assert.ok(dashboard.includes('window.location.assign(destination)'));
+    assert.ok(!dashboard.includes('history.back()'));
+    assert.ok(!dashboard.includes('MutationObserver'));
+    assert.ok(!dashboard.includes('setInterval'));
+
+    // El Dashboard no depende del loader de integración ni de un runtime de
+    // decoración posterior. Eso evita botones visibles sin listener.
     assert.ok(loader.includes('/api/v1/comercial/ui-runtime/panel-integration-extras-core.js'));
-    assert.ok(loader.includes('/api/v1/comercial/ui-runtime/dashboard-interactions.js'));
+    assert.ok(!loader.includes('dashboard-interactions.js'));
+    assert.ok(!loader.includes('Exportar Excel'));
     assert.ok(routes.includes("router.get('/ventas/dashboard/exportar'"));
-    assert.ok(routes.includes("router.get('/ui-runtime/dashboard-interactions.js'"));
-    assert.ok(routes.indexOf("router.get('/ventas/dashboard/exportar'") < routes.indexOf("router.get('/ventas/:id'"));
+    assert.ok(!routes.includes('dashboard-interactions.js'));
+    assert.equal(fs.existsSync('src/web/dashboard-interactions.js'), false);
 
-    // El Core base siempre conserva indicadores transversales. Restaurante sólo
-    // aporta indicadores propios cuando existe acceso a ese vertical.
-    assert.ok(navigation.includes("label: 'Productos activos'"));
-    assert.ok(navigation.includes("label: 'Stock crítico'"));
-    assert.ok(navigation.includes("const rows = restaurant ? ["));
-    assert.ok(navigation.includes("label: 'Mesas ocupadas'"));
+    // El Core base conserva indicadores transversales y Restaurante aporta
+    // únicamente sus indicadores propios cuando existe acceso.
+    assert.ok(dashboard.includes("label: 'Productos activos'"));
+    assert.ok(dashboard.includes("label: 'Stock crítico'"));
+    assert.ok(dashboard.includes('const rows = restaurant ? ['));
+    assert.ok(dashboard.includes("label: 'Mesas ocupadas'"));
 
-    // Todo drill-down iniciado desde Dashboard guarda su origen y las pantallas
-    // tenant muestran un Atrás determinista, sin depender de history.back().
-    for (const source of [interactions, navigation, restaurantHtml]) {
-      assert.ok(source.includes('vantixgc_core_origin_v1'), 'Debe compartir la misma memoria de origen');
-    }
-    assert.ok(interactions.includes('sessionStorage.setItem(ORIGIN_KEY'));
-    assert.ok(interactions.includes("fromLabel: 'Dashboard'"));
-    assert.ok(navigation.includes('data-core-origin-return'));
-    assert.ok(navigation.includes('← Atrás'));
-    assert.ok(navigation.includes('window.location.assign(destination)'));
-    assert.ok(!navigation.includes('history.back()'));
+    assert.ok(restaurantHtml.includes('vantixgc_core_origin_v1'));
     assert.ok(restaurantHtml.includes("origin.targetPath!=='/app/centro-de-control'"));
     assert.ok(restaurantHtml.includes("admin.textContent='← Atrás'"));
 
-    new Function(navigation);
-    new Function(interactions);
+    new Function(dashboard);
+    new Function(loader);
 
-    console.log('UNIVERSAL DASHBOARD + INTERACTIVE REPORTS + ORIGIN BACK SMOKE OK');
+    console.log('UNIVERSAL DASHBOARD SINGLE OWNER + REPORTS + ORIGIN BACK SMOKE OK');
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } }).catch(() => {});
     await prisma.$disconnect();
