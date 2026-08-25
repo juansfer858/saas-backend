@@ -155,7 +155,7 @@
 
   function installRestaurantDashboardEntry() {
     if (!hasRestaurantAccess || currentPath() !== DASHBOARD_PATH) return '';
-    return '<button class="btn" type="button" data-dashboard-action="restaurant">Abrir Restaurante</button>';
+    return '<button class="btn" type="button" data-restaurant-dashboard-entry="true" data-dashboard-action="restaurant">Abrir Restaurante</button>';
   }
 
   function renameAccountingConfigurationHeading() {
