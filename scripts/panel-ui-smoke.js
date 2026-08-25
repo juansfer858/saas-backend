@@ -75,6 +75,9 @@ function assertCanonicalSidebar(html, route) {
   assert.ok(html.includes('background:rgba(243,246,248,.34)'), `${route}: faltan botones claros V5 iniciales`);
   assert.ok(html.includes('height:51px;min-height:51px'), `${route}: la tarjeta tenant debe reservar altura fija`);
   assert.ok(!html.includes('.core-tenant-sidebar{background:#10241b'), `${route}: no debe existir el tema verde viejo en la capa canónica`);
+  assert.ok(html.includes('font-family:"Segoe UI",Arial,sans-serif!important'), `${route}: sidebar debe usar tipografía nativa plana`);
+  assert.ok(html.includes('text-shadow:none!important'), `${route}: texto del sidebar no debe tener sombra/difuminado`);
+  assert.ok(html.includes('font-synthesis:none!important'), `${route}: no debe sintetizar pesos que engorden la tipografía`);
 }
 
 async function main() {
