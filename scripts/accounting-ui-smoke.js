@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+require('./accounting-report-columns-smoke');
 const { app } = require('../src/app');
 
 async function main() {
