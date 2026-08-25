@@ -37,6 +37,7 @@ async function main() {
     const loader = fs.readFileSync('src/web/panel-integration-extras.js', 'utf8');
     const routes = fs.readFileSync('src/modules/commercial/commercial.routes.js', 'utf8');
     const navigation = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
+    const restaurantHtml = fs.readFileSync('src/web/restaurant.html', 'utf8');
 
     for (const marker of [
       'Exportar Excel', 'Exportar PDF', 'Informes', 'Actualizar',
@@ -58,7 +59,24 @@ async function main() {
     assert.ok(navigation.includes("const rows = restaurant ? ["));
     assert.ok(navigation.includes("label: 'Mesas ocupadas'"));
 
-    console.log('UNIVERSAL DASHBOARD + INTERACTIVE REPORTS SMOKE OK');
+    // Todo drill-down iniciado desde Dashboard guarda su origen y las pantallas
+    // tenant muestran un Atrás determinista, sin depender de history.back().
+    for (const source of [interactions, navigation, restaurantHtml]) {
+      assert.ok(source.includes('vantixgc_core_origin_v1'), 'Debe compartir la misma memoria de origen');
+    }
+    assert.ok(interactions.includes('sessionStorage.setItem(ORIGIN_KEY'));
+    assert.ok(interactions.includes("fromLabel: 'Dashboard'"));
+    assert.ok(navigation.includes('data-core-origin-return'));
+    assert.ok(navigation.includes('← Atrás'));
+    assert.ok(navigation.includes('window.location.assign(destination)'));
+    assert.ok(!navigation.includes('history.back()'));
+    assert.ok(restaurantHtml.includes("origin.targetPath!=='/app/centro-de-control'"));
+    assert.ok(restaurantHtml.includes("admin.textContent='← Atrás'"));
+
+    new Function(navigation);
+    new Function(interactions);
+
+    console.log('UNIVERSAL DASHBOARD + INTERACTIVE REPORTS + ORIGIN BACK SMOKE OK');
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } }).catch(() => {});
     await prisma.$disconnect();
