@@ -20,6 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Apply canonical shell patch
         run: node scripts/apply-canonical-shell-v1.js
       - name: Validate canonical shell before commit
