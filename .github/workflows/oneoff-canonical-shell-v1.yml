@@ -1,0 +1,33 @@
+name: One-off canonical Super Core shell patch
+
+on:
+  push:
+    branches:
+      - feature/super-core-canonical-shell-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/super-core-canonical-shell-v1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply canonical shell patch
+        run: node scripts/apply-canonical-shell-v1.js
+      - name: Commit patch and remove temporary patcher
+        run: |
+          rm .github/workflows/oneoff-canonical-shell-v1.yml
+          rm scripts/apply-canonical-shell-v1.js
+          git config user.name "vantixgc-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/app.js src/web/super-core-workspace-v6.css scripts/core-canonical-shell-smoke.js .github/workflows/super-core-ci.yml .github/workflows/oneoff-canonical-shell-v1.yml scripts/apply-canonical-shell-v1.js
+          git commit -m "Unify Super Core shell across all tenant modules"
+          git push origin HEAD:feature/super-core-canonical-shell-v1
