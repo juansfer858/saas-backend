@@ -124,12 +124,20 @@ function canonicalTenantNavHtml(requestPath) {
   return `<nav class="nav" data-core-navigation-version="${TENANT_NAV_VERSION}" data-core-navigation-structural="true" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}">${links}</nav>`;
 }
 
-function canonicalTenantSidebarHtml(requestPath) {
-  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">VantixGC</b><span data-core-tenant-meta="true">Tenant activo</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+function canonicalTenantSidebarHtml(requestPath, options = {}) {
+  const dynamicTenant = options.dynamicTenant === true;
+  const tenantName = dynamicTenant
+    ? '${esc(state.session.tenant?.nombreEmpresa||state.session.subdomain)}'
+    : '';
+  const tenantMeta = dynamicTenant
+    ? '${esc(state.session.subdomain)}${state.session.tenant?.pais ? " · " + esc(state.session.tenant.pais) : ""}'
+    : '';
+  const firstPaintHydration = dynamicTenant ? '' : `<script data-core-tenant-first-paint="true">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const n=document.querySelector('[data-core-tenant-name="true"]');const m=document.querySelector('[data-core-tenant-meta="true"]');if(n)n.textContent=s.tenant?.nombreEmpresa||s.subdomain;if(m)m.textContent=s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')}catch{}finally{document.currentScript?.remove()}})();</script>`;
+  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">${tenantName}</b><span data-core-tenant-meta="true">${tenantMeta}</span></div>${firstPaintHydration}<div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
 }
 
-function replaceLegacyTenantSidebar(html, requestPath) {
-  const canonical = canonicalTenantSidebarHtml(requestPath);
+function replaceLegacyTenantSidebar(html, requestPath, options = {}) {
+  const canonical = canonicalTenantSidebarHtml(requestPath, options);
   return html.replace(/<aside class=(['"])(?:sidebar|side)\1[^>]*>[\s\S]*?<\/aside>/g, canonical);
 }
 
@@ -148,7 +156,7 @@ function injectBeforeBody(html, tags) {
 async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag, superCoreWorkspaceHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
-    const canonicalized = replaceLegacyTenantSidebar(html, req.path);
+    const canonicalized = replaceLegacyTenantSidebar(html, req.path, { dynamicTenant: filePath === panelHtmlPath });
     const withHead = injectBeforeHeadEnd(canonicalized, headTags);
     res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
     res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION);
