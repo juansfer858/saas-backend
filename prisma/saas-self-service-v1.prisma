@@ -1,0 +1,53 @@
+model SaasSubscription {
+  id                     String   @id @default(uuid())
+  tenantId               String   @unique
+  productCode            String   @default("RESTAURANT")
+  planCode               String   @default("TRIAL")
+  state                  String   @default("TRIAL")
+  trialStartedAt         DateTime @default(now())
+  trialEndsAt            DateTime
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  graceUntil             DateTime?
+  providerCode           String?
+  providerCustomerId     String?
+  providerSubscriptionId String?
+  metadata               Json?
+  creadoEn               DateTime @default(now())
+  actualizadoEn          DateTime @updatedAt
+
+  @@index([state, trialEndsAt])
+  @@index([productCode, planCode, state])
+}
+
+model TenantOnboarding {
+  id             String   @id @default(uuid())
+  tenantId       String   @unique
+  verticalCode   String   @default("RESTAURANT")
+  state          String   @default("IN_PROGRESS")
+  currentStep    String   @default("BUSINESS")
+  profile        Json?
+  completedSteps Json?
+  completedAt    DateTime?
+  creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @updatedAt
+
+  @@index([verticalCode, state])
+}
+
+model EdgeInstallClaim {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String
+  pointCode   String
+  name        String
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  edgeAgentId String?
+  metadata    Json?
+  creadoEn    DateTime @default(now())
+
+  @@index([tenantId, expiresAt])
+  @@index([tenantId, consumedAt])
+}

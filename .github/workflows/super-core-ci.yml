@@ -98,6 +98,9 @@ jobs:
       - name: Validate universal Core and Edge vertical registry
         run: node scripts/universal-vertical-registry-smoke.js
 
+      - name: Validate Restaurant public SaaS self-service surfaces
+        run: node scripts/restaurant-self-service-v1-smoke.js
+
       - name: Validate public installer Workspace revision
         run: node scripts/public-installer-workspace-smoke.js
 
@@ -133,6 +136,7 @@ jobs:
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
       PUBLIC_TENANT_REGISTRATION_ENABLED: 'true'
+      RESTAURANT_SELF_SERVICE_ENABLED: 'true'
 
     steps:
       - name: Checkout
@@ -191,6 +195,12 @@ jobs:
 
       - name: Validate universal tenant vertical entitlements against PostgreSQL
         run: node scripts/universal-vertical-registry-db-smoke.js
+
+      - name: Validate Restaurant SaaS self-service schema self-heal
+        run: node scripts/restaurant-self-service-schema-self-heal-smoke.js
+
+      - name: Validate Restaurant signup trial onboarding and Edge install claim
+        run: node scripts/restaurant-self-service-v1-db-smoke.js
 
       - name: Validate Restaurant Phase1 consumption and Sales prerequisites
         run: node scripts/restaurant-prereqs-phase1-smoke.js
