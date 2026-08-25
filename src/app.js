@@ -17,6 +17,7 @@ const accountingGuardPath = path.join(__dirname, 'web', 'accounting-runtime-guar
 const panelHtmlPath = path.join(__dirname, 'web', 'panel.html');
 const panelIntegrationExtrasPath = path.join(__dirname, 'web', 'panel-integration-extras.js');
 const panelRestaurantEntryPath = path.join(__dirname, 'web', 'panel-restaurant-entry.js');
+const superCoreWorkspaceCssPath = path.join(__dirname, 'web', 'super-core-workspace-v6.css');
 const notificationsConfigScriptPath = path.join(__dirname, 'web', 'notifications-config.js');
 const salesHtmlPath = path.join(__dirname, 'web', 'sales.html');
 const purchasesHtmlPath = path.join(__dirname, 'web', 'purchases.html');
@@ -75,8 +76,22 @@ html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
 .core-tenant-sidebar .nav a.core-v5-primary-vertical.active{background:linear-gradient(90deg,rgba(19,122,83,.52),rgba(255,255,255,.30))!important}
 .core-tenant-sidebar,.core-tenant-sidebar *{font-family:"Segoe UI",Arial,sans-serif!important;text-shadow:none!important;filter:none!important;font-synthesis:none!important;-webkit-font-smoothing:auto!important}
 .core-tenant-sidebar .brand{font-weight:700!important}.core-tenant-sidebar .brand small{font-weight:600!important;color:#eef2f3!important}.core-v5-tenant b{font-weight:700!important}.core-v5-tenant span{font-weight:500!important;color:#eef2f3!important}.core-tenant-sidebar .nav-title,.core-v5-group-label{font-weight:700!important;color:#f3f4f6!important}.core-tenant-sidebar .nav a{font-weight:600!important;color:#fff!important}.core-v5-primary-copy strong{font-weight:700!important}.core-v5-primary-copy small{font-weight:600!important;color:#fff!important}
+/* Final sidebar colors are server-rendered before first paint. No runtime visual patching. */
+.core-v5-tenant{background:linear-gradient(180deg,rgba(252,253,254,.72),rgba(235,240,243,.64))!important;border-color:rgba(255,255,255,.40)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.30),0 8px 18px rgba(20,24,27,.12)!important}
+.core-v5-tenant b{color:#17212b!important;font-weight:700!important}.core-v5-tenant span{color:#46515a!important;font-weight:500!important}
+.core-tenant-sidebar .nav a{background:rgba(250,252,253,.72)!important;color:#17212b!important;border-color:rgba(255,255,255,.38)!important;font-weight:600!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)!important}
+.core-tenant-sidebar .nav a:hover{background:rgba(255,255,255,.86)!important;color:#17212b!important;border-color:rgba(255,255,255,.52)!important}
+.core-tenant-sidebar .nav a.active{background:linear-gradient(90deg,rgba(210,237,229,.92),rgba(250,252,253,.84))!important;color:#17212b!important;border-color:rgba(255,255,255,.54)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 7px 16px rgba(20,24,27,.12)!important}
+.core-tenant-sidebar .nav a .icon{color:#17212b!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical{background:linear-gradient(135deg,rgba(252,253,254,.84),rgba(235,240,243,.74))!important;color:#17212b!important;border-color:rgba(255,255,255,.52)!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical.active{background:linear-gradient(90deg,rgba(210,237,229,.95),rgba(250,252,253,.86))!important;color:#17212b!important}
+.core-tenant-sidebar .nav a.core-v5-primary-vertical .icon{color:#17212b!important;background:rgba(19,122,83,.14)!important}
+.core-v5-primary-copy strong{color:#17212b!important;font-weight:700!important}.core-v5-primary-copy small{color:#46515a!important;font-weight:600!important}
+.core-tenant-sidebar .brand,.core-tenant-sidebar .brand small,.core-tenant-sidebar .nav-title,.core-v5-group-label{color:#f7f9fa!important}
+
 @media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}.core-v5-tenant{display:none}.core-tenant-sidebar .nav a.core-v5-primary-vertical{min-height:58px!important}}
 </style><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
+const superCoreWorkspaceHeadTag = `<link rel="stylesheet" href="/app/super-core-workspace-v6.css?v=core-workspace-v6-static"><script>document.documentElement.dataset.superCoreWorkspace="super-core-workspace-v6";</script>`;
 const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
 app.disable('x-powered-by');
@@ -130,7 +145,7 @@ function injectBeforeBody(html, tags) {
   return html.includes('</body>') ? html.replace('</body>', `${markup}</body>`) : `${html}${markup}`;
 }
 
-async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag]) {
+async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag, superCoreWorkspaceHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
     const canonicalized = replaceLegacyTenantSidebar(html, req.path);
@@ -237,6 +252,11 @@ app.get('/app/accounting-runtime-guard.js', (_req, res) => {
 
 app.get('/app/panel-integration-extras.js', (_req, res) => {
   res.type('application/javascript').sendFile(panelIntegrationExtrasPath);
+});
+
+app.get('/app/super-core-workspace-v6.css', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.type('text/css').sendFile(superCoreWorkspaceCssPath);
 });
 
 app.get('/app/panel-restaurant-entry.js', (_req, res) => {
