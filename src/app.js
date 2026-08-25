@@ -38,6 +38,7 @@ const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
 const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
 const SIDEBAR_STABILITY_VERSION = 'tenant-card-server-slot-v1';
+const TENANT_SHELL_VERSION = 'core-shell-v1';
 const lineIcon = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 const tenantNavigationItems = Object.freeze([
   Object.freeze({ href: '/app/centro-de-control', label: 'Restaurante', subtitle: 'Operación principal', restaurantOnly: true, primaryVertical: true, icon: lineIcon('<path d="M6 3v8M9 3v8M6 7h3M7.5 11v10M15 3v8c0 2 1 3 3 3v7M18 3v11"/>') }),
@@ -92,6 +93,8 @@ html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
 @media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}.core-v5-tenant{display:none}.core-tenant-sidebar .nav a.core-v5-primary-vertical{min-height:58px!important}}
 </style><script id="core-tenant-identity-bootstrap">(()=>{const key='vantixgc_core_session_v1';const read=()=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};const textName=()=>{const s=read();return s?.tenant?.nombreEmpresa||s?.subdomain||''};const textMeta=()=>{const s=read();if(!s?.subdomain)return '';return s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')};const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));window.VantixGCTenantIdentity=Object.freeze({nameText:textName,metaText:textMeta,nameHtml:()=>esc(textName()),metaHtml:()=>esc(textMeta())})})();</script><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
 const superCoreWorkspaceHeadTag = `<link rel="stylesheet" href="/app/super-core-workspace-v6.css?v=core-workspace-v6-static"><script>document.documentElement.dataset.superCoreWorkspace="super-core-workspace-v6";</script>`;
+const canonicalShellHeadTag = `<script id="core-shell-bootstrap">(()=>{const key='vantixgc_core_session_v1';const read=()=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));const userName=()=>{const s=read();return s?.user?.nombre||s?.user?.email||'Usuario'};const userRole=()=>{const s=read();return s?.user?.rol||''};const initial=()=>{const n=userName().trim();return (n[0]||'U').toUpperCase()};const topbarHtml=()=>{const tenantName=window.VantixGCTenantIdentity?.nameHtml?.()||'';const tenantMeta=window.VantixGCTenantIdentity?.metaHtml?.()||'';const name=esc(userName());const role=esc(userRole());const avatar=esc(initial());return '<header class="topbar core-shell-topbar" data-core-shell-topbar="v1"><div class="core-shell-tenant"><button type="button" class="btn small core-shell-menu" id="coreMenuToggle" data-core-shell-menu aria-label="Abrir menú">☰</button><div class="tenant core-shell-tenant-copy"><strong>'+tenantName+'</strong><small>'+tenantMeta+'</small></div></div><div class="userbox core-shell-user"><div class="core-shell-user-copy"><strong>'+name+'</strong><div class="core-shell-role">'+role+'</div></div><div class="avatar core-shell-avatar" aria-hidden="true">'+avatar+'</div><button type="button" class="btn small core-shell-logout" id="logout">Salir</button></div></header>'};window.VantixGCCoreShell=Object.freeze({topbarHtml});document.addEventListener('click',e=>{const trigger=e.target.closest?.('[data-core-shell-menu]');if(!trigger)return;document.getElementById('sidebar')?.classList.toggle('open')})})();</script>`;
+const canonicalTenantTopbarExpression = '${window.VantixGCCoreShell?.topbarHtml?.() || ""}';
 const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
 app.disable('x-powered-by');
@@ -144,6 +147,15 @@ function replaceLegacyTenantSidebar(html, requestPath) {
   });
 }
 
+function replaceLegacyTenantTopbar(html) {
+  const topbarPattern = /<header class=(['"])(?:topbar|top)\1[^>]*>[\s\S]*?<\/header>/g;
+  return html.replace(topbarPattern, (match, _quote, offset) => {
+    const before = html.slice(0, offset);
+    const insideScript = before.lastIndexOf('<script') > before.lastIndexOf('</script>');
+    return insideScript ? canonicalTenantTopbarExpression : match;
+  });
+}
+
 function injectBeforeHeadEnd(html, tags) {
   const markup = (tags || []).filter(Boolean).join('');
   if (!markup) return html;
@@ -156,15 +168,17 @@ function injectBeforeBody(html, tags) {
   return html.includes('</body>') ? html.replace('</body>', `${markup}</body>`) : `${html}${markup}`;
 }
 
-async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag, superCoreWorkspaceHeadTag]) {
+async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag, superCoreWorkspaceHeadTag, canonicalShellHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
-    const canonicalized = replaceLegacyTenantSidebar(html, req.path);
+    const canonicalizedSidebar = replaceLegacyTenantSidebar(html, req.path);
+    const canonicalized = replaceLegacyTenantTopbar(canonicalizedSidebar);
     const withHead = injectBeforeHeadEnd(canonicalized, headTags);
     res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
     res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION);
     res.set('X-VantixGC-Super-Core-Theme', SUPER_CORE_VISUAL_THEME);
     res.set('X-VantixGC-Sidebar-Stability', SIDEBAR_STABILITY_VERSION);
+    res.set('X-VantixGC-Tenant-Shell', TENANT_SHELL_VERSION);
     res.type('html').send(injectBeforeBody(withHead, bodyTags));
   } catch (error) {
     next(error);
