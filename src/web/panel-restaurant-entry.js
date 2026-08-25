@@ -6,6 +6,8 @@
   const NAV_VERSION = 'core-nav-v7';
   const CONTROL_CENTER_PATH = '/app/centro-de-control';
   const SUPER_CORE_VISUAL_THEME = 'super-core-v5-silver-server';
+  const SIDEBAR_TEXT_COLOR = '#27323a';
+  const SIDEBAR_META_COLOR = '#3f4b53';
 
   let accessChecked = false;
   let hasRestaurantAccess = false;
@@ -105,6 +107,26 @@
     if (meta) meta.textContent = `${session.subdomain}${session.tenant?.pais ? ` · ${session.tenant.pais}` : ''}`;
   }
 
+  function applyFlatDarkSidebarText() {
+    const sidebar = document.querySelector('.core-tenant-sidebar');
+    if (!sidebar) return;
+
+    sidebar.querySelectorAll('.nav a').forEach((node) => {
+      node.style.setProperty('color', SIDEBAR_TEXT_COLOR, 'important');
+    });
+    sidebar.querySelectorAll('.nav a .icon, .core-v5-primary-copy strong').forEach((node) => {
+      node.style.setProperty('color', SIDEBAR_TEXT_COLOR, 'important');
+    });
+    sidebar.querySelectorAll('.core-v5-primary-copy small').forEach((node) => {
+      node.style.setProperty('color', SIDEBAR_META_COLOR, 'important');
+    });
+
+    const tenantName = sidebar.querySelector('[data-core-tenant-name]');
+    const tenantMeta = sidebar.querySelector('[data-core-tenant-meta]');
+    tenantName?.style.setProperty('color', SIDEBAR_TEXT_COLOR, 'important');
+    tenantMeta?.style.setProperty('color', SIDEBAR_META_COLOR, 'important');
+  }
+
   function openRestaurantControlCenter() {
     window.location.href = CONTROL_CENTER_PATH;
   }
@@ -140,6 +162,7 @@
 
   function installCurrentUi() {
     hydrateTenantCard();
+    applyFlatDarkSidebarText();
     renameAccountingConfigurationHeading();
     installRestaurantDashboardEntry();
   }
@@ -165,4 +188,5 @@
   window.VantixGCCoreSidebarRuntime = 'off';
   window.VantixGCCoreSidebarShellSource = 'server';
   window.VantixGCCoreSidebarVisualTheme = SUPER_CORE_VISUAL_THEME;
+  window.VantixGCCoreSidebarTextColor = SIDEBAR_TEXT_COLOR;
 })();
