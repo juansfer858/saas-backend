@@ -1,0 +1,214 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap');
+
+body.vr-public-theme {
+  --bg: #fffaf6;
+  --card: #ffffff;
+  --line: #fed7aa;
+  --text: #1c1917;
+  --muted: #57534e;
+  --green: #f97316;
+  --soft: #fff7ed;
+  --gold: #fb923c;
+  --dark: #1c1917;
+  --warn: #c2410c;
+  --warnbg: #fff7ed;
+  --vr-orange: #f97316;
+  --vr-orange-strong: #ea580c;
+  --vr-orange-deep: #c2410c;
+  --vr-orange-soft: #fff7ed;
+  --vr-orange-soft-2: #ffedd5;
+  --vr-orange-line: #fed7aa;
+  --vr-text: #1c1917;
+  --vr-muted: #57534e;
+  font-family: 'Lora', Georgia, 'Times New Roman', serif !important;
+  background: linear-gradient(180deg, #fffaf6 0%, #ffffff 72%) !important;
+  color: var(--vr-text) !important;
+}
+
+body.vr-public-theme *,
+body.vr-public-theme button,
+body.vr-public-theme input,
+body.vr-public-theme select,
+body.vr-public-theme textarea,
+body.vr-public-theme a {
+  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+}
+
+body.vr-public-theme .brandmark,
+body.vr-public-theme .mark {
+  background: linear-gradient(145deg, var(--vr-orange), var(--vr-orange-strong)) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px rgba(234, 88, 12, .20) !important;
+}
+
+body.vr-public-theme .btn.primary,
+body.vr-public-theme .btn-primary,
+body.vr-public-theme button.primary,
+body.vr-public-theme #submit,
+body.vr-public-theme #installBtn,
+body.vr-public-theme #finishBtn,
+body.vr-public-theme #tablesBtn {
+  background: var(--vr-orange) !important;
+  border-color: var(--vr-orange) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px rgba(249, 115, 22, .18) !important;
+}
+
+body.vr-public-theme .btn.primary:hover,
+body.vr-public-theme .btn-primary:hover,
+body.vr-public-theme button.primary:hover,
+body.vr-public-theme #submit:hover,
+body.vr-public-theme #installBtn:hover,
+body.vr-public-theme #finishBtn:hover,
+body.vr-public-theme #tablesBtn:hover {
+  background: var(--vr-orange-strong) !important;
+  border-color: var(--vr-orange-strong) !important;
+}
+
+body.vr-public-theme .btn.gold,
+body.vr-public-theme .btn.warn,
+body.vr-public-theme #starterBtn,
+body.vr-public-theme #deferBtn {
+  background: var(--vr-orange-soft) !important;
+  border-color: var(--vr-orange-line) !important;
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme .btn,
+body.vr-public-theme button,
+body.vr-public-theme input,
+body.vr-public-theme select,
+body.vr-public-theme textarea,
+body.vr-public-theme .card,
+body.vr-public-theme .panel,
+body.vr-public-theme .table,
+body.vr-public-theme .metric,
+body.vr-public-theme .product,
+body.vr-public-theme .step,
+body.vr-public-theme .install-state {
+  border-color: var(--vr-orange-line) !important;
+}
+
+body.vr-public-theme input:focus,
+body.vr-public-theme select:focus,
+body.vr-public-theme textarea:focus {
+  outline: none !important;
+  border-color: var(--vr-orange) !important;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, .12) !important;
+}
+
+body.vr-public-theme .trial,
+body.vr-public-theme .demo-pill,
+body.vr-public-theme .status,
+body.vr-public-theme .status.ready,
+body.vr-public-theme .notice,
+body.vr-public-theme .install-note,
+body.vr-public-theme .cloud-note {
+  background: var(--vr-orange-soft) !important;
+  border-color: var(--vr-orange-line) !important;
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme .trial,
+body.vr-public-theme .demo-pill,
+body.vr-public-theme .status,
+body.vr-public-theme .status.ready {
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme .step.done,
+body.vr-public-theme .step.current {
+  background: var(--vr-orange-soft) !important;
+  border-color: var(--vr-orange) !important;
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme .install-steps li:before {
+  background: var(--vr-orange-soft-2) !important;
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme .side button.active {
+  background: rgba(249, 115, 22, .24) !important;
+  border-color: rgba(253, 186, 116, .72) !important;
+}
+
+body.vr-public-theme .product:hover,
+body.vr-public-theme .table:hover,
+body.vr-public-theme .card:hover {
+  border-color: var(--vr-orange) !important;
+}
+
+body.vr-public-theme .product span,
+body.vr-public-theme .eyebrow,
+body.vr-public-theme .module-code,
+body.vr-public-theme .trial-badge {
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme .table.busy,
+body.vr-public-theme .table.account {
+  border-color: #fb923c !important;
+  background: #fff7ed !important;
+}
+
+body.vr-public-theme .status.pending {
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+}
+
+body.vr-public-theme #installState {
+  background: #fffaf6 !important;
+  border-color: var(--vr-orange-line) !important;
+  color: var(--vr-text) !important;
+}
+
+body.vr-public-theme .warning,
+body.vr-public-theme .install-note,
+body.vr-public-theme .cloud-note {
+  border-color: #fb923c !important;
+  background: #fff7ed !important;
+  color: #7c2d12 !important;
+}
+
+body.vr-public-theme .warning b,
+body.vr-public-theme .install-note b,
+body.vr-public-theme .cloud-note b {
+  color: var(--vr-orange-deep) !important;
+}
+
+body.vr-public-theme h1,
+body.vr-public-theme h2,
+body.vr-public-theme h3,
+body.vr-public-theme .brand,
+body.vr-public-theme .brandmark,
+body.vr-public-theme .mark {
+  letter-spacing: -.025em;
+}
+
+body.vr-public-theme .card,
+body.vr-public-theme .panel,
+body.vr-public-theme .metric,
+body.vr-public-theme .product,
+body.vr-public-theme .table {
+  box-shadow: 0 10px 28px rgba(120, 53, 15, .06) !important;
+}
+
+body.vr-public-theme .error {
+  background: #fff1f0 !important;
+  border-color: #fecaca !important;
+  color: #991b1b !important;
+}
+
+[data-edge-install-status] {
+  font-family: 'Lora', Georgia, 'Times New Roman', serif !important;
+  border-color: #fed7aa !important;
+  background: #fff7ed !important;
+  color: #1c1917 !important;
+}
+
+[data-edge-install-status] a {
+  background: #f97316 !important;
+  color: #fff !important;
+  border-radius: 10px !important;
+}
