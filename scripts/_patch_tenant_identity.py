@@ -24,7 +24,7 @@ function replaceLegacyTenantSidebar(html, requestPath, options = {}) {
 
 function injectBeforeHeadEnd'''
 
-s2, count = pattern.subn(replacement, s, count=1)
+s2, count = pattern.subn(lambda _match: replacement, s, count=1)
 assert count == 1, 'canonical sidebar functions not found exactly once'
 s = s2
 
