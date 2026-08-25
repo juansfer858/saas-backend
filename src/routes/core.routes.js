@@ -18,6 +18,7 @@ const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
+const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 require('../modules/restaurant/restaurant-draft-fix');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -29,6 +30,7 @@ router.use(extractTenantBySubdomain);
 router.use(authMiddleware);
 router.use(enforceTenantPermissions);
 
+router.use('/autoservicio', restaurantSelfServiceTenantRouter);
 router.use('/usuarios', userRouter);
 router.use('/terceros', thirdPartyRouter);
 router.use('/inventario', inventoryRouter);
