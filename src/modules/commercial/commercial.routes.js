@@ -18,6 +18,7 @@ router.post('/comprobantes/:id/reemplazar', controller.replaceDocument);
 // Ventas operativas: borrador -> emisión atómica AU + Kardex/recetas + Cartera/Tesorería + outbox DIAN.
 router.get('/ventas', salesController.list);
 router.get('/ventas/dashboard', salesController.dashboard);
+router.get('/ventas/dashboard/exportar', salesController.exportDashboard);
 router.post('/ventas', salesController.create);
 router.get('/ventas/:id', salesController.get);
 router.patch('/ventas/:id', salesController.update);
