@@ -90,7 +90,7 @@ html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
 .core-tenant-sidebar .brand,.core-tenant-sidebar .brand small,.core-tenant-sidebar .nav-title,.core-v5-group-label{color:#f7f9fa!important}
 
 @media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}.core-v5-tenant{display:none}.core-tenant-sidebar .nav a.core-v5-primary-vertical{min-height:58px!important}}
-</style><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
+</style><script id="core-tenant-identity-bootstrap">(()=>{const key='vantixgc_core_session_v1';const read=()=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};const textName=()=>{const s=read();return s?.tenant?.nombreEmpresa||s?.subdomain||''};const textMeta=()=>{const s=read();if(!s?.subdomain)return '';return s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')};const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));window.VantixGCTenantIdentity=Object.freeze({nameText:textName,metaText:textMeta,nameHtml:()=>esc(textName()),metaHtml:()=>esc(textMeta())})})();</script><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
 const superCoreWorkspaceHeadTag = `<link rel="stylesheet" href="/app/super-core-workspace-v6.css?v=core-workspace-v6-static"><script>document.documentElement.dataset.superCoreWorkspace="super-core-workspace-v6";</script>`;
 const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
@@ -127,18 +127,21 @@ function canonicalTenantNavHtml(requestPath) {
 function canonicalTenantSidebarHtml(requestPath, options = {}) {
   const dynamicTenant = options.dynamicTenant === true;
   const tenantName = dynamicTenant
-    ? '${esc(state.session.tenant?.nombreEmpresa||state.session.subdomain)}'
+    ? '${window.VantixGCTenantIdentity?.nameHtml?.() || ""}'
     : '';
   const tenantMeta = dynamicTenant
-    ? '${esc(state.session.subdomain)}${state.session.tenant?.pais ? " · " + esc(state.session.tenant.pais) : ""}'
+    ? '${window.VantixGCTenantIdentity?.metaHtml?.() || ""}'
     : '';
-  const firstPaintHydration = dynamicTenant ? '' : `<script data-core-tenant-first-paint="true">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const n=document.querySelector('[data-core-tenant-name="true"]');const m=document.querySelector('[data-core-tenant-meta="true"]');if(n)n.textContent=s.tenant?.nombreEmpresa||s.subdomain;if(m)m.textContent=s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')}catch{}finally{document.currentScript?.remove()}})();</script>`;
-  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">${tenantName}</b><span data-core-tenant-meta="true">${tenantMeta}</span></div>${firstPaintHydration}<div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">${tenantName}</b><span data-core-tenant-meta="true">${tenantMeta}</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
 }
 
-function replaceLegacyTenantSidebar(html, requestPath, options = {}) {
-  const canonical = canonicalTenantSidebarHtml(requestPath, options);
-  return html.replace(/<aside class=(['"])(?:sidebar|side)\1[^>]*>[\s\S]*?<\/aside>/g, canonical);
+function replaceLegacyTenantSidebar(html, requestPath) {
+  const sidebarPattern = /<aside class=(['"])(?:sidebar|side)\1[^>]*>[\s\S]*?<\/aside>/g;
+  return html.replace(sidebarPattern, (_match, _quote, offset) => {
+    const before = html.slice(0, offset);
+    const insideScript = before.lastIndexOf('<script') > before.lastIndexOf('</script>');
+    return canonicalTenantSidebarHtml(requestPath, { dynamicTenant: insideScript });
+  });
 }
 
 function injectBeforeHeadEnd(html, tags) {
@@ -156,7 +159,7 @@ function injectBeforeBody(html, tags) {
 async function sendTenantHtml(filePath, req, res, next, bodyTags = [], headTags = [tenantNavigationHeadTag, superCoreWorkspaceHeadTag]) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
-    const canonicalized = replaceLegacyTenantSidebar(html, req.path, { dynamicTenant: filePath === panelHtmlPath });
+    const canonicalized = replaceLegacyTenantSidebar(html, req.path);
     const withHead = injectBeforeHeadEnd(canonicalized, headTags);
     res.set('X-VantixGC-Tenant-Nav', TENANT_NAV_VERSION);
     res.set('X-VantixGC-Tenant-Sidebar', TENANT_SIDEBAR_VERSION);

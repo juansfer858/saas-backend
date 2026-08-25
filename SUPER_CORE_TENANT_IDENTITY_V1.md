@@ -10,7 +10,7 @@ La identidad visible del tenant y el aislamiento de datos tienen fuentes distint
 
 ## Sidebar
 
-El shell SPA no puede usar `VantixGC / Tenant activo` como identidad sustituta. En cada render debe usar la sesión actual. Las páginas completas hidratan la tarjeta en el primer parseo y conservan `panel-restaurant-entry.js` sólo como respaldo.
+El shell SPA no puede usar `VantixGC / Tenant activo` como identidad sustituta. En cada render debe usar `window.VantixGCTenantIdentity`, creado en el `<head>` desde la sesión activa. Las páginas completas dejan la tarjeta vacía hasta la hidratación segura y conservan `panel-restaurant-entry.js` sólo como respaldo. Nunca se usa una identidad global como tenant sustituto.
 
 ## Objetivo
 
