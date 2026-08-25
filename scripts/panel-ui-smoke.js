@@ -108,6 +108,9 @@ async function main() {
     }
 
     assert.match(canonicalHtml, /\/app\/super-core-workspace-v6\.css\?v=core-workspace-v6-static/);
+    assert.ok(canonicalHtml.includes('window.VantixGCTenantIdentity?.nameHtml?.()'), 'SPA sidebar debe derivar tenant del bootstrap único en cada render');
+    assert.match(canonicalHtml, /core-tenant-identity-bootstrap/);
+    assert.ok(!canonicalHtml.includes('data-core-tenant-name=\"true\">VantixGC</b><span data-core-tenant-meta=\"true\">Tenant activo'), 'SPA no puede volver al placeholder global');
     const workspaceLinkAt = canonicalHtml.indexOf('/app/super-core-workspace-v6.css?v=core-workspace-v6-static');
     const firstBodyAt = canonicalHtml.indexOf('<body');
     assert.ok(workspaceLinkAt >= 0 && (firstBodyAt < 0 || workspaceLinkAt < firstBodyAt), 'V6 debe cargarse en head antes del primer paint');
@@ -131,6 +134,8 @@ async function main() {
     assert.match(salesHtml, /Kardex\/recetas/);
     assert.match(salesHtml, /cola DIAN/);
     assertCanonicalSidebar(salesHtml, '/app/ventas');
+    assert.match(salesHtml, /core-tenant-identity-bootstrap/);
+    assert.ok(!salesHtml.includes('data-core-tenant-name=\"true\">VantixGC</b><span data-core-tenant-meta=\"true\">Tenant activo'), 'rutas completas no deben mostrar identidad global como tenant');
     assert.equal(stableSidebarSignature(salesHtml), stableSignature, '/app/ventas: sidebar debe conservar la misma geometría');
 
     const accounting = await fetch(base + '/app/contabilidad');

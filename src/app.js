@@ -90,7 +90,7 @@ html[data-core-restaurant-access="0"] .core-nav-restaurant{display:none}
 .core-tenant-sidebar .brand,.core-tenant-sidebar .brand small,.core-tenant-sidebar .nav-title,.core-v5-group-label{color:#f7f9fa!important}
 
 @media(max-width:760px){.core-tenant-sidebar{position:fixed!important;z-index:40!important;width:250px!important;transform:translateX(-100%)!important;transition:.2s!important}.core-tenant-sidebar.open{transform:none!important}.core-v5-tenant{display:none}.core-tenant-sidebar .nav a.core-v5-primary-vertical{min-height:58px!important}}
-</style><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
+</style><script id="core-tenant-identity-bootstrap">(()=>{const key='vantixgc_core_session_v1';const read=()=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};const textName=()=>{const s=read();return s?.tenant?.nombreEmpresa||s?.subdomain||''};const textMeta=()=>{const s=read();if(!s?.subdomain)return '';return s.subdomain+(s.tenant?.pais?' · '+s.tenant.pais:'')};const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));window.VantixGCTenantIdentity=Object.freeze({nameText:textName,metaText:textMeta,nameHtml:()=>esc(textName()),metaHtml:()=>esc(textMeta())})})();</script><script id="core-nav-access-bootstrap">(()=>{try{const s=JSON.parse(localStorage.getItem('vantixgc_core_session_v1')||'null');if(!s?.subdomain)return;const u=s.user?.id||s.user?.email||s.user?.rol||'user';const v=sessionStorage.getItem('vantixgc_core_restaurant_access_v2:'+s.subdomain+':'+u);if(v==='1'||v==='0')document.documentElement.dataset.coreRestaurantAccess=v}catch{}})();</script>`;
 const superCoreWorkspaceHeadTag = `<link rel="stylesheet" href="/app/super-core-workspace-v6.css?v=core-workspace-v6-static"><script>document.documentElement.dataset.superCoreWorkspace="super-core-workspace-v6";</script>`;
 const tenantNavigationTag = `<script src="/app/panel-restaurant-entry.js?v=${TENANT_NAV_VERSION}"></script>`;
 
@@ -124,13 +124,24 @@ function canonicalTenantNavHtml(requestPath) {
   return `<nav class="nav" data-core-navigation-version="${TENANT_NAV_VERSION}" data-core-navigation-structural="true" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}">${links}</nav>`;
 }
 
-function canonicalTenantSidebarHtml(requestPath) {
-  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">VantixGC</b><span data-core-tenant-meta="true">Tenant activo</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
+function canonicalTenantSidebarHtml(requestPath, options = {}) {
+  const dynamicTenant = options.dynamicTenant === true;
+  const tenantName = dynamicTenant
+    ? '${window.VantixGCTenantIdentity?.nameHtml?.() || ""}'
+    : '';
+  const tenantMeta = dynamicTenant
+    ? '${window.VantixGCTenantIdentity?.metaHtml?.() || ""}'
+    : '';
+  return `<aside class="sidebar core-tenant-sidebar" id="sidebar" data-core-sidebar-version="${TENANT_SIDEBAR_VERSION}" data-core-visual-theme="${SUPER_CORE_VISUAL_THEME}" data-core-sidebar-stability="${SIDEBAR_STABILITY_VERSION}"><div class="brand"><div class="core-brandmark">V</div><div>VantixGC<br><small>Super Core</small></div></div><div class="core-v5-tenant" data-core-tenant-card="true"><b data-core-tenant-name="true">${tenantName}</b><span data-core-tenant-meta="true">${tenantMeta}</span></div><div class="nav-title">Principal</div>${canonicalTenantNavHtml(requestPath)}</aside>`;
 }
 
 function replaceLegacyTenantSidebar(html, requestPath) {
-  const canonical = canonicalTenantSidebarHtml(requestPath);
-  return html.replace(/<aside class=(['"])(?:sidebar|side)\1[^>]*>[\s\S]*?<\/aside>/g, canonical);
+  const sidebarPattern = /<aside class=(['"])(?:sidebar|side)\1[^>]*>[\s\S]*?<\/aside>/g;
+  return html.replace(sidebarPattern, (_match, _quote, offset) => {
+    const before = html.slice(0, offset);
+    const insideScript = before.lastIndexOf('<script') > before.lastIndexOf('</script>');
+    return canonicalTenantSidebarHtml(requestPath, { dynamicTenant: insideScript });
+  });
 }
 
 function injectBeforeHeadEnd(html, tags) {
