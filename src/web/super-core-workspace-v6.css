@@ -1,3 +1,4 @@
+/* VantixGC Super Core V6: static first-paint workspace theme */
 :root{--core-v6-blue:#3b82f6;--core-v6-blue-strong:#2563eb;--core-v6-orange:#f97316;--core-v6-orange-strong:#ea580c;--core-v6-green:#22c55e;--core-v6-green-strong:#16a34a;--core-v6-bg:#f6f8fb;--core-v6-card:#fff;--core-v6-line:#e5eaf0;--core-v6-ink:#1f2937;--core-v6-muted:#667085;--bg:#f6f8fb;--card:#fff;--border:#e5eaf0;--text:#1f2937;--muted:#667085;--green:#3b82f6;--green2:#2563eb;--soft:#eff6ff;--gold:#f97316;--blue:#3b82f6}
 body{background:var(--core-v6-bg)!important;color:var(--core-v6-ink)!important;font-family:"Segoe UI Variable","Segoe UI",Arial,sans-serif!important}
 .main{min-height:100vh!important;background:linear-gradient(180deg,#f9fbfd 0%,#f6f8fb 100%)!important}
