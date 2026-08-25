@@ -13,7 +13,7 @@ const edgeService = require('../edge/edge.service');
 
 const TRIAL_DAYS = Math.min(Math.max(Number(process.env.RESTAURANT_TRIAL_DAYS) || 14, 1), 60);
 const INSTALL_CLAIM_MINUTES = Math.min(Math.max(Number(process.env.EDGE_INSTALL_CLAIM_MINUTES) || 30, 5), 240);
-const INSTALL_SOURCE_COMMIT = '__PIN_AFTER_IMPLEMENTATION__';
+const INSTALL_SOURCE_COMMIT = '40634cc4f6812686644ccb7109be283806f74e66';
 const RESERVED_SUBDOMAINS = new Set(['www', 'api', 'app', 'core', 'platform', 'admin', 'demo', 'status', 'edge', 'restaurantes']);
 
 function selfServiceEnabled() {
@@ -75,7 +75,6 @@ async function registerRestaurant(input) {
           activo: true
         }
       });
-
       const admin = await tx.user.create({
         data: {
           tenantId: tenant.id,
@@ -92,10 +91,8 @@ async function registerRestaurant(input) {
       await seedPlatformDefaults(tx, tenant, admin);
       await tx.restaurantConfig.upsert({ where: { tenantId: tenant.id }, create: { tenantId: tenant.id }, update: {} });
       await verticalEntitlements.activateWithClient(tx, tenant.id, 'RESTAURANT', {
-        source: 'PUBLIC_SELF_SERVICE',
-        metadata: { trial: true, channel: 'WEB' }
+        source: 'PUBLIC_SELF_SERVICE', metadata: { trial: true, channel: 'WEB' }
       });
-
       const subscription = await tx.saasSubscription.create({
         data: {
           tenantId: tenant.id,
@@ -107,7 +104,6 @@ async function registerRestaurant(input) {
           metadata: { source: 'PUBLIC_SELF_SERVICE', trialDays: TRIAL_DAYS }
         }
       });
-
       const onboarding = await tx.tenantOnboarding.create({
         data: {
           tenantId: tenant.id,
@@ -124,12 +120,10 @@ async function registerRestaurant(input) {
           completedSteps: []
         }
       });
-
       await tx.platformTenantControl.update({
         where: { tenantId: tenant.id },
         data: { planCode: 'RESTAURANT_TRIAL', rolloutChannel: 'PILOTO' }
       });
-
       return { tenant, admin, subscription, onboarding };
     });
   } catch (error) {
@@ -185,11 +179,7 @@ async function updateOnboarding(tenantId, input) {
   const profile = input.profile ? { ...(current.profile || {}), ...input.profile } : current.profile;
   return prisma.tenantOnboarding.update({
     where: { tenantId },
-    data: {
-      currentStep: input.currentStep || current.currentStep,
-      profile,
-      completedSteps: [...completed]
-    }
+    data: { currentStep: input.currentStep || current.currentStep, profile, completedSteps: [...completed] }
   });
 }
 
@@ -201,10 +191,7 @@ async function configureTables(tenantId, countValue) {
       await tx.restaurantTable.upsert({
         where: { tenantId_code: { tenantId, code } },
         create: {
-          tenantId,
-          code,
-          name: `Mesa ${i}`,
-          seats: 4,
+          tenantId, code, name: `Mesa ${i}`, seats: 4,
           posX: 30 + ((i - 1) % 4) * 155,
           posY: 35 + Math.floor((i - 1) / 4) * 120,
           active: true
@@ -231,31 +218,17 @@ async function seedStarterMenu(tenantId) {
       const product = await tx.producto.upsert({
         where: { tenantId_sku: { tenantId, sku: item.sku } },
         create: {
-          tenantId,
-          tipo: 'PRODUCTO',
-          sku: item.sku,
-          nombre: item.name,
-          unidadMedida: 'UND',
-          controlaInventario: true,
-          stockActual: 100,
-          costoPromedio: 0,
-          precio1: item.price,
-          ivaPct: 0,
-          impoconsumoPct: 8,
-          activo: true
+          tenantId, tipo: 'PRODUCTO', sku: item.sku, nombre: item.name,
+          unidadMedida: 'UND', controlaInventario: true, stockActual: 100,
+          costoPromedio: 0, precio1: item.price, ivaPct: 0, impoconsumoPct: 8, activo: true
         },
         update: { nombre: item.name, precio1: item.price, impoconsumoPct: 8, activo: true }
       });
       await tx.restaurantMenuItem.upsert({
         where: { tenantId_productId: { tenantId, productId: product.id } },
         create: {
-          tenantId,
-          productId: product.id,
-          category: item.category,
-          station: item.station,
-          requiresRecipe: false,
-          active: true,
-          sortOrder: (index + 1) * 10
+          tenantId, productId: product.id, category: item.category, station: item.station,
+          requiresRecipe: false, active: true, sortOrder: (index + 1) * 10
         },
         update: { category: item.category, station: item.station, requiresRecipe: false, active: true, sortOrder: (index + 1) * 10 }
       });
@@ -274,10 +247,7 @@ async function completeOnboarding(tenantId) {
   const row = await prisma.tenantOnboarding.findUnique({ where: { tenantId } });
   if (!row) throw new AppError(404, 'Onboarding no encontrado', 'ONBOARDING_NOT_FOUND');
   const completed = completedSet(row);
-  completed.add('BUSINESS');
-  completed.add('TABLES');
-  completed.add('MENU');
-  completed.add('SITE');
+  for (const step of ['BUSINESS', 'TABLES', 'MENU', 'SITE']) completed.add(step);
   return prisma.tenantOnboarding.update({
     where: { tenantId },
     data: { state: 'COMPLETED', currentStep: 'DONE', completedSteps: [...completed], completedAt: new Date() }
@@ -290,7 +260,6 @@ async function createInstallClaim(tenantId, userId, input = {}) {
   if (!(await verticalEntitlements.hasVertical(tenantId, 'RESTAURANT'))) {
     throw new AppError(403, 'VantixGC Restaurantes no está activo para este tenant', 'RESTAURANT_VERTICAL_REQUIRED');
   }
-
   const raw = crypto.randomBytes(32).toString('base64url');
   const pointCode = String(input.pointCode || 'SEDE-PRINCIPAL').trim().toUpperCase().replace(/[^A-Z0-9_-]+/g, '-').slice(0, 50) || 'SEDE-PRINCIPAL';
   const name = String(input.name || 'Sede principal').trim().slice(0, 100) || 'Sede principal';
@@ -298,13 +267,7 @@ async function createInstallClaim(tenantId, userId, input = {}) {
   await prisma.edgeInstallClaim.create({
     data: { tenantId, userId, pointCode, name, tokenHash: tokenHash(raw), expiresAt, metadata: { source: 'ONBOARDING' } }
   });
-  return {
-    token: raw,
-    expiresAt,
-    pointCode,
-    name,
-    downloadPath: `/api/public/restaurantes/instalador/${encodeURIComponent(raw)}.cmd`
-  };
+  return { token: raw, expiresAt, pointCode, name, downloadPath: `/api/public/restaurantes/instalador/${encodeURIComponent(raw)}.cmd` };
 }
 
 async function consumeInstallClaim(rawToken, deviceName = null) {
@@ -314,18 +277,14 @@ async function consumeInstallClaim(rawToken, deviceName = null) {
   if (!claim) throw new AppError(404, 'Claim de instalación inválido', 'EDGE_INSTALL_CLAIM_NOT_FOUND');
   if (claim.edgeAgentId || claim.consumedAt) throw new AppError(409, 'Este instalador ya fue utilizado', 'EDGE_INSTALL_CLAIM_CONSUMED');
   if (claim.expiresAt <= new Date()) throw new AppError(410, 'Este instalador venció. Genera uno nuevo desde VantixGC.', 'EDGE_INSTALL_CLAIM_EXPIRED');
-
   const reserved = await prisma.edgeInstallClaim.updateMany({
     where: { id: claim.id, consumedAt: null, edgeAgentId: null, expiresAt: { gt: new Date() } },
     data: { consumedAt: new Date(), metadata: { ...(claim.metadata || {}), deviceName: deviceName || null } }
   });
   if (reserved.count !== 1) throw new AppError(409, 'El claim de instalación ya está siendo utilizado', 'EDGE_INSTALL_CLAIM_BUSY');
-
   try {
     const agent = await edgeService.provisionAgent(claim.tenantId, claim.userId, {
-      name: claim.name,
-      pointCode: claim.pointCode,
-      softwareVersion: 'SELF_SERVICE_UNIVERSAL'
+      name: claim.name, pointCode: claim.pointCode, softwareVersion: 'SELF_SERVICE_UNIVERSAL'
     });
     await prisma.edgeInstallClaim.update({ where: { id: claim.id }, data: { edgeAgentId: agent.id } });
     return { tenantId: claim.tenantId, edgeAgentId: agent.id, edgeKey: agent.edgeKey, pointCode: agent.pointCode, name: agent.name };
@@ -340,7 +299,6 @@ function safePs(value) {
 }
 
 function installerPowerShell(rawToken, coreBaseUrl) {
-  if (!INSTALL_SOURCE_COMMIT || INSTALL_SOURCE_COMMIT.startsWith('__')) throw new AppError(503, 'Instalador autoservicio aún no publicado', 'SELF_SERVICE_INSTALLER_NOT_PINNED');
   const token = safePs(rawToken);
   const core = safePs(coreBaseUrl.replace(/\/$/, ''));
   return `$ErrorActionPreference = 'Stop'\n$CoreBaseUrl = '${core}'\n$ClaimToken = '${token}'\n$Commit = '${INSTALL_SOURCE_COMMIT}'\n$Temp = Join-Path $env:TEMP ('vantixgc-' + [guid]::NewGuid().ToString('N'))\nNew-Item -ItemType Directory -Force -Path $Temp | Out-Null\ntry {\n  Write-Host '[1/5] Descargando VantixGC Edge Universal...' -ForegroundColor Cyan\n  $RepoZip = Join-Path $Temp 'repo.zip'\n  Invoke-WebRequest -UseBasicParsing -Uri (\"https://github.com/juansfer858/saas-backend/archive/$Commit.zip\") -OutFile $RepoZip\n  Expand-Archive -LiteralPath $RepoZip -DestinationPath $Temp -Force\n  $Repo = Get-ChildItem -LiteralPath $Temp -Directory | Where-Object { $_.Name -like 'saas-backend-*' } | Select-Object -First 1\n  if (-not $Repo) { throw 'No fue posible preparar el paquete VantixGC.' }\n  $Edge = Join-Path $Repo.FullName 'edge'\n  Write-Host '[2/5] Preparando runtime local...' -ForegroundColor Cyan\n  $NodeZip = Join-Path $Temp 'node.zip'\n  Invoke-WebRequest -UseBasicParsing -Uri 'https://nodejs.org/dist/v22.23.2/node-v22.23.2-win-x64.zip' -OutFile $NodeZip\n  $NodeDir = Join-Path $Temp 'node'\n  Expand-Archive -LiteralPath $NodeZip -DestinationPath $NodeDir -Force\n  $NodeExe = Get-ChildItem -LiteralPath $NodeDir -Filter node.exe -Recurse | Select-Object -First 1\n  if (-not $NodeExe) { throw 'No fue posible preparar Node.js local.' }\n  New-Item -ItemType Directory -Force -Path (Join-Path $Edge 'runtime') | Out-Null\n  Copy-Item -LiteralPath $NodeExe.FullName -Destination (Join-Path $Edge 'runtime\\node.exe') -Force\n  Write-Host '[3/5] Vinculando esta sede...' -ForegroundColor Cyan\n  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Edge 'supervisor\\install-windows.ps1') -CoreBaseUrl $CoreBaseUrl -InstallClaimToken $ClaimToken\n  if ($LASTEXITCODE -ne 0) { throw \"El instalador VantixGC terminó con código $LASTEXITCODE.\" }\n  Write-Host '[4/5] Verificando Centro de Control...' -ForegroundColor Cyan\n  Start-Sleep -Seconds 3\n  $Status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8788/api/status' -TimeoutSec 10\n  Write-Host ('Estado: ' + $Status.mode + ' · Conectado: ' + $Status.connected) -ForegroundColor Green\n  Write-Host '[5/5] VantixGC Restaurantes está listo.' -ForegroundColor Green\n  Start-Process 'http://127.0.0.1:8788/app/centro-de-control'\n} finally {\n  Remove-Item -LiteralPath $Temp -Recurse -Force -ErrorAction SilentlyContinue\n}\n`;
