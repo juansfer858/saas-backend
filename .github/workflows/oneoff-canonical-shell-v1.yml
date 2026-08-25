@@ -23,6 +23,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://postgres:dummy@localhost:5432/postgres
       - name: Apply canonical shell patch
         run: node scripts/apply-canonical-shell-v1.js
       - name: Validate canonical shell before commit
