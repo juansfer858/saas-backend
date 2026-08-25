@@ -32,6 +32,15 @@
     document.head.appendChild(style);
   }
 
+  function installDashboardNavigationReload() {
+    document.addEventListener('click', (event) => {
+      const link = event.target.closest?.('a[href="/app/dashboard"]');
+      if (!link || window.location.pathname === '/app/dashboard') return;
+      event.preventDefault();
+      window.location.assign('/app/dashboard');
+    }, true);
+  }
+
   async function fetchRuntime(path) {
     const session = readSession();
     if (!session?.token || !session?.subdomain) throw new Error('Sesión no disponible para runtime UI');
@@ -55,6 +64,7 @@
 
   async function start() {
     installDashboardInteractionStyles();
+    installDashboardNavigationReload();
     try {
       const core = await fetchRuntime('/api/v1/comercial/ui-runtime/panel-integration-extras-core.js');
       executeSource(core, 'panel-integration-extras-core.js');
