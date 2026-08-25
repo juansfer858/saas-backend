@@ -45,6 +45,12 @@ async function list(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function dashboard(req, res, next) {
+  try {
+    res.json({ ok: true, data: await queryService.dashboard(req.tenantId, req.query) });
+  } catch (error) { next(error); }
+}
+
 async function create(req, res, next) {
   try {
     const input = parse(saleSchema, req.body);
@@ -86,4 +92,4 @@ async function cancel(req, res, next) {
   catch (error) { next(error); }
 }
 
-module.exports = { list, create, get, update, emit, cancel };
+module.exports = { list, dashboard, create, get, update, emit, cancel };
