@@ -95,6 +95,9 @@ jobs:
       - name: Validate Edge Workspace normal local Restaurant runtime
         run: node scripts/edge-workspace-v1-smoke.js
 
+      - name: Validate universal Core and Edge vertical registry
+        run: node scripts/universal-vertical-registry-smoke.js
+
       - name: Validate public installer Workspace revision
         run: node scripts/public-installer-workspace-smoke.js
 
@@ -185,6 +188,9 @@ jobs:
 
       - name: Validate Platform tenant provisioning and secure Master bootstrap source
         run: node scripts/platform-tenant-provisioning-smoke.js
+
+      - name: Validate universal tenant vertical entitlements against PostgreSQL
+        run: node scripts/universal-vertical-registry-db-smoke.js
 
       - name: Validate Restaurant Phase1 consumption and Sales prerequisites
         run: node scripts/restaurant-prereqs-phase1-smoke.js
