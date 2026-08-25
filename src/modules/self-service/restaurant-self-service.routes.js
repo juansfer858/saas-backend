@@ -4,6 +4,7 @@ const express = require('express');
 const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const service = require('./restaurant-self-service.service');
+const installClarity = require('./restaurant-install-clarity.service');
 
 const publicRouter = express.Router();
 const tenantRouter = express.Router();
@@ -75,7 +76,7 @@ publicRouter.post('/register', async (req, res, next) => {
 publicRouter.post('/install-claims/consume', async (req, res, next) => {
   try {
     const input = parse(consumeSchema, req.body || {});
-    res.json({ ok: true, data: await service.consumeInstallClaim(input.token, input.deviceName || null) });
+    res.json({ ok: true, data: await installClarity.consumeInstallClaim(input.token, input.deviceName || null) });
   } catch (error) { next(error); }
 });
 
@@ -104,7 +105,7 @@ tenantRouter.get('/subscription', async (req, res, next) => {
 });
 
 tenantRouter.get('/onboarding', async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.getOnboarding(req.tenantId) }); }
+  try { res.json({ ok: true, data: await installClarity.getOnboarding(req.tenantId) }); }
   catch (error) { next(error); }
 });
 
@@ -135,13 +136,18 @@ tenantRouter.post('/onboarding/install-claim', async (req, res, next) => {
   try {
     const input = parse(installClaimSchema, req.body || {});
     const data = await service.createInstallClaim(req.tenantId, req.userId, input);
-    await service.updateOnboarding(req.tenantId, { completeStep: 'SITE', currentStep: 'DONE' });
+    await installClarity.noteInstallerGenerated(req.tenantId);
     res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
 });
 
+tenantRouter.post('/onboarding/site/defer', async (req, res, next) => {
+  try { res.json({ ok: true, data: await installClarity.deferSiteInstallation(req.tenantId) }); }
+  catch (error) { next(error); }
+});
+
 tenantRouter.post('/onboarding/complete', async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.completeOnboarding(req.tenantId) }); }
+  try { res.json({ ok: true, data: await installClarity.completeOnboarding(req.tenantId) }); }
   catch (error) { next(error); }
 });
 
