@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800;900&display=swap');
 
 body.vr-public-theme {
   --bg: #fffaf6;
@@ -20,7 +20,8 @@ body.vr-public-theme {
   --vr-orange-line: #fed7aa;
   --vr-text: #1c1917;
   --vr-muted: #57534e;
-  font-family: 'Lora', Georgia, 'Times New Roman', serif !important;
+  font-family: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif !important;
+  font-weight: 500;
   background: linear-gradient(180deg, #fffaf6 0%, #ffffff 72%) !important;
   color: var(--vr-text) !important;
 }
@@ -31,7 +32,14 @@ body.vr-public-theme input,
 body.vr-public-theme select,
 body.vr-public-theme textarea,
 body.vr-public-theme a {
-  font-family: 'Lora', Georgia, 'Times New Roman', serif;
+  font-family: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body.vr-public-theme h1,
+body.vr-public-theme h2,
+body.vr-public-theme h3,
+body.vr-public-theme .brand {
+  font-weight: 800;
 }
 
 body.vr-public-theme .brandmark,
@@ -183,7 +191,7 @@ body.vr-public-theme h3,
 body.vr-public-theme .brand,
 body.vr-public-theme .brandmark,
 body.vr-public-theme .mark {
-  letter-spacing: -.025em;
+  letter-spacing: -.015em;
 }
 
 body.vr-public-theme .card,
@@ -201,7 +209,7 @@ body.vr-public-theme .error {
 }
 
 [data-edge-install-status] {
-  font-family: 'Lora', Georgia, 'Times New Roman', serif !important;
+  font-family: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif !important;
   border-color: #fed7aa !important;
   background: #fff7ed !important;
   color: #1c1917 !important;
