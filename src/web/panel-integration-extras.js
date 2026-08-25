@@ -2,6 +2,7 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
+  const DASHBOARD_PATH = '/app/dashboard';
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -16,7 +17,7 @@
       .core-dash-actionable{cursor:pointer!important;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease!important}
       .core-dash-actionable:hover{transform:translateY(-2px);border-color:#c9d7e8!important;box-shadow:0 10px 24px rgba(15,23,42,.08)!important}
       .core-dash-actionable:focus-visible{outline:3px solid rgba(59,130,246,.24)!important;outline-offset:2px!important}
-      .core-dashboard-actions{margin-left:auto!important}
+      .core-dashboard-actions{margin-left:auto!important;display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important}
       .core-dashboard-report-modal{width:min(720px,100%)!important}
       .core-dashboard-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
       .core-dashboard-report-head h2{margin:0 0 4px!important}.core-dashboard-report-head p{margin:0;color:#667085;font-size:13px}
@@ -35,10 +36,87 @@
   function installDashboardNavigationReload() {
     document.addEventListener('click', (event) => {
       const link = event.target.closest?.('a[href="/app/dashboard"]');
-      if (!link || window.location.pathname === '/app/dashboard') return;
+      if (!link || window.location.pathname === DASHBOARD_PATH) return;
       event.preventDefault();
-      window.location.assign('/app/dashboard');
+      window.location.assign(DASHBOARD_PATH);
     }, true);
+  }
+
+  function filenameFromDisposition(disposition, format) {
+    const match = String(disposition || '').match(/filename="?([^";]+)"?/i);
+    if (match?.[1]) return match[1];
+    return `Informe_Dashboard.${format === 'pdf' ? 'pdf' : 'xls'}`;
+  }
+
+  async function exportDashboard(format, button) {
+    const session = readSession();
+    if (!session?.token || !session?.subdomain) return;
+    const original = button?.textContent || '';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Generando…';
+    }
+    try {
+      const offset = new Date().getTimezoneOffset();
+      const response = await fetch(`/api/v1/comercial/ventas/dashboard/exportar?formato=${encodeURIComponent(format)}&tzOffsetMinutes=${encodeURIComponent(offset)}`, {
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'x-tenant-subdomain': session.subdomain
+        }
+      });
+      if (!response.ok) {
+        let body = {};
+        try { body = await response.json(); } catch {}
+        throw new Error(body?.error?.message || body?.message || `No fue posible generar el informe (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filenameFromDisposition(response.headers.get('content-disposition'), format);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      window.alert(`No fue posible exportar el Dashboard. ${error.message}`);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+  }
+
+  function ensureDashboardExportActions() {
+    if (window.location.pathname !== DASHBOARD_PATH) return true;
+    const pagehead = document.querySelector('.core-dash-pagehead');
+    if (!pagehead) return false;
+
+    let actions = pagehead.querySelector('[data-dashboard-actions]');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'actions core-dashboard-actions';
+      actions.dataset.dashboardActions = 'base-export-v1';
+      actions.innerHTML = '<button class="btn" type="button" data-dashboard-refresh-visible>Actualizar</button><button class="btn" type="button" data-dashboard-direct-export="excel">Exportar Excel</button><button class="btn primary" type="button" data-dashboard-direct-export="pdf">Exportar PDF</button>';
+      pagehead.appendChild(actions);
+      actions.querySelector('[data-dashboard-refresh-visible]')?.addEventListener('click', () => window.location.reload());
+      actions.querySelector('[data-dashboard-direct-export="excel"]')?.addEventListener('click', (event) => exportDashboard('excel', event.currentTarget));
+      actions.querySelector('[data-dashboard-direct-export="pdf"]')?.addEventListener('click', (event) => exportDashboard('pdf', event.currentTarget));
+    }
+
+    return Boolean(document.querySelector('[data-core-dashboard-analytics]') && pagehead.querySelector('[data-dashboard-actions]'));
+  }
+
+  function installPersistentDashboardExportActions() {
+    if (window.location.pathname !== DASHBOARD_PATH) return;
+    let attempts = 0;
+    const timer = setInterval(() => {
+      attempts += 1;
+      if (ensureDashboardExportActions() || attempts >= 120 || window.location.pathname !== DASHBOARD_PATH) clearInterval(timer);
+    }, 125);
+    ensureDashboardExportActions();
   }
 
   async function fetchRuntime(path) {
@@ -65,6 +143,7 @@
   async function start() {
     installDashboardInteractionStyles();
     installDashboardNavigationReload();
+    installPersistentDashboardExportActions();
     try {
       const core = await fetchRuntime('/api/v1/comercial/ui-runtime/panel-integration-extras-core.js');
       executeSource(core, 'panel-integration-extras-core.js');
@@ -72,6 +151,8 @@
       executeSource(dashboard, 'dashboard-interactions.js');
     } catch (error) {
       console.error('SUPER_CORE_UI_RUNTIME_ERROR', error);
+    } finally {
+      ensureDashboardExportActions();
     }
   }
 

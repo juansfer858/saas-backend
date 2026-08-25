@@ -55,3 +55,6 @@ jobs:
 
       - name: Validate universal dashboard interactions and Excel/PDF reports
         run: node scripts/dashboard-universal-reports-smoke.js
+
+      - name: Validate always-visible Dashboard export buttons
+        run: node scripts/dashboard-export-visible-smoke.js
