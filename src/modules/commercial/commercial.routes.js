@@ -1,9 +1,22 @@
 const express = require('express');
+const path = require('node:path');
 const controller = require('./commercial.controller');
 const purchaseController = require('./purchase.controller');
 const salesController = require('./sales.controller');
 
 const router = express.Router();
+const webRoot = path.join(__dirname, '../../web');
+
+// Runtime UI compartido. Se sirve dentro del Core autenticado para evitar duplicar
+// rutas públicas en app.js y mantener el Dashboard como una capacidad transversal.
+router.get('/ui-runtime/panel-integration-extras-core.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'panel-integration-extras-core.js'));
+});
+router.get('/ui-runtime/dashboard-interactions.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'dashboard-interactions.js'));
+});
 
 // API genérica de documentos comerciales.
 router.get('/comprobantes', controller.listDocuments);
@@ -18,6 +31,7 @@ router.post('/comprobantes/:id/reemplazar', controller.replaceDocument);
 // Ventas operativas: borrador -> emisión atómica AU + Kardex/recetas + Cartera/Tesorería + outbox DIAN.
 router.get('/ventas', salesController.list);
 router.get('/ventas/dashboard', salesController.dashboard);
+router.get('/ventas/dashboard/exportar', salesController.exportDashboard);
 router.post('/ventas', salesController.create);
 router.get('/ventas/:id', salesController.get);
 router.patch('/ventas/:id', salesController.update);

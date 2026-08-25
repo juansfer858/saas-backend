@@ -15,6 +15,10 @@ function requirePermission(code) {
 
 function permissionForRequest(req) {
   const path = String(req.path || '').toLowerCase();
+  // Runtime UI compartido: sigue protegido por autenticación + tenant, pero no
+  // debe depender de permisos de Ventas porque lo consumen módulos transversales.
+  if (path.startsWith('/comercial/ui-runtime')) return null;
+
   let module = null;
   if (path.startsWith('/usuarios')) module = 'USUARIOS';
   else if (path.startsWith('/terceros')) module = 'TERCEROS';

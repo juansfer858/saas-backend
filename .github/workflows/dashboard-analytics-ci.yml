@@ -52,3 +52,6 @@ jobs:
 
       - name: Validate dashboard aggregation and UI contract
         run: node scripts/dashboard-analytics-smoke.js
+
+      - name: Validate universal dashboard interactions and Excel/PDF reports
+        run: node scripts/dashboard-universal-reports-smoke.js

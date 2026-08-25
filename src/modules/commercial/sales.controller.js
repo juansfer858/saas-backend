@@ -3,6 +3,7 @@ const { AppError } = require('../../utils/app-error');
 const { prisma } = require('../../config/prisma');
 const service = require('./sales.service');
 const queryService = require('./sales-query.service');
+const dashboardReport = require('./dashboard-report.service');
 const { detailSchema } = require('./commercial.schemas');
 
 function parse(schema, value) {
@@ -51,6 +52,18 @@ async function dashboard(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function exportDashboard(req, res, next) {
+  try {
+    const result = await dashboardReport.exportDashboard(req.tenantId, req.query.formato, {
+      tzOffsetMinutes: req.query.tzOffsetMinutes
+    });
+    const safe = result.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_');
+    res.setHeader('Content-Type', result.mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${safe}.${result.extension}"`);
+    res.send(result.buffer);
+  } catch (error) { next(error); }
+}
+
 async function create(req, res, next) {
   try {
     const input = parse(saleSchema, req.body);
@@ -92,4 +105,4 @@ async function cancel(req, res, next) {
   catch (error) { next(error); }
 }
 
-module.exports = { list, dashboard, create, get, update, emit, cancel };
+module.exports = { list, dashboard, exportDashboard, create, get, update, emit, cancel };
