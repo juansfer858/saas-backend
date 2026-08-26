@@ -33,7 +33,7 @@ async function main() {
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
   assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v3/);
-  assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v2/);
+  assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
   assert.match(shellCss, /\.cc-classic-link:hover\{background:#fff7ed!important/);
@@ -55,11 +55,35 @@ async function main() {
   assert.match(shellCss, /\.cc-dashboard/);
 
   // Dashboard primary actions must remain readable; Caja is intentionally the strongest CTA.
-  assert.match(shellJs, /<button class="cc-action cash" data-cc-tab="caja">▣<small>Caja · Cobrar \/ Cerrar<\/small><\/button>/);
+  assert.match(shellJs, /<button class="cc-action cash" data-cc-tab="caja"><span class="cc-cash-icon">▣<\/span><strong>Caja<\/strong><small>Cobrar \/ Cerrar<\/small><\/button>/);
   assert.match(shellCss, /\.cc-action\{[^}]*font-size:14px;[^}]*line-height:1\.25/);
   assert.match(shellCss, /\.cc-action\.cash\{[^}]*font-size:22px/);
   assert.match(shellCss, /\.cc-action\.cash small\{[^}]*font-size:15px;[^}]*font-weight:950/);
   assert.ok(!shellCss.includes('.cc-action.cash small{display:block;margin-top:7px;font-size:10px}'), 'Caja label must never regress to the old 10px size');
+
+  // Every internal Dashboard destination has a deterministic back control that returns to its real origin.
+  for (const token of [
+    "dashboard:'Centro de control'",
+    "salon:'Mesas'",
+    "mesero:'Mesero'",
+    "pedidos:'Pedidos en curso'",
+    "kds:'Cocina / Barra'",
+    "caja:'Caja'",
+    "carta:'Carta y productos'",
+    "estado:'Tema / Estado'",
+    'function currentView()',
+    'function enterView(view, pushState = true)',
+    'function navigateBack()',
+    'function renderBackControl',
+    'ccTrail',
+    'ccBackBar',
+    'data-cc-back="true"',
+    '← Atrás',
+    'routeCurrentView',
+    'history.replaceState'
+  ]) assert.ok(shellJs.includes(token), `Restaurant origin-aware back must contain ${token}`);
+  assert.ok(!shellJs.includes('history.back('), 'Restaurant internal back must be deterministic, not browser-history dependent');
+  assert.ok(!shellJs.includes('customBack()'), 'Custom screens must use the same canonical back control as operational screens');
 
   // The Centro de Control must close the operational gap between sending an order and charging it.
   for (const token of [
@@ -85,7 +109,7 @@ async function main() {
   // Control-center navigation no longer watches and mutates the rail through a DOM observer.
   assert.ok(!shellJs.includes('MutationObserver'));
   assert.ok(shellJs.includes("document.addEventListener('click'"));
-  assert.ok(shellJs.includes('requestAnimationFrame(() => syncShell())'));
+  assert.ok(shellJs.includes('requestAnimationFrame(() => {'));
 
   // The operational shell continues to reuse the already validated write engine.
   assert.match(operationalEngine, /method:'POST'/);
@@ -127,7 +151,7 @@ async function main() {
     assert.match(body, /restaurant-theme\.js/);
     assert.match(body, /restaurant-ui\.js/);
     assert.match(body, /restaurant-control-center\.css\?v=workspace-v3/);
-    assert.match(body, /restaurant-control-center\.js\?v=workspace-v2/);
+    assert.match(body, /restaurant-control-center\.js\?v=workspace-v3/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
 
@@ -153,7 +177,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + READABLE CASH CTA + CANONICAL ADMIN RETURN SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + ORIGIN-AWARE INTERNAL BACK + READABLE CASH CTA SMOKE OK');
 }
 
 main().catch((error) => {
