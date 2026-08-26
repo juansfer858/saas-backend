@@ -28,9 +28,11 @@ async function main() {
   assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
   assert.ok(!appSource.includes("href: '/app/restaurante'"));
 
-  // The Restaurant shell must expose one persistent, obvious way back to Core administration.
+  // Restaurant exposes a large persistent return directly below the operational rail.
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
-  assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true">← Administración<\/a>/);
+  assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
+  assert.match(restaurantHtml, /data-restaurant-admin-link="true"[^>]*style="[^"]*position:static!important[^"]*min-height:52px!important/);
+  assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
 
   assert.match(shellJs, /data-cc-home/);
   assert.match(shellJs, /openOperationalTab/);
@@ -112,7 +114,7 @@ async function main() {
     assert.match(body, /restaurant-control-center\.css/);
     assert.match(body, /restaurant-control-center\.js/);
     assert.match(body, /data-restaurant-admin-link="true"/);
-    assert.match(body, /← Administración/);
+    assert.match(body, /← Volver a Administración/);
 
     const legacy = await fetch(base + '/app/restaurante', { redirect:'manual' });
     assert.equal(legacy.status, 302);
@@ -136,7 +138,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + WAITER ROUND CONTINUITY + ADMIN BACK LINK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + WAITER ROUND CONTINUITY + LARGE ADMIN RETURN SMOKE OK');
 }
 
 main().catch((error) => {
