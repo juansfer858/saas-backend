@@ -10,22 +10,29 @@
 </head>
 <body>
   <div class="ri-shell">
-    <header class="ri-header">
-      <div>
-        <div class="ri-brand-kicker">VantixGC Restaurante · La Riel</div>
-        <div class="ri-brand" data-restaurant-name>Restaurante</div>
-        <div class="ri-subline" id="tenantLine">Cargando identidad y operación…</div>
-      </div>
-      <div class="ri-user"><strong id="userName">Usuario</strong><span id="userRole"></span><br><a id="coreLink" class="ri-link" href="/app/dashboard">Super Core</a> · <a id="noticeToggle" class="ri-link" href="#avisos">Avisos</a></div>
-    </header>
+    <div class="rail-wrap">
+      <nav id="rail" class="rail" aria-label="La Riel · navegación por permisos"></nav>
+      <a id="noticeToggle" class="rail-ticket" href="#avisos" aria-label="Abrir avisos operativos">Avisos</a>
+      <a class="cc-classic-link" href="/app/dashboard" data-restaurant-admin-link="true" aria-label="Volver a Administración">← Volver a Administración</a>
+    </div>
+
     <dialog id="noticePanel" class="ri-card" aria-label="Avisos operativos">
-      <div class="ri-toolbar"><div><div class="ri-eyebrow">Estado del sistema</div><h2>Avisos operativos</h2><p class="ri-muted">Estos avisos ya no ocupan espacio dentro de la operación.</p></div><button type="button" id="noticeClose" class="ri-btn small push">Cerrar</button></div>
+      <div class="ri-toolbar"><div><div class="ri-eyebrow">Estado del sistema</div><h2>Avisos operativos</h2><p class="ri-muted">Producción y estado de sede sin ocupar espacio dentro de la operación.</p></div><button type="button" id="noticeClose" class="ri-btn small push">Cerrar</button></div>
       <section><div class="ri-eyebrow">Producción</div><div id="gateInner" class="ri-gate-inner"><b>Modo funcional simulado</b><span>Consultando gates…</span></div></section>
       <section><div class="ri-eyebrow">Sede / Edge</div><div id="edgeStatusSlot" class="ri-notice">Consultando estado de la sede…</div></section>
     </dialog>
-    <div class="rail-wrap"><nav id="rail" class="rail" aria-label="La Riel · navegación por permisos"></nav><a class="cc-classic-link" href="/app/dashboard" data-restaurant-admin-link="true" aria-label="Volver a Administración">← Volver a Administración</a></div>
+
     <main class="ri-main"><div id="message" class="ri-message"></div><div id="view"></div></main>
+
+    <div hidden aria-hidden="true">
+      <span id="tenantLine"></span>
+      <span id="userName"></span>
+      <span id="userRole"></span>
+      <a id="coreLink" href="/app/dashboard">Super Core</a>
+      <span data-restaurant-name></span>
+    </div>
   </div>
+
   <script>
   (()=>{
     const toggle=document.querySelector('#noticeToggle'),panel=document.querySelector('#noticePanel'),close=document.querySelector('#noticeClose');
