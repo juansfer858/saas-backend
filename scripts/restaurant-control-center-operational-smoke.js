@@ -32,7 +32,8 @@ async function main() {
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
-  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v2/);
+  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v3/);
+  assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v2/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
   assert.match(shellCss, /\.cc-classic-link:hover\{background:#fff7ed!important/);
@@ -48,8 +49,17 @@ async function main() {
   assert.match(shellJs, /\/api\/v1\/restaurante\/comandas/);
   assert.match(shellJs, /\/api\/v1\/restaurante\/pedidos/);
   assert.ok(!shellJs.includes("location.href='/app/restaurante'"), 'Operational shell must not redirect normal actions to legacy UI');
+  assert.ok(!shellJs.includes('Panel clásico de respaldo'), 'The control center must not recreate obsolete legacy navigation');
+  assert.ok(!shellJs.includes("classic.href = '/app/restaurante'"), 'Administration return has one canonical owner in restaurant.html');
   assert.match(shellCss, /\.rail-wrap/);
   assert.match(shellCss, /\.cc-dashboard/);
+
+  // Dashboard primary actions must remain readable; Caja is intentionally the strongest CTA.
+  assert.match(shellJs, /<button class="cc-action cash" data-cc-tab="caja">▣<small>Caja · Cobrar \/ Cerrar<\/small><\/button>/);
+  assert.match(shellCss, /\.cc-action\{[^}]*font-size:14px;[^}]*line-height:1\.25/);
+  assert.match(shellCss, /\.cc-action\.cash\{[^}]*font-size:22px/);
+  assert.match(shellCss, /\.cc-action\.cash small\{[^}]*font-size:15px;[^}]*font-weight:950/);
+  assert.ok(!shellCss.includes('.cc-action.cash small{display:block;margin-top:7px;font-size:10px}'), 'Caja label must never regress to the old 10px size');
 
   // The Centro de Control must close the operational gap between sending an order and charging it.
   for (const token of [
@@ -116,8 +126,8 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
     assert.match(body, /restaurant-ui\.js/);
-    assert.match(body, /restaurant-control-center\.css\?v=workspace-v2/);
-    assert.match(body, /restaurant-control-center\.js/);
+    assert.match(body, /restaurant-control-center\.css\?v=workspace-v3/);
+    assert.match(body, /restaurant-control-center\.js\?v=workspace-v2/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
 
@@ -143,7 +153,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + WAITER ROUND CONTINUITY + CANONICAL LARGE ADMIN RETURN SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + READABLE CASH CTA + CANONICAL ADMIN RETURN SMOKE OK');
 }
 
 main().catch((error) => {
