@@ -33,13 +33,19 @@ async function main() {
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
   assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v5/);
-  assert.match(restaurantHtml, /restaurant-ui\.js\?v=cash-v2/);
-  assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3/);
+  assert.match(restaurantHtml, /restaurant-ui\.js\?v=zones-v1/);
+  assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
   assert.match(shellCss, /\.cc-classic-link:hover\{background:#fff7ed!important/);
   assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.cc-classic-link\{display:flex!important/);
   assert.ok(!shellCss.includes('.rail-wrap:before,.rail-wrap:after,.cc-classic-link{display:none!important}'), 'Admin return must remain visible on mobile');
+
+  // Centro de control is owned by the shell outside #rail. Repainting the operational
+  // role buttons must never delete it and restaurant.html must not add another interceptor.
+  assert.match(shellJs, /railWrap\.insertBefore\(home, rail\)/);
+  assert.match(shellJs, /railWrap\.querySelector\('\[data-cc-home\]'\)/);
+  assert.ok(!restaurantHtml.includes('stopImmediatePropagation'), 'Restaurant shell must not add a second rail click interceptor');
 
   // Production and Edge status are available from one native modal and no longer reserve
   // full-width bands that push Caja or any other operational module down the page.
@@ -210,9 +216,9 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
-    assert.match(body, /restaurant-ui\.js\?v=cash-v2/);
+    assert.match(body, /restaurant-ui\.js\?v=zones-v1/);
     assert.match(body, /restaurant-control-center\.css\?v=workspace-v5/);
-    assert.match(body, /restaurant-control-center\.js\?v=workspace-v3/);
+    assert.match(body, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
     assert.match(body, /<dialog id="noticePanel"/);
@@ -241,7 +247,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + FLOATING NOTICES + CAJA V2 + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + ZONES + FLOATING NOTICES + CAJA V2 + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
 }
 
 main().catch((error) => {
