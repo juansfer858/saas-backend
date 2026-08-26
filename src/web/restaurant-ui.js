@@ -15,6 +15,7 @@
     selectedTableId: null,
     draft: null,
     cashShiftId: localStorage.getItem(SHIFT_KEY) || null,
+    cashMetric: null,
     poll: null,
     dragging: false
   };
@@ -76,6 +77,7 @@
   function stopPoll() { if (S.poll) clearInterval(S.poll); S.poll = null; }
   async function setTab(tab) {
     stopPoll();
+    if (tab !== 'caja') S.cashMetric = null;
     S.tab = tab;
     renderRail();
     message('');
@@ -403,13 +405,37 @@
     </button>`;
   }
 
+  function cashMetricRows(summary, kind) {
+    const rows = Array.isArray(summary?.tables) ? [...summary.tables].reverse() : [];
+    if (kind === 'CASH') return rows.filter((row) => String(row.formaPago || '').toUpperCase() === 'EFECTIVO');
+    if (kind === 'OTHER') return rows.filter((row) => String(row.formaPago || '').toUpperCase() !== 'EFECTIVO');
+    return rows;
+  }
+
+  function cashMetricDetail(kind, summary, dueTables) {
+    if (!kind) return '';
+    const requested = dueTables.filter((table) => table.state === 'CUENTA_PEDIDA');
+    if (kind === 'DUE') {
+      return `<section class="cash-panel" data-cash-metric-detail="DUE"><div class="cash-panel-head"><div><button type="button" class="ri-btn small" data-cash-metric-back>← Atrás · Caja</button><h2>Mesas por cobrar</h2><p>Selecciona una mesa para llevarla directamente al cobro rápido.</p></div><span class="cash-count-badge">${requested.length}</span></div><div class="cash-due-list">${requested.length ? requested.map((table) => cashTableRow(table, false)).join('') : '<div class="empty-ticket">No hay cuentas pedidas pendientes de cobro.</div>'}</div></section>`;
+    }
+    const rows = cashMetricRows(summary, kind);
+    const labels = {
+      SALES:['Ventas del turno','Todos los cierres registrados durante este turno.'],
+      CASH:['Efectivo registrado','Cierres del turno pagados en efectivo.'],
+      OTHER:['Otros medios','Cierres pagados por medios distintos del efectivo.']
+    };
+    const [title, description] = labels[kind] || labels.SALES;
+    const total = rows.reduce((sum, row) => sum + number(row.total), 0);
+    return `<section class="cash-panel" data-cash-metric-detail="${esc(kind)}"><div class="cash-panel-head"><div><button type="button" class="ri-btn small" data-cash-metric-back>← Atrás · Caja</button><h2>${esc(title)}</h2><p>${esc(description)}</p></div><strong>${money(total)}</strong></div><div class="cash-recent-list">${rows.length ? rows.map((row) => `<div class="cash-recent-row"><span><b>${esc(row.table || 'Mesa')}</b><small>${esc(row.saleNumber || 'Venta')} · ${esc(String(row.formaPago || 'SIN MEDIO').replaceAll('_',' '))}</small></span><span>${money(row.total)}</span><span class="cash-recent-state">Registrado</span></div>`).join('') : '<div class="empty-ticket">Todavía no hay movimientos en este indicador durante el turno.</div>'}</div></section>`;
+  }
+
   async function renderCash() {
     await loadTables();
     const cajas = await api('/api/v1/tesoreria/cajas-bancos');
     let summary = null;
     if (S.cashShiftId) {
       try { summary = await api(`/api/v1/restaurante/caja/turnos/${S.cashShiftId}/resumen`); }
-      catch { S.cashShiftId = null; localStorage.removeItem(SHIFT_KEY); }
+      catch { S.cashShiftId = null; S.cashMetric = null; localStorage.removeItem(SHIFT_KEY); }
     }
 
     const cashAccounts = cajas.filter((x) => x.tipo === 'CAJA' && x.activo);
@@ -436,6 +462,7 @@
     const recent = Array.isArray(summary?.tables) ? [...summary.tables].reverse().slice(0, 8) : [];
 
     if (!S.cashShiftId || !summary) {
+      S.cashMetric = null;
       $('#view').innerHTML = `<section class="cash-shell cash-closed-shell">
         <div class="cash-page-head"><div><div class="ri-eyebrow">Caja / Turno</div><h1 class="ri-title">Abrir caja</h1><p class="ri-muted">Una sola acción para empezar. Elige la caja y registra el fondo inicial.</p></div><span class="cash-state-pill closed">● CAJA CERRADA</span></div>
         <div class="cash-open-card">
@@ -464,11 +491,13 @@
       </div>
 
       <div class="cash-kpis">
-        <article class="cash-kpi"><span>↗</span><div><small>Ventas del turno</small><b>${money(closedTotal)}</b><em>${recent.length} cierre(s) registrado(s)</em></div></article>
-        <article class="cash-kpi green"><span>▣</span><div><small>Efectivo registrado</small><b>${money(cashRecorded)}</b><em>Dato real del turno</em></div></article>
-        <article class="cash-kpi blue"><span>▤</span><div><small>Otros medios</small><b>${money(otherRecorded)}</b><em>Ventas cerradas menos efectivo</em></div></article>
-        <article class="cash-kpi orange"><span>▱</span><div><small>Mesas por cobrar</small><b>${requestedCount}</b><em>${openTables.length} mesa(s) abiertas</em></div></article>
+        <button type="button" class="cash-kpi" data-cash-metric="SALES" aria-pressed="${S.cashMetric === 'SALES'}"><span>↗</span><div><small>Ventas del turno</small><b>${money(closedTotal)}</b><em>${recent.length} cierre(s) registrado(s) · Ver detalle</em></div></button>
+        <button type="button" class="cash-kpi green" data-cash-metric="CASH" aria-pressed="${S.cashMetric === 'CASH'}"><span>▣</span><div><small>Efectivo registrado</small><b>${money(cashRecorded)}</b><em>Dato real del turno · Ver detalle</em></div></button>
+        <button type="button" class="cash-kpi blue" data-cash-metric="OTHER" aria-pressed="${S.cashMetric === 'OTHER'}"><span>▤</span><div><small>Otros medios</small><b>${money(otherRecorded)}</b><em>Ventas cerradas menos efectivo · Ver detalle</em></div></button>
+        <button type="button" class="cash-kpi orange" data-cash-metric="DUE" aria-pressed="${S.cashMetric === 'DUE'}"><span>▱</span><div><small>Mesas por cobrar</small><b>${requestedCount}</b><em>${openTables.length} mesa(s) abiertas · Ver detalle</em></div></button>
       </div>
+
+      ${cashMetricDetail(S.cashMetric, summary, dueTables)}
 
       <div class="cash-workspace">
         <section class="cash-panel cash-due-panel">
@@ -518,15 +547,28 @@
       try {
         const shift = await api('/api/v1/restaurante/caja/abrir', { method:'POST', body:JSON.stringify({ cajaBancoId:$('#cashAccount').value, saldoInicial:number($('#opening').value) }) });
         S.cashShiftId = shift.id;
+        S.cashMetric = null;
         localStorage.setItem(SHIFT_KEY, shift.id);
         message('Caja abierta. Ya puedes recibir cobros.');
         await renderCash();
       } catch (error) { message(error.message, true); }
     });
 
+    $$('[data-cash-metric]').forEach((button) => button.addEventListener('click', async () => {
+      S.cashMetric = S.cashMetric === button.dataset.cashMetric ? null : button.dataset.cashMetric;
+      await renderCash();
+      document.querySelector('[data-cash-metric-detail]')?.scrollIntoView({ behavior:'smooth', block:'start' });
+    }));
+    $('[data-cash-metric-back]')?.addEventListener('click', async () => {
+      S.cashMetric = null;
+      await renderCash();
+    });
+
     $$('[data-cash-table]').forEach((button) => button.addEventListener('click', async () => {
       S.selectedTableId = button.dataset.cashTable;
+      S.cashMetric = null;
       await renderCash();
+      document.querySelector('.cash-fast-panel')?.scrollIntoView({ behavior:'smooth', block:'start' });
     }));
 
     const methodButtons = $$('[data-cash-method]');
@@ -591,6 +633,7 @@
         });
         message(`Cobro registrado. ${result.sale.numero} · ${result.fiscalDocument.mode}.`);
         S.selectedTableId = null;
+        S.cashMetric = null;
         await renderCash();
       } catch (error) { message(error.message, true); }
     });
@@ -622,6 +665,7 @@
         const result = await api(`/api/v1/restaurante/caja/turnos/${S.cashShiftId}/cerrar`, { method:'POST', body:JSON.stringify({ saldoFinal:number(physical.value) }) });
         message(`Turno cerrado. Descuadre final ${money(result.closed.descuadre)}.`);
         S.cashShiftId = null;
+        S.cashMetric = null;
         localStorage.removeItem(SHIFT_KEY);
         await renderCash();
       } catch (error) { message(error.message, true); }
