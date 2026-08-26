@@ -1,6 +1,13 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
+const PANEL_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const PANEL_TYPOGRAPHY = Object.freeze({
+  display: PANEL_FONT,
+  body: PANEL_FONT,
+  mono: PANEL_FONT
+});
+
 const DEFAULT_THEME = Object.freeze({
   preset: 'LA_RIEL_V1',
   restaurantName: null,
@@ -17,11 +24,7 @@ const DEFAULT_THEME = Object.freeze({
     success: '#58775b',
     danger: '#9c4035'
   },
-  typography: {
-    display: "Georgia, 'Times New Roman', serif",
-    body: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    mono: "'Courier New', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-  }
+  typography: PANEL_TYPOGRAPHY
 });
 
 function cloneDefault() {
@@ -32,12 +35,12 @@ function publicTheme(config, tenant = null) {
   const base = cloneDefault();
   const stored = config?.themeData && typeof config.themeData === 'object' ? config.themeData : {};
   const tokens = stored.tokens && typeof stored.tokens === 'object' ? stored.tokens : {};
-  const typography = stored.typography && typeof stored.typography === 'object' ? stored.typography : {};
   return {
     preset: config?.themePreset || stored.preset || base.preset,
     restaurantName: config?.displayName || stored.restaurantName || tenant?.nombreEmpresa || base.restaurantName,
     tokens: { ...base.tokens, ...tokens },
-    typography: { ...base.typography, ...typography },
+    typography: { ...PANEL_TYPOGRAPHY },
+    typographyLockedToPanel: true,
     editable: true,
     source: config?.themeData ? 'TENANT_OVERRIDE' : 'LA_RIEL_V1_DEFAULT'
   };
@@ -60,7 +63,7 @@ async function saveTheme(tenantId, userId, input) {
     preset: input.preset || before.preset,
     restaurantName: Object.prototype.hasOwnProperty.call(input, 'restaurantName') ? input.restaurantName || null : before.restaurantName,
     tokens: { ...before.tokens, ...(input.tokens || {}) },
-    typography: { ...before.typography, ...(input.typography || {}) }
+    typography: { ...PANEL_TYPOGRAPHY }
   };
   const updated = await prisma.restaurantConfig.update({
     where: { tenantId },
@@ -86,4 +89,4 @@ async function saveTheme(tenantId, userId, input) {
   return publicTheme(updated, tenant);
 }
 
-module.exports = { DEFAULT_THEME, publicTheme, getTheme, saveTheme };
+module.exports = { PANEL_FONT, PANEL_TYPOGRAPHY, DEFAULT_THEME, publicTheme, getTheme, saveTheme };
