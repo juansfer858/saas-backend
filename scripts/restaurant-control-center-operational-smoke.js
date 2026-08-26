@@ -75,7 +75,28 @@ async function main() {
   assert.match(operationalEngine, /method:'PUT'/);
   assert.match(operationalEngine, /method:'PATCH'/);
 
+  // Waiter continuity: previous rounds stay visible, kitchen state refreshes without repainting the full waiter screen,
+  // and requesting the bill is blocked while an unsent round exists.
+  for (const token of [
+    'loadSessionOrders',
+    '/api/v1/restaurante/pedidos?sessionId=',
+    'Servicio de esta mesa',
+    'Nueva ronda',
+    'Ronda ${sentOrders.length + 1}',
+    'Listo para entregar',
+    'Parcialmente listo',
+    'waiterHistory',
+    'refreshWaiterHistory',
+    'No puedes pedir la cuenta con productos sin enviar',
+    'Pedir cuenta · ronda sin enviar',
+    'La cuenta de esta mesa ya fue solicitada',
+    'La mesa volvió a servicio activo'
+  ]) assert.ok(operationalEngine.includes(token), `Waiter continuity must contain ${token}`);
+  assert.match(operationalEngine, /S\.poll = setInterval\([\s\S]*refreshWaiterHistory/);
+  assert.match(operationalEngine, /table\.state === 'CUENTA_PEDIDA'/);
+
   new Function(shellJs);
+  new Function(operationalEngine);
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -115,7 +136,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + COMPLETE SERVICE FLOW + ADMIN BACK LINK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + WAITER ROUND CONTINUITY + ADMIN BACK LINK SMOKE OK');
 }
 
 main().catch((error) => {
