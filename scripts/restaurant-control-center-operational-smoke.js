@@ -28,11 +28,16 @@ async function main() {
   assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
   assert.ok(!appSource.includes("href: '/app/restaurante'"));
 
-  // Restaurant exposes a large persistent return directly below the operational rail.
+  // Restaurant exposes one large persistent return directly below the operational rail.
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
-  assert.match(restaurantHtml, /data-restaurant-admin-link="true"[^>]*style="[^"]*position:static!important[^"]*min-height:52px!important/);
+  assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
+  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v2/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
+  assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
+  assert.match(shellCss, /\.cc-classic-link:hover\{background:#fff7ed!important/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.cc-classic-link\{display:flex!important/);
+  assert.ok(!shellCss.includes('.rail-wrap:before,.rail-wrap:after,.cc-classic-link{display:none!important}'), 'Admin return must remain visible on mobile');
 
   assert.match(shellJs, /data-cc-home/);
   assert.match(shellJs, /openOperationalTab/);
@@ -111,7 +116,7 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
     assert.match(body, /restaurant-ui\.js/);
-    assert.match(body, /restaurant-control-center\.css/);
+    assert.match(body, /restaurant-control-center\.css\?v=workspace-v2/);
     assert.match(body, /restaurant-control-center\.js/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
@@ -138,7 +143,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + WAITER ROUND CONTINUITY + LARGE ADMIN RETURN SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + WAITER ROUND CONTINUITY + CANONICAL LARGE ADMIN RETURN SMOKE OK');
 }
 
 main().catch((error) => {
