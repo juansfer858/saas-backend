@@ -32,7 +32,7 @@ async function main() {
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
-  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v3/);
+  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v4/);
   assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
@@ -53,6 +53,19 @@ async function main() {
   assert.ok(!shellJs.includes("classic.href = '/app/restaurante'"), 'Administration return has one canonical owner in restaurant.html');
   assert.match(shellCss, /\.rail-wrap/);
   assert.match(shellCss, /\.cc-dashboard/);
+
+  // Adaptive internal architecture: readable by default, dense on desktop and touch-safe on mobile.
+  assert.match(shellCss, /html,body\{[^}]*font-size:14px;[^}]*line-height:1\.45/);
+  assert.match(shellCss, /\.ri-btn\{[^}]*min-height:46px!important;[^}]*font-size:14px!important/);
+  assert.match(shellCss, /\.ri-input,\.ri-select\{[^}]*min-height:48px!important;[^}]*font-size:15px!important/);
+  assert.match(shellCss, /\.menu-grid\{[^}]*grid-template-columns:repeat\(auto-fit,minmax\(180px,1fr\)\)!important/);
+  assert.match(shellCss, /\.kds-lanes\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)!important/);
+  assert.match(shellCss, /\.order-sheet\{[^}]*position:sticky!important;[^}]*top:92px!important/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.floor\{[^}]*display:grid!important;[^}]*minmax\(155px,1fr\)/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.table-ticket\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.kds-lanes\{grid-template-columns:1fr!important/);
+  assert.match(shellCss, /@media\(pointer:coarse\)[\s\S]*?min-height:48px!important/);
+  assert.ok(!shellCss.includes('.ri-btn{min-height:39px!important'), 'Operational buttons must not regress to the old small target');
 
   // Dashboard primary actions must remain readable; Caja is intentionally the strongest CTA.
   assert.match(shellJs, /<button class="cc-action cash" data-cc-tab="caja"><span class="cc-cash-icon">▣<\/span><strong>Caja<\/strong><small>Cobrar \/ Cerrar<\/small><\/button>/);
@@ -150,7 +163,7 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
     assert.match(body, /restaurant-ui\.js/);
-    assert.match(body, /restaurant-control-center\.css\?v=workspace-v3/);
+    assert.match(body, /restaurant-control-center\.css\?v=workspace-v4/);
     assert.match(body, /restaurant-control-center\.js\?v=workspace-v3/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
@@ -177,7 +190,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + ORIGIN-AWARE INTERNAL BACK + READABLE CASH CTA SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
 }
 
 main().catch((error) => {
