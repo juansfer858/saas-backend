@@ -32,7 +32,26 @@ assert.match(operatorUi, /Salón/);
 assert.match(operatorUi, /Cocina \/ Barra/);
 assert.match(operatorUi, /COMANDA SIMULADA — NO IMPRESA EN HARDWARE/);
 assert.match(operatorUi, /Imprimir \/ Guardar PDF/);
-assert.match(operatorUi, /Cierre de caja \/ turno/);
+
+// Caja V2 replaces the old sparse "Cierre de caja / turno" screen with the approved
+// operational flow while preserving the same real open/charge/close endpoints.
+for (const token of [
+  'CAJA CERRADA',
+  'CAJA ABIERTA',
+  'Mesas por cobrar',
+  'Cobro rápido',
+  'Confirmar cobro',
+  'Resumen del turno',
+  'Cerrar turno',
+  '/api/v1/restaurante/caja/abrir',
+  '/api/v1/restaurante/caja/turnos/',
+  '/api/v1/restaurante/mesas/${selected.id}/cerrar',
+  'restaurantClosedTablesTotal',
+  'restaurantCashRecorded',
+  'systemCashExpected'
+]) assert.ok(operatorUi.includes(token), `Caja V2 must contain ${token}`);
+assert.ok(!operatorUi.includes('summary?.paymentBreakdown'), 'Caja V2 must not depend on a field the backend summary does not provide');
+
 assert.match(themeCss, /\.floor/);
 assert.match(themeCss, /\.command-ticket/);
 assert.match(themeCss, /\.receipt/);
@@ -51,6 +70,9 @@ assert.match(service, /RESTAURANT_QR_TOTAL_CONFIRMATION_MISMATCH/);
 assert.match(service, /DOCUMENTO EQUIVALENTE SIMULADO/);
 assert.match(service, /Propinas por pagar/);
 assert.match(service, /ORDER_READY/);
+assert.match(service, /restaurantClosedTablesTotal/);
+assert.match(service, /systemCashExpected/);
+assert.match(service, /restaurantCashRecorded/);
 
 assert.match(routes, /restaurantMenuItem\.findFirst/);
 assert.match(routes, /tenantId:\s*req\.tenantId/);
@@ -69,7 +91,7 @@ assert.match(phase2, /NO significa listo para producción con clientes reales/);
 assert.match(edgeGate, /DESARROLLO FUNCIONAL SIMULADO AUTORIZADO/);
 assert.match(edgeGate, /RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA/);
 
-console.log('RESTAURANT PHASE 2 SIMULATED UI/GATE SMOKE OK');
+console.log('RESTAURANT PHASE 2 SIMULATED UI/GATE + CAJA V2 SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
   dynamicProductionBlockedStatus: true,
@@ -80,6 +102,7 @@ console.log(JSON.stringify({
   simulatedPdfCommandUi: true,
   qrDirectOrderUi: true,
   cashShiftUi: true,
+  cashV2RealSummaryFields: true,
   restaurantRbacDeclared: true,
   menuUpdateTenantIsolation: true,
   physicalGateStillRequired: true,

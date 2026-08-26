@@ -47,7 +47,12 @@ assert.ok(ui.includes('📱 vía autopedido QR'));
 assert.ok(ui.includes("can('MESAS.VER') && can('PEDIDOS.CREAR')"));
 assert.ok(ui.includes("can('COMANDAS.EDITAR')"));
 assert.ok(ui.includes("can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR')"));
-assert.ok(ui.includes('number(raw) - number(summary.systemCashExpected)'));
+// Caja V2 still calculates the physical cash difference against the real
+// systemCashExpected value, with null-safe access while rendering/rebinding.
+assert.match(ui, /const diff = number\(raw\) - number\(summary\?\.systemCashExpected\)/);
+assert.ok(ui.includes('restaurantClosedTablesTotal'));
+assert.ok(ui.includes('restaurantCashRecorded'));
+assert.ok(!ui.includes('summary?.paymentBreakdown'), 'Connected Caja must not depend on a non-existent summary field');
 assert.doesNotMatch(ui, /#[0-9a-fA-F]{6}/, 'Data/UI logic must not hardcode theme colors');
 assert.doesNotMatch(qr, /#[0-9a-fA-F]{6}/, 'QR logic must not hardcode theme colors');
 
@@ -68,7 +73,7 @@ assert.ok(rbac.includes("'RESTAURANTE.VER'"));
 assert.ok(docs.includes('ID-AC01'));
 assert.ok(docs.includes('No existe un segundo mapa de roles de frontend'));
 
-console.log('RESTAURANT IDENTITY CONNECTED UI SMOKE OK');
+console.log('RESTAURANT IDENTITY CONNECTED UI + CAJA V2 SMOKE OK');
 console.log(JSON.stringify({
   sharedTheme: true,
   fiveRealSurfacesWired: true,
@@ -76,5 +81,6 @@ console.log(JSON.stringify({
   qrOriginMarker: true,
   rbacDrivenRail: true,
   liveCashDifference: true,
+  cajaV2RealSummaryFields: true,
   noBrandColorsInDataLogic: true
 }, null, 2));
