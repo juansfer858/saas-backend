@@ -4,6 +4,7 @@ const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
 const identity = require('./restaurant-identity.service');
 const liveTables = require('./restaurant-live-tables.service');
+const zones = require('./restaurant-zones.service');
 const theme = require('./restaurant-theme.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
@@ -16,9 +17,12 @@ function parse(schema, value) {
   return result.data;
 }
 
+const zoneSchema = z.object({ name: z.string().trim().min(1).max(80) });
+
 const tableSchema = z.object({
   code: z.string().trim().min(1).max(30),
   name: z.string().trim().min(1).max(80),
+  zoneId: z.string().uuid().optional(),
   seats: z.coerce.number().int().min(1).max(30).optional(),
   posX: z.coerce.number().int().min(0).max(5000).optional(),
   posY: z.coerce.number().int().min(0).max(5000).optional(),
@@ -115,14 +119,51 @@ router.patch('/gates', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req,
   } catch (error) { next(error); }
 });
 
+router.get('/zonas', requirePermission('MESAS.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await zones.listZones(req.tenantId, req.user) }); } catch (error) { next(error); }
+});
+router.post('/zonas', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.status(201).json({ ok: true, data: await zones.createZone(req.tenantId, parse(zoneSchema, req.body)) }); } catch (error) { next(error); }
+});
+router.patch('/zonas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await zones.renameZone(req.tenantId, req.params.id, parse(zoneSchema, req.body)) }); } catch (error) { next(error); }
+});
+router.delete('/zonas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await zones.removeZone(req.tenantId, req.params.id) }); } catch (error) { next(error); }
+});
+
 router.get('/mesas', requirePermission('MESAS.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await liveTables.listTablesLive(req.tenantId, req.user) }); } catch (error) { next(error); }
+  try {
+    await zones.ensureDefaultZone(req.tenantId);
+    res.json({ ok: true, data: await liveTables.listTablesLive(req.tenantId, req.user) });
+  } catch (error) { next(error); }
 });
 router.post('/mesas', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
-  try { res.status(201).json({ ok: true, data: await service.createTable(req.tenantId, parse(tableSchema, req.body)) }); } catch (error) { next(error); }
+  try {
+    const input = parse(tableSchema, req.body);
+    const zone = await zones.resolveZoneForTable(req.tenantId, input.zoneId);
+    const table = await service.createTable(req.tenantId, input);
+    try {
+      const assigned = await zones.assignTable(req.tenantId, table.id, zone.id);
+      res.status(201).json({ ok: true, data: assigned });
+    } catch (error) {
+      await service.removeTable(req.tenantId, table.id).catch(() => {});
+      throw error;
+    }
+  } catch (error) { next(error); }
 });
 router.patch('/mesas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.updateTable(req.tenantId, req.params.id, parse(tableUpdateSchema, req.body)) }); } catch (error) { next(error); }
+  try {
+    const input = parse(tableUpdateSchema, req.body);
+    const hasZone = Object.prototype.hasOwnProperty.call(input, 'zoneId');
+    const { zoneId, ...tableChanges } = input;
+    let row = null;
+    if (Object.keys(tableChanges).length) row = await service.updateTable(req.tenantId, req.params.id, tableChanges);
+    else row = await prisma.restaurantTable.findFirst({ where: { id: req.params.id, tenantId: req.tenantId, active: true } });
+    if (!row) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
+    if (hasZone) row = await zones.assignTable(req.tenantId, req.params.id, zoneId);
+    res.json({ ok: true, data: row });
+  } catch (error) { next(error); }
 });
 router.delete('/mesas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.removeTable(req.tenantId, req.params.id) }); } catch (error) { next(error); }
