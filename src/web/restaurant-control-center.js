@@ -3,6 +3,7 @@
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const SHIFT_KEY = 'restaurant_cash_shift';
+  const CONTROL_PATH = '/app/centro-de-control';
   let session = null;
   try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch {}
   if (!session?.token || !session?.subdomain) return;
@@ -101,7 +102,11 @@
     setActiveHome(false);
     showOnly('operational');
     target.click();
-    if (pushState) history.pushState({ view:tab }, '', `/app/centro-de-control?view=${encodeURIComponent(tab)}`);
+    if (pushState) history.pushState({ view:tab }, '', `${CONTROL_PATH}?view=${encodeURIComponent(tab)}`);
+  }
+
+  function customBack() {
+    return '<button type="button" class="cc-mini-button" data-cc-dashboard="true">← Centro de control</button>';
   }
 
   async function showMenu(pushState = true) {
@@ -113,11 +118,103 @@
     try {
       const menu = await api('/api/v1/restaurante/menu');
       const rows = Array.isArray(menu) ? menu : [];
-      custom.innerHTML = `<div class="cc-head"><div><h1>Carta y productos</h1><p>Lectura real del menú publicado para este tenant.</p></div><div class="cc-view-actions"><a class="cc-core-link" href="/app/inventario">Gestionar productos en Inventario</a></div></div><div class="cc-menu-grid">${rows.map((item) => `<article class="cc-menu-card ${item.warning ? 'warn' : ''}"><small>${esc(item.category || item.station || 'PRODUCTO')}</small><b>${esc(item.product?.nombre || item.nombre || 'Producto')}</b><strong>${money(item.product?.precio1 ?? item.precio ?? 0)}</strong>${item.warning ? `<p class="ri-muted">${esc(item.warning)}</p>` : ''}</article>`).join('') || '<div class="ri-card">No hay productos visibles en la carta.</div>'}</div>`;
+      custom.innerHTML = `<div class="cc-head"><div><div style="margin-bottom:10px">${customBack()}</div><h1>Carta y productos</h1><p>Lectura real del menú publicado para este tenant.</p></div><div class="cc-view-actions"><a class="cc-core-link" href="/app/inventario">Gestionar productos en Inventario</a></div></div><div class="cc-menu-grid">${rows.map((item) => `<article class="cc-menu-card ${item.warning ? 'warn' : ''}"><small>${esc(item.category || item.station || 'PRODUCTO')}</small><b>${esc(item.product?.nombre || item.nombre || 'Producto')}</b><strong>${money(item.product?.precio1 ?? item.precio ?? 0)}</strong>${item.warning ? `<p class="ri-muted">${esc(item.warning)}</p>` : ''}</article>`).join('') || '<div class="ri-card">No hay productos visibles en la carta.</div>'}</div>`;
+      $('[data-cc-dashboard]', custom)?.addEventListener('click', () => showDashboard(true));
     } catch (error) {
       custom.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
     }
-    if (pushState) history.pushState({ view:'carta' }, '', '/app/centro-de-control?view=carta');
+    if (pushState) history.pushState({ view:'carta' }, '', `${CONTROL_PATH}?view=carta`);
+  }
+
+  function commandState(command) {
+    return String(command?.state || command?.estado || '').toUpperCase();
+  }
+
+  function orderStage(order) {
+    const commands = (order.commands || []).filter((command) => commandState(command) !== 'CANCELADA');
+    if (!commands.length) return { key:'RECIBIDO', label:'Pedido recibido', step:0 };
+    const states = commands.map(commandState);
+    if (states.every((state) => state === 'ENTREGADA')) return { key:'ENTREGADO', label:'Entregado', step:3 };
+    if (states.some((state) => state === 'LISTA') && states.every((state) => ['LISTA','ENTREGADA'].includes(state))) return { key:'LISTO', label:'Listo para entregar', step:2 };
+    if (states.some((state) => ['EN_PREPARACION','LISTA'].includes(state))) return { key:'PREPARACION', label:'En preparación', step:1 };
+    return { key:'RECIBIDO', label:'Enviado a producción', step:0 };
+  }
+
+  function orderAge(value) {
+    const created = new Date(value);
+    if (Number.isNaN(created.getTime())) return '';
+    const minutes = Math.max(0, Math.floor((Date.now() - created.getTime()) / 60000));
+    if (minutes < 1) return 'ahora';
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  }
+
+  function progressMarkup(stage) {
+    const labels = ['Recibido','Preparación','Listo','Entregado'];
+    return `<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:12px 0">${labels.map((label, index) => `<div style="height:5px;border-radius:999px;background:${index <= stage.step ? (stage.step >= 2 ? '#16a34a' : '#f97316') : '#e2e8f0'}" title="${label}"></div>`).join('')}</div>`;
+  }
+
+  function orderCard(order) {
+    const stage = orderStage(order);
+    const table = order.session?.table;
+    const items = Array.isArray(order.items) ? order.items : [];
+    const commands = Array.isArray(order.commands) ? order.commands : [];
+    const stationSummary = ['COCINA','BARRA','POSTRES'].map((station) => {
+      const row = commands.find((command) => command.station === station);
+      return row ? `${station}: ${commandState(row).replaceAll('_',' ')}` : null;
+    }).filter(Boolean).join(' · ');
+    const source = String(order.source || '').toUpperCase() === 'QR' ? '📱 QR cliente' : 'Mesero';
+    const billRequested = String(table?.state || '').toUpperCase() === 'CUENTA_PEDIDA';
+    return `<article class="ri-card" data-cc-order-card="${esc(order.id)}" style="padding:16px!important;box-shadow:0 5px 14px rgba(15,23,42,.05)!important">
+      <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start"><div><div class="ri-eyebrow">${esc(source)} · ${esc(orderAge(order.creadoEn))}</div><h2 style="margin:4px 0 2px;font-size:18px">${esc(table?.name || 'Mesa')}</h2><div class="ri-muted" style="font-size:11px">Pedido ${esc(String(order.id || '').slice(0,8))}</div></div><div style="text-align:right"><span class="state-stamp ${stage.key}" style="display:inline-flex">${esc(stage.label)}</span><strong style="display:block;margin-top:6px;font-size:17px">${money(order.total)}</strong></div></div>
+      ${progressMarkup(stage)}
+      <div style="display:grid;gap:5px">${items.slice(0,7).map((item) => `<div class="status-row" style="display:grid;grid-template-columns:44px 1fr auto;gap:8px;padding:7px 0"><b>${esc(item.quantity)}×</b><span>${esc(item.description || 'Producto')}</span><small class="ri-muted">${esc(item.station || '')}</small></div>`).join('') || '<div class="ri-muted">Sin líneas visibles.</div>'}${items.length > 7 ? `<div class="ri-muted">+ ${items.length - 7} línea(s) más</div>` : ''}</div>
+      <div class="ri-muted" style="font-size:10px;margin-top:10px">${esc(stationSummary || 'Aún sin comandas asociadas')}</div>
+      <div class="ri-actions" style="margin-top:12px"><button class="ri-btn small" data-cc-order-mesero="true">Abrir Mesero</button>${stage.key !== 'ENTREGADO' ? '<button class="ri-btn small secondary" data-cc-order-kds="true">Ver Cocina / Barra</button>' : ''}${billRequested ? '<button class="ri-btn small primary" data-cc-order-cash="true">Cobrar mesa</button>' : ''}</div>
+    </article>`;
+  }
+
+  async function showOrders(pushState = true) {
+    ensureShellExtras();
+    setActiveHome(false);
+    showOnly('custom');
+    const custom = $('#ccCustomView');
+    custom.innerHTML = '<div class="ri-muted">Cargando pedidos reales…</div>';
+    try {
+      const orders = await api('/api/v1/restaurante/pedidos?limit=200');
+      const rows = Array.isArray(orders) ? orders : [];
+      const active = rows.filter((order) => !['CANCELADO','CERRADO'].includes(String(order.state || order.estado || '').toUpperCase()) && orderStage(order).key !== 'ENTREGADO');
+      const delivered = rows.filter((order) => orderStage(order).key === 'ENTREGADO').slice(0, 8);
+      const received = active.filter((order) => orderStage(order).key === 'RECIBIDO').length;
+      const preparing = active.filter((order) => orderStage(order).key === 'PREPARACION').length;
+      const ready = active.filter((order) => orderStage(order).key === 'LISTO').length;
+      custom.innerHTML = `<div class="cc-head"><div><div style="margin-bottom:10px">${customBack()}</div><h1>Pedidos en curso</h1><p>El puente entre Mesero, Cocina / Barra y Caja. Todo proviene de pedidos y comandas reales.</p></div><span class="cc-live-pill">${active.length} activos</span></div>
+        <div class="cc-live-grid" style="padding:0;margin-bottom:14px;grid-template-columns:repeat(4,minmax(0,1fr))"><button class="cc-live" type="button" data-cc-order-filter="ALL" style="cursor:pointer;text-align:left"><small>Activos</small><strong>${active.length}</strong><span>todos los pedidos en servicio</span></button><button class="cc-live" type="button" data-cc-order-filter="RECIBIDO" style="cursor:pointer;text-align:left"><small>Recibidos</small><strong>${received}</strong><span>esperando o enviados a producción</span></button><button class="cc-live" type="button" data-cc-order-filter="PREPARACION" style="cursor:pointer;text-align:left"><small>En preparación</small><strong>${preparing}</strong><span>cocina / barra trabajando</span></button><button class="cc-live" type="button" data-cc-order-filter="LISTO" style="cursor:pointer;text-align:left"><small>Listos</small><strong>${ready}</strong><span>requieren entrega al cliente</span></button></div>
+        <div data-cc-orders-grid style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">${active.map(orderCard).join('') || '<div class="ri-card">No hay pedidos activos en este momento.</div>'}</div>
+        ${delivered.length ? `<section class="cc-section"><div class="cc-section-head"><b>Entregados recientes</b><span>Últimos pedidos completados visibles.</span></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;padding:14px">${delivered.map(orderCard).join('')}</div></section>` : ''}`;
+      $('[data-cc-dashboard]', custom)?.addEventListener('click', () => showDashboard(true));
+      $$('[data-cc-order-filter]', custom).forEach((button) => button.addEventListener('click', () => {
+        const filter = button.dataset.ccOrderFilter;
+        const grid = $('[data-cc-orders-grid]', custom);
+        const filtered = filter === 'ALL' ? active : active.filter((order) => orderStage(order).key === filter);
+        grid.innerHTML = filtered.map(orderCard).join('') || '<div class="ri-card">No hay pedidos en este estado.</div>';
+        bindOrderActions(grid);
+      }));
+      bindOrderActions(custom);
+    } catch (error) {
+      custom.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
+    }
+    if (pushState) history.pushState({ view:'pedidos' }, '', `${CONTROL_PATH}?view=pedidos`);
+  }
+
+  function bindOrderActions(root) {
+    $$('[data-cc-order-mesero]', root).forEach((button) => button.addEventListener('click', () => openOperationalTab('mesero')));
+    $$('[data-cc-order-kds]', root).forEach((button) => button.addEventListener('click', () => openOperationalTab('kds')));
+    $$('[data-cc-order-cash]', root).forEach((button) => button.addEventListener('click', () => openOperationalTab('caja')));
+  }
+
+  function attentionRow(count, title, detail, action, label) {
+    return `<div class="cc-attention"><div class="cc-count">${esc(count)}</div><div class="cc-attention-main"><b>${esc(title)}</b><span>${esc(detail)}</span></div><button class="cc-mini-button" type="button" ${action === 'pedidos' ? 'data-cc-orders="true"' : action === 'carta' ? 'data-cc-menu="true"' : `data-cc-tab="${esc(action)}"`}>${esc(label)} →</button></div>`;
   }
 
   async function renderDashboard() {
@@ -140,9 +237,11 @@
     const orderRows = orders.ok && Array.isArray(orders.value) ? orders.value : [];
     const openTables = tableRows.filter((row) => row.activeSession).length;
     const billRequested = tableRows.filter((row) => row.state === 'CUENTA_PEDIDA').length;
-    const liveOrders = orderRows.filter((row) => !['CANCELADO','ENTREGADO','CERRADO'].includes(String(row.state || row.estado || '').toUpperCase())).length;
-    const liveCommands = commandRows.filter((row) => !['ENTREGADA','CANCELADA'].includes(String(row.state || row.estado || '').toUpperCase())).length;
-    const readyCommands = commandRows.filter((row) => String(row.state || row.estado || '').toUpperCase() === 'LISTA').length;
+    const activeOrders = orderRows.filter((row) => !['CANCELADO','CERRADO'].includes(String(row.state || row.estado || '').toUpperCase()) && orderStage(row).key !== 'ENTREGADO');
+    const liveOrders = activeOrders.length;
+    const pendingCommands = commandRows.filter((row) => commandState(row) === 'PENDIENTE').length;
+    const preparingCommands = commandRows.filter((row) => commandState(row) === 'EN_PREPARACION').length;
+    const readyCommands = commandRows.filter((row) => commandState(row) === 'LISTA').length;
     const warnings = menuRows.filter((row) => row.warning).length;
 
     let cashValue = '0';
@@ -154,30 +253,45 @@
       else { cashValue = '—'; cashMeta = 'turno no verificable'; }
     }
 
-    root.innerHTML = `<div class="cc-head"><div><h1>Centro de control</h1><p>Operación real dentro de la nueva capa. El panel clásico queda sólo como respaldo.</p></div><span class="cc-live-pill">Conectado al tenant real</span></div>
+    const attention = [];
+    if (readyCommands) attention.push(attentionRow(readyCommands, `${readyCommands} comanda(s) listas para entregar`, 'El cliente ya está esperando el último tramo del servicio.', 'kds', 'Entregar'));
+    if (billRequested) attention.push(attentionRow(billRequested, `${billRequested} mesa(s) pidieron la cuenta`, 'Están listas para pasar a cobro y cierre.', 'caja', 'Cobrar'));
+    if (warnings) attention.push(attentionRow(warnings, `${warnings} producto(s) necesitan revisar receta o costo`, 'La alerta viene de la carta real del tenant.', 'carta', 'Revisar'));
+    if (!attention.length) attention.push('<div class="cc-attention" style="border-color:#bbf7d0;border-left-color:#16a34a"><div class="cc-count" style="background:#dcfce7;color:#166534">✓</div><div class="cc-attention-main"><b>Sin pendientes críticos visibles</b><span>El servicio no tiene cuentas pedidas, comandas listas ni alertas de carta.</span></div></div>');
+
+    root.innerHTML = `<div class="cc-head"><div><h1>Centro de control</h1><p>El servicio completo en una sola lectura: mesa, pedido, producción, entrega y cobro.</p></div><span class="cc-live-pill">Conectado al tenant real</span></div>
       <div class="cc-hero-grid">
-        <section class="cc-hero"><div class="cc-kicker">VANTIXGC EXECUTIVE</div><h2>Tu restaurante, bajo control</h2><p>Mesas, pedidos, cocina y caja trabajan sobre el mismo motor operativo que ya estaba validado, sin salir de este Centro de Control.</p><div class="cc-actions">
+        <section class="cc-hero"><div class="cc-kicker">VANTIXGC OPERACIÓN</div><h2>Del cliente al cobro, sin perder el pedido</h2><p>Ahora puedes seguir cada pedido después de enviarlo: quién lo tomó, qué está preparando cocina, qué ya está listo y qué mesa pasó a caja.</p><div class="cc-actions">
           <button class="cc-action cash" data-cc-tab="caja">▣<small>Caja · Cobrar / Cerrar</small></button>
           <button class="cc-action" data-cc-tab="mesero">🛒 Nuevo pedido</button>
+          <button class="cc-action" data-cc-orders="true">◫ Pedidos en curso</button>
           <button class="cc-action" data-cc-tab="salon">▱ Abrir / ver mesas</button>
           <button class="cc-action" data-cc-tab="kds">♨ Ver KDS</button>
           <button class="cc-action" data-cc-menu="true">▤ Carta y productos</button>
           <button class="cc-action" data-cc-tab="estado">⚙ Estado / tema</button>
-          <button class="cc-action" disabled title="Domicilios se integrará cuando exista una lectura/operación dedicada en este Core">▻ Domicilios · pendiente</button>
         </div></section>
         <aside class="cc-client"><div class="cc-client-top"><b>Vista cliente publicada</b><span class="cc-badge">● Real</span></div><div class="cc-phone"><div class="cc-phone-name">${esc(restaurantName.toUpperCase())}</div><div class="cc-promo"><small>CARTA PUBLICADA</small><b>${menuRows.length} productos visibles</b><strong>${warnings ? `${warnings} por revisar` : 'Sin alertas visibles'}</strong></div></div><button class="cc-client-link" data-cc-menu="true">Ver carta cargada →</button></aside>
       </div>
-      <section class="cc-section"><div class="cc-section-head"><b>Requiere tu atención</b><span>Primero lo que puede afectar al cliente o a la operación.</span></div><div class="cc-attention"><div class="cc-count">${menu.ok ? warnings : '—'}</div><div class="cc-attention-main"><b>${warnings ? `${warnings} productos necesitan revisar receta o costo` : 'Recetas y costos sin alertas visibles'}</b><span>${menu.ok ? 'Calculado con la carta real del tenant.' : 'No fue posible leer la carta con este usuario.'}</span></div><button class="cc-mini-button" data-cc-menu="true">Atender →</button></div></section>
-      <section class="cc-section"><div class="cc-section-head"><b>Operación en vivo</b><span>Indicadores del mismo tenant que usan las pantallas operativas.</span></div><div class="cc-live-grid">
-        <article class="cc-live"><small>Mesas</small><strong>${tables.ok ? `${openTables} / ${tableRows.length}` : '—'}</strong><span>${tables.ok ? `${billRequested} con cuenta pedida` : 'Sin permiso de lectura'}</span></article>
-        <article class="cc-live"><small>Mesero</small><strong>${orders.ok ? liveOrders : '—'}</strong><span>${orders.ok ? 'pedidos activos visibles' : 'Sin permiso de lectura'}</span></article>
-        <article class="cc-live"><small>Cocina / KDS</small><strong>${commands.ok ? liveCommands : '—'}</strong><span>${commands.ok ? `${readyCommands} listas` : 'Sin permiso de lectura'}</span></article>
-        <article class="cc-live"><small>Carta</small><strong>${menu.ok ? menuRows.length : '—'}</strong><span>${menu.ok ? `${warnings} alertas` : 'Sin permiso de lectura'}</span></article>
-        <article class="cc-live"><small>Caja</small><strong>${esc(cashValue)}</strong><span>${esc(cashMeta)}</span></article>
+      <section class="cc-section"><div class="cc-section-head"><b>Flujo del servicio</b><span>Cada etapa abre la pantalla donde se atiende. Los números vienen de datos reales.</span></div><div class="cc-live-grid" style="grid-template-columns:repeat(6,minmax(0,1fr))">
+        <button type="button" class="cc-live" data-cc-tab="salon" style="cursor:pointer;text-align:left"><small>1 · Mesas abiertas</small><strong>${tables.ok ? openTables : '—'}</strong><span>Abrir o revisar salón</span></button>
+        <button type="button" class="cc-live" data-cc-orders="true" style="cursor:pointer;text-align:left"><small>2 · Pedidos activos</small><strong>${orders.ok ? liveOrders : '—'}</strong><span>Seguir pedido completo</span></button>
+        <button type="button" class="cc-live" data-cc-tab="kds" style="cursor:pointer;text-align:left"><small>3 · Por preparar</small><strong>${commands.ok ? pendingCommands : '—'}</strong><span>Esperando producción</span></button>
+        <button type="button" class="cc-live" data-cc-tab="kds" style="cursor:pointer;text-align:left"><small>4 · En preparación</small><strong>${commands.ok ? preparingCommands : '—'}</strong><span>Cocina / barra trabajando</span></button>
+        <button type="button" class="cc-live" data-cc-tab="kds" style="cursor:pointer;text-align:left"><small>5 · Listos</small><strong>${commands.ok ? readyCommands : '—'}</strong><span>Listos para entregar</span></button>
+        <button type="button" class="cc-live" data-cc-tab="caja" style="cursor:pointer;text-align:left"><small>6 · Cuenta pedida</small><strong>${tables.ok ? billRequested : '—'}</strong><span>Cobrar y cerrar</span></button>
+      </div></section>
+      <section class="cc-section"><div class="cc-section-head"><b>Requiere tu atención</b><span>Primero lo que puede frenar el servicio.</span></div>${attention.join('')}</section>
+      <section class="cc-section"><div class="cc-section-head"><b>Operación en vivo</b><span>Accesos directos a las áreas del mismo tenant.</span></div><div class="cc-live-grid">
+        <button type="button" class="cc-live" data-cc-tab="salon" style="cursor:pointer;text-align:left"><small>Mesas</small><strong>${tables.ok ? `${openTables} / ${tableRows.length}` : '—'}</strong><span>${tables.ok ? `${billRequested} con cuenta pedida` : 'Sin permiso de lectura'}</span></button>
+        <button type="button" class="cc-live" data-cc-orders="true" style="cursor:pointer;text-align:left"><small>Pedidos</small><strong>${orders.ok ? liveOrders : '—'}</strong><span>${orders.ok ? 'pedidos activos visibles' : 'Sin permiso de lectura'}</span></button>
+        <button type="button" class="cc-live" data-cc-tab="kds" style="cursor:pointer;text-align:left"><small>Cocina / KDS</small><strong>${commands.ok ? pendingCommands + preparingCommands + readyCommands : '—'}</strong><span>${commands.ok ? `${readyCommands} listas` : 'Sin permiso de lectura'}</span></button>
+        <button type="button" class="cc-live" data-cc-menu="true" style="cursor:pointer;text-align:left"><small>Carta</small><strong>${menu.ok ? menuRows.length : '—'}</strong><span>${menu.ok ? `${warnings} alertas` : 'Sin permiso de lectura'}</span></button>
+        <button type="button" class="cc-live" data-cc-tab="caja" style="cursor:pointer;text-align:left"><small>Caja</small><strong>${esc(cashValue)}</strong><span>${esc(cashMeta)}</span></button>
       </div></section>`;
 
     $$('[data-cc-tab]', root).forEach((button) => button.addEventListener('click', () => openOperationalTab(button.dataset.ccTab)));
     $$('[data-cc-menu]', root).forEach((button) => button.addEventListener('click', () => showMenu()));
+    $$('[data-cc-orders]', root).forEach((button) => button.addEventListener('click', () => showOrders()));
   }
 
   function showDashboard(pushState = false) {
@@ -188,35 +302,24 @@
       const root = $('#ccDashboard');
       if (root) root.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
     });
-    if (pushState) history.pushState({ view:'dashboard' }, '', '/app/centro-de-control');
-  }
-
-  function bindOperationalRail() {
-    $$('.rail-ticket').forEach((button) => {
-      if (button.dataset.ccBound === '1') return;
-      button.dataset.ccBound = '1';
-      button.addEventListener('click', () => {
-        setActiveHome(false);
-        showOnly('operational');
-        const tab = button.dataset.tab;
-        if (tab) history.replaceState({ view:tab }, '', `/app/centro-de-control?view=${encodeURIComponent(tab)}`);
-      });
-    });
+    if (pushState) history.pushState({ view:'dashboard' }, '', CONTROL_PATH);
   }
 
   function syncShell() {
-    if (!ensureShellExtras()) return;
-    bindOperationalRail();
+    if (!ensureShellExtras()) return false;
+    return true;
   }
 
   function routeInitialView() {
     const view = new URLSearchParams(location.search).get('view');
     if (view === 'carta') { showMenu(false); return; }
+    if (view === 'pedidos') { showOrders(false); return; }
     if (['salon','mesero','kds','caja','estado'].includes(view)) {
-      const tryOpen = () => {
+      const tryOpen = (attempt = 0) => {
         const button = $(`[data-tab="${view}"]`);
-        if (button) openOperationalTab(view, false);
-        else setTimeout(tryOpen, 80);
+        if (button) { openOperationalTab(view, false); return; }
+        if (attempt < 40) requestAnimationFrame(() => tryOpen(attempt + 1));
+        else showDashboard(false);
       };
       tryOpen();
       return;
@@ -225,15 +328,26 @@
   }
 
   window.addEventListener('popstate', () => routeInitialView());
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest?.('.rail-ticket')) return;
+    requestAnimationFrame(() => syncShell());
+  });
 
-  const observer = new MutationObserver(() => syncShell());
   const start = () => {
-    syncShell();
-    const rail = $('#rail');
-    if (rail) observer.observe(rail, { childList:true });
-    routeInitialView();
+    const ready = (attempt = 0) => {
+      if (syncShell()) { routeInitialView(); return; }
+      if (attempt < 60) requestAnimationFrame(() => ready(attempt + 1));
+    };
+    ready();
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once:true });
   else start();
+
+  window.VantixGCRestaurantControlCenter = Object.freeze({
+    showDashboard: () => showDashboard(true),
+    showOrders: () => showOrders(true),
+    showMenu: () => showMenu(true),
+    openOperationalTab
+  });
 })();
