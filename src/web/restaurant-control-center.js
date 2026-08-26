@@ -46,15 +46,6 @@
       rail.prepend(home);
     }
 
-    if (!railWrap.querySelector('.cc-classic-link')) {
-      const classic = document.createElement('a');
-      classic.className = 'cc-classic-link';
-      classic.href = '/app/restaurante';
-      classic.textContent = '↩ Panel clásico de respaldo';
-      classic.title = 'Ruta de recuperación sin la nueva capa visual';
-      railWrap.append(classic);
-    }
-
     const main = $('.ri-main');
     if (main && !$('#ccDashboard')) {
       const dashboard = document.createElement('section');
