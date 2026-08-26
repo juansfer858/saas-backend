@@ -79,9 +79,25 @@ model RestaurantConfig {
   actualizadoEn                             DateTime            @updatedAt
 }
 
+model RestaurantZone {
+  id                String            @id @default(uuid())
+  tenantId          String
+  name              String
+  sortOrder         Int               @default(0)
+  active            Boolean           @default(true)
+  creadoEn          DateTime          @default(now())
+  actualizadoEn     DateTime          @updatedAt
+
+  tables            RestaurantTable[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active, sortOrder])
+}
+
 model RestaurantTable {
   id                String               @id @default(uuid())
   tenantId          String
+  zoneId            String?
   code              String
   name              String
   seats             Int                  @default(4)
@@ -96,9 +112,11 @@ model RestaurantTable {
   creadoEn          DateTime             @default(now())
   actualizadoEn     DateTime             @updatedAt
 
+  zone              RestaurantZone?       @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   sessions          RestaurantTableSession[]
 
   @@unique([tenantId, code])
+  @@index([tenantId, zoneId, active])
   @@index([tenantId, state, active])
   @@index([tenantId, assignedWaiterId])
 }
