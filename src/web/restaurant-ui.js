@@ -11,6 +11,7 @@
     tables: [],
     menu: [],
     commands: [],
+    orders: [],
     selectedTableId: null,
     draft: null,
     cashShiftId: localStorage.getItem(SHIFT_KEY) || null,
@@ -206,32 +207,109 @@
     S.draft = await api(`/api/v1/restaurante/sesiones/${sessionId}/pedido-borrador`);
     return S.draft;
   }
+  async function loadSessionOrders(sessionId) {
+    S.orders = await api(`/api/v1/restaurante/pedidos?sessionId=${encodeURIComponent(sessionId)}&limit=100`);
+    if (!Array.isArray(S.orders)) S.orders = [];
+    return S.orders;
+  }
+  function waiterOrderStatus(order) {
+    const commands = Array.isArray(order?.commands) ? order.commands : [];
+    const states = commands.map((x) => String(x.state || '').toUpperCase());
+    if (!states.length) return { key:'RECIBIDO', label:'Recibido', detail:'Esperando comanda' };
+    if (states.every((x) => x === 'CANCELADA')) return { key:'CANCELADO', label:'Cancelado', detail:'Sin producción activa' };
+    const live = states.filter((x) => !['ENTREGADA','CANCELADA'].includes(x));
+    if (!live.length) return { key:'ENTREGADO', label:'Entregado', detail:'Servicio completado' };
+    if (live.every((x) => x === 'LISTA')) return { key:'LISTA', label:'Listo para entregar', detail:'Retirar en estación' };
+    if (live.some((x) => x === 'LISTA')) return { key:'PARCIAL', label:'Parcialmente listo', detail:'Aún hay estaciones trabajando' };
+    if (live.some((x) => x === 'EN_PREPARACION')) return { key:'PREPARACION', label:'En preparación', detail:'Cocina / barra trabajando' };
+    return { key:'PENDIENTE', label:'En cocina', detail:'Pendiente de iniciar preparación' };
+  }
+  function waiterOrderAge(order) {
+    const created = new Date(order?.creadoEn || 0).getTime();
+    if (!Number.isFinite(created) || !created) return '';
+    const minutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
+    if (minutes < 1) return 'ahora';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours} h ${minutes % 60} min`;
+  }
+  function waiterHistoryContent(orders) {
+    const sent = (Array.isArray(orders) ? orders : []).filter((x) => !['BORRADOR','CANCELADO'].includes(String(x.state || '').toUpperCase()));
+    const statuses = sent.map((order) => waiterOrderStatus(order));
+    const inKitchen = statuses.filter((x) => ['PENDIENTE','PREPARACION','PARCIAL'].includes(x.key)).length;
+    const ready = statuses.filter((x) => x.key === 'LISTA').length;
+    const delivered = statuses.filter((x) => x.key === 'ENTREGADO').length;
+    return `<div class="ri-toolbar"><div><div class="ri-eyebrow">Trazabilidad de la mesa</div><h2>Servicio de esta mesa</h2></div><div class="push ri-muted">${sent.length} ronda(s) enviada(s)</div>${can('PEDIDOS.VER') ? '<a class="ri-btn small" href="/app/centro-de-control?view=pedidos">Ver todos los pedidos</a>' : ''}</div>
+      <div class="metric-strip"><div class="metric-ticket"><small>En cocina</small><b>${inKitchen}</b></div><div class="metric-ticket"><small>Listos</small><b>${ready}</b></div><div class="metric-ticket"><small>Entregados</small><b>${delivered}</b></div><div class="metric-ticket"><small>Total rondas</small><b>${sent.length}</b></div></div>
+      ${sent.length ? sent.map((order, index) => {
+        const status = waiterOrderStatus(order);
+        const source = String(order.source || '').toUpperCase() === 'QR' ? '📱 Cliente · QR' : 'Mesero';
+        const items = Array.isArray(order.items) ? order.items : [];
+        const commands = Array.isArray(order.commands) ? order.commands : [];
+        return `<article class="command-ticket"><div class="command-top"><div><div class="command-table">Ronda ${sent.length - index} · ${esc(source)}</div><span class="ri-muted">${new Date(order.creadoEn).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})} · hace ${esc(waiterOrderAge(order))}</span></div><div><span class="state-stamp ${esc(status.key)}">${esc(status.label)}</span><div class="ri-muted">${esc(status.detail)}</div></div></div>${items.map((item) => `<div class="command-item"><b>${esc(item.quantity)}×</b> ${esc(item.description)} <small class="ri-muted">· ${esc(item.station)}</small></div>`).join('')}<div class="ri-actions">${commands.map((command) => `<span class="state-stamp ${esc(command.state)}">${esc(command.station)} · ${esc(String(command.state || '').replaceAll('_',' '))}</span>`).join('')}</div></article>`;
+      }).join('') : '<div class="empty-ticket">Todavía no hay rondas enviadas. El primer pedido aparecerá aquí en cuanto se envíe a cocina o barra.</div>'}`;
+  }
+  function waiterHistoryHtml(orders) {
+    return `<section class="ri-card" id="waiterHistory" aria-live="polite">${waiterHistoryContent(orders)}</section>`;
+  }
+  async function refreshWaiterHistory(sessionId, tableId) {
+    if (S.tab !== 'mesero') return;
+    const before = selectedTable();
+    const previousState = before?.state;
+    await Promise.all([loadSessionOrders(sessionId), loadTables()]);
+    const current = S.tables.find((x) => x.id === tableId);
+    if (!current?.activeSession || current.activeSession.id !== sessionId || current.state !== previousState) {
+      if (S.tab === 'mesero' && S.selectedTableId === tableId) await renderWaiter();
+      return;
+    }
+    const root = $('#waiterHistory');
+    if (root && S.selectedTableId === tableId) root.innerHTML = waiterHistoryContent(S.orders);
+  }
 
   async function renderWaiter() {
     await Promise.all([loadTables(), loadMenu()]);
     const table = selectedTable();
     const active = table?.activeSession;
-    if (active) await loadWaiterDraft(active.id); else S.draft = null;
+    if (active) await Promise.all([loadWaiterDraft(active.id), loadSessionOrders(active.id)]);
+    else { S.draft = null; S.orders = []; }
     const sale = S.draft?.sale || active?.sale || null;
     const draftItems = S.draft?.order?.items || [];
+    const sentOrders = S.orders.filter((x) => !['BORRADOR','CANCELADO'].includes(String(x.state || '').toUpperCase()));
+    const accountRequested = Boolean(active && (table.state === 'CUENTA_PEDIDA' || active.state === 'CUENTA_PEDIDA'));
+    const hasUnsent = draftItems.length > 0;
     const categories = ['ENTRADAS','FUERTES','BEBIDAS','POSTRES'];
+    const billControl = active && can('MESAS.EDITAR')
+      ? accountRequested
+        ? '<span class="state-stamp CUENTA_PEDIDA">Cuenta pedida</span>'
+        : hasUnsent
+          ? '<button class="ri-btn brass" id="requestBill" disabled title="Envía o retira los productos de esta ronda antes de pedir la cuenta">Pedir cuenta · ronda sin enviar</button>'
+          : '<button class="ri-btn brass" id="requestBill">Pedir cuenta</button>'
+      : '';
     $('#view').innerHTML = `<div class="ri-grid">
       <section class="ri-card">
-        <div class="ri-toolbar"><div><div class="ri-eyebrow">Toma directa</div><h1 class="ri-title">Panel del mesero</h1></div><select class="ri-select push" id="tableSelect">${S.tables.map((x) => `<option value="${x.id}" ${x.id === S.selectedTableId ? 'selected' : ''}>${esc(x.name)} · ${esc(x.state)}</option>`).join('')}</select>${table && !active && can('MESAS.CREAR') ? '<button class="ri-btn primary" id="openSelected">Abrir mesa</button>' : ''}${active && can('MESAS.EDITAR') ? '<button class="ri-btn brass" id="requestBill">Pedir cuenta</button>' : ''}</div>
-        ${active ? `<div class="ri-notice">${esc(table.name)} · venta ${esc(sale?.numero || '')} · cuenta real ${money(sale?.total)}</div>` : '<div class="ri-error">La mesa está libre. Ábrela para iniciar la venta BORRADOR.</div>'}
+        <div class="ri-toolbar"><div><div class="ri-eyebrow">Toma directa</div><h1 class="ri-title">Panel del mesero</h1></div><select class="ri-select push" id="tableSelect">${S.tables.map((x) => `<option value="${x.id}" ${x.id === S.selectedTableId ? 'selected' : ''}>${esc(x.name)} · ${esc(x.state)}</option>`).join('')}</select>${table && !active && can('MESAS.CREAR') ? '<button class="ri-btn primary" id="openSelected">Abrir mesa</button>' : ''}${billControl}</div>
+        ${active ? `<div class="ri-notice">${esc(table.name)} · venta ${esc(sale?.numero || '')} · cuenta real ${money(sale?.total)} · ${sentOrders.length} ronda(s) enviada(s)</div>` : '<div class="ri-error">La mesa está libre. Ábrela para iniciar la venta BORRADOR.</div>'}
+        ${accountRequested ? '<div class="ri-notice">La cuenta ya fue pedida. Si el cliente agrega productos y envías una nueva ronda, la mesa volverá a servicio activo y después deberá pedirse la cuenta nuevamente.</div>' : ''}
+        ${hasUnsent ? '<div class="ri-notice">Hay productos sin enviar. Termina esta ronda antes de pedir la cuenta para no dejar una comanda pendiente fuera del cierre.</div>' : ''}
         ${categories.map((cat) => `<section class="menu-section"><h3>${cat}</h3><div class="menu-grid">${S.menu.filter((x) => x.category === cat).map((item) => {
           const q = draftQty(item.id);
           return `<article class="menu-ticket ${item.warning ? 'warn' : ''}"><div class="menu-station">${esc(item.station)}</div><div class="menu-name">${esc(item.product?.nombre || 'Producto')}</div><div class="menu-price">${money(item.product?.precio1)}</div>${item.warning ? `<div class="ri-muted">${esc(item.warning)}</div>` : active ? `<div class="qty-control"><button class="ri-btn small" data-draft-minus="${item.id}">−</button><span class="qty-number">${q}</span><button class="ri-btn small primary" data-draft-plus="${item.id}">+</button></div>` : '<span class="ri-muted">Mesa cerrada</span>'}</article>`;
         }).join('') || '<div class="empty-ticket">Sin productos en esta categoría.</div>'}</div></section>`).join('')}
       </section>
-      <aside class="order-sheet"><div class="ri-eyebrow">Venta BORRADOR</div><h2>Pedido en curso</h2>${draftItems.length ? draftItems.map((item) => `<div class="order-line"><span class="qty">${esc(item.quantity)}×</span><span>${esc(item.description)}<small class="ri-muted">${esc(item.station)}</small></span><span class="amount">${money(item.lineTotal)}</span></div>`).join('') : '<div class="empty-ticket">Agrega productos. Cada cambio se guarda en el documento real de la mesa.</div>'}<div class="order-total"><span>Por enviar</span><span>${money(S.draft?.order?.total)}</span></div><div class="ri-muted">Cuenta completa de la mesa: ${money(sale?.total)} · ${sale?.detalles?.length || 0} línea(s)</div><div class="ri-actions">${draftItems.length ? '<button class="ri-btn primary" id="sendDraft">Enviar a cocina / barra</button>' : ''}</div></aside>
-    </div>`;
+      <aside class="order-sheet"><div class="ri-eyebrow">${sentOrders.length ? 'Nueva ronda' : 'Primer pedido'}</div><h2>${sentOrders.length ? `Ronda ${sentOrders.length + 1}` : 'Pedido en curso'}</h2>${draftItems.length ? draftItems.map((item) => `<div class="order-line"><span class="qty">${esc(item.quantity)}×</span><span>${esc(item.description)}<small class="ri-muted">${esc(item.station)}</small></span><span class="amount">${money(item.lineTotal)}</span></div>`).join('') : `<div class="empty-ticket">${sentOrders.length ? 'La mesa ya tiene pedidos enviados. Agrega productos aquí para iniciar una nueva ronda sin perder el historial anterior.' : 'Agrega productos. Cada cambio se guarda en el documento real de la mesa.'}</div>`}<div class="order-total"><span>Por enviar</span><span>${money(S.draft?.order?.total)}</span></div><div class="ri-muted">Cuenta completa de la mesa: ${money(sale?.total)} · ${sale?.detalles?.length || 0} línea(s)</div><div class="ri-actions">${draftItems.length ? '<button class="ri-btn primary" id="sendDraft">Enviar esta ronda a cocina / barra</button>' : ''}</div></aside>
+    </div>${active ? waiterHistoryHtml(S.orders) : ''}`;
     $('#tableSelect')?.addEventListener('change', (e) => { S.selectedTableId = e.target.value; renderWaiter().catch((error) => message(error.message, true)); });
     $('#openSelected')?.addEventListener('click', () => openTable(S.selectedTableId));
     $('#requestBill')?.addEventListener('click', requestBill);
     $$('[data-draft-plus]').forEach((b) => b.addEventListener('click', () => changeDraftQty(active.id, b.dataset.draftPlus, draftQty(b.dataset.draftPlus) + 1)));
     $$('[data-draft-minus]').forEach((b) => b.addEventListener('click', () => changeDraftQty(active.id, b.dataset.draftMinus, Math.max(0, draftQty(b.dataset.draftMinus) - 1))));
     $('#sendDraft')?.addEventListener('click', () => sendDraft(active.id));
+    stopPoll();
+    if (active) {
+      const sessionId = active.id;
+      const tableId = table.id;
+      S.poll = setInterval(() => { if (S.tab === 'mesero') refreshWaiterHistory(sessionId, tableId).catch(() => {}); }, Math.max(Number(S.context.polling.floorMs || 3000), 2500));
+    }
   }
 
   async function changeDraftQty(sessionId, menuItemId, quantity) {
@@ -241,17 +319,22 @@
     } catch (error) { message(error.message, true); }
   }
   async function sendDraft(sessionId) {
+    const wasAccountRequested = selectedTable()?.state === 'CUENTA_PEDIDA';
     try {
       const order = await api(`/api/v1/restaurante/sesiones/${sessionId}/pedido-borrador/enviar`, { method:'POST', body:'{}' });
       S.draft = null;
-      message(`Pedido enviado. ${order.commands.length} comanda(s) reales en cola.`);
+      message(wasAccountRequested
+        ? `Nueva ronda enviada. ${order.commands.length} comanda(s) reales en cola. La mesa volvió a servicio activo; la cuenta deberá pedirse nuevamente al terminar.`
+        : `Pedido enviado. ${order.commands.length} comanda(s) reales en cola.`);
       await renderWaiter();
     } catch (error) { message(error.message, true); }
   }
   async function requestBill() {
     const table = selectedTable();
     if (!table) return;
-    try { await api(`/api/v1/restaurante/mesas/${table.id}/pedir-cuenta`, { method:'POST', body:'{}' }); message('Cuenta solicitada.'); await renderWaiter(); } catch (error) { message(error.message, true); }
+    if (S.draft?.order?.items?.length) { message('No puedes pedir la cuenta con productos sin enviar. Envía esta ronda o retira sus productos primero.', true); return; }
+    if (table.state === 'CUENTA_PEDIDA') { message('La cuenta de esta mesa ya fue solicitada.'); return; }
+    try { await api(`/api/v1/restaurante/mesas/${table.id}/pedir-cuenta`, { method:'POST', body:'{}' }); message('Cuenta solicitada. Caja ya puede cobrar esta mesa.'); await renderWaiter(); } catch (error) { message(error.message, true); }
   }
 
   function commandItems(command) { return (command.order?.items || []).filter((x) => x.station === command.station); }
