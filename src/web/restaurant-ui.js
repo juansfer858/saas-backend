@@ -379,6 +379,30 @@
     popup.document.close();
   }
 
+  function cashAge(value) {
+    if (!value) return 'En servicio';
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return 'En servicio';
+    const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+    if (minutes < 1) return 'Solicitada ahora';
+    if (minutes < 60) return `Solicitada hace ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    return `Solicitada hace ${hours} h ${minutes % 60} min`;
+  }
+
+  function cashTableRow(table, selected) {
+    const active = table.activeSession;
+    const sale = active?.sale;
+    const requested = table.state === 'CUENTA_PEDIDA';
+    return `<button type="button" class="cash-due-row ${selected ? 'selected' : ''}" data-cash-table="${table.id}">
+      <span class="cash-table-icon">▱</span>
+      <span class="cash-due-main"><b>${esc(table.name)}</b><small>${requested ? esc(cashAge(active?.accountRequestedAt)) : 'Cuenta abierta · aún en servicio'}</small></span>
+      <span class="cash-due-total"><small>Total a pagar</small><b>${money(sale?.total)}</b></span>
+      <span class="cash-due-state ${requested ? 'ready' : ''}">${requested ? 'Por cobrar' : 'Abierta'}</span>
+      <span class="cash-due-action">Cobrar →</span>
+    </button>`;
+  }
+
   async function renderCash() {
     await loadTables();
     const cajas = await api('/api/v1/tesoreria/cajas-bancos');
@@ -387,56 +411,219 @@
       try { summary = await api(`/api/v1/restaurante/caja/turnos/${S.cashShiftId}/resumen`); }
       catch { S.cashShiftId = null; localStorage.removeItem(SHIFT_KEY); }
     }
+
+    const cashAccounts = cajas.filter((x) => x.tipo === 'CAJA' && x.activo);
     const openTables = S.tables.filter((x) => x.activeSession);
-    const p = summary?.paymentBreakdown || {};
-    $('#view').innerHTML = `<div class="ri-grid">
-      <section class="ri-card"><div class="ri-eyebrow">Tesorería del Core</div><h1 class="ri-title">Cierre de caja / turno</h1>${!S.cashShiftId ? `<div class="ri-actions"><select id="cashAccount" class="ri-select">${cajas.filter((x) => x.tipo === 'CAJA' && x.activo).map((x) => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select><input id="opening" class="ri-input" type="number" min="0" value="0" placeholder="Fondo inicial"><button id="openShift" class="ri-btn primary">Abrir caja</button></div>` : `<div class="metric-strip"><div class="metric-ticket"><small>Efectivo</small><b>${money(p.cashSales)}</b></div><div class="metric-ticket"><small>Tarjeta / QR</small><b>${money(p.electronicSales)}</b></div><div class="metric-ticket"><small>Crédito</small><b>${money(p.creditSales)}</b></div><div class="metric-ticket"><small>Propinas</small><b>${money(p.tips)}</b></div></div><div class="receipt"><div class="receipt-head"><div class="ri-eyebrow">Cierre X / Z</div><h2 data-restaurant-name>${esc(S.context.theme.restaurantName)}</h2><small>${new Date(summary.shift.abiertoEn).toLocaleString('es-CO')}</small></div><div class="receipt-row"><span>Fondo inicial</span><b>${money(summary.shift.saldoInicial)}</b></div><div class="receipt-row"><span>Ventas efectivo</span><b>${money(p.cashSales)}</b></div><div class="receipt-row"><span>Tarjeta / QR / transferencia</span><b>${money(p.electronicSales)}</b></div><div class="receipt-row"><span>Crédito</span><b>${money(p.creditSales)}</b></div><div class="receipt-row tip"><span>Propinas</span><b>${money(p.tips)}</b></div><div class="receipt-row total"><span>Total operación</span><b>${money(p.restaurantTotal)}</b></div><div class="receipt-row total"><span>Caja esperada</span><b>${money(summary.systemCashExpected)}</b></div><div class="count-box"><label class="ri-label">Conteo físico caja<input id="physicalCount" class="ri-input" type="number" min="0" step="1" placeholder="Ingrese el efectivo contado"></label><div id="difference" class="difference">Ingrese el conteo para calcular diferencia.</div><div class="ri-actions"><button id="closeShift" class="ri-btn brass" disabled>Cerrar turno</button></div></div></div>`}</section>
-      <aside class="ri-card"><div class="ri-eyebrow">Cobro</div><h2>Cerrar mesa</h2>${openTables.length ? `<label class="ri-label">Mesa<select id="closeTableId" class="ri-select">${openTables.map((x) => `<option value="${x.id}">${esc(x.name)} · ${esc(x.state)}</option>`).join('')}</select></label><label class="ri-label">Forma de pago<select id="paymentMethod" class="ri-select"><option value="EFECTIVO">Efectivo</option><option value="BANCO">Tarjeta / QR / transferencia</option><option value="CREDITO">Crédito</option></select></label><label class="ri-label" id="accountLabel">Caja / banco<select id="paymentAccount" class="ri-select"></select></label><label class="ri-label">Propina<input id="tip" class="ri-input" type="number" min="0" value="0"></label><label class="ri-label">Dividir en partes iguales<input id="parts" class="ri-input" type="number" min="1" max="50" value="1"></label><button id="closeTable" class="ri-btn primary">Cobrar y cerrar</button>` : '<div class="empty-ticket">No hay mesas abiertas.</div>'}</aside>
-    </div>${summary?.tables?.length ? `<section class="ri-card"><div class="ri-eyebrow">Trazabilidad</div><h2>Mesas cerradas en el turno</h2>${summary.tables.map((x) => `<div class="status-row"><span></span><span>${esc(x.table)} · ${esc(x.saleNumber)} · ${esc(x.formaPago)}</span><b>${money(x.total)}</b></div>`).join('')}</section>` : ''}`;
-    bindCash(cajas, summary);
+    const dueTables = [...openTables].sort((a, b) => {
+      const aReady = a.state === 'CUENTA_PEDIDA' ? 0 : 1;
+      const bReady = b.state === 'CUENTA_PEDIDA' ? 0 : 1;
+      if (aReady !== bReady) return aReady - bReady;
+      return new Date(a.activeSession?.accountRequestedAt || a.activeSession?.openedAt || 0) - new Date(b.activeSession?.accountRequestedAt || b.activeSession?.openedAt || 0);
+    });
+
+    const previousSelected = dueTables.find((x) => x.id === S.selectedTableId);
+    const selected = previousSelected || dueTables[0] || null;
+    if (selected) S.selectedTableId = selected.id;
+
+    const closedTotal = number(summary?.restaurantClosedTablesTotal);
+    const cashRecorded = number(summary?.restaurantCashRecorded);
+    const otherRecorded = Math.max(0, closedTotal - cashRecorded);
+    const requestedCount = openTables.filter((x) => x.state === 'CUENTA_PEDIDA').length;
+    const shiftAccount = cajas.find((x) => x.id === summary?.shift?.cajaBancoId) || cashAccounts[0] || null;
+    const selectedTotal = number(selected?.activeSession?.sale?.total);
+    const openedAt = summary?.shift?.abiertoEn ? new Date(summary.shift.abiertoEn) : null;
+    const shiftAge = openedAt && Number.isFinite(openedAt.getTime()) ? cashAge(openedAt).replace('Solicitada ', '') : '';
+    const recent = Array.isArray(summary?.tables) ? [...summary.tables].reverse().slice(0, 8) : [];
+
+    if (!S.cashShiftId || !summary) {
+      $('#view').innerHTML = `<section class="cash-shell cash-closed-shell">
+        <div class="cash-page-head"><div><div class="ri-eyebrow">Caja / Turno</div><h1 class="ri-title">Abrir caja</h1><p class="ri-muted">Una sola acción para empezar. Elige la caja y registra el fondo inicial.</p></div><span class="cash-state-pill closed">● CAJA CERRADA</span></div>
+        <div class="cash-open-card">
+          <div class="cash-open-icon">▣</div>
+          <div><div class="ri-eyebrow">Inicio de turno</div><h2>Caja lista para comenzar</h2><p>Abre el turno antes de cobrar mesas. Puedes iniciar con fondo $0 si no manejas efectivo inicial.</p></div>
+          <div class="cash-open-form">
+            <label class="ri-label">Caja<select id="cashAccount" class="ri-select">${cashAccounts.map((x) => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select></label>
+            <label class="ri-label">Fondo inicial<input id="opening" class="ri-input" type="number" min="0" value="0" inputmode="numeric" placeholder="0"></label>
+            <button id="openShift" class="ri-btn primary cash-primary-action" ${cashAccounts.length ? '' : 'disabled'}>Abrir caja</button>
+          </div>
+          ${cashAccounts.length ? '' : '<div class="ri-error">No hay una caja activa configurada en Tesorería.</div>'}
+        </div>
+      </section>`;
+      bindCash(cajas, null, selected);
+      return;
+    }
+
+    $('#view').innerHTML = `<section class="cash-shell" data-cash-method="EFECTIVO">
+      <div class="cash-page-head"><div><div class="ri-eyebrow">Caja / Turno</div><h1 class="ri-title">Caja</h1><p class="ri-muted">Cobro de mesas, seguimiento del turno y cierre en una sola pantalla.</p></div><span class="cash-state-pill">● CAJA ABIERTA</span></div>
+
+      <div class="cash-shift-strip">
+        <div class="cash-shift-item"><span class="cash-shift-icon">▣</span><span><small>Caja</small><b>${esc(shiftAccount?.nombre || 'Caja')}</b><em>Caja principal del turno</em></span></div>
+        <div class="cash-shift-item"><span class="cash-shift-icon green">◷</span><span><small>Turno</small><b class="green-text">Abierto</b><em>${esc(shiftAge || 'Turno actual')}</em></span></div>
+        <div class="cash-shift-item"><span class="cash-shift-icon">○</span><span><small>Cajero actual</small><b>${esc(S.context.user.nombre || 'Usuario')}</b><em>${esc(S.context.user.rol || '')}</em></span></div>
+        <div class="cash-shift-item"><span class="cash-shift-icon">□</span><span><small>Hora de apertura</small><b>${openedAt ? openedAt.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}) : '—'}</b><em>${openedAt ? openedAt.toLocaleDateString('es-CO') : ''}</em></span></div>
+      </div>
+
+      <div class="cash-kpis">
+        <article class="cash-kpi"><span>↗</span><div><small>Ventas del turno</small><b>${money(closedTotal)}</b><em>${recent.length} cierre(s) registrado(s)</em></div></article>
+        <article class="cash-kpi green"><span>▣</span><div><small>Efectivo registrado</small><b>${money(cashRecorded)}</b><em>Dato real del turno</em></div></article>
+        <article class="cash-kpi blue"><span>▤</span><div><small>Otros medios</small><b>${money(otherRecorded)}</b><em>Ventas cerradas menos efectivo</em></div></article>
+        <article class="cash-kpi orange"><span>▱</span><div><small>Mesas por cobrar</small><b>${requestedCount}</b><em>${openTables.length} mesa(s) abiertas</em></div></article>
+      </div>
+
+      <div class="cash-workspace">
+        <section class="cash-panel cash-due-panel">
+          <div class="cash-panel-head"><div><h2>Mesas por cobrar</h2><p>Las cuentas pedidas aparecen primero.</p></div><span class="cash-count-badge">${requestedCount}</span></div>
+          <div class="cash-due-list">${dueTables.length ? dueTables.map((table) => cashTableRow(table, table.id === selected?.id)).join('') : '<div class="empty-ticket">No hay mesas abiertas en este momento.</div>'}</div>
+        </section>
+
+        <section class="cash-panel cash-fast-panel">
+          <div class="cash-panel-head"><div><h2>Cobro rápido</h2><p>${selected ? 'Mesa seleccionada' : 'Selecciona una mesa para cobrar'}</p></div>${selected ? '<span class="cash-selected-pill">✓ Seleccionada</span>' : ''}</div>
+          ${selected ? `<div class="cash-selected-summary"><div><span class="cash-table-icon large">▱</span><span><b>${esc(selected.name)}</b><small>${esc(selected.state.replaceAll('_',' '))} · ${selected.activeSession?.guestCount || 1} persona(s)</small></span></div><div><small>Total a pagar</small><b>${money(selectedTotal)}</b></div></div>
+          <div class="cash-payment-title">Método de pago</div>
+          <div class="cash-methods">
+            <button type="button" class="cash-method active" data-cash-method="EFECTIVO"><b>▣</b><span>Efectivo</span></button>
+            <button type="button" class="cash-method" data-cash-method="BANCO"><b>▤</b><span>Tarjeta / QR</span></button>
+            <button type="button" class="cash-method" data-cash-method="CREDITO"><b>◫</b><span>Crédito</span></button>
+            <button type="button" class="cash-method" disabled title="Pago mixto todavía no está soportado por el motor transaccional"><b>◩</b><span>Mixto</span><small>Próximamente</small></button>
+          </div>
+          <label class="ri-label cash-account-field" id="accountLabel">Caja / banco<select id="paymentAccount" class="ri-select"></select></label>
+          <div class="cash-received-row" id="cashReceivedRow"><label class="ri-label">Recibido del cliente<input id="cashReceived" class="ri-input" type="number" min="0" step="1" inputmode="numeric" value="${Math.ceil(selectedTotal)}"></label><div class="cash-change"><small>Cambio</small><b id="cashChange">${money(0)}</b></div></div>
+          <details class="cash-more-options"><summary>Propina y división de cuenta</summary><div><label class="ri-label">Propina<input id="tip" class="ri-input" type="number" min="0" value="0"></label><label class="ri-label">Dividir en partes iguales<input id="parts" class="ri-input" type="number" min="1" max="50" value="1"></label></div></details>
+          <button id="closeTable" class="ri-btn primary cash-confirm">Confirmar cobro · ${money(selectedTotal)}</button>` : '<div class="cash-empty-selection"><span>▱</span><b>Sin mesa seleccionada</b><p>Cuando una mesa pida la cuenta aparecerá aquí para cobrarla.</p></div>'}
+        </section>
+      </div>
+
+      <div class="cash-lower-grid">
+        <section class="cash-panel">
+          <div class="cash-panel-head"><div><h2>Últimos cobros</h2><p>Trazabilidad real del turno actual.</p></div></div>
+          <div class="cash-recent-list">${recent.length ? recent.map((row) => `<div class="cash-recent-row"><span><b>${esc(row.table)}</b><small>${esc(row.saleNumber || 'Venta')}</small></span><span>${money(row.total)}</span><span class="cash-recent-state">Registrado</span></div>`).join('') : '<div class="empty-ticket">Todavía no hay mesas cerradas en este turno.</div>'}</div>
+        </section>
+
+        <section class="cash-panel cash-close-panel">
+          <div class="cash-panel-head"><div><h2>Resumen del turno</h2><p>Cuenta el efectivo antes de cerrar.</p></div></div>
+          <div class="cash-close-lines"><div><span>Ventas cerradas</span><b>${money(closedTotal)}</b></div><div><span>Fondo inicial</span><b>${money(summary.shift.saldoInicial)}</b></div><div><span>Efectivo esperado</span><b>${money(summary.systemCashExpected)}</b></div></div>
+          <label class="ri-label cash-physical-label">Efectivo contado<input id="physicalCount" class="ri-input" type="number" min="0" step="1" inputmode="numeric" placeholder="Escribe cuánto hay en caja"></label>
+          <div id="difference" class="cash-difference"><small>Diferencia</small><b>—</b><span>Ingresa el conteo físico.</span></div>
+          <div class="cash-close-checks"><span class="${requestedCount ? 'warn' : 'ok'}">${requestedCount ? '!' : '✓'} ${requestedCount ? `${requestedCount} mesa(s) aún por cobrar` : 'Todas las cuentas pedidas están cobradas'}</span><span class="ok">✓ Ventas del turno disponibles</span><span id="cashCountCheck">○ Arqueo pendiente</span></div>
+          <button id="closeShift" class="ri-btn brass cash-close-button" disabled>Cerrar turno</button>
+        </section>
+      </div>
+    </section>`;
+
+    bindCash(cajas, summary, selected);
   }
-  function bindCash(cajas, summary) {
+
+  function bindCash(cajas, summary, selected) {
     $('#openShift')?.addEventListener('click', async () => {
       try {
         const shift = await api('/api/v1/restaurante/caja/abrir', { method:'POST', body:JSON.stringify({ cajaBancoId:$('#cashAccount').value, saldoInicial:number($('#opening').value) }) });
-        S.cashShiftId = shift.id; localStorage.setItem(SHIFT_KEY, shift.id); message('Turno de caja abierto.'); await renderCash();
+        S.cashShiftId = shift.id;
+        localStorage.setItem(SHIFT_KEY, shift.id);
+        message('Caja abierta. Ya puedes recibir cobros.');
+        await renderCash();
       } catch (error) { message(error.message, true); }
     });
-    const method = $('#paymentMethod');
+
+    $$('[data-cash-table]').forEach((button) => button.addEventListener('click', async () => {
+      S.selectedTableId = button.dataset.cashTable;
+      await renderCash();
+    }));
+
+    const methodButtons = $$('[data-cash-method]');
     const account = $('#paymentAccount');
     const label = $('#accountLabel');
+    const receivedRow = $('#cashReceivedRow');
+    const received = $('#cashReceived');
+    const change = $('#cashChange');
+    const confirm = $('#closeTable');
+    const tip = $('#tip');
+    const selectedTotal = number(selected?.activeSession?.sale?.total);
+
+    function currentMethod() {
+      return methodButtons.find((button) => button.classList.contains('active'))?.dataset.cashMethod || 'EFECTIVO';
+    }
+
     function refreshAccounts() {
-      if (!method || !account || !label) return;
-      const type = method.value;
+      if (!account || !label) return;
+      const type = currentMethod();
       label.classList.toggle('hidden', type === 'CREDITO');
+      if (receivedRow) receivedRow.hidden = type !== 'EFECTIVO';
       const rows = cajas.filter((x) => x.activo && (type === 'EFECTIVO' ? x.tipo === 'CAJA' : type === 'BANCO' ? x.tipo === 'BANCO' : false));
       account.innerHTML = rows.map((x) => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('');
+      if (confirm) confirm.textContent = `Confirmar cobro · ${money(selectedTotal + number(tip?.value))}`;
+      updateChange();
     }
-    method?.addEventListener('change', refreshAccounts); refreshAccounts();
-    $('#closeTable')?.addEventListener('click', async () => {
-      const formaPago = method.value;
-      const parts = Math.max(1, Number($('#parts').value || 1));
+
+    function updateChange() {
+      if (!received || !change || !confirm) return;
+      const total = selectedTotal + number(tip?.value);
+      const amount = number(received.value);
+      const diff = amount - total;
+      change.textContent = money(Math.max(0, diff));
+      change.parentElement.classList.toggle('bad', currentMethod() === 'EFECTIVO' && amount < total);
+      if (currentMethod() === 'EFECTIVO') confirm.disabled = amount < total;
+      else confirm.disabled = false;
+      confirm.textContent = `Confirmar cobro · ${money(total)}`;
+    }
+
+    methodButtons.forEach((button) => button.addEventListener('click', () => {
+      if (button.disabled) return;
+      methodButtons.forEach((row) => row.classList.toggle('active', row === button));
+      refreshAccounts();
+    }));
+    received?.addEventListener('input', updateChange);
+    tip?.addEventListener('input', updateChange);
+    refreshAccounts();
+
+    confirm?.addEventListener('click', async () => {
+      if (!selected) return;
+      const formaPago = currentMethod();
+      const parts = Math.max(1, Number($('#parts')?.value || 1));
       try {
-        const result = await api(`/api/v1/restaurante/mesas/${$('#closeTableId').value}/cerrar`, { method:'POST', body:JSON.stringify({ formaPago, cajaBancoId:formaPago === 'CREDITO' ? null : account.value, tipAmount:number($('#tip').value), split:parts > 1 ? { mode:'EQUAL', parts } : { mode:'NONE' } }) });
-        message(`Mesa cerrada. ${result.sale.numero} · ${result.fiscalDocument.mode}.`); await renderCash();
+        const result = await api(`/api/v1/restaurante/mesas/${selected.id}/cerrar`, {
+          method:'POST',
+          body:JSON.stringify({
+            formaPago,
+            cajaBancoId:formaPago === 'CREDITO' ? null : account?.value,
+            tipAmount:number(tip?.value),
+            split:parts > 1 ? { mode:'EQUAL', parts } : { mode:'NONE' }
+          })
+        });
+        message(`Cobro registrado. ${result.sale.numero} · ${result.fiscalDocument.mode}.`);
+        S.selectedTableId = null;
+        await renderCash();
       } catch (error) { message(error.message, true); }
     });
+
     const physical = $('#physicalCount');
     const difference = $('#difference');
     const closeButton = $('#closeShift');
+    const countCheck = $('#cashCountCheck');
     physical?.addEventListener('input', () => {
       const raw = physical.value;
-      if (raw === '') { difference.className = 'difference'; difference.textContent = 'Ingrese el conteo para calcular diferencia.'; closeButton.disabled = true; return; }
-      const diff = number(raw) - number(summary.systemCashExpected);
-      difference.className = `difference ${Math.abs(diff) < .005 ? 'ok' : 'bad'}`;
-      difference.textContent = `Diferencia real: ${money(diff)}${Math.abs(diff) < .005 ? ' · Caja cuadrada' : ' · Revisar antes de cerrar'}`;
+      if (raw === '') {
+        difference.innerHTML = '<small>Diferencia</small><b>—</b><span>Ingresa el conteo físico.</span>';
+        difference.classList.remove('ok','bad');
+        closeButton.disabled = true;
+        if (countCheck) { countCheck.className = ''; countCheck.textContent = '○ Arqueo pendiente'; }
+        return;
+      }
+      const diff = number(raw) - number(summary?.systemCashExpected);
+      difference.classList.toggle('ok', Math.abs(diff) < .005);
+      difference.classList.toggle('bad', Math.abs(diff) >= .005);
+      difference.innerHTML = `<small>Diferencia</small><b>${money(diff)}</b><span>${Math.abs(diff) < .005 ? 'Caja cuadrada' : 'Revisa el efectivo antes de cerrar'}</span>`;
       closeButton.disabled = false;
+      if (countCheck) { countCheck.className = Math.abs(diff) < .005 ? 'ok' : 'warn'; countCheck.textContent = `${Math.abs(diff) < .005 ? '✓' : '!'} Arqueo realizado`; }
     });
+
     closeButton?.addEventListener('click', async () => {
-      if (physical.value === '') return;
+      if (!physical || physical.value === '') return;
       try {
         const result = await api(`/api/v1/restaurante/caja/turnos/${S.cashShiftId}/cerrar`, { method:'POST', body:JSON.stringify({ saldoFinal:number(physical.value) }) });
-        message(`Turno cerrado. Descuadre final ${money(result.closed.descuadre)}.`); S.cashShiftId = null; localStorage.removeItem(SHIFT_KEY); await renderCash();
+        message(`Turno cerrado. Descuadre final ${money(result.closed.descuadre)}.`);
+        S.cashShiftId = null;
+        localStorage.removeItem(SHIFT_KEY);
+        await renderCash();
       } catch (error) { message(error.message, true); }
     });
   }
