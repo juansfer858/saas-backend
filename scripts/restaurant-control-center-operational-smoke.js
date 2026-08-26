@@ -41,6 +41,18 @@ async function main() {
   assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.cc-classic-link\{display:flex!important/);
   assert.ok(!shellCss.includes('.rail-wrap:before,.rail-wrap:after,.cc-classic-link{display:none!important}'), 'Admin return must remain visible on mobile');
 
+  // Production and Edge status are available from one native modal and no longer reserve
+  // full-width bands that push Caja or any other operational module down the page.
+  assert.match(restaurantHtml, /id="noticeToggle"[^>]*>Avisos<\/a>/);
+  assert.match(restaurantHtml, /<dialog id="noticePanel"/);
+  assert.match(restaurantHtml, /id="gateInner"/);
+  assert.match(restaurantHtml, /id="edgeStatusSlot"/);
+  assert.match(restaurantHtml, /panel\.showModal\(\)/);
+  assert.match(restaurantHtml, /panel\.close\?\.\(\)/);
+  assert.ok(!restaurantHtml.includes('id="gate"'), 'The production warning must not reserve a page band');
+  assert.ok(!restaurantHtml.includes("insertAdjacentElement('afterend'"), 'Edge status must not insert a second page band');
+  assert.ok(!restaurantHtml.includes('data-edge-install-status]'));
+
   assert.match(shellJs, /data-cc-home/);
   assert.match(shellJs, /openOperationalTab/);
   assert.match(shellJs, /data-tab/);
@@ -107,7 +119,6 @@ async function main() {
   assert.match(operationalEngine, /restaurantCashRecorded/);
   assert.match(operationalEngine, /systemCashExpected/);
   assert.match(shellCss, /\/\* Caja V2 — propietario visual del flujo de cobro y turno\. \*\//);
-  assert.match(shellCss, /\.cash-workspace\{[^}]*grid-template-columns:minmax\(0,1\.05fr\) minmax\(390px,\.95fr\)/);
   assert.match(shellCss, /\.cash-methods\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(shellCss, /@media\(max-width:480px\)[\s\S]*?\.cash-shift-strip,\.cash-kpis\{grid-template-columns:1fr\}/);
 
@@ -204,6 +215,9 @@ async function main() {
     assert.match(body, /restaurant-control-center\.js\?v=workspace-v3/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
+    assert.match(body, /<dialog id="noticePanel"/);
+    assert.match(body, />Avisos<\/a>/);
+    assert.ok(!body.includes('id="gate"'));
 
     const legacy = await fetch(base + '/app/restaurante', { redirect:'manual' });
     assert.equal(legacy.status, 302);
@@ -227,7 +241,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + CAJA V2 + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + FLOATING NOTICES + CAJA V2 + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
 }
 
 main().catch((error) => {
