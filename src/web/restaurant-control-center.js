@@ -98,14 +98,14 @@
     const rail = $('#rail');
     if (!railWrap || !rail) return false;
 
-    if (!rail.querySelector('[data-cc-home]')) {
+    if (!railWrap.querySelector('[data-cc-home]')) {
       const home = document.createElement('button');
       home.type = 'button';
       home.className = 'cc-home-button';
       home.dataset.ccHome = 'true';
       home.textContent = '⌂ Centro de control';
       home.addEventListener('click', () => showDashboard(true));
-      rail.prepend(home);
+      railWrap.insertBefore(home, rail);
     }
 
     const main = $('.ri-main');
@@ -392,12 +392,15 @@
     if (!button || shellOpeningTab) return;
     const origin = currentView();
     const target = button.dataset.tab;
-    if (!target || target === origin) return;
-    requestAnimationFrame(() => {
-      history.pushState({ ccView:target, ccTrail:[...currentTrail(), origin] }, '', viewUrl(target));
+    if (!target) return;
+    setActiveHome(false);
+    showOnly('operational');
+    if (target === origin) {
       renderBackControl(target);
-      syncShell();
-    });
+      return;
+    }
+    history.pushState({ ccView:target, ccTrail:[...currentTrail(), origin] }, '', viewUrl(target));
+    renderBackControl(target);
   });
 
   const start = () => {
