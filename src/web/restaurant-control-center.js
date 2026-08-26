@@ -4,7 +4,18 @@
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const SHIFT_KEY = 'restaurant_cash_shift';
   const CONTROL_PATH = '/app/centro-de-control';
+  const VIEW_LABELS = Object.freeze({
+    dashboard:'Centro de control',
+    salon:'Mesas',
+    mesero:'Mesero',
+    pedidos:'Pedidos en curso',
+    kds:'Cocina / Barra',
+    caja:'Caja',
+    carta:'Carta y productos',
+    estado:'Tema / Estado'
+  });
   let session = null;
+  let shellOpeningTab = false;
   try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch {}
   if (!session?.token || !session?.subdomain) return;
 
@@ -30,6 +41,57 @@
   }
 
   const safe = (promise) => promise.then((value) => ({ ok:true, value })).catch((error) => ({ ok:false, error }));
+
+  function currentView() {
+    return new URLSearchParams(location.search).get('view') || 'dashboard';
+  }
+
+  function viewUrl(view) {
+    return view === 'dashboard' ? CONTROL_PATH : `${CONTROL_PATH}?view=${encodeURIComponent(view)}`;
+  }
+
+  function currentTrail() {
+    const trail = history.state?.ccTrail;
+    return Array.isArray(trail) ? trail.filter((view) => VIEW_LABELS[view]) : [];
+  }
+
+  function ensureRouteState(view = currentView()) {
+    if (history.state?.ccView === view && Array.isArray(history.state?.ccTrail)) return;
+    history.replaceState({ ...(history.state || {}), ccView:view, ccTrail:view === 'dashboard' ? [] : ['dashboard'] }, '', viewUrl(view));
+  }
+
+  function enterView(view, pushState = true) {
+    const origin = currentView();
+    if (pushState && origin !== view) {
+      history.pushState({ ccView:view, ccTrail:[...currentTrail(), origin] }, '', viewUrl(view));
+    } else if (!pushState) {
+      ensureRouteState(view);
+    }
+    renderBackControl(view);
+  }
+
+  function navigateBack() {
+    const trail = currentTrail();
+    const origin = trail[trail.length - 1] || 'dashboard';
+    const nextTrail = trail.slice(0, -1);
+    history.replaceState({ ...(history.state || {}), ccView:origin, ccTrail:nextTrail }, '', viewUrl(origin));
+    routeCurrentView();
+  }
+
+  function renderBackControl(view = currentView()) {
+    const bar = $('#ccBackBar');
+    if (!bar) return;
+    if (view === 'dashboard') {
+      bar.hidden = true;
+      bar.innerHTML = '';
+      return;
+    }
+    const trail = currentTrail();
+    const origin = trail[trail.length - 1] || 'dashboard';
+    bar.hidden = false;
+    bar.innerHTML = `<button type="button" class="cc-mini-button" data-cc-back="true">← Atrás <span>${esc(VIEW_LABELS[origin] || 'Centro de control')}</span></button>`;
+    $('[data-cc-back]', bar)?.addEventListener('click', navigateBack);
+  }
 
   function ensureShellExtras() {
     const railWrap = $('.rail-wrap');
@@ -59,6 +121,13 @@
       custom.className = 'cc-menu-view';
       custom.hidden = true;
       main.insertBefore(custom, $('#message'));
+    }
+    if (main && !$('#ccBackBar')) {
+      const backBar = document.createElement('div');
+      backBar.id = 'ccBackBar';
+      backBar.className = 'cc-view-actions';
+      backBar.hidden = true;
+      main.insertBefore(backBar, $('#ccDashboard') || $('#ccCustomView') || $('#message') || $('#view'));
     }
 
     return true;
@@ -90,18 +159,16 @@
       showDashboard(pushState);
       return;
     }
+    enterView(tab, pushState);
     setActiveHome(false);
     showOnly('operational');
-    target.click();
-    if (pushState) history.pushState({ view:tab }, '', `${CONTROL_PATH}?view=${encodeURIComponent(tab)}`);
-  }
-
-  function customBack() {
-    return '<button type="button" class="cc-mini-button" data-cc-dashboard="true">← Centro de control</button>';
+    shellOpeningTab = true;
+    try { target.click(); } finally { shellOpeningTab = false; }
   }
 
   async function showMenu(pushState = true) {
     ensureShellExtras();
+    enterView('carta', pushState);
     setActiveHome(false);
     showOnly('custom');
     const custom = $('#ccCustomView');
@@ -109,12 +176,10 @@
     try {
       const menu = await api('/api/v1/restaurante/menu');
       const rows = Array.isArray(menu) ? menu : [];
-      custom.innerHTML = `<div class="cc-head"><div><div style="margin-bottom:10px">${customBack()}</div><h1>Carta y productos</h1><p>Lectura real del menú publicado para este tenant.</p></div><div class="cc-view-actions"><a class="cc-core-link" href="/app/inventario">Gestionar productos en Inventario</a></div></div><div class="cc-menu-grid">${rows.map((item) => `<article class="cc-menu-card ${item.warning ? 'warn' : ''}"><small>${esc(item.category || item.station || 'PRODUCTO')}</small><b>${esc(item.product?.nombre || item.nombre || 'Producto')}</b><strong>${money(item.product?.precio1 ?? item.precio ?? 0)}</strong>${item.warning ? `<p class="ri-muted">${esc(item.warning)}</p>` : ''}</article>`).join('') || '<div class="ri-card">No hay productos visibles en la carta.</div>'}</div>`;
-      $('[data-cc-dashboard]', custom)?.addEventListener('click', () => showDashboard(true));
+      custom.innerHTML = `<div class="cc-head"><div><h1>Carta y productos</h1><p>Lectura real del menú publicado para este tenant.</p></div><div class="cc-view-actions"><a class="cc-core-link" href="/app/inventario">Gestionar productos en Inventario</a></div></div><div class="cc-menu-grid">${rows.map((item) => `<article class="cc-menu-card ${item.warning ? 'warn' : ''}"><small>${esc(item.category || item.station || 'PRODUCTO')}</small><b>${esc(item.product?.nombre || item.nombre || 'Producto')}</b><strong>${money(item.product?.precio1 ?? item.precio ?? 0)}</strong>${item.warning ? `<p class="ri-muted">${esc(item.warning)}</p>` : ''}</article>`).join('') || '<div class="ri-card">No hay productos visibles en la carta.</div>'}</div>`;
     } catch (error) {
       custom.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
     }
-    if (pushState) history.pushState({ view:'carta' }, '', `${CONTROL_PATH}?view=carta`);
   }
 
   function commandState(command) {
@@ -167,6 +232,7 @@
 
   async function showOrders(pushState = true) {
     ensureShellExtras();
+    enterView('pedidos', pushState);
     setActiveHome(false);
     showOnly('custom');
     const custom = $('#ccCustomView');
@@ -179,11 +245,10 @@
       const received = active.filter((order) => orderStage(order).key === 'RECIBIDO').length;
       const preparing = active.filter((order) => orderStage(order).key === 'PREPARACION').length;
       const ready = active.filter((order) => orderStage(order).key === 'LISTO').length;
-      custom.innerHTML = `<div class="cc-head"><div><div style="margin-bottom:10px">${customBack()}</div><h1>Pedidos en curso</h1><p>El puente entre Mesero, Cocina / Barra y Caja. Todo proviene de pedidos y comandas reales.</p></div><span class="cc-live-pill">${active.length} activos</span></div>
+      custom.innerHTML = `<div class="cc-head"><div><h1>Pedidos en curso</h1><p>El puente entre Mesero, Cocina / Barra y Caja. Todo proviene de pedidos y comandas reales.</p></div><span class="cc-live-pill">${active.length} activos</span></div>
         <div class="cc-live-grid" style="padding:0;margin-bottom:14px;grid-template-columns:repeat(4,minmax(0,1fr))"><button class="cc-live" type="button" data-cc-order-filter="ALL" style="cursor:pointer;text-align:left"><small>Activos</small><strong>${active.length}</strong><span>todos los pedidos en servicio</span></button><button class="cc-live" type="button" data-cc-order-filter="RECIBIDO" style="cursor:pointer;text-align:left"><small>Recibidos</small><strong>${received}</strong><span>esperando o enviados a producción</span></button><button class="cc-live" type="button" data-cc-order-filter="PREPARACION" style="cursor:pointer;text-align:left"><small>En preparación</small><strong>${preparing}</strong><span>cocina / barra trabajando</span></button><button class="cc-live" type="button" data-cc-order-filter="LISTO" style="cursor:pointer;text-align:left"><small>Listos</small><strong>${ready}</strong><span>requieren entrega al cliente</span></button></div>
         <div data-cc-orders-grid style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">${active.map(orderCard).join('') || '<div class="ri-card">No hay pedidos activos en este momento.</div>'}</div>
         ${delivered.length ? `<section class="cc-section"><div class="cc-section-head"><b>Entregados recientes</b><span>Últimos pedidos completados visibles.</span></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;padding:14px">${delivered.map(orderCard).join('')}</div></section>` : ''}`;
-      $('[data-cc-dashboard]', custom)?.addEventListener('click', () => showDashboard(true));
       $$('[data-cc-order-filter]', custom).forEach((button) => button.addEventListener('click', () => {
         const filter = button.dataset.ccOrderFilter;
         const grid = $('[data-cc-orders-grid]', custom);
@@ -195,7 +260,6 @@
     } catch (error) {
       custom.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
     }
-    if (pushState) history.pushState({ view:'pedidos' }, '', `${CONTROL_PATH}?view=pedidos`);
   }
 
   function bindOrderActions(root) {
@@ -253,7 +317,7 @@
     root.innerHTML = `<div class="cc-head"><div><h1>Centro de control</h1><p>El servicio completo en una sola lectura: mesa, pedido, producción, entrega y cobro.</p></div><span class="cc-live-pill">Conectado al tenant real</span></div>
       <div class="cc-hero-grid">
         <section class="cc-hero"><div class="cc-kicker">VANTIXGC OPERACIÓN</div><h2>Del cliente al cobro, sin perder el pedido</h2><p>Ahora puedes seguir cada pedido después de enviarlo: quién lo tomó, qué está preparando cocina, qué ya está listo y qué mesa pasó a caja.</p><div class="cc-actions">
-          <button class="cc-action cash" data-cc-tab="caja">▣<small>Caja · Cobrar / Cerrar</small></button>
+          <button class="cc-action cash" data-cc-tab="caja"><span class="cc-cash-icon">▣</span><strong>Caja</strong><small>Cobrar / Cerrar</small></button>
           <button class="cc-action" data-cc-tab="mesero">🛒 Nuevo pedido</button>
           <button class="cc-action" data-cc-orders="true">◫ Pedidos en curso</button>
           <button class="cc-action" data-cc-tab="salon">▱ Abrir / ver mesas</button>
@@ -287,22 +351,26 @@
 
   function showDashboard(pushState = false) {
     ensureShellExtras();
+    if (pushState && currentView() !== 'dashboard') history.pushState({ ccView:'dashboard', ccTrail:[] }, '', CONTROL_PATH);
+    else ensureRouteState('dashboard');
+    renderBackControl('dashboard');
     setActiveHome(true);
     showOnly('dashboard');
     renderDashboard().catch((error) => {
       const root = $('#ccDashboard');
       if (root) root.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
     });
-    if (pushState) history.pushState({ view:'dashboard' }, '', CONTROL_PATH);
   }
 
   function syncShell() {
     if (!ensureShellExtras()) return false;
+    renderBackControl(currentView());
     return true;
   }
 
-  function routeInitialView() {
-    const view = new URLSearchParams(location.search).get('view');
+  function routeCurrentView() {
+    const view = currentView();
+    ensureRouteState(view);
     if (view === 'carta') { showMenu(false); return; }
     if (view === 'pedidos') { showOrders(false); return; }
     if (['salon','mesero','kds','caja','estado'].includes(view)) {
@@ -318,15 +386,23 @@
     showDashboard(false);
   }
 
-  window.addEventListener('popstate', () => routeInitialView());
+  window.addEventListener('popstate', routeCurrentView);
   document.addEventListener('click', (event) => {
-    if (!event.target.closest?.('.rail-ticket')) return;
-    requestAnimationFrame(() => syncShell());
+    const button = event.target.closest?.('.rail-ticket');
+    if (!button || shellOpeningTab) return;
+    const origin = currentView();
+    const target = button.dataset.tab;
+    if (!target || target === origin) return;
+    requestAnimationFrame(() => {
+      history.pushState({ ccView:target, ccTrail:[...currentTrail(), origin] }, '', viewUrl(target));
+      renderBackControl(target);
+      syncShell();
+    });
   });
 
   const start = () => {
     const ready = (attempt = 0) => {
-      if (syncShell()) { routeInitialView(); return; }
+      if (syncShell()) { routeCurrentView(); return; }
       if (attempt < 60) requestAnimationFrame(() => ready(attempt + 1));
     };
     ready();
@@ -339,6 +415,7 @@
     showDashboard: () => showDashboard(true),
     showOrders: () => showOrders(true),
     showMenu: () => showMenu(true),
-    openOperationalTab
+    openOperationalTab,
+    navigateBack
   });
 })();
