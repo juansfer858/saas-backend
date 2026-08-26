@@ -28,7 +28,6 @@ async function main() {
   assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
   assert.ok(!appSource.includes("href: '/app/restaurante'"));
 
-  // Restaurant exposes one large persistent return directly below the operational rail.
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
@@ -47,8 +46,6 @@ async function main() {
   assert.match(shellJs, /railWrap\.querySelector\('\[data-cc-home\]'\)/);
   assert.ok(!restaurantHtml.includes('stopImmediatePropagation'), 'Restaurant shell must not add a second rail click interceptor');
 
-  // Production and Edge status are available from one native modal and no longer reserve
-  // full-width bands that push Caja or any other operational module down the page.
   assert.match(restaurantHtml, /id="noticeToggle"[^>]*>Avisos<\/a>/);
   assert.match(restaurantHtml, /<dialog id="noticePanel"/);
   assert.match(restaurantHtml, /id="gateInner"/);
@@ -73,7 +70,6 @@ async function main() {
   assert.match(shellCss, /\.rail-wrap/);
   assert.match(shellCss, /\.cc-dashboard/);
 
-  // Adaptive internal architecture: readable by default, dense on desktop and touch-safe on mobile.
   assert.match(shellCss, /html,body\{[^}]*font-size:14px;[^}]*line-height:1\.45/);
   assert.match(shellCss, /\.ri-btn\{[^}]*min-height:46px!important;[^}]*font-size:14px!important/);
   assert.match(shellCss, /\.ri-input,\.ri-select\{[^}]*min-height:48px!important;[^}]*font-size:15px!important/);
@@ -86,39 +82,17 @@ async function main() {
   assert.match(shellCss, /@media\(pointer:coarse\)[\s\S]*?min-height:48px!important/);
   assert.ok(!shellCss.includes('.ri-btn{min-height:39px!important'), 'Operational buttons must not regress to the old small target');
 
-  // Dashboard primary actions must remain readable; Caja is intentionally the strongest CTA.
   assert.match(shellJs, /<button class="cc-action cash" data-cc-tab="caja"><span class="cc-cash-icon">▣<\/span><strong>Caja<\/strong><small>Cobrar \/ Cerrar<\/small><\/button>/);
   assert.match(shellCss, /\.cc-action\{[^}]*font-size:14px;[^}]*line-height:1\.25/);
   assert.match(shellCss, /\.cc-action\.cash\{[^}]*font-size:22px/);
   assert.match(shellCss, /\.cc-action\.cash small\{[^}]*font-size:15px;[^}]*font-weight:950/);
   assert.ok(!shellCss.includes('.cc-action.cash small{display:block;margin-top:7px;font-size:10px}'), 'Caja label must never regress to the old 10px size');
 
-  // Caja V2 follows the approved mockup but only with fields the real backend can support.
   for (const token of [
-    'function cashAge(',
-    'function cashTableRow(',
-    'Caja lista para comenzar',
-    'CAJA CERRADA',
-    'CAJA ABIERTA',
-    'Ventas del turno',
-    'Efectivo registrado',
-    'Otros medios',
-    'Mesas por cobrar',
-    'Cobro rápido',
-    'Método de pago',
-    'Recibido del cliente',
-    'Cambio',
-    'Mixto',
-    'Próximamente',
-    'Últimos cobros',
-    'Resumen del turno',
-    'Efectivo contado',
-    'Confirmar cobro',
-    'Cerrar turno',
-    'data-cash-table',
-    'data-cash-method="EFECTIVO"',
-    'data-cash-method="BANCO"',
-    'data-cash-method="CREDITO"'
+    'function cashAge(', 'function cashTableRow(', 'Caja lista para comenzar', 'CAJA CERRADA', 'CAJA ABIERTA',
+    'Ventas del turno', 'Efectivo registrado', 'Otros medios', 'Mesas por cobrar', 'Cobro rápido', 'Método de pago',
+    'Recibido del cliente', 'Cambio', 'Mixto', 'Próximamente', 'Últimos cobros', 'Resumen del turno', 'Efectivo contado',
+    'Confirmar cobro', 'Cerrar turno', 'data-cash-table', 'data-cash-method="EFECTIVO"', 'data-cash-method="BANCO"', 'data-cash-method="CREDITO"'
   ]) assert.ok(operationalEngine.includes(token), `Caja V2 must contain ${token}`);
   assert.ok(!operationalEngine.includes('summary?.paymentBreakdown'), 'Caja must not depend on the nonexistent paymentBreakdown field');
   assert.match(operationalEngine, /restaurantClosedTablesTotal/);
@@ -128,77 +102,33 @@ async function main() {
   assert.match(shellCss, /\.cash-methods\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(shellCss, /@media\(max-width:480px\)[\s\S]*?\.cash-shift-strip,\.cash-kpis\{grid-template-columns:1fr\}/);
 
-  // Every internal Dashboard destination has a deterministic back control that returns to its real origin.
   for (const token of [
-    "dashboard:'Centro de control'",
-    "salon:'Mesas'",
-    "mesero:'Mesero'",
-    "pedidos:'Pedidos en curso'",
-    "kds:'Cocina / Barra'",
-    "caja:'Caja'",
-    "carta:'Carta y productos'",
-    "estado:'Tema / Estado'",
-    'function currentView()',
-    'function enterView(view, pushState = true)',
-    'function navigateBack()',
-    'function renderBackControl',
-    'ccTrail',
-    'ccBackBar',
-    'data-cc-back="true"',
-    '← Atrás',
-    'routeCurrentView',
-    'history.replaceState'
+    "dashboard:'Centro de control'", "salon:'Mesas'", "mesero:'Mesero'", "pedidos:'Pedidos en curso'", "kds:'Cocina / Barra'",
+    "caja:'Caja'", "carta:'Carta y productos'", "estado:'Tema / Estado'", 'function currentView()',
+    'function enterView(view, pushState = true)', 'function navigateBack()', 'function renderBackControl', 'ccTrail', 'ccBackBar',
+    'data-cc-back="true"', '← Atrás', 'routeCurrentView', 'history.replaceState'
   ]) assert.ok(shellJs.includes(token), `Restaurant origin-aware back must contain ${token}`);
   assert.ok(!shellJs.includes('history.back('), 'Restaurant internal back must be deterministic, not browser-history dependent');
   assert.ok(!shellJs.includes('customBack()'), 'Custom screens must use the same canonical back control as operational screens');
 
-  // The Centro de Control must close the operational gap between sending an order and charging it.
   for (const token of [
-    'Pedidos en curso',
-    'Flujo del servicio',
-    '1 · Mesas abiertas',
-    '2 · Pedidos activos',
-    '3 · Por preparar',
-    '4 · En preparación',
-    '5 · Listos',
-    '6 · Cuenta pedida',
-    'Listo para entregar',
-    'Entregados recientes',
-    'data-cc-orders="true"',
-    'data-cc-order-filter',
-    'data-cc-order-mesero',
-    'data-cc-order-kds',
-    'data-cc-order-cash',
-    "view === 'pedidos'",
-    "showOrders: () => showOrders(true)"
+    'Pedidos en curso', 'Flujo del servicio', '1 · Mesas abiertas', '2 · Pedidos activos', '3 · Por preparar', '4 · En preparación',
+    '5 · Listos', '6 · Cuenta pedida', 'Listo para entregar', 'Entregados recientes', 'data-cc-orders="true"', 'data-cc-order-filter',
+    'data-cc-order-mesero', 'data-cc-order-kds', 'data-cc-order-cash', "view === 'pedidos'", "showOrders: () => showOrders(true)"
   ]) assert.ok(shellJs.includes(token), `Restaurant service flow must contain ${token}`);
 
-  // Control-center navigation no longer watches and mutates the rail through a DOM observer.
+  // Navigation is synchronous and canonical: no observer and no delayed rail resync requirement.
   assert.ok(!shellJs.includes('MutationObserver'));
   assert.ok(shellJs.includes("document.addEventListener('click'"));
-  assert.ok(shellJs.includes('requestAnimationFrame(() => {'));
 
-  // The operational shell continues to reuse the already validated write engine.
   assert.match(operationalEngine, /method:'POST'/);
   assert.match(operationalEngine, /method:'PUT'/);
   assert.match(operationalEngine, /method:'PATCH'/);
 
-  // Waiter continuity: previous rounds stay visible, kitchen state refreshes without repainting the full waiter screen,
-  // and requesting the bill is blocked while an unsent round exists.
   for (const token of [
-    'loadSessionOrders',
-    '/api/v1/restaurante/pedidos?sessionId=',
-    'Servicio de esta mesa',
-    'Nueva ronda',
-    'Ronda ${sentOrders.length + 1}',
-    'Listo para entregar',
-    'Parcialmente listo',
-    'waiterHistory',
-    'refreshWaiterHistory',
-    'No puedes pedir la cuenta con productos sin enviar',
-    'Pedir cuenta · ronda sin enviar',
-    'La cuenta de esta mesa ya fue solicitada',
-    'La mesa volvió a servicio activo'
+    'loadSessionOrders', '/api/v1/restaurante/pedidos?sessionId=', 'Servicio de esta mesa', 'Nueva ronda', 'Ronda ${sentOrders.length + 1}',
+    'Listo para entregar', 'Parcialmente listo', 'waiterHistory', 'refreshWaiterHistory', 'No puedes pedir la cuenta con productos sin enviar',
+    'Pedir cuenta · ronda sin enviar', 'La cuenta de esta mesa ya fue solicitada', 'La mesa volvió a servicio activo'
   ]) assert.ok(operationalEngine.includes(token), `Waiter continuity must contain ${token}`);
   assert.match(operationalEngine, /S\.poll = setInterval\([\s\S]*refreshWaiterHistory/);
   assert.match(operationalEngine, /table\.state === 'CUENTA_PEDIDA'/);
