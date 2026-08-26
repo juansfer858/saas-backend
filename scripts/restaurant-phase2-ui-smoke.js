@@ -26,7 +26,12 @@ assert.match(app, /app\.get\('\/r\/:token'/);
 
 assert.match(operator, /restaurant-theme\.css/);
 assert.match(operator, /restaurant-ui\.js/);
-assert.match(operator, /id="gate"/);
+assert.match(operator, /<dialog id="noticePanel"/);
+assert.match(operator, /id="noticeToggle"/);
+assert.match(operator, /id="gateInner"/);
+assert.match(operator, /id="edgeStatusSlot"/);
+assert.ok(!operator.includes('id="gate"'), 'Production warning must not reserve a persistent full-width band');
+assert.ok(!operator.includes("insertAdjacentElement('afterend'"), 'Edge status must stay inside the Avisos dialog instead of inserting another band');
 assert.match(operatorUi, /Panel del mesero/);
 assert.match(operatorUi, /Salón/);
 assert.match(operatorUi, /Cocina \/ Barra/);
@@ -91,10 +96,11 @@ assert.match(phase2, /NO significa listo para producción con clientes reales/);
 assert.match(edgeGate, /DESARROLLO FUNCIONAL SIMULADO AUTORIZADO/);
 assert.match(edgeGate, /RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA/);
 
-console.log('RESTAURANT PHASE 2 SIMULATED UI/GATE + CAJA V2 SMOKE OK');
+console.log('RESTAURANT PHASE 2 SIMULATED UI/GATE + CAJA V2 + NOTICE DIALOG SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
   dynamicProductionBlockedStatus: true,
+  noticesDoNotDisplaceWorkspace: true,
   falseProductionClaimBlocked: true,
   floorPlanUi: true,
   waiterUi: true,
