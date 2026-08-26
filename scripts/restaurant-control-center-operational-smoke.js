@@ -32,7 +32,8 @@ async function main() {
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
-  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v4/);
+  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v5/);
+  assert.match(restaurantHtml, /restaurant-ui\.js\?v=cash-v2/);
   assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
@@ -73,6 +74,42 @@ async function main() {
   assert.match(shellCss, /\.cc-action\.cash\{[^}]*font-size:22px/);
   assert.match(shellCss, /\.cc-action\.cash small\{[^}]*font-size:15px;[^}]*font-weight:950/);
   assert.ok(!shellCss.includes('.cc-action.cash small{display:block;margin-top:7px;font-size:10px}'), 'Caja label must never regress to the old 10px size');
+
+  // Caja V2 follows the approved mockup but only with fields the real backend can support.
+  for (const token of [
+    'function cashAge(',
+    'function cashTableRow(',
+    'Caja lista para comenzar',
+    'CAJA CERRADA',
+    'CAJA ABIERTA',
+    'Ventas del turno',
+    'Efectivo registrado',
+    'Otros medios',
+    'Mesas por cobrar',
+    'Cobro rápido',
+    'Método de pago',
+    'Recibido del cliente',
+    'Cambio',
+    'Mixto',
+    'Próximamente',
+    'Últimos cobros',
+    'Resumen del turno',
+    'Efectivo contado',
+    'Confirmar cobro',
+    'Cerrar turno',
+    'data-cash-table',
+    'data-cash-method="EFECTIVO"',
+    'data-cash-method="BANCO"',
+    'data-cash-method="CREDITO"'
+  ]) assert.ok(operationalEngine.includes(token), `Caja V2 must contain ${token}`);
+  assert.ok(!operationalEngine.includes('summary?.paymentBreakdown'), 'Caja must not depend on the nonexistent paymentBreakdown field');
+  assert.match(operationalEngine, /restaurantClosedTablesTotal/);
+  assert.match(operationalEngine, /restaurantCashRecorded/);
+  assert.match(operationalEngine, /systemCashExpected/);
+  assert.match(shellCss, /\/\* Caja V2 — propietario visual del flujo de cobro y turno\. \*\//);
+  assert.match(shellCss, /\.cash-workspace\{[^}]*grid-template-columns:minmax\(0,1\.05fr\) minmax\(390px,\.95fr\)/);
+  assert.match(shellCss, /\.cash-methods\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(shellCss, /@media\(max-width:480px\)[\s\S]*?\.cash-shift-strip,\.cash-kpis\{grid-template-columns:1fr\}/);
 
   // Every internal Dashboard destination has a deterministic back control that returns to its real origin.
   for (const token of [
@@ -162,8 +199,8 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
-    assert.match(body, /restaurant-ui\.js/);
-    assert.match(body, /restaurant-control-center\.css\?v=workspace-v4/);
+    assert.match(body, /restaurant-ui\.js\?v=cash-v2/);
+    assert.match(body, /restaurant-control-center\.css\?v=workspace-v5/);
     assert.match(body, /restaurant-control-center\.js\?v=workspace-v3/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
@@ -190,7 +227,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + CAJA V2 + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
 }
 
 main().catch((error) => {
