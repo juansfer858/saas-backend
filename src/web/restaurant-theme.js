@@ -4,24 +4,37 @@
     paper: '--paper', ink: '--ink', muted: '--muted', line: '--line', success: '--success', danger: '--danger'
   };
   const FONT_MAP = { display: '--font-display', body: '--font-body', mono: '--font-mono' };
+  const PANEL_FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const HEX = /^#[0-9a-fA-F]{6}$/;
-  function safeFont(value) {
-    const text = String(value || '').trim();
-    return text && text.length <= 180 && !/[;{}<>]/.test(text) ? text : null;
+
+  function ensurePanelAlignment() {
+    if (document.querySelector('#restaurantPanelAlignment')) return;
+    const style = document.createElement('style');
+    style.id = 'restaurantPanelAlignment';
+    style.textContent = `
+      .cash-shell{max-width:1280px!important;gap:14px!important}
+      .cash-shift-item{min-height:76px!important;padding:12px 14px!important}
+      .cash-kpi{min-height:92px!important;padding:14px!important}
+      .cash-workspace,.cash-lower-grid{grid-template-columns:minmax(0,1.35fr) minmax(360px,.85fr)!important;gap:12px!important}
+      .cash-due-row{min-height:70px!important}
+      .cash-method{min-height:62px!important}
+      .cash-selected-summary{padding-top:12px!important;padding-bottom:12px!important}
+      @media(max-width:1120px){.cash-workspace,.cash-lower-grid{grid-template-columns:1fr!important}.cash-shell{max-width:100%!important}}
+    `;
+    document.head.appendChild(style);
   }
+
   function apply(theme) {
     const root = document.documentElement;
     const tokens = theme?.tokens || {};
-    const typography = theme?.typography || {};
     for (const [key, cssVar] of Object.entries(TOKEN_MAP)) {
       const value = tokens[key];
       if (HEX.test(String(value || ''))) root.style.setProperty(cssVar, value);
     }
-    for (const [key, cssVar] of Object.entries(FONT_MAP)) {
-      const value = safeFont(typography[key]);
-      if (value) root.style.setProperty(cssVar, value);
-    }
+    for (const cssVar of Object.values(FONT_MAP)) root.style.setProperty(cssVar, PANEL_FONT);
     root.dataset.restaurantTheme = theme?.preset || 'LA_RIEL_V1';
+    root.dataset.restaurantTypography = 'SUPER_CORE_PANEL';
+    ensurePanelAlignment();
     const name = theme?.restaurantName;
     if (name) {
       document.querySelectorAll('[data-restaurant-name]').forEach((node) => { node.textContent = name; });
@@ -29,5 +42,11 @@
     }
     return theme;
   }
-  window.RestaurantTheme = { apply, TOKEN_MAP: { ...TOKEN_MAP }, FONT_MAP: { ...FONT_MAP } };
+
+  window.RestaurantTheme = {
+    apply,
+    PANEL_FONT,
+    TOKEN_MAP: { ...TOKEN_MAP },
+    FONT_MAP: { ...FONT_MAP }
+  };
 })();
