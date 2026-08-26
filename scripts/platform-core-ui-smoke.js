@@ -25,10 +25,10 @@ for (const token of [
 // propietario: abren detalle filtrado y permiten volver al resumen sin capas UI.
 for (const token of [
   'core-dian-metric',
-  'data-dian-metric="invoice"',
-  'data-dian-metric="support"',
-  'data-dian-metric="payroll"',
-  'data-dian-metric="provider"',
+  "dianMetricCard('invoice'",
+  "dianMetricCard('support'",
+  "dianMetricCard('payroll'",
+  "dianMetricCard('provider'",
   'function openDianMetric(',
   'function closeDianMetric(',
   'id="dianMetricBack"',
