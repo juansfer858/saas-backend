@@ -44,10 +44,38 @@ async function main() {
   assert.match(shellCss, /\.rail-wrap/);
   assert.match(shellCss, /\.cc-dashboard/);
 
+  // The Centro de Control must close the operational gap between sending an order and charging it.
+  for (const token of [
+    'Pedidos en curso',
+    'Flujo del servicio',
+    '1 · Mesas abiertas',
+    '2 · Pedidos activos',
+    '3 · Por preparar',
+    '4 · En preparación',
+    '5 · Listos',
+    '6 · Cuenta pedida',
+    'Listo para entregar',
+    'Entregados recientes',
+    'data-cc-orders="true"',
+    'data-cc-order-filter',
+    'data-cc-order-mesero',
+    'data-cc-order-kds',
+    'data-cc-order-cash',
+    "view === 'pedidos'",
+    "showOrders: () => showOrders(true)"
+  ]) assert.ok(shellJs.includes(token), `Restaurant service flow must contain ${token}`);
+
+  // Control-center navigation no longer watches and mutates the rail through a DOM observer.
+  assert.ok(!shellJs.includes('MutationObserver'));
+  assert.ok(shellJs.includes("document.addEventListener('click'"));
+  assert.ok(shellJs.includes('requestAnimationFrame(() => syncShell())'));
+
   // The operational shell continues to reuse the already validated write engine.
   assert.match(operationalEngine, /method:'POST'/);
   assert.match(operationalEngine, /method:'PUT'/);
   assert.match(operationalEngine, /method:'PATCH'/);
+
+  new Function(shellJs);
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -87,7 +115,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + ADMIN BACK LINK + V5 SERVER ROUTE SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER + COMPLETE SERVICE FLOW + ADMIN BACK LINK SMOKE OK');
 }
 
 main().catch((error) => {
