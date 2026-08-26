@@ -211,6 +211,9 @@ jobs:
       - name: Validate Restaurant Phase2 simulated six-criteria acceptance
         run: node scripts/restaurant-phase2-simulated-smoke.js
 
+      - name: Validate Restaurant zones and existing-table backfill against PostgreSQL
+        run: node scripts/restaurant-zones-smoke.js
+
       - name: Validate Restaurant simulated fiscal governance, audit and immutable history
         run: node scripts/restaurant-fiscal-governance-smoke.js
 
