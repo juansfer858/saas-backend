@@ -43,22 +43,8 @@
   })();
   </script>
   <script src="/app/restaurant-theme.js?v=panel-font-v1"></script>
-  <script src="/app/restaurant-ui.js?v=cash-v2"></script>
-  <script src="/app/restaurant-control-center.js?v=workspace-v3"></script>
-  <script>
-  (()=>{
-    document.addEventListener('click',event=>{
-      if(!event.isTrusted)return;
-      const button=event.target.closest?.('.rail-ticket[data-tab]');
-      if(!button)return;
-      const control=window.VantixGCRestaurantControlCenter;
-      if(!control?.openOperationalTab)return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      control.openOperationalTab(button.dataset.tab,true);
-    },true);
-  })();
-  </script>
+  <script src="/app/restaurant-ui.js?v=cash-v2-nav2"></script>
+  <script src="/app/restaurant-control-center.js?v=workspace-v3-nav2"></script>
   <script>
   (()=>{
     const ORIGIN_KEY='vantixgc_core_origin_v1',SESSION_KEY='vantixgc_core_session_v1',MAX_AGE_MS=4*60*60*1000;
