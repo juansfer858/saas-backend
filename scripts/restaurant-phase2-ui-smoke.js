@@ -13,8 +13,10 @@ const customer = read('src/web/restaurant-qr.html');
 const customerUi = read('src/web/restaurant-qr-ui.js');
 const themeCss = read('src/web/restaurant-theme.css');
 const service = read('src/modules/restaurant/restaurant.service.js');
+const zonesService = read('src/modules/restaurant/restaurant-zones.service.js');
 const routes = read('src/modules/restaurant/restaurant.routes.js');
 const rbac = read('src/modules/restaurant/restaurant.rbac.js');
+const phase2Schema = read('prisma/restaurant-phase2-v1.prisma');
 const phase2 = read('docs/RESTAURANT_PHASE2_SIMULATED_V1.md');
 const edgeGate = read('docs/EDGE_FIELD_TEST_GATE_V1.md');
 
@@ -25,7 +27,7 @@ assert.match(app, /app\.get\('\/app\/restaurante'/);
 assert.match(app, /app\.get\('\/r\/:token'/);
 
 assert.match(operator, /restaurant-theme\.css/);
-assert.match(operator, /restaurant-ui\.js/);
+assert.match(operator, /restaurant-ui\.js\?v=zones-v1/);
 assert.match(operator, /<dialog id="noticePanel"/);
 assert.match(operator, /id="noticeToggle"/);
 assert.match(operator, /id="gateInner"/);
@@ -33,10 +35,53 @@ assert.match(operator, /id="edgeStatusSlot"/);
 assert.ok(!operator.includes('id="gate"'), 'Production warning must not reserve a persistent full-width band');
 assert.ok(!operator.includes("insertAdjacentElement('afterend'"), 'Edge status must stay inside the Avisos dialog instead of inserting another band');
 assert.match(operatorUi, /Panel del mesero/);
-assert.match(operatorUi, /Salón/);
+assert.match(operatorUi, /Zonas y mesas/);
 assert.match(operatorUi, /Cocina \/ Barra/);
 assert.match(operatorUi, /COMANDA SIMULADA — NO IMPRESA EN HARDWARE/);
 assert.match(operatorUi, /Imprimir \/ Guardar PDF/);
+
+// Zona -> Mesas is the canonical salon architecture. Existing tables are
+// backfilled into Salón principal and only Restaurant administrators can mutate zones.
+for (const token of [
+  'selectedZoneId',
+  'loadZones',
+  '/api/v1/restaurante/zonas',
+  'Organización del salón',
+  'Zonas y mesas',
+  '+ Crear zona',
+  '+ Agregar mesa',
+  'Renombrar zona',
+  'Eliminar zona',
+  'zoneId:zone.id',
+  'tablesInSelectedZone'
+]) assert.ok(operatorUi.includes(token), `Restaurant zones UI must contain ${token}`);
+
+assert.match(phase2Schema, /model RestaurantZone \{/);
+assert.match(phase2Schema, /zoneId\s+String\?/);
+assert.match(phase2Schema, /zone\s+RestaurantZone\?\s+@relation/);
+assert.match(phase2Schema, /@@index\(\[tenantId, zoneId, active\]\)/);
+
+for (const token of [
+  "DEFAULT_ZONE_NAME = 'Salón principal'",
+  'ensureDefaultZone',
+  'resolveZoneForTable',
+  'listZones',
+  'createZone',
+  'renameZone',
+  'removeZone',
+  'assignTable',
+  'RESTAURANT_ZONE_HAS_TABLES',
+  "user?.rol === 'MESERO'",
+  'zoneId: null'
+]) assert.ok(zonesService.includes(token), `Restaurant zones service must contain ${token}`);
+
+assert.match(routes, /router\.get\('\/zonas', requirePermission\('MESAS\.VER'\)/);
+assert.match(routes, /router\.post\('\/zonas', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
+assert.match(routes, /router\.patch\('\/zonas\/:id', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
+assert.match(routes, /router\.delete\('\/zonas\/:id', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
+assert.match(routes, /zones\.ensureDefaultZone\(req\.tenantId\)/);
+assert.match(routes, /zones\.assignTable/);
+assert.match(routes, /zoneId:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
 
 // Caja V2 replaces the old sparse "Cierre de caja / turno" screen with the approved
 // operational flow while preserving the same real open/charge/close endpoints.
@@ -96,12 +141,18 @@ assert.match(phase2, /NO significa listo para producción con clientes reales/);
 assert.match(edgeGate, /DESARROLLO FUNCIONAL SIMULADO AUTORIZADO/);
 assert.match(edgeGate, /RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA/);
 
-console.log('RESTAURANT PHASE 2 SIMULATED UI/GATE + CAJA V2 + NOTICE DIALOG SMOKE OK');
+new Function(operatorUi);
+new Function(zonesService);
+
+console.log('RESTAURANT PHASE 2 + ZONAS/MESAS + CAJA V2 + NOTICE DIALOG SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
   dynamicProductionBlockedStatus: true,
   noticesDoNotDisplaceWorkspace: true,
   falseProductionClaimBlocked: true,
+  zonesAndTablesUi: true,
+  defaultZoneBackfill: true,
+  zoneAdminRbac: true,
   floorPlanUi: true,
   waiterUi: true,
   kdsUi: true,
