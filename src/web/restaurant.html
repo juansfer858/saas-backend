@@ -19,7 +19,7 @@
       <div class="ri-user"><strong id="userName">Usuario</strong><span id="userRole"></span><br><a id="coreLink" class="ri-link" href="/app/dashboard">Super Core</a></div>
     </header>
     <div id="gate" class="ri-gate"><div id="gateInner" class="ri-gate-inner"><b>Modo funcional simulado</b><span>Consultando gates…</span></div></div>
-    <div class="rail-wrap"><nav id="rail" class="rail" aria-label="La Riel · navegación por permisos"></nav><a class="cc-classic-link" href="/app/dashboard" data-restaurant-admin-link="true">← Administración</a></div>
+    <div class="rail-wrap"><nav id="rail" class="rail" aria-label="La Riel · navegación por permisos"></nav><a class="cc-classic-link" href="/app/dashboard" data-restaurant-admin-link="true" aria-label="Volver a Administración" style="position:static!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;min-height:52px!important;margin:16px 0 0!important;padding:13px 14px!important;border:1px solid #cbd5e1!important;border-radius:11px!important;background:#f8fafc!important;color:#0f172a!important;text-decoration:none!important;font-size:12px!important;font-weight:950!important;box-shadow:0 8px 18px rgba(15,23,42,.18)!important">← Volver a Administración</a></div>
     <main class="ri-main"><div id="message" class="ri-message"></div><div id="view"></div></main>
   </div>
   <script src="/app/restaurant-theme.js?v=la-riel-v1"></script>
@@ -35,7 +35,7 @@
       if(origin.tenant&&session?.subdomain&&origin.tenant!==session.subdomain)return;
       const from=new URL(origin.from,location.origin);if(from.origin!==location.origin||!from.pathname.startsWith('/app/'))return;
       const back=()=>{sessionStorage.removeItem(ORIGIN_KEY);location.assign(`${from.pathname}${from.search}${from.hash}`)};
-      const admin=document.querySelector('[data-restaurant-admin-link]');if(admin){admin.href=`${from.pathname}${from.search}${from.hash}`;admin.textContent='← Atrás';admin.title='Volver a '+String(origin.fromLabel||'la pantalla anterior');admin.addEventListener('click',e=>{e.preventDefault();back()})}
+      const admin=document.querySelector('[data-restaurant-admin-link]');if(admin){admin.href=`${from.pathname}${from.search}${from.hash}`;admin.textContent='← Volver a Administración';admin.title='Volver a '+String(origin.fromLabel||'Administración');admin.addEventListener('click',e=>{e.preventDefault();back()})}
       const core=document.querySelector('#coreLink');if(core){core.href=`${from.pathname}${from.search}${from.hash}`;core.textContent='← Atrás';core.addEventListener('click',e=>{e.preventDefault();back()})}
     }catch{}
   })();
