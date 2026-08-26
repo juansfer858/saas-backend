@@ -57,14 +57,16 @@ async function main() {
   });
   assert.equal(savedTheme.restaurantName, 'Restaurante La Riel QA');
   assert.equal(savedTheme.tokens.ember, '#123456');
-  assert.equal(savedTheme.typography.display, 'Arial, sans-serif');
+  assert.equal(savedTheme.typography.display, theme.PANEL_FONT);
+  assert.equal(savedTheme.typography.body, theme.PANEL_FONT);
+  assert.equal(savedTheme.typography.mono, theme.PANEL_FONT);
+  assert.equal(savedTheme.typographyLockedToPanel, true);
   assert.equal(await prisma.auditoriaContable.count({ where:{ tenantId:tenant.id, entidad:'RESTAURANT_THEME' } }), 1);
 
   const table = await restaurant.createTable(tenant.id, { code:'M1', name:'Mesa La Riel', seats:4, assignedWaiterId:waiter.id, posX:48, posY:52 });
   const opened = await restaurant.openTable(tenant.id, waiter, table.id, { guestCount:2 });
   assert.equal(opened.sale.estado, 'BORRADOR');
 
-  // ID-AC01 + Mesero real: line is persisted in the same Core sale draft before command dispatch.
   let draft = await identity.setWaiterDraftItem(tenant.id, waiter, opened.session.id, menu.id, 1);
   assert.equal(draft.order.state, 'BORRADOR');
   assert.equal(draft.order.items.length, 1);
@@ -76,7 +78,6 @@ async function main() {
   assert.equal(liveFloor[0].activeSession.sale.id, opened.sale.id);
   assert.ok(near(liveFloor[0].activeSession.sale.total, 15000));
 
-  // ID-AC02: dispatch is immediately visible through the KDS data source.
   const sent = await identity.sendWaiterDraft(tenant.id, waiter, opened.session.id);
   assert.equal(sent.state, 'ENVIADO');
   assert.equal(sent.commands.length, 1);
@@ -84,9 +85,9 @@ async function main() {
   const kitchenNow = await restaurant.listCommands(tenant.id, kitchen, {});
   assert.ok(kitchenNow.some((row) => row.orderId === sent.id && row.station === 'COCINA'));
 
-  // ID-AC03: QR stays distinguishable in the same real command queue.
   const qrContext = await identity.publicQrContext(table.qrToken);
   assert.equal(qrContext.theme.tokens.ember, '#123456');
+  assert.equal(qrContext.theme.typography.display, theme.PANEL_FONT);
   assert.equal(qrContext.restaurantName, 'Restaurante La Riel QA');
   const qrOrder = await restaurant.placeQrOrder(table.qrToken, { confirmedTotal:15000, items:[{ menuItemId:menu.id, quantity:1 }], externalRequestId:`QR-ID-${stamp}` });
   assert.equal(qrOrder.source, 'QR');
@@ -95,19 +96,17 @@ async function main() {
   assert.ok(qrCommand);
   assert.equal(qrCommand.order.source, 'QR');
 
-  // Marking ready executes the real command state engine (ORDER_READY remains optional/config-driven).
   const preparing = await restaurant.updateCommandState(tenant.id, kitchen, sent.commands[0].id, 'EN_PREPARACION');
   assert.equal(preparing.command.state, 'EN_PREPARACION');
   const ready = await restaurant.updateCommandState(tenant.id, kitchen, sent.commands[0].id, 'LISTA');
   assert.equal(ready.command.state, 'LISTA');
 
-  // ID-AC04: one theme profile is returned by internal and public contexts.
   const waiterContext = await identity.uiContext(tenant.id, waiter);
   assert.equal(waiterContext.theme.tokens.ember, '#123456');
   assert.equal(waiterContext.theme.restaurantName, 'Restaurante La Riel QA');
+  assert.equal(waiterContext.theme.typography.display, theme.PANEL_FONT);
   assert.equal(waiterContext.polling.kdsMs, 2000);
 
-  // ID-AC05: navigation authority comes from effective Core permissions.
   const waiterPerms = new Set(waiterContext.permissions);
   assert.equal(waiterPerms.has('MESAS.VER'), true);
   assert.equal(waiterPerms.has('PEDIDOS.CREAR'), true);
@@ -117,7 +116,6 @@ async function main() {
   assert.equal(new Set(kitchenContext.permissions).has('COMANDAS.EDITAR'), true);
   assert.equal(new Set(kitchenContext.permissions).has('MESAS.VER'), false);
 
-  // ID-AC06: cashier uses actual Core Treasury totals and the physical-count difference is deterministic.
   const caja = await prisma.cajaBanco.findFirst({ where:{ tenantId:tenant.id, tipo:'CAJA', activo:true } });
   assert.ok(caja);
   const shift = await restaurant.openCashShift(tenant.id, cashier.id, { cajaBancoId:caja.id, saldoInicial:100000 });
@@ -142,6 +140,7 @@ async function main() {
     ID_AC02_waiterToKdsImmediate:true,
     ID_AC03_qrOriginPreserved:true,
     ID_AC04_singleTenantTheme:true,
+    ID_AC04_panelTypographyLocked:true,
     ID_AC05_coreRbacRail:true,
     ID_AC06_realCashDifference:true,
     saleTotal:n(closed.sale.total),
