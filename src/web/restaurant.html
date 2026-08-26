@@ -12,7 +12,7 @@
   <div class="ri-shell">
     <div class="rail-wrap">
       <nav id="rail" class="rail" aria-label="La Riel · navegación por permisos"></nav>
-      <button type="button" id="noticeToggle" class="rail-ticket" aria-label="Abrir avisos operativos"><small>!</small>Avisos</button>
+      <a id="noticeToggle" class="rail-ticket" href="#avisos" aria-label="Abrir avisos operativos">Avisos</a>
       <a class="cc-classic-link" href="/app/dashboard" data-restaurant-admin-link="true" aria-label="Volver a Administración">← Volver a Administración</a>
     </div>
 
@@ -37,7 +37,7 @@
   (()=>{
     const toggle=document.querySelector('#noticeToggle'),panel=document.querySelector('#noticePanel'),close=document.querySelector('#noticeClose');
     if(!toggle||!panel)return;
-    toggle.addEventListener('click',()=>{if(typeof panel.showModal==='function')panel.showModal();else panel.setAttribute('open','')});
+    toggle.addEventListener('click',e=>{e.preventDefault();if(typeof panel.showModal==='function')panel.showModal();else panel.setAttribute('open','')});
     close?.addEventListener('click',()=>panel.close?.());
     panel.addEventListener('click',e=>{if(e.target===panel)panel.close?.()});
   })();
