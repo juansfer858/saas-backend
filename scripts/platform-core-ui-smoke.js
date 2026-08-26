@@ -21,6 +21,29 @@ for (const token of [
   'anexo técnico vigente'
 ]) assert.ok(tenantUi.includes(token), `Tenant UI debe contener ${token}`);
 
+// Los cuatro cuadros de estado DIAN son controles funcionales del mismo archivo
+// propietario: abren detalle filtrado y permiten volver al resumen sin capas UI.
+for (const token of [
+  'core-dian-metric',
+  "dianMetricCard('invoice'",
+  "dianMetricCard('support'",
+  "dianMetricCard('payroll'",
+  "dianMetricCard('provider'",
+  'function openDianMetric(',
+  'function closeDianMetric(',
+  'id="dianMetricBack"',
+  '← Atrás',
+  'Volver al resumen DIAN',
+  'dianRangeTypes',
+  'dianDocumentMatches',
+  'openPayrollFromDian',
+  'loadDian(state.dianMetric)'
+]) assert.ok(tenantUi.includes(token), `Core transversal debe contener ${token}`);
+
+const tenantScript = tenantUi.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+assert.ok(tenantScript, 'Configuración avanzada debe conservar controlador inline');
+new Function(tenantScript);
+
 for (const token of [
   'Panel SaaS VantixGC',
   'Acceso de plataforma independiente',
@@ -41,5 +64,5 @@ assert.ok(docs.includes('PT real'));
 assert.ok(docs.includes('20 mm'));
 assert.ok(docs.includes('no se etiqueta como mínimo legal DIAN verificado'));
 
-console.log('PLATFORM CORE UI SMOKE OK');
-console.log(JSON.stringify({ tenantAdvancedConfig: true, independentPlatformPanel: true, legalBoundaryDocumented: true }, null, 2));
+console.log('PLATFORM CORE UI + ACTIONABLE DIAN METRICS SMOKE OK');
+console.log(JSON.stringify({ tenantAdvancedConfig: true, dianMetricDrilldowns: true, independentPlatformPanel: true, legalBoundaryDocumented: true }, null, 2));
