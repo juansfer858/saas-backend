@@ -76,10 +76,21 @@ async function createZone(tenantId, input) {
   if (!name) throw new AppError(400, 'El nombre de la zona es obligatorio', 'RESTAURANT_ZONE_NAME_REQUIRED');
   const count = await prisma.restaurantZone.count({ where: { tenantId, active: true } });
   if (count >= MAX_ZONES_PER_TENANT) throw new AppError(409, `Máximo ${MAX_ZONES_PER_TENANT} zonas activas por restaurante`, 'RESTAURANT_ZONE_LIMIT');
-  const duplicate = await prisma.restaurantZone.findFirst({ where: { tenantId, active: true, name: { equals: name, mode: 'insensitive' } } });
-  if (duplicate) throw new AppError(409, 'Ya existe una zona con ese nombre', 'RESTAURANT_ZONE_DUPLICATE');
+
+  const existing = await prisma.restaurantZone.findFirst({
+    where: { tenantId, name: { equals: name, mode: 'insensitive' } }
+  });
+  if (existing?.active) throw new AppError(409, 'Ya existe una zona con ese nombre', 'RESTAURANT_ZONE_DUPLICATE');
+
   const max = await prisma.restaurantZone.aggregate({ where: { tenantId, active: true }, _max: { sortOrder: true } });
-  return prisma.restaurantZone.create({ data: { tenantId, name, sortOrder: Number(max._max.sortOrder || 0) + 10 } });
+  const sortOrder = Number(max._max.sortOrder || 0) + 10;
+  if (existing) {
+    return prisma.restaurantZone.update({
+      where: { id: existing.id },
+      data: { name, active: true, sortOrder }
+    });
+  }
+  return prisma.restaurantZone.create({ data: { tenantId, name, sortOrder } });
 }
 
 async function renameZone(tenantId, id, input) {
@@ -88,9 +99,9 @@ async function renameZone(tenantId, id, input) {
   const name = cleanName(input.name);
   if (!name) throw new AppError(400, 'El nombre de la zona es obligatorio', 'RESTAURANT_ZONE_NAME_REQUIRED');
   const duplicate = await prisma.restaurantZone.findFirst({
-    where: { tenantId, active: true, id: { not: id }, name: { equals: name, mode: 'insensitive' } }
+    where: { tenantId, id: { not: id }, name: { equals: name, mode: 'insensitive' } }
   });
-  if (duplicate) throw new AppError(409, 'Ya existe una zona con ese nombre', 'RESTAURANT_ZONE_DUPLICATE');
+  if (duplicate) throw new AppError(409, 'Ya existe o existió una zona con ese nombre; reactívala desde Crear zona', 'RESTAURANT_ZONE_DUPLICATE');
   return prisma.restaurantZone.update({ where: { id }, data: { name } });
 }
 
