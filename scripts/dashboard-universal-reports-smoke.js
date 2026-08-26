@@ -74,7 +74,8 @@ async function main() {
 
     assert.ok(restaurantHtml.includes('vantixgc_core_origin_v1'));
     assert.ok(restaurantHtml.includes("origin.targetPath!=='/app/centro-de-control'"));
-    assert.ok(restaurantHtml.includes("admin.textContent='← Atrás'"));
+    assert.ok(restaurantHtml.includes("admin.textContent='← Volver a Administración'"));
+    assert.ok(restaurantHtml.includes('data-restaurant-admin-link="true"'));
 
     new Function(dashboard);
     new Function(loader);
