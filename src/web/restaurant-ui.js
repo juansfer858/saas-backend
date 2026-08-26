@@ -8,10 +8,12 @@
   const S = {
     context: null,
     tab: null,
+    zones: [],
     tables: [],
     menu: [],
     commands: [],
     orders: [],
+    selectedZoneId: null,
     selectedTableId: null,
     draft: null,
     cashShiftId: localStorage.getItem(SHIFT_KEY) || null,
@@ -99,13 +101,21 @@
     renderRail();
   }
 
+  async function loadZones() {
+    S.zones = await api('/api/v1/restaurante/zonas');
+    if (!Array.isArray(S.zones)) S.zones = [];
+    if (!S.selectedZoneId || !S.zones.some((zone) => zone.id === S.selectedZoneId)) S.selectedZoneId = S.zones[0]?.id || null;
+    return S.zones;
+  }
   async function loadTables() {
     S.tables = await api('/api/v1/restaurante/mesas');
     if (!S.selectedTableId || !S.tables.some((x) => x.id === S.selectedTableId)) S.selectedTableId = S.tables[0]?.id || null;
     return S.tables;
   }
   async function loadMenu() { S.menu = await api('/api/v1/restaurante/menu'); return S.menu; }
+  function selectedZone() { return S.zones.find((zone) => zone.id === S.selectedZoneId) || null; }
   function selectedTable() { return S.tables.find((x) => x.id === S.selectedTableId) || null; }
+  function tablesInSelectedZone() { return S.tables.filter((table) => table.zoneId === S.selectedZoneId); }
 
   function tableTicket(table) {
     const active = table.activeSession;
@@ -115,20 +125,28 @@
     const selectAction = active && can('PEDIDOS.CREAR') ? `<button class="ri-btn small" data-select-table="${table.id}">Pedido</button>` : '';
     return `<article class="table-ticket ${table.state}" data-table="${table.id}" style="left:${Number(table.posX)}px;top:${Number(table.posY)}px;width:${Number(table.width)}px;height:${Number(table.height)}px">
       <div><div class="table-state">${esc(stateText)}</div><div class="table-name">${esc(table.name)}</div>${sale ? `<div class="table-total">${money(sale.total)}</div><div class="table-meta">${esc(sale.estado)} · ${esc(sale.numero || '')}</div>` : `<div class="table-meta">${table.seats} puestos</div>`}</div>
-      <div class="table-actions">${openAction}${selectAction}<button class="ri-btn small brass" data-show-qr="${table.id}">QR</button>${can('RESTAURANTE.ADMINISTRAR') ? `<button class="ri-btn small danger" data-remove-table="${table.id}">×</button>` : ''}</div>
+      <div class="table-actions">${openAction}${selectAction}<button class="ri-btn small brass" data-show-qr="${table.id}">QR</button>${can('RESTAURANTE.ADMINISTRAR') ? `<button class="ri-btn small danger" data-remove-table="${table.id}" title="Retirar mesa">×</button>` : ''}</div>
     </article>`;
   }
 
   async function renderSalon(fromPoll = false) {
     if (S.dragging && fromPoll) return;
+    await loadZones();
     await loadTables();
-    $('#view').innerHTML = `<div class="ri-grid">
+    const zone = selectedZone();
+    const zoneTables = tablesInSelectedZone();
+    const admin = can('RESTAURANTE.ADMINISTRAR');
+    $('#view').innerHTML = `<section class="ri-card">
+      <div class="ri-toolbar"><div><div class="ri-eyebrow">Organización del salón</div><h1 class="ri-title">Zonas y mesas</h1><p class="ri-muted">Primero elige una zona. Las mesas se crean y se organizan dentro de ella.</p></div>${admin ? '<button class="ri-btn primary push" id="addZone">+ Crear zona</button>' : ''}</div>
+      <div class="ri-actions">${S.zones.map((row) => `<button type="button" class="ri-btn ${row.id === S.selectedZoneId ? 'primary' : ''}" data-zone-id="${row.id}"><span>${esc(row.name)}</span><small>${row.tableCount || 0} mesa(s)${row.openTableCount ? ` · ${row.openTableCount} abiertas` : ''}</small></button>`).join('') || '<div class="empty-ticket">No hay zonas visibles para este usuario.</div>'}</div>
+    </section>
+    ${zone ? `<div class="ri-grid">
       <section class="ri-card">
-        <div class="ri-toolbar"><div><div class="ri-eyebrow">Plano vivo</div><h1 class="ri-title">Salón</h1></div><span class="push ri-muted">Estado derivado de la venta BORRADOR de cada mesa</span>${can('RESTAURANTE.ADMINISTRAR') ? '<button class="ri-btn primary" id="addTable">Agregar mesa</button>' : ''}</div>
-        <div class="floor" id="floor">${S.tables.map(tableTicket).join('') || '<div class="empty-ticket">No hay mesas configuradas.</div>'}</div>
+        <div class="ri-toolbar"><div><div class="ri-eyebrow">Zona activa</div><h2>${esc(zone.name)}</h2><p class="ri-muted">${zoneTables.length} mesa(s) en esta zona.</p></div><div class="ri-actions push">${admin ? '<button class="ri-btn" id="renameZone">Renombrar zona</button>' : ''}${admin && !zoneTables.length && S.zones.length > 1 ? '<button class="ri-btn danger" id="removeZone">Eliminar zona</button>' : ''}${admin ? '<button class="ri-btn primary" id="addTable">+ Agregar mesa</button>' : ''}</div></div>
+        <div class="floor" id="floor">${zoneTables.map(tableTicket).join('') || '<div class="empty-ticket">Esta zona todavía no tiene mesas. Usa “Agregar mesa” para crear la primera.</div>'}</div>
       </section>
-      <aside class="ri-card"><div class="ri-eyebrow">Lectura rápida</div><h2>Estados</h2><div class="status-legend">${['LIBRE','OCUPADA','CUENTA_PEDIDA','RESERVADA'].map((state) => `<div class="status-row"><span class="status-dot ${state}"></span><span>${esc(state.replaceAll('_',' '))}</span><b>${S.tables.filter((x) => x.state === state).length}</b></div>`).join('')}</div><p class="ri-muted">Las mesas se actualizan automáticamente. La posición se guarda en el tenant.</p></aside>
-    </div>`;
+      <aside class="ri-card"><div class="ri-eyebrow">Lectura rápida · ${esc(zone.name)}</div><h2>Estados</h2><div class="status-legend">${['LIBRE','OCUPADA','CUENTA_PEDIDA','RESERVADA'].map((state) => `<div class="status-row"><span class="status-dot ${state}"></span><span>${esc(state.replaceAll('_',' '))}</span><b>${zoneTables.filter((x) => x.state === state).length}</b></div>`).join('')}</div><p class="ri-muted">Cada zona conserva su propio plano. Las mesas existentes fueron asignadas automáticamente a una zona inicial.</p></aside>
+    </div>` : '<section class="ri-card"><div class="empty-ticket">No tienes zonas o mesas asignadas para operar.</div></section>'}`;
     bindSalon();
     if (!fromPoll) {
       stopPoll();
@@ -137,7 +155,16 @@
   }
 
   function bindSalon() {
+    $('#addZone')?.addEventListener('click', addZone);
+    $('#renameZone')?.addEventListener('click', renameZone);
+    $('#removeZone')?.addEventListener('click', removeZone);
     $('#addTable')?.addEventListener('click', addTable);
+    $$('[data-zone-id]').forEach((button) => button.addEventListener('click', () => {
+      S.selectedZoneId = button.dataset.zoneId;
+      const first = S.tables.find((table) => table.zoneId === S.selectedZoneId);
+      if (first) S.selectedTableId = first.id;
+      renderSalon().catch((error) => message(error.message, true));
+    }));
     $$('[data-open-table]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openTable(b.dataset.openTable); }));
     $$('[data-select-table]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); S.selectedTableId = b.dataset.selectTable; setTab('mesero'); }));
     $$('[data-show-qr]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); showQr(b.dataset.showQr); }));
@@ -145,12 +172,49 @@
     if (can('RESTAURANTE.ADMINISTRAR') && matchMedia('(min-width:641px)').matches) bindTableDrag();
   }
 
+  async function addZone() {
+    const name = prompt('Nombre de la nueva zona, por ejemplo Terraza');
+    if (!name?.trim()) return;
+    try {
+      const zone = await api('/api/v1/restaurante/zonas', { method:'POST', body:JSON.stringify({ name:name.trim() }) });
+      S.selectedZoneId = zone.id;
+      message(`Zona “${zone.name}” creada. Ahora puedes agregar sus mesas.`);
+      await renderSalon();
+    } catch (error) { message(error.message, true); }
+  }
+
+  async function renameZone() {
+    const zone = selectedZone();
+    if (!zone) return;
+    const name = prompt('Nuevo nombre de la zona', zone.name);
+    if (!name?.trim() || name.trim() === zone.name) return;
+    try {
+      const saved = await api(`/api/v1/restaurante/zonas/${zone.id}`, { method:'PATCH', body:JSON.stringify({ name:name.trim() }) });
+      message(`Zona renombrada a “${saved.name}”.`);
+      await renderSalon();
+    } catch (error) { message(error.message, true); }
+  }
+
+  async function removeZone() {
+    const zone = selectedZone();
+    if (!zone || !confirm(`¿Eliminar la zona “${zone.name}”? Solo se permite si no tiene mesas.`)) return;
+    try {
+      await api(`/api/v1/restaurante/zonas/${zone.id}`, { method:'DELETE' });
+      S.selectedZoneId = null;
+      message('Zona retirada.');
+      await renderSalon();
+    } catch (error) { message(error.message, true); }
+  }
+
   async function addTable() {
+    const zone = selectedZone();
+    if (!zone) { message('Selecciona o crea una zona antes de agregar una mesa.', true); return; }
     const code = prompt('Código de mesa, por ejemplo M7');
     if (!code) return;
     const name = prompt('Nombre visible', `Mesa ${code.replace(/\D/g, '') || code}`) || code;
     try {
-      await api('/api/v1/restaurante/mesas', { method:'POST', body:JSON.stringify({ code, name, seats:4, posX:30, posY:30 }) });
+      await api('/api/v1/restaurante/mesas', { method:'POST', body:JSON.stringify({ code, name, zoneId:zone.id, seats:4, posX:30, posY:30 }) });
+      message(`Mesa creada dentro de ${zone.name}.`);
       await renderSalon();
     } catch (error) { message(error.message, true); }
   }
@@ -163,7 +227,7 @@
     } catch (error) { message(error.message, true); }
   }
   async function removeTable(id) {
-    if (!confirm('¿Retirar esta mesa del plano?')) return;
+    if (!confirm('¿Retirar esta mesa de la zona?')) return;
     try { await api(`/api/v1/restaurante/mesas/${id}`, { method:'DELETE' }); await renderSalon(); } catch (error) { message(error.message, true); }
   }
   function showQr(id) {
