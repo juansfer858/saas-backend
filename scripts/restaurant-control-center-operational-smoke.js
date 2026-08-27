@@ -76,8 +76,8 @@ async function main() {
   assert.match(shellCss, /\.menu-grid\{[^}]*grid-template-columns:repeat\(auto-fit,minmax\(180px,1fr\)\)!important/);
   assert.match(shellCss, /\.kds-v2-lanes\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(shellCss, /\.order-sheet\{[^}]*position:sticky!important;[^}]*top:92px!important/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.floor\{[^}]*display:grid!important;[^}]*minmax\(155px,1fr\)/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.table-ticket\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-floor\{[^}]*display:grid;[^}]*repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-table\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
   assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.kds-v2-lanes\{grid-template-columns:1fr\}/);
   assert.match(shellCss, /@media\(pointer:coarse\)[\s\S]*?min-height:48px!important/);
   assert.ok(!shellCss.includes('.ri-btn{min-height:39px!important'), 'Operational buttons must not regress to the old small target');
