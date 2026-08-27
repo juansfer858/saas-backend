@@ -1,0 +1,45 @@
+name: Fix Salon Smoke V2 Temp
+
+on:
+  push:
+    branches:
+      - feature/restaurant-tables-qr-v2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/restaurant-tables-qr-v2
+          fetch-depth: 0
+      - name: Patch old Salon assertions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/restaurant-control-center-operational-smoke.js')
+          s = p.read_text()
+          old1 = r"  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.floor\{[^}]*display:grid!important;[^}]*minmax\(155px,1fr\)/);"
+          old2 = r"  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.table-ticket\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);"
+          new1 = r"  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-floor\{[^}]*display:grid;[^}]*repeat\(2,minmax\(0,1fr\)\)/);"
+          new2 = r"  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-table\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);"
+          if old1 not in s or old2 not in s:
+              raise SystemExit('old Salon assertions not found')
+          s = s.replace(old1, new1, 1).replace(old2, new2, 1)
+          p.write_text(s)
+          PY
+          node --check scripts/restaurant-control-center-operational-smoke.js
+          git diff --check
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/restaurant-control-center-operational-smoke.js
+          git commit -m "test(restaurante): actualizar smoke móvil Salón V2"
+          git push origin HEAD:feature/restaurant-tables-qr-v2
