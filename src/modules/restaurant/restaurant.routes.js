@@ -188,10 +188,10 @@ router.post('/mesas/:id/abrir', requirePermission('MESAS.CREAR'), async (req, re
   try { res.status(201).json({ ok: true, data: await service.openTable(req.tenantId, req.user, req.params.id, parse(openTableSchema, req.body || {})) }); } catch (error) { next(error); }
 });
 router.post('/mesas/:id/preparar-cuenta', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.prepareAccount(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await identity.prepareAccount(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
 });
 router.post('/mesas/:id/enviar-caja', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.sendAccountToCash(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await identity.sendAccountToCash(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
 });
 router.post('/mesas/:id/pedir-cuenta', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.requestAccount(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
