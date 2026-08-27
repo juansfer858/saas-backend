@@ -27,7 +27,7 @@ assert.match(app, /app\.get\('\/app\/restaurante'/);
 assert.match(app, /app\.get\('\/r\/:token'/);
 
 assert.match(operator, /restaurant-theme\.css/);
-assert.match(operator, /restaurant-ui\.js\?v=kds-v2/);
+assert.match(operator, /restaurant-ui\.js\?v=salon-qr-v2/);
 assert.match(operator, /<dialog id="noticePanel"/);
 assert.match(operator, /id="noticeToggle"/);
 assert.match(operator, /id="gateInner"/);
@@ -35,26 +35,26 @@ assert.match(operator, /id="edgeStatusSlot"/);
 assert.ok(!operator.includes('id="gate"'), 'Production warning must not reserve a persistent full-width band');
 assert.ok(!operator.includes("insertAdjacentElement('afterend'"), 'Edge status must stay inside the Avisos dialog instead of inserting another band');
 assert.match(operatorUi, /Panel del mesero/);
-assert.match(operatorUi, /Zonas y mesas/);
+assert.match(operatorUi, /OPERACIÓN DEL SALÓN/);
 assert.match(operatorUi, /Cocina \/ Barra/);
 assert.match(operatorUi, /COMANDA SIMULADA — NO IMPRESA EN HARDWARE/);
 assert.match(operatorUi, /Imprimir \/ Guardar PDF/);
 
-// Zona -> Mesas is the canonical salon architecture. Existing tables are
-// backfilled into Salón principal and only Restaurant administrators can mutate zones.
+// Salón V2 keeps zones but separates daily operation, layout editing and QR management.
 for (const token of [
   'selectedZoneId',
   'loadZones',
   '/api/v1/restaurante/zonas',
-  'Organización del salón',
-  'Zonas y mesas',
-  '+ Crear zona',
-  '+ Agregar mesa',
-  'Renombrar zona',
-  'Eliminar zona',
+  'OPERACIÓN DEL SALÓN',
+  'Gestionar zonas',
+  'Gestionar QR',
+  '+ Mesa',
+  'Editar plano',
+  'data-salon-view="PLANO"',
+  'data-salon-view="LISTA"',
   'zoneId:zone.id',
   'tablesInSelectedZone'
-]) assert.ok(operatorUi.includes(token), `Restaurant zones UI must contain ${token}`);
+]) assert.ok(operatorUi.includes(token), `Restaurant Salon V2 UI must contain ${token}`);
 
 assert.match(phase2Schema, /model RestaurantZone \{/);
 assert.match(phase2Schema, /zoneId\s+String\?/);
@@ -79,6 +79,8 @@ assert.match(routes, /router\.get\('\/zonas', requirePermission\('MESAS\.VER'\)/
 assert.match(routes, /router\.post\('\/zonas', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
 assert.match(routes, /router\.patch\('\/zonas\/:id', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
 assert.match(routes, /router\.delete\('\/zonas\/:id', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
+assert.match(routes, /router\.get\('\/mesas\/:id\/qr', requirePermission\('MESAS\.VER'\)/);
+assert.match(routes, /router\.post\('\/mesas\/:id\/qr\/regenerar', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
 assert.match(routes, /zones\.ensureDefaultZone\(req\.tenantId\)/);
 assert.match(routes, /zones\.assignTable/);
 assert.match(routes, /zoneId:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
@@ -144,7 +146,7 @@ assert.match(edgeGate, /RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA/);
 new Function(operatorUi);
 new Function(zonesService);
 
-console.log('RESTAURANT PHASE 2 + ZONAS/MESAS + CAJA V2 + NOTICE DIALOG SMOKE OK');
+console.log('RESTAURANT PHASE 2 + SALÓN/QR V2 + CAJA V2 + NOTICE DIALOG SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
   dynamicProductionBlockedStatus: true,

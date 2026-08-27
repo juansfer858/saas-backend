@@ -31,8 +31,8 @@ async function main() {
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
-  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v7-kds/);
-  assert.match(restaurantHtml, /restaurant-ui\.js\?v=kds-v2/);
+  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v8-salon/);
+  assert.match(restaurantHtml, /restaurant-ui\.js\?v=salon-qr-v2/);
   assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
@@ -76,8 +76,8 @@ async function main() {
   assert.match(shellCss, /\.menu-grid\{[^}]*grid-template-columns:repeat\(auto-fit,minmax\(180px,1fr\)\)!important/);
   assert.match(shellCss, /\.kds-v2-lanes\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(shellCss, /\.order-sheet\{[^}]*position:sticky!important;[^}]*top:92px!important/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.floor\{[^}]*display:grid!important;[^}]*minmax\(155px,1fr\)/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.table-ticket\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-floor\{[^}]*display:grid;[^}]*repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-table\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
   assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.kds-v2-lanes\{grid-template-columns:1fr\}/);
   assert.match(shellCss, /@media\(pointer:coarse\)[\s\S]*?min-height:48px!important/);
   assert.ok(!shellCss.includes('.ri-btn{min-height:39px!important'), 'Operational buttons must not regress to the old small target');
@@ -124,6 +124,18 @@ async function main() {
   assert.match(operationalEngine, /method:'POST'/);
   assert.match(operationalEngine, /method:'PUT'/);
   assert.match(operationalEngine, /method:'PATCH'/);
+
+  // Salón V2 + QR canónico: operación separada de edición, lista/plano y URL pública del servidor.
+  for (const token of [
+    "salonView:", "salonEdit:", 'OPERACIÓN DEL SALÓN', 'Gestionar zonas', 'Gestionar QR', 'Editar plano',
+    'data-salon-view="PLANO"', 'data-salon-view="LISTA"', 'openQrManager', 'showQr', 'regenerateQr',
+    '/mesas/${id}/qr', '/qr/regenerar', '/zonas/${zone.id}/qrs', "api('/api/v1/restaurante/qrs')",
+    'URL pública canónica', 'datos móviles o el Wi-Fi del restaurante', 'qrPrintHtml'
+  ]) assert.ok(operationalEngine.includes(token), `Salon/QR V2 must contain ${token}`);
+  assert.ok(!operationalEngine.includes('location.origin}/r/'), 'Printed table QR must never depend on the current browser origin');
+  assert.match(shellCss, /\/\* Salón V2 — operación de mesas separada de edición y gestión QR\. \*\//);
+  assert.match(shellCss, /\.salon-floor\{[^}]*min-height:560px/);
+  assert.match(shellCss, /\.qr-print-grid\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
 
   // KDS V2: KPIs reales, filtros, sonido, fullscreen, detalle y contexto zona/mesero.
   for (const token of [
@@ -178,8 +190,8 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
-    assert.match(body, /restaurant-ui\.js\?v=kds-v2/);
-    assert.match(body, /restaurant-control-center\.css\?v=workspace-v7-kds/);
+    assert.match(body, /restaurant-ui\.js\?v=salon-qr-v2/);
+    assert.match(body, /restaurant-control-center\.css\?v=workspace-v8-salon/);
     assert.match(body, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);
