@@ -88,6 +88,7 @@ async function main() {
       qrRegenerationInvalidatesOldToken: true
     }, null, 2));
   } finally {
+    await prisma.auditoriaContable.deleteMany({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_TABLE_QR' } });
     await prisma.restaurantTable.deleteMany({ where: { tenantId: tenant.id } });
     await prisma.restaurantZone.deleteMany({ where: { tenantId: tenant.id } });
     await prisma.tenant.delete({ where: { id: tenant.id } });
