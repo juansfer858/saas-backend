@@ -116,22 +116,10 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-{
-  const path = '.github/workflows/super-core-ci.yml';
-  let src = read(path);
-  const marker = "      - name: Validate Restaurant zones and existing-table backfill against PostgreSQL\n        run: node scripts/restaurant-zones-smoke.js\n";
-  const step = "\n      - name: Validate Restaurant Waiter V2 persons and billing workflow against PostgreSQL\n        run: node scripts/restaurant-waiter-v2-smoke.js\n";
-  if (!src.includes('Validate Restaurant Waiter V2 persons and billing workflow against PostgreSQL')) {
-    src = replaceOnce(src, marker, marker + step, 'paso CI Mesero V2');
-  }
-  write(path, src);
-}
-
 for (const path of [
   'scripts/.waiter-v2-render-block.txt',
   'scripts/.waiter-v2-css-block.txt',
-  'scripts/apply-waiter-v2-refactor.js',
-  '.github/workflows/waiter-v2-refactor.yml'
+  'scripts/apply-waiter-v2-refactor.js'
 ]) {
   try { fs.unlinkSync(path); } catch {}
 }
