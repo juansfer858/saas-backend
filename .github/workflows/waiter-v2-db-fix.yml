@@ -1,0 +1,39 @@
+name: Apply Waiter V2 DB Fix
+
+on:
+  push:
+    branches:
+      - feature/restaurant-waiter-v2
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/restaurant-waiter-v2
+          fetch-depth: 0
+      - name: Fix invalid commercial detail ordering
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/modules/restaurant/restaurant-identity.service.js')
+          s=p.read_text()
+          old="include: { detalles: { orderBy: { creadoEn: 'asc' } } }"
+          if old not in s:
+              raise SystemExit('expected invalid detalle ordering not found')
+          s=s.replace(old, "include: { detalles: true }", 1)
+          p.write_text(s)
+          PY
+          node -e "require('./src/modules/restaurant/restaurant-identity.service'); console.log('WAITER_DB_FIX_LOAD_OK')"
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/modules/restaurant/restaurant-identity.service.js
+          git commit -m "fix(restaurante): corregir carga de borrador Mesero V2"
+          git push origin HEAD:feature/restaurant-waiter-v2
