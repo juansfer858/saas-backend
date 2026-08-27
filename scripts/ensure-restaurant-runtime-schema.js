@@ -22,13 +22,41 @@ async function readRestaurantSchemaState() {
       ) AS "tableZoneId",
       to_regclass('public."RestaurantMenuItem"')::text AS "menuItem",
       to_regclass('public."RestaurantTableSession"')::text AS "session",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'billingMode'
+      ) AS "sessionBillingMode",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'accountPreparedAt'
+      ) AS "sessionAccountPreparedAt",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'cashierRequestedAt'
+      ) AS "sessionCashierRequestedAt",
       to_regclass('public."RestaurantOrder"')::text AS "order",
       to_regclass('public."RestaurantOrderItem"')::text AS "orderItem",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantOrderItem'
+          AND column_name = 'seatNumber'
+      ) AS "orderItemSeatNumber",
       to_regclass('public."RestaurantCommand"')::text AS "command",
       to_regclass('public."RestaurantFiscalDocument"')::text AS "fiscalDocument"
   `);
   const state = rows?.[0] || {};
-  const required = ['config', 'zone', 'table', 'tableZoneId', 'menuItem', 'session', 'order', 'orderItem', 'command', 'fiscalDocument'];
+  const required = [
+    'config', 'zone', 'table', 'tableZoneId', 'menuItem', 'session',
+    'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt',
+    'order', 'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument'
+  ];
   const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };
 }
