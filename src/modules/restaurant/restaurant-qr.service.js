@@ -51,7 +51,6 @@ async function materialize(table, zoneName = null) {
     tableName: table.name,
     zoneId: table.zoneId || null,
     zoneName: zoneName || 'Sin zona',
-    token: table.qrToken,
     url,
     svg: await svgForUrl(url)
   };
@@ -72,10 +71,23 @@ async function tableMaterial(tenantId, user, tableId) {
   return rows[0];
 }
 
-async function regenerateTableQr(tenantId, tableId) {
-  const table = await prisma.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
-  if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
-  const updated = await prisma.restaurantTable.update({ where: { id: table.id }, data: { qrToken: crypto.randomUUID() } });
+async function regenerateTableQr(tenantId, userId, tableId) {
+  const updated = await prisma.$transaction(async (tx) => {
+    const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
+    if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
+    const row = await tx.restaurantTable.update({ where: { id: table.id }, data: { qrToken: crypto.randomUUID() } });
+    await tx.auditoriaContable.create({
+      data: {
+        tenantId,
+        userId: userId || null,
+        entidad: 'RESTAURANT_TABLE_QR',
+        entidadId: table.id,
+        accion: 'REGENERATE',
+        metadata: { tableCode: table.code, tableName: table.name, regeneratedAt: new Date().toISOString() }
+      }
+    });
+    return row;
+  });
   const zones = await zoneNames(tenantId, [updated.zoneId]);
   return materialize(updated, zones.get(updated.zoneId) || null);
 }
