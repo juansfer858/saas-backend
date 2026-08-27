@@ -110,7 +110,7 @@ async function loadDraft(tenantId, orderId, client = prisma) {
   if (!order) return null;
   const sale = await client.comprobanteComercial.findFirst({
     where: { id: order.session.saleId, tenantId },
-    include: { detalles: { orderBy: { creadoEn: 'asc' } } }
+    include: { detalles: true }
   });
   return { order, sale };
 }
