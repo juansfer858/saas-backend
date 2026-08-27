@@ -25,6 +25,7 @@ jobs:
         run: |
           npm install qrcode@1.5.4 --save
           python3 scripts/apply-salon-qr-v2-temp.py
+          npm run build
           node - <<'NODE'
           const fs=require('node:fs');
           new Function(fs.readFileSync('src/web/restaurant-ui.js','utf8'));
