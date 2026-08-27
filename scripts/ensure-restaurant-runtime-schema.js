@@ -11,7 +11,15 @@ async function readRestaurantSchemaState() {
   const rows = await prisma.$queryRawUnsafe(`
     SELECT
       to_regclass('public."RestaurantConfig"')::text AS "config",
+      to_regclass('public."RestaurantZone"')::text AS "zone",
       to_regclass('public."RestaurantTable"')::text AS "table",
+      EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTable'
+          AND column_name = 'zoneId'
+      ) AS "tableZoneId",
       to_regclass('public."RestaurantMenuItem"')::text AS "menuItem",
       to_regclass('public."RestaurantTableSession"')::text AS "session",
       to_regclass('public."RestaurantOrder"')::text AS "order",
@@ -20,7 +28,8 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantFiscalDocument"')::text AS "fiscalDocument"
   `);
   const state = rows?.[0] || {};
-  const ready = ['config', 'table', 'menuItem', 'session', 'order', 'orderItem', 'command', 'fiscalDocument'].every((key) => Boolean(state[key]));
+  const required = ['config', 'zone', 'table', 'tableZoneId', 'menuItem', 'session', 'order', 'orderItem', 'command', 'fiscalDocument'];
+  const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };
 }
 

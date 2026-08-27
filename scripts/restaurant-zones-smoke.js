@@ -2,8 +2,14 @@ const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const restaurant = require('../src/modules/restaurant/restaurant.service');
 const zones = require('../src/modules/restaurant/restaurant-zones.service');
+const { readRestaurantSchemaState } = require('./ensure-restaurant-runtime-schema');
 
 async function main() {
+  const schemaState = await readRestaurantSchemaState();
+  assert.equal(schemaState.ready, true, 'Restaurant runtime schema readiness must include zones');
+  assert.ok(schemaState.state.zone, 'RestaurantZone table must be part of runtime readiness');
+  assert.equal(schemaState.state.tableZoneId, true, 'RestaurantTable.zoneId must be part of runtime readiness');
+
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
     data: {
@@ -59,6 +65,7 @@ async function main() {
 
     console.log('RESTAURANT ZONES POSTGRESQL SMOKE OK');
     console.log(JSON.stringify({
+      runtimeSchemaIncludesZones: true,
       defaultZone: defaultZone.name,
       legacyBackfilled: true,
       explicitZoneAssignment: true,
