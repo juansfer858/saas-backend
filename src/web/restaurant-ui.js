@@ -18,6 +18,12 @@
     waiterSeat: 1,
     waiterCategory: 'ENTRADAS',
     waiterSearch: '',
+    kdsFilter: 'ALL',
+    kdsZone: 'ALL',
+    kdsWaiter: 'ALL',
+    kdsSearch: '',
+    kdsSoundEnabled: localStorage.getItem('restaurant_kds_sound_v1') !== 'off',
+    kdsKnownIds: new Set(),
     draft: null,
     cashShiftId: localStorage.getItem(SHIFT_KEY) || null,
     cashMetric: null,
@@ -554,39 +560,197 @@
     } catch (error) { message(error.message,true); }
   }
 
+  const KDS_OVERDUE_MINUTES = 12;
+
   function commandItems(command) { return (command.order?.items || []).filter((x) => x.station === command.station); }
-  function commandCard(command) {
+  function kdsAgeMinutes(command) {
+    const created = new Date(command?.creadoEn || 0).getTime();
+    if (!Number.isFinite(created) || !created) return 0;
+    return Math.max(0, Math.floor((Date.now() - created) / 60000));
+  }
+  function kdsAgeLabel(command) {
+    const minutes = kdsAgeMinutes(command);
+    if (minutes < 1) return 'ahora';
+    if (minutes < 60) return `hace ${minutes} min`;
+    return `hace ${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  }
+  function kdsIsLate(command) {
+    return ['PENDIENTE','EN_PREPARACION'].includes(String(command?.state || '')) && kdsAgeMinutes(command) >= KDS_OVERDUE_MINUTES;
+  }
+  function kdsStatus(command) {
+    if (kdsIsLate(command)) return { key:'ATRASADA', label:'ATRASADA' };
+    if (command.state === 'PENDIENTE') return { key:'PENDIENTE', label:'PENDIENTE' };
+    if (command.state === 'EN_PREPARACION') return { key:'EN_PREPARACION', label:'EN PREPARACIÓN' };
+    if (command.state === 'LISTA') return { key:'LISTA', label:'LISTA' };
+    return { key:String(command.state || ''), label:String(command.state || '').replaceAll('_',' ') };
+  }
+  function kdsZoneLabel(command) { return command.order?.session?.table?.zone?.name || 'Sin zona'; }
+  function kdsWaiterLabel(command) {
+    if (String(command.order?.source || '').toUpperCase() === 'QR') return 'Cliente · QR';
+    return command.waiter?.nombre || 'Mesero';
+  }
+  function kdsOrderLabel(command) { return `#${String(command.order?.id || command.id || '').slice(0, 6).toUpperCase()}`; }
+  function kdsStationIcon(station) { return station === 'COCINA' ? '♨' : station === 'BARRA' ? '▥' : '♢'; }
+  function kdsStations() {
+    const role = String(S.context?.user?.rol || '').toUpperCase();
+    if (['COCINA','BARRA','POSTRES'].includes(role)) return [role];
+    return ['COCINA','BARRA','POSTRES'];
+  }
+  function kdsVisibleCommands() { return S.commands.filter((row) => !['ENTREGADA','CANCELADA'].includes(String(row.state || ''))); }
+  function kdsUnique(rows, getter) { return [...new Set(rows.map(getter).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), 'es')); }
+  function kdsMatches(command) {
+    if (S.kdsFilter !== 'ALL' && command.state !== S.kdsFilter) return false;
+    if (S.kdsZone !== 'ALL' && kdsZoneLabel(command) !== S.kdsZone) return false;
+    if (S.kdsWaiter !== 'ALL' && kdsWaiterLabel(command) !== S.kdsWaiter) return false;
+    const search = String(S.kdsSearch || '').trim().toLocaleLowerCase('es');
+    if (!search) return true;
+    const haystack = [
+      command.order?.session?.table?.name,
+      kdsZoneLabel(command), kdsWaiterLabel(command), command.order?.id, command.id,
+      ...commandItems(command).map((item) => item.description),
+      ...commandItems(command).map((item) => item.notes)
+    ].filter(Boolean).join(' ').toLocaleLowerCase('es');
+    return haystack.includes(search);
+  }
+  function kdsKpis(rows) {
+    const active = rows.filter((row) => ['PENDIENTE','EN_PREPARACION','LISTA'].includes(row.state));
+    const average = active.length ? Math.round(active.reduce((sum,row) => sum + kdsAgeMinutes(row), 0) / active.length) : 0;
+    return {
+      pending: rows.filter((row) => row.state === 'PENDIENTE').length,
+      preparing: rows.filter((row) => row.state === 'EN_PREPARACION').length,
+      ready: rows.filter((row) => row.state === 'LISTA').length,
+      late: rows.filter(kdsIsLate).length,
+      average
+    };
+  }
+  function kdsFocusSnapshot() {
+    const active = document.activeElement;
+    if (!active?.id || !['kdsSearch','kdsZoneFilter','kdsWaiterFilter'].includes(active.id)) return null;
+    return { id:active.id, start:active.selectionStart, end:active.selectionEnd };
+  }
+  function kdsRestoreFocus(snapshot) {
+    if (!snapshot) return;
+    const node = document.getElementById(snapshot.id);
+    if (!node) return;
+    node.focus();
+    if (typeof node.setSelectionRange === 'function' && Number.isInteger(snapshot.start)) node.setSelectionRange(snapshot.start, snapshot.end ?? snapshot.start);
+  }
+  function playKdsTone() {
+    if (!S.kdsSoundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+      oscillator.connect(gain); gain.connect(ctx.destination);
+      oscillator.start(); oscillator.stop(ctx.currentTime + 0.2);
+      oscillator.onended = () => ctx.close?.();
+    } catch {}
+  }
+  function kdsRememberCommands(rows, fromPoll) {
+    const current = new Set(rows.filter((row) => !['ENTREGADA','CANCELADA'].includes(row.state)).map((row) => row.id));
+    const hadKnown = S.kdsKnownIds.size > 0;
+    const hasNew = fromPoll && hadKnown && [...current].some((id) => !S.kdsKnownIds.has(id));
+    S.kdsKnownIds = current;
+    if (hasNew) playKdsTone();
+  }
+  function kdsMetricCard(icon, label, value, extraClass = '') {
+    return `<article class="kds-kpi ${extraClass}"><span class="kds-kpi-icon">${icon}</span><div><small>${label}</small><b>${value}</b></div></article>`;
+  }
+  function kdsCommandCard(command) {
     const items = commandItems(command);
-    const qr = command.order?.source === 'QR';
-    return `<article class="command-ticket"><div class="command-top"><div><div class="command-table">${esc(command.order?.session?.table?.name || 'Mesa')}</div><span class="${qr ? 'origin-qr' : 'origin-waiter'}">${qr ? '📱 vía autopedido QR' : 'Tomado por mesero'}</span></div><div><div class="command-time">${new Date(command.creadoEn).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</div><span class="state-stamp ${command.state}">${esc(command.state.replaceAll('_',' '))}</span></div></div>${items.map((item) => `<div class="command-item"><b>${esc(item.quantity)}×</b> ${esc(item.description)}${item.notes ? ` · <small>${esc(item.notes)}</small>` : ''}</div>`).join('')}<div class="ri-actions">${command.state === 'PENDIENTE' ? `<button class="ri-btn small secondary" data-command="${command.id}" data-command-state="EN_PREPARACION">Preparar</button>` : ''}${command.state === 'EN_PREPARACION' ? `<button class="ri-btn small primary" data-command="${command.id}" data-command-state="LISTA">Marcar listo</button>` : ''}${command.state === 'LISTA' ? `<button class="ri-btn small" data-command="${command.id}" data-command-state="ENTREGADA">Entregar</button>` : ''}<button class="ri-btn small" data-print-command="${command.id}">PDF</button></div></article>`;
+    const status = kdsStatus(command);
+    const late = kdsIsLate(command);
+    const table = command.order?.session?.table?.name || 'Mesa';
+    const zone = kdsZoneLabel(command);
+    const waiter = kdsWaiterLabel(command);
+    const cardClass = command.state === 'LISTA' ? 'kds-ready' : command.state === 'EN_PREPARACION' ? 'kds-preparing' : 'kds-pending';
+    let actions = '';
+    if (command.state === 'PENDIENTE') actions = `<button class="ri-btn primary" data-command="${command.id}" data-command-state="EN_PREPARACION">♨ Tomar</button><button class="ri-btn" data-kds-detail="${command.id}">☷ Ver detalle</button>`;
+    if (command.state === 'EN_PREPARACION') actions = `<button class="ri-btn primary kds-wide-action" data-command="${command.id}" data-command-state="LISTA">✓ Marcar listo</button><button class="ri-btn" data-kds-detail="${command.id}">☷ Ver detalle</button>`;
+    if (command.state === 'LISTA') actions = `<div class="kds-ready-notice">✓ Mesero avisado en vivo</div><button class="ri-btn" data-command="${command.id}" data-command-state="ENTREGADA">Marcar entregada</button><button class="ri-btn" data-kds-detail="${command.id}">☷ Ver detalle</button>`;
+    return `<article class="kds-command-card ${cardClass} ${late ? 'kds-overdue' : ''}" data-kds-command="${command.id}">
+      <div class="kds-card-top"><div><b>${esc(table)} · ${esc(zone)}</b><small>${esc(waiter)} · ${esc(kdsAgeLabel(command))}</small></div><div class="kds-card-status"><small>Pedido ${esc(kdsOrderLabel(command))}</small><span class="state-stamp ${status.key}">${status.label}</span></div></div>
+      <div class="kds-items">${items.map((item) => `<div class="kds-item"><span><b>${esc(item.quantity)}×</b> ${esc(item.description)}</span>${item.notes ? `<em>${esc(item.notes)}</em>` : ''}</div>`).join('') || '<div class="empty-ticket">Sin productos visibles en esta estación.</div>'}</div>
+      <div class="kds-card-actions">${actions}</div>
+    </article>`;
+  }
+  function kdsLaneMarkup(station, rows) {
+    const stationRows = rows.filter((row) => row.station === station);
+    return `<section class="kds-v2-lane" data-station="${station}"><header><div><span class="kds-station-icon">${kdsStationIcon(station)}</span><h2>${esc(station.replaceAll('_',' '))}</h2></div><span class="kds-count">${stationRows.length} comanda(s)</span></header><div class="kds-lane-scroll">${stationRows.map(kdsCommandCard).join('') || `<div class="kds-empty"><b>Sin comandas pendientes</b><span>Los nuevos pedidos de ${esc(station.toLowerCase())} aparecerán aquí automáticamente.</span></div>`}</div></section>`;
+  }
+  function kdsDetailMarkup(command) {
+    const status = kdsStatus(command);
+    const table = command.order?.session?.table?.name || 'Mesa';
+    return `<div class="kds-detail-head"><div><div class="ri-eyebrow">Detalle de comanda</div><h2>${esc(table)} · ${esc(kdsZoneLabel(command))}</h2><p class="ri-muted">${esc(kdsWaiterLabel(command))} · ${esc(kdsAgeLabel(command))} · Pedido ${esc(kdsOrderLabel(command))}</p></div><button type="button" class="ri-btn" data-kds-close>Cerrar</button></div><span class="state-stamp ${status.key}">${status.label}</span><div class="kds-detail-items">${commandItems(command).map((item) => `<div><b>${esc(item.quantity)}× ${esc(item.description)}</b>${item.notes ? `<span>Nota: ${esc(item.notes)}</span>` : ''}</div>`).join('')}</div><div class="ri-actions"><button type="button" class="ri-btn" data-kds-print="${command.id}">PDF / Imprimir</button></div>`;
+  }
+  function openKdsDetail(id) {
+    const command = S.commands.find((row) => row.id === id);
+    const dialog = $('#kdsDetailDialog');
+    if (!command || !dialog) return;
+    dialog.innerHTML = kdsDetailMarkup(command);
+    dialog.querySelector('[data-kds-close]')?.addEventListener('click', () => dialog.close?.());
+    dialog.querySelector('[data-kds-print]')?.addEventListener('click', () => printCommand(command));
+    if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open','');
   }
 
-  async function renderKds(fromPoll = false) {
-    S.commands = await api('/api/v1/restaurante/comandas?limit=200');
-    const visible = S.commands.filter((x) => !['ENTREGADA','CANCELADA'].includes(x.state));
-    let stations = can('RESTAURANTE.ADMINISTRAR') ? ['COCINA','BARRA','POSTRES'] : [...new Set(visible.map((x) => x.station))];
-    if (!stations.length) stations = ['MI ESTACIÓN'];
-    $('#view').innerHTML = `<div class="kds-head"><div><div class="ri-eyebrow">Producción viva</div><h1 class="ri-title">Cocina / Barra</h1></div><div class="ri-muted">Actualización automática cada ${Math.round((S.context.polling.kdsMs || 2000)/1000)} s · sin recargar</div></div><div class="kds-lanes">${stations.map((station) => {
-      const rows = station === 'MI ESTACIÓN' ? [] : visible.filter((x) => x.station === station);
-      return `<section class="kds-lane" data-station="${station}"><div class="kds-lane-count">${rows.length} comanda(s)</div><h2 class="kds-lane-title">${esc(station.replace('_',' '))}</h2>${rows.map(commandCard).join('') || '<div class="empty-ticket">Sin comandas pendientes.</div>'}</section>`;
-    }).join('')}</div>`;
+  async function renderKds(fromPoll = false, localOnly = false) {
+    const focus = kdsFocusSnapshot();
+    if (!localOnly) {
+      const rows = await api('/api/v1/restaurante/comandas?limit=200');
+      kdsRememberCommands(rows, fromPoll);
+      S.commands = rows;
+    }
+    const visible = kdsVisibleCommands();
+    const filtered = visible.filter(kdsMatches);
+    const kpis = kdsKpis(visible);
+    const zones = kdsUnique(visible, kdsZoneLabel);
+    const waiters = kdsUnique(visible, kdsWaiterLabel);
+    if (S.kdsZone !== 'ALL' && !zones.includes(S.kdsZone)) S.kdsZone = 'ALL';
+    if (S.kdsWaiter !== 'ALL' && !waiters.includes(S.kdsWaiter)) S.kdsWaiter = 'ALL';
+    const seconds = Math.max(1, Math.round((S.context.polling.kdsMs || 2000) / 1000));
+    $('#view').innerHTML = `<section class="kds-v2">
+      <header class="kds-v2-header"><div><div class="ri-eyebrow">PRODUCCIÓN EN VIVO</div><h1 class="ri-title">Cocina / Barra</h1></div><div class="kds-v2-header-right"><span class="cc-live-pill">Actualización automática cada ${seconds} s · En vivo</span><div class="kds-header-actions"><button type="button" class="ri-btn" id="kdsRefresh">↻ Actualizar</button><button type="button" class="ri-btn" id="kdsSound">${S.kdsSoundEnabled ? '🔊 Sonido ON' : '🔇 Sonido OFF'}</button><button type="button" class="ri-btn" id="kdsFullscreen">${document.fullscreenElement ? 'Salir pantalla completa' : '⛶ Pantalla completa'}</button></div></div></header>
+      <div class="kds-kpis">${kdsMetricCard('▤','Pendientes',kpis.pending)}${kdsMetricCard('♨','En preparación',kpis.preparing)}${kdsMetricCard('✓','Listas',kpis.ready,'ready')}${kdsMetricCard('◷','Atrasadas',kpis.late,'late')}${kdsMetricCard('◴','Tiempo prom.',`${kpis.average} min`,'time')}</div>
+      <div class="kds-filterbar"><div class="kds-state-filters">${[['ALL','Todas'],['PENDIENTE','Pendientes'],['EN_PREPARACION','En preparación'],['LISTA','Listas']].map(([value,label]) => `<button type="button" class="ri-btn ${S.kdsFilter === value ? 'primary' : ''}" data-kds-filter="${value}">${label}</button>`).join('')}</div><select id="kdsZoneFilter" class="ri-select"><option value="ALL">Zona · Todas</option>${zones.map((zone) => `<option value="${esc(zone)}" ${S.kdsZone === zone ? 'selected' : ''}>${esc(zone)}</option>`).join('')}</select><select id="kdsWaiterFilter" class="ri-select"><option value="ALL">Mesero · Todos</option>${waiters.map((waiter) => `<option value="${esc(waiter)}" ${S.kdsWaiter === waiter ? 'selected' : ''}>${esc(waiter)}</option>`).join('')}</select><label class="kds-search"><span>⌕</span><input id="kdsSearch" class="ri-input" value="${esc(S.kdsSearch)}" placeholder="Buscar mesa o pedido"></label></div>
+      <div class="kds-v2-lanes">${kdsStations().map((station) => kdsLaneMarkup(station, filtered)).join('')}</div>
+      <dialog id="kdsDetailDialog" class="kds-detail-dialog ri-card"></dialog>
+    </section>`;
     bindKds();
+    kdsRestoreFocus(focus);
     if (!fromPoll) {
       stopPoll();
       S.poll = setInterval(() => { if (S.tab === 'kds') renderKds(true).catch(() => {}); }, S.context.polling.kdsMs || 2000);
     }
   }
   function bindKds() {
-    $$('[data-command]').forEach((b) => b.addEventListener('click', () => setCommand(b.dataset.command, b.dataset.commandState)));
-    $$('[data-print-command]').forEach((b) => b.addEventListener('click', () => printCommand(S.commands.find((x) => x.id === b.dataset.printCommand))));
+    $$('[data-command]').forEach((button) => button.addEventListener('click', () => setCommand(button.dataset.command, button.dataset.commandState)));
+    $$('[data-kds-detail]').forEach((button) => button.addEventListener('click', () => openKdsDetail(button.dataset.kdsDetail)));
+    $$('[data-kds-filter]').forEach((button) => button.addEventListener('click', () => { S.kdsFilter = button.dataset.kdsFilter; renderKds(true, true).catch((error) => message(error.message, true)); }));
+    $('#kdsZoneFilter')?.addEventListener('change', (event) => { S.kdsZone = event.target.value; renderKds(true, true).catch((error) => message(error.message, true)); });
+    $('#kdsWaiterFilter')?.addEventListener('change', (event) => { S.kdsWaiter = event.target.value; renderKds(true, true).catch((error) => message(error.message, true)); });
+    $('#kdsSearch')?.addEventListener('input', (event) => { S.kdsSearch = event.target.value; renderKds(true, true).catch((error) => message(error.message, true)); });
+    $('#kdsRefresh')?.addEventListener('click', () => renderKds(true).catch((error) => message(error.message, true)));
+    $('#kdsSound')?.addEventListener('click', () => { S.kdsSoundEnabled = !S.kdsSoundEnabled; localStorage.setItem('restaurant_kds_sound_v1', S.kdsSoundEnabled ? 'on' : 'off'); if (S.kdsSoundEnabled) playKdsTone(); renderKds(true, true).catch(() => {}); });
+    $('#kdsFullscreen')?.addEventListener('click', async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); await renderKds(true, true); } catch (error) { message('Pantalla completa no está disponible en este dispositivo.', true); } });
+    $('#kdsDetailDialog')?.addEventListener('click', (event) => { if (event.target.id === 'kdsDetailDialog') event.target.close?.(); });
   }
   async function setCommand(id, state) {
     try {
       const result = await api(`/api/v1/restaurante/comandas/${id}`, { method:'PATCH', body:JSON.stringify({ state }) });
-      if (result.notification?.queued) message('Pedido listo; notificación WhatsApp encolada.');
+      if (state === 'LISTA') message('Comanda lista. El Mesero V2 la verá en su panel en vivo.');
+      else if (state === 'ENTREGADA') message('Comanda entregada y retirada del tablero.');
+      else message('Comanda tomada. Producción actualizada.');
+      if (result.notification?.queued) message('Pedido listo; notificación al cliente también fue encolada.');
       await renderKds(true);
     } catch (error) { message(error.message, true); }
   }
+
   function printCommand(command) {
     if (!command) return;
     const items = commandItems(command);
