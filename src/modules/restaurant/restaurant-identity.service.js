@@ -55,15 +55,36 @@ async function listTablesLive(tenantId, user) {
   });
 }
 
+function assertWaiterSessionAccess(user, session) {
+  if (user?.rol === 'MESERO' && session?.table?.assignedWaiterId !== user.id) {
+    throw new AppError(403, 'La mesa no está asignada a este mesero', 'RESTAURANT_WAITER_TABLE_FORBIDDEN');
+  }
+}
+
+function normalizeSeatNumber(session, seatNumber) {
+  if (session.billingMode !== 'INDIVIDUAL') return null;
+  const seat = Number(seatNumber || 1);
+  if (!Number.isInteger(seat) || seat < 1 || seat > Number(session.guestCount || 1)) {
+    throw new AppError(400, 'La persona seleccionada no pertenece a esta mesa', 'RESTAURANT_SEAT_INVALID', {
+      seatNumber: seat,
+      guestCount: session.guestCount
+    });
+  }
+  return seat;
+}
+
+async function sessionOrderIds(tx, tenantId, sessionId) {
+  const rows = await tx.restaurantOrder.findMany({ where: { tenantId, sessionId }, select: { id: true } });
+  return rows.map((row) => row.id);
+}
+
 async function ensureDraftContext(tx, tenantId, user, sessionId, create = true) {
   const session = await tx.restaurantTableSession.findFirst({
     where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
     include: { table: true }
   });
   if (!session) throw new AppError(404, 'Sesión de mesa abierta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
-  if (user?.rol === 'MESERO' && session.table.assignedWaiterId !== user.id) {
-    throw new AppError(403, 'La mesa no está asignada a este mesero', 'RESTAURANT_WAITER_TABLE_FORBIDDEN');
-  }
+  assertWaiterSessionAccess(user, session);
   const sale = await tx.comprobanteComercial.findFirst({
     where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: 'BORRADOR' },
     include: { detalles: true }
@@ -89,19 +110,91 @@ async function loadDraft(tenantId, orderId, client = prisma) {
   if (!order) return null;
   const sale = await client.comprobanteComercial.findFirst({
     where: { id: order.session.saleId, tenantId },
-    include: { detalles: { orderBy: { creadoEn: 'asc' } } }
+    include: { detalles: true }
   });
   return { order, sale };
 }
 
+function serviceItem(item, order) {
+  return {
+    id: item.id,
+    orderId: order.id,
+    orderState: order.state,
+    source: order.source,
+    menuItemId: item.menuItemId,
+    productId: item.productId,
+    saleDetailId: item.saleDetailId,
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    lineTotal: item.lineTotal,
+    station: item.station,
+    seatNumber: item.seatNumber,
+    notes: item.notes,
+    creadoEn: item.creadoEn
+  };
+}
+
+async function sessionServiceSummaryInTx(tx, tenantId, session) {
+  const [orders, sale] = await Promise.all([
+    tx.restaurantOrder.findMany({
+      where: { tenantId, sessionId: session.id, state: { not: 'CANCELADO' } },
+      include: { items: { orderBy: { creadoEn: 'asc' } }, commands: true },
+      orderBy: { creadoEn: 'asc' }
+    }),
+    tx.comprobanteComercial.findFirst({
+      where: { id: session.saleId, tenantId },
+      select: { id: true, numero: true, estado: true, total: true, subtotal: true, ivaTotal: true, impoconsumoTotal: true }
+    })
+  ]);
+
+  const allItems = [];
+  for (const order of orders) for (const item of order.items) allItems.push(serviceItem(item, order));
+  const guestCount = Math.max(Number(session.guestCount || 1), 1);
+  const seats = Array.from({ length: guestCount }, (_, index) => ({
+    seatNumber: index + 1,
+    label: `Persona ${index + 1}`,
+    items: [],
+    total: money(0)
+  }));
+  const unassigned = { items: [], total: money(0) };
+
+  for (const item of allItems) {
+    const seat = Number(item.seatNumber || 0);
+    if (session.billingMode === 'INDIVIDUAL' && Number.isInteger(seat) && seat >= 1 && seat <= guestCount) {
+      const group = seats[seat - 1];
+      group.items.push(item);
+      group.total = money(group.total.plus(item.lineTotal || 0));
+    } else if (session.billingMode === 'INDIVIDUAL') {
+      unassigned.items.push(item);
+      unassigned.total = money(unassigned.total.plus(item.lineTotal || 0));
+    }
+  }
+
+  return {
+    billingMode: session.billingMode,
+    guestCount,
+    accountPreparedAt: session.accountPreparedAt,
+    cashierRequestedAt: session.cashierRequestedAt,
+    accountRequestedAt: session.accountRequestedAt,
+    seats: seats.map((seat) => ({ ...seat, total: seat.total.toString() })),
+    unassigned: { items: unassigned.items, total: unassigned.total.toString() },
+    allItems,
+    total: String(sale?.total || 0),
+    sale,
+    orderCount: orders.filter((order) => order.state !== 'BORRADOR').length,
+    hasDraft: orders.some((order) => order.state === 'BORRADOR' && order.items.length > 0)
+  };
+}
+
 async function getWaiterDraft(tenantId, user, sessionId) {
-  const result = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false);
-    if (!ctx.order) return { order: null, sale: ctx.sale, session: ctx.session };
+    const service = await sessionServiceSummaryInTx(tx, tenantId, ctx.session);
+    if (!ctx.order) return { order: null, sale: ctx.sale, session: ctx.session, service };
     const loaded = await loadDraft(tenantId, ctx.order.id, tx);
-    return { ...loaded, session: ctx.session };
+    return { ...loaded, session: ctx.session, service };
   });
-  return result;
 }
 
 async function resolveMenuLine(tx, tenantId, menuItemId, quantity) {
@@ -132,12 +225,51 @@ function detailValues(line) {
   };
 }
 
-async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantity) {
+async function updateTableServiceSetup(tenantId, user, sessionId, input) {
+  return prisma.$transaction(async (tx) => {
+    const session = await tx.restaurantTableSession.findFirst({
+      where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      include: { table: true }
+    });
+    if (!session) throw new AppError(404, 'Sesión de mesa abierta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
+    assertWaiterSessionAccess(user, session);
+
+    const orderIds = await sessionOrderIds(tx, tenantId, session.id);
+    const existingItem = orderIds.length ? await tx.restaurantOrderItem.findFirst({ where: { tenantId, orderId: { in: orderIds } }, select: { id: true } }) : null;
+    if (input.billingMode && input.billingMode !== session.billingMode && existingItem) {
+      throw new AppError(409, 'El modo de cuenta debe definirse antes de agregar productos. La mesa ya tiene consumos.', 'RESTAURANT_BILLING_MODE_LOCKED');
+    }
+
+    if (input.guestCount !== undefined && orderIds.length) {
+      const highest = await tx.restaurantOrderItem.aggregate({
+        where: { tenantId, orderId: { in: orderIds }, seatNumber: { not: null } },
+        _max: { seatNumber: true }
+      });
+      if (Number(highest._max.seatNumber || 0) > Number(input.guestCount)) {
+        throw new AppError(409, `La Persona ${highest._max.seatNumber} todavía tiene productos. Muévelos antes de reducir el número de personas.`, 'RESTAURANT_GUEST_COUNT_IN_USE');
+      }
+    }
+
+    const updated = await tx.restaurantTableSession.update({
+      where: { id: session.id },
+      data: {
+        billingMode: input.billingMode,
+        guestCount: input.guestCount
+      },
+      include: { table: true }
+    });
+    const service = await sessionServiceSummaryInTx(tx, tenantId, updated);
+    return { session: updated, service };
+  });
+}
+
+async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantity, seatNumber = null) {
   return prisma.$transaction(async (tx) => {
     const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, true);
+    const seat = normalizeSeatNumber(ctx.session, seatNumber);
     const requestedQty = qty(quantity);
     const existing = await tx.restaurantOrderItem.findFirst({
-      where: { tenantId, orderId: ctx.order.id, menuItemId },
+      where: { tenantId, orderId: ctx.order.id, menuItemId, seatNumber: seat }
     });
     const oldDetail = existing ? await tx.detalleComprobante.findFirst({ where: { id: existing.saleDetailId, tenantId, comprobanteId: ctx.sale.id } }) : null;
 
@@ -167,13 +299,24 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
       await tx.detalleComprobante.update({ where: { id: oldDetail.id }, data: detailValues(line) });
       await tx.restaurantOrderItem.update({
         where: { id: existing.id },
-        data: { productId: line.product.id, description: line.product.nombre, quantity: line.q, unitPrice: line.price, lineTotal: line.total, station: line.menu.station }
+        data: {
+          productId: line.product.id,
+          description: line.product.nombre,
+          quantity: line.q,
+          unitPrice: line.price,
+          lineTotal: line.total,
+          station: line.menu.station,
+          seatNumber: seat
+        }
       });
       await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { total: { increment: deltaTotal } } });
       await tx.comprobanteComercial.update({
         where: { id: ctx.sale.id },
         data: {
-          subtotal: { increment: deltaSubtotal }, ivaTotal: { increment: deltaIva }, impoconsumoTotal: { increment: deltaImpoconsumo }, total: { increment: deltaTotal }
+          subtotal: { increment: deltaSubtotal },
+          ivaTotal: { increment: deltaIva },
+          impoconsumoTotal: { increment: deltaImpoconsumo },
+          total: { increment: deltaTotal }
         }
       });
     } else {
@@ -182,17 +325,59 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
       });
       await tx.restaurantOrderItem.create({
         data: {
-          tenantId, orderId: ctx.order.id, menuItemId: line.menu.id, productId: line.product.id, saleDetailId: detail.id,
-          description: line.product.nombre, quantity: line.q, unitPrice: line.price, lineTotal: line.total, station: line.menu.station
+          tenantId,
+          orderId: ctx.order.id,
+          menuItemId: line.menu.id,
+          productId: line.product.id,
+          saleDetailId: detail.id,
+          description: line.product.nombre,
+          quantity: line.q,
+          unitPrice: line.price,
+          lineTotal: line.total,
+          station: line.menu.station,
+          seatNumber: seat
         }
       });
       await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { total: { increment: line.total } } });
       await tx.comprobanteComercial.update({
         where: { id: ctx.sale.id },
-        data: { subtotal: { increment: line.subtotal }, ivaTotal: { increment: line.iva }, impoconsumoTotal: { increment: line.impoconsumo }, total: { increment: line.total } }
+        data: {
+          subtotal: { increment: line.subtotal },
+          ivaTotal: { increment: line.iva },
+          impoconsumoTotal: { increment: line.impoconsumo },
+          total: { increment: line.total }
+        }
       });
     }
     return loadDraft(tenantId, ctx.order.id, tx);
+  });
+}
+
+async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input) {
+  return prisma.$transaction(async (tx) => {
+    const session = await tx.restaurantTableSession.findFirst({
+      where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      include: { table: true }
+    });
+    if (!session) throw new AppError(404, 'Sesión de mesa abierta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
+    assertWaiterSessionAccess(user, session);
+    const item = await tx.restaurantOrderItem.findFirst({
+      where: { id: itemId, tenantId },
+      include: { order: true }
+    });
+    if (!item || item.order.sessionId !== session.id) throw new AppError(404, 'Ítem del pedido no encontrado en esta mesa', 'RESTAURANT_ORDER_ITEM_NOT_FOUND');
+
+    const data = {};
+    if (Object.prototype.hasOwnProperty.call(input, 'seatNumber')) data.seatNumber = normalizeSeatNumber(session, input.seatNumber);
+    if (Object.prototype.hasOwnProperty.call(input, 'notes')) {
+      if (item.order.state !== 'BORRADOR') {
+        throw new AppError(409, 'Las notas de cocina sólo pueden editarse antes de enviar la ronda.', 'RESTAURANT_SENT_ITEM_NOTES_LOCKED');
+      }
+      data.notes = input.notes ? String(input.notes).trim() : null;
+    }
+    const updated = await tx.restaurantOrderItem.update({ where: { id: item.id }, data });
+    const service = await sessionServiceSummaryInTx(tx, tenantId, session);
+    return { item: updated, service };
   });
 }
 
@@ -202,6 +387,11 @@ async function sendWaiterDraft(tenantId, user, sessionId) {
     if (!ctx.order) throw new AppError(409, 'No hay pedido en curso para enviar', 'RESTAURANT_DRAFT_ORDER_NOT_FOUND');
     const items = await tx.restaurantOrderItem.findMany({ where: { tenantId, orderId: ctx.order.id }, orderBy: { creadoEn: 'asc' } });
     if (!items.length) throw new AppError(409, 'Agregue al menos un ítem antes de enviar', 'RESTAURANT_DRAFT_ORDER_EMPTY');
+    if (ctx.session.billingMode === 'INDIVIDUAL') {
+      const invalid = items.find((item) => !Number.isInteger(Number(item.seatNumber)) || Number(item.seatNumber) < 1 || Number(item.seatNumber) > Number(ctx.session.guestCount));
+      if (invalid) throw new AppError(409, 'Asigna cada producto a una persona antes de enviarlo.', 'RESTAURANT_INDIVIDUAL_ITEM_UNASSIGNED');
+    }
+
     const config = await tx.restaurantConfig.upsert({ where: { tenantId }, create: { tenantId }, update: {} });
     const byStation = new Map();
     for (const item of items) {
@@ -221,20 +411,106 @@ async function sendWaiterDraft(tenantId, user, sessionId) {
             watermark: config.printMode === 'SIMULATED_SCREEN' ? 'COMANDA SIMULADA — NO IMPRESA EN HARDWARE' : null,
             generatedAt: new Date().toISOString(),
             table: { id: ctx.session.table.id, code: ctx.session.table.code, name: ctx.session.table.name },
+            billingMode: ctx.session.billingMode,
             orderId: ctx.order.id,
             source: 'MESERO',
             station,
-            items: stationItems.map((item) => ({ description: item.description, quantity: String(item.quantity), notes: item.notes || null }))
+            items: stationItems.map((item) => ({
+              description: item.description,
+              quantity: String(item.quantity),
+              seatNumber: item.seatNumber,
+              seatLabel: item.seatNumber ? `Persona ${item.seatNumber}` : null,
+              notes: item.notes || null
+            }))
           }
         }
       });
     }
     await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { state: 'ENVIADO' } });
-    if (ctx.session.state === 'CUENTA_PEDIDA') {
-      await tx.restaurantTableSession.update({ where: { id: ctx.session.id }, data: { state: 'ABIERTA', accountRequestedAt: null } });
+    if (ctx.session.state === 'CUENTA_PEDIDA' || ctx.session.accountPreparedAt || ctx.session.cashierRequestedAt) {
+      await tx.restaurantTableSession.update({
+        where: { id: ctx.session.id },
+        data: {
+          state: 'ABIERTA',
+          accountPreparedAt: null,
+          cashierRequestedAt: null,
+          accountRequestedAt: null
+        }
+      });
       await tx.restaurantTable.update({ where: { id: ctx.session.tableId }, data: { state: 'OCUPADA' } });
     }
-    return tx.restaurantOrder.findUnique({ where: { id: ctx.order.id }, include: { items: true, commands: true, session: { include: { table: true } } } });
+    return tx.restaurantOrder.findUnique({
+      where: { id: ctx.order.id },
+      include: { items: true, commands: true, session: { include: { table: true } } }
+    });
+  });
+}
+
+async function validateBillReadyInTx(tx, tenantId, user, tableId) {
+  const session = await tx.restaurantTableSession.findFirst({
+    where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+    include: { table: true }
+  });
+  if (!session) throw new AppError(404, 'No hay cuenta abierta para esta mesa', 'RESTAURANT_SESSION_NOT_FOUND');
+  assertWaiterSessionAccess(user, session);
+
+  const orderIds = await sessionOrderIds(tx, tenantId, session.id);
+  const draftOrders = await tx.restaurantOrder.findMany({
+    where: { tenantId, sessionId: session.id, state: 'BORRADOR' },
+    select: { id: true }
+  });
+  if (draftOrders.length) {
+    const draftItem = await tx.restaurantOrderItem.findFirst({ where: { tenantId, orderId: { in: draftOrders.map((row) => row.id) } }, select: { id: true } });
+    if (draftItem) throw new AppError(409, 'Hay productos sin enviar. Envíalos a cocina/barra o retíralos antes de preparar la cuenta.', 'RESTAURANT_UNSENT_DRAFT_ORDER');
+  }
+  if (!orderIds.length) throw new AppError(409, 'La mesa todavía no tiene consumos.', 'RESTAURANT_EMPTY_TABLE_BILL');
+  const item = await tx.restaurantOrderItem.findFirst({ where: { tenantId, orderId: { in: orderIds } }, select: { id: true } });
+  if (!item) throw new AppError(409, 'La mesa todavía no tiene consumos.', 'RESTAURANT_EMPTY_TABLE_BILL');
+
+  const service = await sessionServiceSummaryInTx(tx, tenantId, session);
+  if (session.billingMode === 'INDIVIDUAL' && service.unassigned.items.length) {
+    throw new AppError(409, 'Hay productos sin persona asignada. Asígnalos antes de preparar la cuenta individual.', 'RESTAURANT_INDIVIDUAL_ITEM_UNASSIGNED');
+  }
+  return { session, service };
+}
+
+async function prepareAccount(tenantId, user, tableId) {
+  return prisma.$transaction(async (tx) => {
+    const { session, service } = await validateBillReadyInTx(tx, tenantId, user, tableId);
+    const preparedAt = new Date();
+    const updated = await tx.restaurantTableSession.update({
+      where: { id: session.id },
+      data: { accountPreparedAt: preparedAt },
+      include: { table: true }
+    });
+    return { session: updated, service: { ...service, accountPreparedAt: preparedAt } };
+  });
+}
+
+async function sendAccountToCash(tenantId, user, tableId) {
+  return prisma.$transaction(async (tx) => {
+    const { session, service } = await validateBillReadyInTx(tx, tenantId, user, tableId);
+    const now = new Date();
+    const updated = await tx.restaurantTableSession.update({
+      where: { id: session.id },
+      data: {
+        state: 'CUENTA_PEDIDA',
+        accountPreparedAt: session.accountPreparedAt || now,
+        cashierRequestedAt: now,
+        accountRequestedAt: now
+      },
+      include: { table: true }
+    });
+    await tx.restaurantTable.update({ where: { id: tableId }, data: { state: 'CUENTA_PEDIDA' } });
+    return {
+      session: updated,
+      service: {
+        ...service,
+        accountPreparedAt: updated.accountPreparedAt,
+        cashierRequestedAt: now,
+        accountRequestedAt: now
+      }
+    };
   });
 }
 
@@ -308,8 +584,12 @@ module.exports = {
   uiContext,
   listTablesLive,
   getWaiterDraft,
+  updateTableServiceSetup,
   setWaiterDraftItem,
+  updateOrderItemMeta,
   sendWaiterDraft,
+  prepareAccount,
+  sendAccountToCash,
   closeTableGuarded,
   cashShiftSummary,
   publicQrContext

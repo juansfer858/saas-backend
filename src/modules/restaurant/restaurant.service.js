@@ -227,6 +227,7 @@ async function openTable(tenantId, user, tableId, input = {}) {
         tableId: table.id,
         saleId: document.id,
         openedByUserId: user.id,
+        billingMode: input.billingMode === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'CONJUNTA',
         guestCount: Math.max(Number(input.guestCount) || 1, 1),
         customerPhoneE164: input.customerPhoneE164 ? notifications.normalizePhone(input.customerPhoneE164) : null
       }

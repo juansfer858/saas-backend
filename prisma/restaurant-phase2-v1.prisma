@@ -12,6 +12,11 @@ enum RestaurantSessionState {
   CANCELADA
 }
 
+enum RestaurantBillingMode {
+  CONJUNTA
+  INDIVIDUAL
+}
+
 enum RestaurantOrderSource {
   MESERO
   QR
@@ -144,6 +149,7 @@ model RestaurantTableSession {
   tableId             String
   saleId              String
   state               RestaurantSessionState @default(ABIERTA)
+  billingMode         RestaurantBillingMode  @default(CONJUNTA)
   openedByUserId      String
   closedByUserId      String?
   cashShiftId         String?
@@ -153,6 +159,8 @@ model RestaurantTableSession {
   splitMode           String?
   splitMetadata       Json?
   openedAt            DateTime               @default(now())
+  accountPreparedAt   DateTime?
+  cashierRequestedAt  DateTime?
   accountRequestedAt  DateTime?
   closedAt            DateTime?
   actualizadoEn       DateTime               @updatedAt
@@ -163,6 +171,7 @@ model RestaurantTableSession {
 
   @@unique([tenantId, saleId])
   @@index([tenantId, tableId, state])
+  @@index([tenantId, billingMode, state])
   @@index([tenantId, cashShiftId, closedAt])
 }
 
@@ -201,12 +210,14 @@ model RestaurantOrderItem {
   unitPrice      Decimal           @db.Decimal(18, 2)
   lineTotal      Decimal           @db.Decimal(18, 2)
   station        RestaurantStation
+  seatNumber     Int?
   notes          String?
   creadoEn       DateTime          @default(now())
 
   order          RestaurantOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, orderId])
+  @@index([tenantId, orderId, seatNumber])
   @@index([tenantId, station])
   @@index([saleDetailId])
 }

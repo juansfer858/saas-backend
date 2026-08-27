@@ -31,8 +31,8 @@ async function main() {
   assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
   assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
   assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
-  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v5/);
-  assert.match(restaurantHtml, /restaurant-ui\.js\?v=zones-v1/);
+  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v6/);
+  assert.match(restaurantHtml, /restaurant-ui\.js\?v=waiter-v2/);
   assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
   assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
   assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
@@ -125,13 +125,31 @@ async function main() {
   assert.match(operationalEngine, /method:'PUT'/);
   assert.match(operationalEngine, /method:'PATCH'/);
 
+  // Mesero V2: zona, mesa, cuenta conjunta/individual, personas y envío explícito a Caja.
   for (const token of [
-    'loadSessionOrders', '/api/v1/restaurante/pedidos?sessionId=', 'Servicio de esta mesa', 'Nueva ronda', 'Ronda ${sentOrders.length + 1}',
-    'Listo para entregar', 'Parcialmente listo', 'waiterHistory', 'refreshWaiterHistory', 'No puedes pedir la cuenta con productos sin enviar',
-    'Pedir cuenta · ronda sin enviar', 'La cuenta de esta mesa ya fue solicitada', 'La mesa volvió a servicio activo'
-  ]) assert.ok(operationalEngine.includes(token), `Waiter continuity must contain ${token}`);
-  assert.match(operationalEngine, /S\.poll = setInterval\([\s\S]*refreshWaiterHistory/);
-  assert.match(operationalEngine, /table\.state === 'CUENTA_PEDIDA'/);
+    'waiterSeat: 1',
+    'Panel del mesero',
+    'data-waiter-table',
+    'data-billing-mode=\"CONJUNTA\"',
+    'data-billing-mode=\"INDIVIDUAL\"',
+    '+ Agregar persona',
+    'data-waiter-seat',
+    'data-waiter-move',
+    'data-waiter-note',
+    'Enviar a cocina / barra',
+    'Preparar cuenta',
+    'Enviar a caja',
+    'Imprimir pre-cuenta',
+    '/servicio',
+    '/items/',
+    '/preparar-cuenta',
+    '/enviar-caja',
+    'waiterPrecheckHtml',
+    'waiterProgressMarkup'
+  ]) assert.ok(operationalEngine.includes(token), `Mesero V2 must contain ${token}`);
+  assert.match(shellCss, /\/\* Mesero V2 — zona, mesa, personas, pedido y cuenta en un solo flujo canónico\. \*\//);
+  assert.match(shellCss, /\.waiter-workspace\{[^}]*grid-template-columns:minmax\(0,1\.55fr\) minmax\(390px,\.85fr\)/);
+  assert.match(shellCss, /@media\(max-width:1180px\)[\s\S]*?\.waiter-workspace\{grid-template-columns:1fr\}/);
 
   new Function(shellJs);
   new Function(operationalEngine);
@@ -146,8 +164,8 @@ async function main() {
     assert.equal(control.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
     assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
     assert.match(body, /restaurant-theme\.js/);
-    assert.match(body, /restaurant-ui\.js\?v=zones-v1/);
-    assert.match(body, /restaurant-control-center\.css\?v=workspace-v5/);
+    assert.match(body, /restaurant-ui\.js\?v=waiter-v2/);
+    assert.match(body, /restaurant-control-center\.css\?v=workspace-v6/);
     assert.match(body, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
     assert.match(body, /data-restaurant-admin-link="true"/);
     assert.match(body, /← Volver a Administración/);

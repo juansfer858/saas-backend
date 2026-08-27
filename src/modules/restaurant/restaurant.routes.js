@@ -32,7 +32,15 @@ const tableSchema = z.object({
   state: z.enum(['LIBRE', 'RESERVADA']).optional()
 });
 const tableUpdateSchema = tableSchema.omit({ code: true }).partial().refine((x) => Object.keys(x).length > 0, { message: 'Debe enviar al menos un cambio' });
-const openTableSchema = z.object({ guestCount: z.coerce.number().int().min(1).max(100).default(1), customerPhoneE164: z.string().trim().max(30).optional().nullable() });
+const openTableSchema = z.object({
+  guestCount: z.coerce.number().int().min(1).max(100).default(1),
+  billingMode: z.enum(['CONJUNTA', 'INDIVIDUAL']).optional().default('CONJUNTA'),
+  customerPhoneE164: z.string().trim().max(30).optional().nullable()
+});
+const serviceSetupSchema = z.object({
+  billingMode: z.enum(['CONJUNTA', 'INDIVIDUAL']).optional(),
+  guestCount: z.coerce.number().int().min(1).max(50).optional()
+}).refine((x) => Object.keys(x).length > 0, { message: 'Debe enviar al menos un cambio de servicio' });
 
 const menuSchema = z.object({
   productId: z.string().uuid(),
@@ -46,6 +54,7 @@ const menuSchema = z.object({
 const orderItemSchema = z.object({
   menuItemId: z.string().uuid(),
   quantity: z.coerce.number().positive().max(999),
+  seatNumber: z.coerce.number().int().min(1).max(50).optional().nullable(),
   notes: z.string().trim().max(300).optional().nullable()
 });
 const orderSchema = z.object({
@@ -54,7 +63,14 @@ const orderSchema = z.object({
   customerPhoneE164: z.string().trim().max(30).optional().nullable(),
   externalRequestId: z.string().trim().min(3).max(120).optional().nullable()
 });
-const draftQtySchema = z.object({ quantity: z.coerce.number().min(0).max(999) });
+const draftQtySchema = z.object({
+  quantity: z.coerce.number().min(0).max(999),
+  seatNumber: z.coerce.number().int().min(1).max(50).optional().nullable()
+});
+const orderItemMetaSchema = z.object({
+  seatNumber: z.coerce.number().int().min(1).max(50).optional().nullable(),
+  notes: z.string().trim().max(300).optional().nullable()
+}).refine((x) => Object.keys(x).length > 0, { message: 'Debe enviar al menos un cambio del ítem' });
 
 const equalSplit = z.object({ mode: z.literal('EQUAL'), parts: z.coerce.number().int().min(2).max(50) });
 const itemSplit = z.object({
@@ -171,6 +187,12 @@ router.delete('/mesas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async 
 router.post('/mesas/:id/abrir', requirePermission('MESAS.CREAR'), async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await service.openTable(req.tenantId, req.user, req.params.id, parse(openTableSchema, req.body || {})) }); } catch (error) { next(error); }
 });
+router.post('/mesas/:id/preparar-cuenta', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await identity.prepareAccount(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
+});
+router.post('/mesas/:id/enviar-caja', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await identity.sendAccountToCash(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
+});
 router.post('/mesas/:id/pedir-cuenta', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.requestAccount(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
 });
@@ -179,6 +201,16 @@ router.post('/mesas/:id/cerrar', requirePermission('RESTAURANTE.CERRAR'), async 
 });
 router.get('/sesiones/:id', requirePermission('MESAS.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.getSession(req.tenantId, req.params.id) }); } catch (error) { next(error); }
+});
+router.patch('/sesiones/:sessionId/servicio', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
+  try {
+    res.json({ ok: true, data: await identity.updateTableServiceSetup(req.tenantId, req.user, req.params.sessionId, parse(serviceSetupSchema, req.body)) });
+  } catch (error) { next(error); }
+});
+router.patch('/sesiones/:sessionId/items/:itemId', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
+  try {
+    res.json({ ok: true, data: await identity.updateOrderItemMeta(req.tenantId, req.user, req.params.sessionId, req.params.itemId, parse(orderItemMetaSchema, req.body)) });
+  } catch (error) { next(error); }
 });
 
 router.get('/menu', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
@@ -204,7 +236,7 @@ router.get('/sesiones/:sessionId/pedido-borrador', requirePermission('PEDIDOS.VE
 router.put('/sesiones/:sessionId/pedido-borrador/items/:menuItemId', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
   try {
     const input = parse(draftQtySchema, req.body);
-    res.json({ ok: true, data: await identity.setWaiterDraftItem(req.tenantId, req.user, req.params.sessionId, req.params.menuItemId, input.quantity) });
+    res.json({ ok: true, data: await identity.setWaiterDraftItem(req.tenantId, req.user, req.params.sessionId, req.params.menuItemId, input.quantity, input.seatNumber) });
   } catch (error) { next(error); }
 });
 router.post('/sesiones/:sessionId/pedido-borrador/enviar', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
