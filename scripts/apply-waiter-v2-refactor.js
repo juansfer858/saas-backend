@@ -13,7 +13,6 @@ function replaceRange(content, start, end, replacement, label) {
   return content.slice(0, a) + replacement + '\n\n  ' + content.slice(b);
 }
 
-// 1. Rutas: las nuevas acciones pertenecen al identity service, no al service legado.
 {
   const path = 'src/modules/restaurant/restaurant.routes.js';
   let src = read(path);
@@ -22,7 +21,6 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 2. Apertura de mesa: persistir el modo de cuenta desde el primer momento.
 {
   const path = 'src/modules/restaurant/restaurant.service.js';
   let src = read(path);
@@ -37,7 +35,6 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 3. Mesero V2 dentro del propietario canónico restaurant-ui.js.
 {
   const path = 'src/web/restaurant-ui.js';
   let src = read(path);
@@ -60,7 +57,6 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 4. Estilos del Mesero V2 en el CSS canónico del Centro de Control.
 {
   const path = 'src/web/restaurant-control-center.css';
   let src = read(path);
@@ -69,7 +65,6 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 5. Cache keys nuevas para impedir que el navegador conserve la pantalla anterior.
 {
   const path = 'src/web/restaurant.html';
   let src = read(path);
@@ -78,13 +73,12 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 6. Smoke UI existente: validar la arquitectura nueva y retirar expectativas de la pantalla anterior.
 {
   const path = 'scripts/restaurant-control-center-operational-smoke.js';
   let src = read(path);
   src = src.replaceAll('restaurant-control-center\\.css\\?v=workspace-v5', 'restaurant-control-center\\.css\\?v=workspace-v6');
   src = src.replaceAll('restaurant-ui\\.js\\?v=zones-v1', 'restaurant-ui\\.js\\?v=waiter-v2');
-  const start = '  // Waiter continuity:';
+  const start = "  for (const token of [\n    'loadSessionOrders'";
   const end = '  new Function(shellJs);';
   const block = [
     '  // Mesero V2: zona, mesa, cuenta conjunta/individual, personas y envío explícito a Caja.',
@@ -111,7 +105,7 @@ function replaceRange(content, start, end, replacement, label) {
     '  ]) assert.ok(operationalEngine.includes(token), `Mesero V2 must contain ${token}`);',
     '  assert.match(shellCss, /\\/\\* Mesero V2 — zona, mesa, personas, pedido y cuenta en un solo flujo canónico\\. \\*\\//);',
     '  assert.match(shellCss, /\\.waiter-workspace\\{[^}]*grid-template-columns:minmax\\(0,1\\.55fr\\) minmax\\(390px,\\.85fr\\)/);',
-    '  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.waiter-workspace\\{grid-template-columns:1fr\\}/);',
+    '  assert.match(shellCss, /@media\\(max-width:1180px\\)[\\s\\S]*?\\.waiter-workspace\\{grid-template-columns:1fr\\}/);',
     '',
     ''
   ].join('\n');
@@ -122,7 +116,6 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 7. Añadir el smoke PostgreSQL a Super Core CI inmediatamente después de Zonas.
 {
   const path = '.github/workflows/super-core-ci.yml';
   let src = read(path);
@@ -134,7 +127,6 @@ function replaceRange(content, start, end, replacement, label) {
   write(path, src);
 }
 
-// 8. Retirar todos los artefactos temporales de aplicación del refactor antes del commit final.
 for (const path of [
   'scripts/.waiter-v2-render-block.txt',
   'scripts/.waiter-v2-css-block.txt',
