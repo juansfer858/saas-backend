@@ -11,6 +11,8 @@ async function main() {
   assert.ok(schemaState.state.zone, 'RestaurantZone table must be part of runtime readiness');
   assert.equal(schemaState.state.tableZoneId, true, 'RestaurantTable.zoneId must be part of runtime readiness');
 
+  const previousPublicBaseUrl = process.env.RESTAURANT_PUBLIC_BASE_URL;
+  const previousTenantBaseDomain = process.env.TENANT_BASE_DOMAIN;
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
     data: {
@@ -71,7 +73,15 @@ async function main() {
     assert.equal(reactivated.id, terrace.id);
     assert.equal(reactivated.active, true);
 
+    delete process.env.RESTAURANT_PUBLIC_BASE_URL;
+    delete process.env.TENANT_BASE_DOMAIN;
+    assert.equal(qr.publicBaseUrl(), 'https://core.vantixgc.com', 'missing QR env must fall back to the central VantixGC Core');
+
+    process.env.TENANT_BASE_DOMAIN = 'example.test';
+    assert.equal(qr.publicBaseUrl(), 'https://core.example.test', 'tenant base domain must override the central default');
+
     process.env.RESTAURANT_PUBLIC_BASE_URL = 'https://qr.example.test';
+    assert.equal(qr.publicBaseUrl(), 'https://qr.example.test', 'explicit restaurant public base URL must have highest priority');
     const qrBefore = await qr.tableMaterial(tenant.id, null, legacyTable.id);
     assert.equal(qrBefore.url.startsWith('https://qr.example.test/r/'), true);
     assert.match(qrBefore.svg, /<svg/);
@@ -97,12 +107,18 @@ async function main() {
       explicitZoneAssignment: true,
       zoneWithTablesProtected: true,
       deletedZoneReactivated: true,
+      centralPublicQrFallback: true,
+      tenantDomainQrFallback: true,
       canonicalPublicQr: true,
       qrSvgGeneratedLocally: true,
       qrRegenerationInvalidatesOldToken: true,
       qrRegenerationAudited: true
     }, null, 2));
   } finally {
+    if (previousPublicBaseUrl === undefined) delete process.env.RESTAURANT_PUBLIC_BASE_URL;
+    else process.env.RESTAURANT_PUBLIC_BASE_URL = previousPublicBaseUrl;
+    if (previousTenantBaseDomain === undefined) delete process.env.TENANT_BASE_DOMAIN;
+    else process.env.TENANT_BASE_DOMAIN = previousTenantBaseDomain;
     await prisma.auditoriaContable.deleteMany({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_TABLE_QR' } });
     await prisma.restaurantTable.deleteMany({ where: { tenantId: tenant.id } });
     await prisma.restaurantZone.deleteMany({ where: { tenantId: tenant.id } });
