@@ -71,15 +71,18 @@ async function tableMaterial(tenantId, user, tableId) {
   return rows[0];
 }
 
-async function regenerateTableQr(tenantId, tableId) {
+async function regenerateTableQr(tenantId, userId, tableId) {
+  if (!userId) throw new AppError(401, 'Se requiere un usuario autenticado para regenerar el QR', 'RESTAURANT_QR_AUDIT_USER_REQUIRED');
   const updated = await prisma.$transaction(async (tx) => {
     const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
+    const actor = await tx.user.findFirst({ where: { id: userId, tenantId, activo: true }, select: { id: true } });
+    if (!actor) throw new AppError(403, 'Usuario no válido para auditar la regeneración del QR', 'RESTAURANT_QR_AUDIT_USER_INVALID');
     const row = await tx.restaurantTable.update({ where: { id: table.id }, data: { qrToken: crypto.randomUUID() } });
     await tx.auditoriaContable.create({
       data: {
-        tenantId,
-        userId: null,
+        tenant: { connect: { id: tenantId } },
+        user: { connect: { id: actor.id } },
         entidad: 'RESTAURANT_TABLE_QR',
         entidadId: table.id,
         accion: 'REGENERATE',
