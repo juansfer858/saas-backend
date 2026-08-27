@@ -25,11 +25,10 @@ jobs:
         run: |
           npm install qrcode@1.5.4 --save
           python3 scripts/apply-salon-qr-v2-temp.py
-          npm run build
           node - <<'NODE'
           const fs=require('node:fs');
           new Function(fs.readFileSync('src/web/restaurant-ui.js','utf8'));
-          require('./src/modules/restaurant/restaurant-qr.service');
+          new Function(fs.readFileSync('src/modules/restaurant/restaurant-qr.service.js','utf8'));
           const ui=fs.readFileSync('src/web/restaurant-ui.js','utf8');
           if (ui.includes('location.origin}/r/')) throw new Error('QR still depends on browser origin');
           if (!ui.includes('Gestionar QR') || !ui.includes('Editar plano')) throw new Error('Salon V2 missing');
