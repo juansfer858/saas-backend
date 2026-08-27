@@ -58,7 +58,7 @@ for (const path of [
   '/api/v1/tesoreria/cajas-bancos'
 ]) assert.ok(ui.includes(path), `Connected UI must consume ${path}`);
 assert.ok(ui.includes("S.context.polling.kdsMs || 2000"));
-assert.ok(ui.includes("command.order?.source === 'QR'"));
+assert.ok(ui.includes("String(command.order?.source || '').toUpperCase() === 'QR'"));
 assert.ok(ui.includes('📱 vía autopedido QR'));
 assert.ok(ui.includes("can('MESAS.VER') && can('PEDIDOS.CREAR')"));
 assert.ok(ui.includes("can('COMANDAS.EDITAR')"));

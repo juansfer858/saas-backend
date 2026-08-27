@@ -27,7 +27,7 @@ assert.match(app, /app\.get\('\/app\/restaurante'/);
 assert.match(app, /app\.get\('\/r\/:token'/);
 
 assert.match(operator, /restaurant-theme\.css/);
-assert.match(operator, /restaurant-ui\.js\?v=waiter-v2/);
+assert.match(operator, /restaurant-ui\.js\?v=kds-v2/);
 assert.match(operator, /<dialog id="noticePanel"/);
 assert.match(operator, /id="noticeToggle"/);
 assert.match(operator, /id="gateInner"/);

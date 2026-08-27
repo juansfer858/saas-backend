@@ -557,12 +557,29 @@ async function listCommands(tenantId, user, filters = {}) {
   const where = { tenantId };
   if (station) where.station = station;
   if (filters.state) where.state = filters.state;
-  return prisma.restaurantCommand.findMany({
+  const commands = await prisma.restaurantCommand.findMany({
     where,
-    include: { order: { include: { items: true, session: { include: { table: true } } } } },
+    include: {
+      order: {
+        include: {
+          items: true,
+          session: { include: { table: { include: { zone: true } } } }
+        }
+      }
+    },
     orderBy: { creadoEn: 'asc' },
     take: Math.min(Number(filters.limit) || 200, 500)
   });
+  const waiterIds = [...new Set(commands.map((command) => command.order?.createdByUserId).filter(Boolean))];
+  const waiters = waiterIds.length ? await prisma.user.findMany({
+    where: { tenantId, id: { in: waiterIds } },
+    select: { id: true, nombre: true }
+  }) : [];
+  const waiterById = new Map(waiters.map((row) => [row.id, row]));
+  return commands.map((command) => ({
+    ...command,
+    waiter: command.order?.source === 'MESERO' ? waiterById.get(command.order?.createdByUserId) || null : null
+  }));
 }
 
 async function maybeNotifyOrderReady(tenantId, order) {

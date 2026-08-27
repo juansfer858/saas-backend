@@ -10,9 +10,13 @@ async function main() {
   assert.ok(waiter, 'demo waiter must exist');
 
   const stamp = Date.now().toString().slice(-8);
+  const admin = await prisma.user.findUnique({ where: { id: demo.users.ADMIN } });
+  assert.ok(admin, 'demo admin must exist');
+  const zone = await prisma.restaurantZone.create({ data: { tenantId: demo.tenantId, name: `KDS Smoke ${stamp}`, sortOrder: 999 } });
   const table = await prisma.restaurantTable.create({
     data: {
       tenantId: demo.tenantId,
+      zoneId: zone.id,
       code: `WV2-${stamp}`,
       name: `Mesa Mesero V2 ${stamp}`,
       seats: 6,
@@ -61,6 +65,15 @@ async function main() {
   assert.equal(sent.state, 'ENVIADO');
   assert.ok(sent.commands.length >= 1);
 
+
+  const kdsRows = await restaurant.listCommands(demo.tenantId, admin, { limit: 200 });
+  const kdsCommand = kdsRows.find((row) => row.orderId === sent.id);
+  assert.ok(kdsCommand, 'KDS must expose the waiter order command');
+  assert.equal(kdsCommand.waiter?.id, waiter.id);
+  assert.equal(kdsCommand.waiter?.nombre, waiter.nombre);
+  assert.equal(kdsCommand.order?.session?.table?.zone?.id, zone.id);
+  assert.equal(kdsCommand.order?.session?.table?.zone?.name, zone.name);
+
   const prepared = await identity.prepareAccount(demo.tenantId, waiter, table.id);
   assert.ok(prepared.session.accountPreparedAt);
   assert.equal(prepared.session.cashierRequestedAt, null);
@@ -89,7 +102,8 @@ async function main() {
     modeLock: true,
     prepareAccount: true,
     sendToCash: true,
-    newRoundReopensService: true
+    newRoundReopensService: true,
+    kdsZoneAndWaiterContext: true
   }, null, 2));
 }
 
