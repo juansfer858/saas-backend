@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const restaurant = require('../src/modules/restaurant/restaurant.service');
 const zones = require('../src/modules/restaurant/restaurant-zones.service');
+const qr = require('../src/modules/restaurant/restaurant-qr.service');
 const { readRestaurantSchemaState } = require('./ensure-restaurant-runtime-schema');
 
 async function main() {
@@ -59,6 +60,17 @@ async function main() {
     assert.equal(reactivated.id, terrace.id);
     assert.equal(reactivated.active, true);
 
+    process.env.RESTAURANT_PUBLIC_BASE_URL = 'https://qr.example.test';
+    const qrBefore = await qr.tableMaterial(tenant.id, null, legacyTable.id);
+    assert.equal(qrBefore.url.startsWith('https://qr.example.test/r/'), true);
+    assert.match(qrBefore.svg, /<svg/);
+    assert.ok(!qrBefore.url.includes('192.168.'));
+    assert.ok(!qrBefore.url.includes('localhost'));
+    const oldToken = (await prisma.restaurantTable.findUnique({ where: { id:legacyTable.id } })).qrToken;
+    const qrAfter = await qr.regenerateTableQr(tenant.id, legacyTable.id);
+    assert.notEqual(qrAfter.url, qrBefore.url);
+    assert.equal(await prisma.restaurantTable.count({ where: { tenantId:tenant.id, qrToken:oldToken } }), 0, 'old QR token must be invalidated immediately');
+
     const second = await restaurant.createTable(tenant.id, { code: 'M2', name: 'Mesa nueva', seats: 2 });
     const assignedSecond = await zones.assignTable(tenant.id, second.id, reactivated.id);
     assert.equal(assignedSecond.zoneId, reactivated.id);
@@ -70,7 +82,10 @@ async function main() {
       legacyBackfilled: true,
       explicitZoneAssignment: true,
       zoneWithTablesProtected: true,
-      deletedZoneReactivated: true
+      deletedZoneReactivated: true,
+      canonicalPublicQr: true,
+      qrSvgGeneratedLocally: true,
+      qrRegenerationInvalidatesOldToken: true
     }, null, 2));
   } finally {
     await prisma.restaurantTable.deleteMany({ where: { tenantId: tenant.id } });

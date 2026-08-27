@@ -6,6 +6,7 @@ const identity = require('./restaurant-identity.service');
 const liveTables = require('./restaurant-live-tables.service');
 const zones = require('./restaurant-zones.service');
 const theme = require('./restaurant-theme.service');
+const qr = require('./restaurant-qr.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 
@@ -146,6 +147,19 @@ router.patch('/zonas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (
 });
 router.delete('/zonas/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await zones.removeZone(req.tenantId, req.params.id) }); } catch (error) { next(error); }
+});
+
+router.get('/qrs', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await qr.visibleMaterials(req.tenantId, req.user) }); } catch (error) { next(error); }
+});
+router.get('/zonas/:id/qrs', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await qr.visibleMaterials(req.tenantId, req.user, { zoneId:req.params.id }) }); } catch (error) { next(error); }
+});
+router.get('/mesas/:id/qr', requirePermission('MESAS.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await qr.tableMaterial(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
+});
+router.post('/mesas/:id/qr/regenerar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await qr.regenerateTableQr(req.tenantId, req.params.id) }); } catch (error) { next(error); }
 });
 
 router.get('/mesas', requirePermission('MESAS.VER'), async (req, res, next) => {

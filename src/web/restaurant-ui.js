@@ -18,6 +18,8 @@
     waiterSeat: 1,
     waiterCategory: 'ENTRADAS',
     waiterSearch: '',
+    salonView: localStorage.getItem('restaurant_salon_view_v2') === 'LISTA' ? 'LISTA' : 'PLANO',
+    salonEdit: false,
     kdsFilter: 'ALL',
     kdsZone: 'ALL',
     kdsWaiter: 'ALL',
@@ -126,17 +128,53 @@
   function selectedTable() { return S.tables.find((x) => x.id === S.selectedTableId) || null; }
   function tablesInSelectedZone() { return S.tables.filter((table) => table.zoneId === S.selectedZoneId); }
 
+  function salonStateLabel(state) { return String(state || 'LIBRE').replaceAll('_', ' '); }
+  function salonTableAge(table) {
+    const opened = table.activeSession?.openedAt ? new Date(table.activeSession.openedAt).getTime() : 0;
+    if (!opened) return '';
+    const minutes = Math.max(0, Math.floor((Date.now() - opened) / 60000));
+    if (minutes < 1) return 'Ahora';
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  }
+  function salonStats(rows) {
+    const count = (state) => rows.filter((row) => row.state === state).length;
+    return { total:rows.length, free:count('LIBRE'), occupied:count('OCUPADA'), bill:count('CUENTA_PEDIDA'), reserved:count('RESERVADA') };
+  }
   function tableTicket(table) {
     const active = table.activeSession;
     const sale = active?.sale;
-    const stateText = table.state.replaceAll('_', ' ');
-    const openAction = !active && can('MESAS.CREAR') ? `<button class="ri-btn small primary" data-open-table="${table.id}">Abrir</button>` : '';
-    const selectAction = active && can('PEDIDOS.CREAR') ? `<button class="ri-btn small" data-select-table="${table.id}">Pedido</button>` : '';
-    return `<article class="table-ticket ${table.state}" data-table="${table.id}" style="left:${Number(table.posX)}px;top:${Number(table.posY)}px;width:${Number(table.width)}px;height:${Number(table.height)}px">
-      <div><div class="table-state">${esc(stateText)}</div><div class="table-name">${esc(table.name)}</div>${sale ? `<div class="table-total">${money(sale.total)}</div><div class="table-meta">${esc(sale.estado)} · ${esc(sale.numero || '')}</div>` : `<div class="table-meta">${table.seats} puestos</div>`}</div>
-      <div class="table-actions">${openAction}${selectAction}<button class="ri-btn small brass" data-show-qr="${table.id}">QR</button>${can('RESTAURANTE.ADMINISTRAR') ? `<button class="ri-btn small danger" data-remove-table="${table.id}" title="Retirar mesa">×</button>` : ''}</div>
+    const age = salonTableAge(table);
+    const edit = Boolean(S.salonEdit && can('RESTAURANTE.ADMINISTRAR'));
+    const openAction = !edit && !active && can('MESAS.CREAR') ? `<button class="ri-btn small primary" data-open-table="${table.id}">Abrir mesa</button>` : '';
+    const selectAction = !edit && active && can('PEDIDOS.CREAR') ? `<button class="ri-btn small primary" data-select-table="${table.id}">${table.state === 'CUENTA_PEDIDA' ? 'Ver cuenta' : 'Tomar pedido'}</button>` : '';
+    const removeAction = edit ? `<button class="ri-btn small danger" data-remove-table="${table.id}">Retirar</button>` : '';
+    return `<article class="salon-table ${table.state} ${edit ? 'edit-mode' : ''}" data-table="${table.id}" style="left:${Number(table.posX)}px;top:${Number(table.posY)}px;width:${Math.max(Number(table.width),150)}px;height:${Math.max(Number(table.height),120)}px">
+      <div class="salon-table-top"><span class="salon-table-state">${esc(salonStateLabel(table.state))}</span>${edit ? '<span class="salon-drag-hint">Mover</span>' : ''}</div>
+      <div class="salon-table-name">${esc(table.name)}</div>
+      <div class="salon-table-main">${sale ? `<strong>${money(sale.total)}</strong><span>${age || esc(sale.estado)}</span>` : `<strong>${table.seats}</strong><span>puestos</span>`}</div>
+      <div class="salon-table-actions">${openAction}${selectAction}${removeAction}</div>
     </article>`;
   }
+  function salonListRow(table) {
+    const active = table.activeSession;
+    const sale = active?.sale;
+    const edit = Boolean(S.salonEdit && can('RESTAURANTE.ADMINISTRAR'));
+    return `<article class="salon-list-row ${table.state}"><div class="salon-list-main"><span class="salon-table-state">${esc(salonStateLabel(table.state))}</span><b>${esc(table.name)}</b><small>${table.seats} puestos${salonTableAge(table) ? ` · ${salonTableAge(table)}` : ''}</small></div><strong>${sale ? money(sale.total) : '—'}</strong><div class="salon-list-actions">${!edit && !active && can('MESAS.CREAR') ? `<button class="ri-btn small primary" data-open-table="${table.id}">Abrir</button>` : ''}${!edit && active && can('PEDIDOS.CREAR') ? `<button class="ri-btn small primary" data-select-table="${table.id}">Pedido</button>` : ''}${edit ? `<button class="ri-btn small danger" data-remove-table="${table.id}">Retirar</button>` : ''}</div></article>`;
+  }
+  function ensureSalonDialog(id, className = 'salon-dialog') {
+    let dialog = document.getElementById(id);
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = id;
+      dialog.className = `ri-card ${className}`;
+      document.body.appendChild(dialog);
+      dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close?.(); });
+    }
+    return dialog;
+  }
+  function openDialog(dialog) { if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open',''); }
+  function restaurantDisplayName() { return S.context?.theme?.restaurantName || S.context?.restaurantName || session.tenant?.nombreEmpresa || 'Restaurante'; }
 
   async function renderSalon(fromPoll = false) {
     if (S.dragging && fromPoll) return;
@@ -145,40 +183,55 @@
     const zone = selectedZone();
     const zoneTables = tablesInSelectedZone();
     const admin = can('RESTAURANTE.ADMINISTRAR');
-    $('#view').innerHTML = `<section class="ri-card">
-      <div class="ri-toolbar"><div><div class="ri-eyebrow">Organización del salón</div><h1 class="ri-title">Zonas y mesas</h1><p class="ri-muted">Primero elige una zona. Las mesas se crean y se organizan dentro de ella.</p></div>${admin ? '<button class="ri-btn primary push" id="addZone">+ Crear zona</button>' : ''}</div>
-      <div class="ri-actions">${S.zones.map((row) => `<button type="button" class="ri-btn ${row.id === S.selectedZoneId ? 'primary' : ''}" data-zone-id="${row.id}"><span>${esc(row.name)}</span><small>${row.tableCount || 0} mesa(s)${row.openTableCount ? ` · ${row.openTableCount} abiertas` : ''}</small></button>`).join('') || '<div class="empty-ticket">No hay zonas visibles para este usuario.</div>'}</div>
-    </section>
-    ${zone ? `<div class="ri-grid">
-      <section class="ri-card">
-        <div class="ri-toolbar"><div><div class="ri-eyebrow">Zona activa</div><h2>${esc(zone.name)}</h2><p class="ri-muted">${zoneTables.length} mesa(s) en esta zona.</p></div><div class="ri-actions push">${admin ? '<button class="ri-btn" id="renameZone">Renombrar zona</button>' : ''}${admin && !zoneTables.length && S.zones.length > 1 ? '<button class="ri-btn danger" id="removeZone">Eliminar zona</button>' : ''}${admin ? '<button class="ri-btn primary" id="addTable">+ Agregar mesa</button>' : ''}</div></div>
-        <div class="floor" id="floor">${zoneTables.map(tableTicket).join('') || '<div class="empty-ticket">Esta zona todavía no tiene mesas. Usa “Agregar mesa” para crear la primera.</div>'}</div>
-      </section>
-      <aside class="ri-card"><div class="ri-eyebrow">Lectura rápida · ${esc(zone.name)}</div><h2>Estados</h2><div class="status-legend">${['LIBRE','OCUPADA','CUENTA_PEDIDA','RESERVADA'].map((state) => `<div class="status-row"><span class="status-dot ${state}"></span><span>${esc(state.replaceAll('_',' '))}</span><b>${zoneTables.filter((x) => x.state === state).length}</b></div>`).join('')}</div><p class="ri-muted">Cada zona conserva su propio plano. Las mesas existentes fueron asignadas automáticamente a una zona inicial.</p></aside>
-    </div>` : '<section class="ri-card"><div class="empty-ticket">No tienes zonas o mesas asignadas para operar.</div></section>'}`;
+    const stats = salonStats(zoneTables);
+    if (!S.selectedTableId || !zoneTables.some((row) => row.id === S.selectedTableId)) S.selectedTableId = zoneTables[0]?.id || null;
+    const zonesMarkup = S.zones.map((row) => `<button type="button" class="salon-zone-tab ${row.id === S.selectedZoneId ? 'active' : ''}" data-zone-id="${row.id}"><b>${esc(row.name)}</b><span>${row.tableCount || 0}</span></button>`).join('');
+    const body = zone ? (S.salonView === 'LISTA'
+      ? `<div class="salon-list">${zoneTables.map(salonListRow).join('') || '<div class="salon-empty"><b>Esta zona no tiene mesas</b><span>Agrega la primera mesa para empezar a operar.</span></div>'}</div>`
+      : `<div class="salon-floor ${S.salonEdit ? 'editing' : ''}" id="floor">${zoneTables.map(tableTicket).join('') || '<div class="salon-empty"><b>Esta zona no tiene mesas</b><span>Agrega la primera mesa para empezar a operar.</span></div>'}</div>`)
+      : '<div class="salon-empty"><b>No hay zonas disponibles</b><span>Crea una zona para organizar el salón.</span></div>';
+    $('#view').innerHTML = `<section class="salon-shell">
+      <header class="salon-head"><div><div class="ri-eyebrow">OPERACIÓN DEL SALÓN</div><h1 class="ri-title">Mesas</h1><p class="ri-muted">Opera el servicio; la edición del plano permanece separada para evitar movimientos accidentales.</p></div><div class="salon-head-actions"><div class="salon-view-toggle"><button type="button" class="${S.salonView === 'PLANO' ? 'active' : ''}" data-salon-view="PLANO">Plano</button><button type="button" class="${S.salonView === 'LISTA' ? 'active' : ''}" data-salon-view="LISTA">Lista</button></div>${admin ? '<button type="button" class="ri-btn" id="manageZones">Gestionar zonas</button>' : ''}<button type="button" class="ri-btn" id="manageQr">Gestionar QR</button>${admin && zone ? '<button type="button" class="ri-btn primary" id="addTable">+ Mesa</button><button type="button" class="ri-btn secondary" id="toggleSalonEdit">'+(S.salonEdit ? 'Terminar edición' : 'Editar plano')+'</button>' : ''}</div></header>
+      <nav class="salon-zone-tabs">${zonesMarkup || '<span class="ri-muted">Sin zonas</span>'}</nav>
+      ${zone ? `<section class="salon-zone-summary"><div><small>Zona activa</small><b>${esc(zone.name)}</b></div><div><small>Mesas</small><b>${stats.total}</b></div><div class="free"><small>Libres</small><b>${stats.free}</b></div><div class="occupied"><small>Ocupadas</small><b>${stats.occupied}</b></div><div class="bill"><small>Cuenta pedida</small><b>${stats.bill}</b></div>${stats.reserved ? `<div><small>Reservadas</small><b>${stats.reserved}</b></div>` : ''}</section>` : ''}
+      ${S.salonEdit ? '<div class="salon-edit-notice">Modo edición activo: ahora puedes mover o retirar mesas. Las acciones de servicio están temporalmente bloqueadas.</div>' : ''}
+      ${body}
+    </section>`;
     bindSalon();
     if (!fromPoll) {
       stopPoll();
-      S.poll = setInterval(() => { if (S.tab === 'salon') renderSalon(true).catch(() => {}); }, S.context.polling.floorMs || 3000);
+      S.poll = setInterval(() => { if (S.tab === 'salon' && !S.salonEdit) renderSalon(true).catch(() => {}); }, S.context.polling.floorMs || 3000);
     }
   }
 
   function bindSalon() {
-    $('#addZone')?.addEventListener('click', addZone);
-    $('#renameZone')?.addEventListener('click', renameZone);
-    $('#removeZone')?.addEventListener('click', removeZone);
     $('#addTable')?.addEventListener('click', addTable);
+    $('#manageZones')?.addEventListener('click', openZoneManager);
+    $('#manageQr')?.addEventListener('click', openQrManager);
+    $('#toggleSalonEdit')?.addEventListener('click', () => { S.salonEdit = !S.salonEdit; renderSalon().catch((error) => message(error.message, true)); });
+    $$('[data-salon-view]').forEach((button) => button.addEventListener('click', () => { S.salonView = button.dataset.salonView; localStorage.setItem('restaurant_salon_view_v2', S.salonView); renderSalon().catch((error) => message(error.message, true)); }));
     $$('[data-zone-id]').forEach((button) => button.addEventListener('click', () => {
       S.selectedZoneId = button.dataset.zoneId;
+      S.salonEdit = false;
       const first = S.tables.find((table) => table.zoneId === S.selectedZoneId);
-      if (first) S.selectedTableId = first.id;
+      S.selectedTableId = first?.id || null;
       renderSalon().catch((error) => message(error.message, true));
     }));
     $$('[data-open-table]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openTable(b.dataset.openTable); }));
     $$('[data-select-table]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); S.selectedTableId = b.dataset.selectTable; setTab('mesero'); }));
-    $$('[data-show-qr]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); showQr(b.dataset.showQr); }));
     $$('[data-remove-table]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); removeTable(b.dataset.removeTable); }));
-    if (can('RESTAURANTE.ADMINISTRAR') && matchMedia('(min-width:641px)').matches) bindTableDrag();
+    if (S.salonEdit && can('RESTAURANTE.ADMINISTRAR') && S.salonView === 'PLANO' && matchMedia('(min-width:641px)').matches) bindTableDrag();
+  }
+
+  async function openZoneManager() {
+    const dialog = ensureSalonDialog('salonZoneDialog');
+    const rows = S.zones.map((zone) => `<div class="salon-manager-row"><div><b>${esc(zone.name)}</b><small>${zone.tableCount || 0} mesa(s)</small></div><div class="ri-actions"><button type="button" class="ri-btn small" data-zone-rename="${zone.id}">Renombrar</button>${zone.tableCount === 0 && S.zones.length > 1 ? `<button type="button" class="ri-btn small danger" data-zone-remove="${zone.id}">Eliminar</button>` : ''}</div></div>`).join('');
+    dialog.innerHTML = `<div class="salon-dialog-head"><div><div class="ri-eyebrow">Organización</div><h2>Gestionar zonas</h2><p class="ri-muted">Las zonas organizan el plano; no forman parte del trabajo diario del mesero.</p></div><button type="button" class="ri-btn" data-dialog-close>Cerrar</button></div><div class="salon-manager-list">${rows}</div><button type="button" class="ri-btn primary" id="dialogAddZone">+ Crear zona</button>`;
+    dialog.querySelector('[data-dialog-close]')?.addEventListener('click', () => dialog.close?.());
+    dialog.querySelector('#dialogAddZone')?.addEventListener('click', async () => { await addZone(); dialog.close?.(); });
+    dialog.querySelectorAll('[data-zone-rename]').forEach((button) => button.addEventListener('click', async () => { S.selectedZoneId = button.dataset.zoneRename; await renameZone(); dialog.close?.(); }));
+    dialog.querySelectorAll('[data-zone-remove]').forEach((button) => button.addEventListener('click', async () => { S.selectedZoneId = button.dataset.zoneRemove; await removeZone(); dialog.close?.(); }));
+    openDialog(dialog);
   }
 
   async function addZone() {
@@ -187,7 +240,8 @@
     try {
       const zone = await api('/api/v1/restaurante/zonas', { method:'POST', body:JSON.stringify({ name:name.trim() }) });
       S.selectedZoneId = zone.id;
-      message(`Zona “${zone.name}” creada. Ahora puedes agregar sus mesas.`);
+      S.salonEdit = false;
+      message(`Zona “${zone.name}” creada.`);
       await renderSalon();
     } catch (error) { message(error.message, true); }
   }
@@ -222,7 +276,7 @@
     if (!code) return;
     const name = prompt('Nombre visible', `Mesa ${code.replace(/\D/g, '') || code}`) || code;
     try {
-      await api('/api/v1/restaurante/mesas', { method:'POST', body:JSON.stringify({ code, name, zoneId:zone.id, seats:4, posX:30, posY:30 }) });
+      await api('/api/v1/restaurante/mesas', { method:'POST', body:JSON.stringify({ code, name, zoneId:zone.id, seats:4, posX:30, posY:30, width:170, height:135 }) });
       message(`Mesa creada dentro de ${zone.name}.`);
       await renderSalon();
     } catch (error) { message(error.message, true); }
@@ -236,24 +290,59 @@
     } catch (error) { message(error.message, true); }
   }
   async function removeTable(id) {
-    if (!confirm('¿Retirar esta mesa de la zona?')) return;
+    if (!S.salonEdit || !confirm('¿Retirar esta mesa del plano?')) return;
     try { await api(`/api/v1/restaurante/mesas/${id}`, { method:'DELETE' }); await renderSalon(); } catch (error) { message(error.message, true); }
   }
-  function showQr(id) {
-    const table = S.tables.find((x) => x.id === id);
-    if (!table) return;
-    const url = `${location.origin}/r/${encodeURIComponent(table.qrToken)}`;
-    const box = document.createElement('div');
-    box.className = 'ri-card';
-    box.id = 'qrBox';
-    box.innerHTML = `<div class="ri-eyebrow">Autopedido seguro</div><h2>${esc(table.name)}</h2><p class="ri-muted">Token permanente no adivinable de la mesa.</p><div class="ri-input">${esc(url)}</div><div class="ri-actions"><button class="ri-btn" id="copyQr">Copiar enlace</button><button class="ri-btn primary" id="openQr">Abrir como cliente</button><button class="ri-btn" id="closeQr">Cerrar</button></div>`;
-    $('#view').prepend(box);
-    $('#copyQr').onclick = () => navigator.clipboard?.writeText(url);
-    $('#openQr').onclick = () => window.open(url, '_blank', 'noopener');
-    $('#closeQr').onclick = () => box.remove();
+
+  function qrPrintHtml(rows, title) {
+    const cards = rows.map((row) => `<article class="qr-print-card"><div class="qr-print-brand">${esc(restaurantDisplayName())}</div><h2>${esc(row.tableName)}</h2><p>${esc(row.zoneName)}</p><div class="qr-print-code">${row.svg}</div><h3>Escanea para ver la carta y pedir</h3><p>Puedes usar tus datos móviles o el Wi-Fi del restaurante.</p><small>${esc(row.url)}</small></article>`).join('');
+    return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(title)}</title><link rel="stylesheet" href="/app/restaurant-control-center.css?v=workspace-v8-salon"></head><body class="qr-print-body"><main class="qr-print-grid">${cards}</main><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script></body></html>`;
   }
+  function printQrRows(rows, title) {
+    if (!rows?.length) return message('No hay mesas para imprimir.', true);
+    const popup = window.open('', '_blank', 'width=900,height=760');
+    if (!popup) return message('El navegador bloqueó la ventana de impresión.', true);
+    popup.document.write(qrPrintHtml(rows, title));
+    popup.document.close();
+  }
+  async function showQr(id) {
+    try {
+      const material = await api(`/api/v1/restaurante/mesas/${id}/qr`);
+      const dialog = ensureSalonDialog('salonQrDetailDialog', 'salon-dialog qr-detail-dialog');
+      dialog.innerHTML = `<div class="salon-dialog-head"><div><div class="ri-eyebrow">Autopedido QR</div><h2>${esc(material.tableName)}</h2><p class="ri-muted">${esc(material.zoneName)} · URL pública canónica</p></div><button type="button" class="ri-btn" data-dialog-close>Cerrar</button></div><div class="qr-detail-code">${material.svg}</div><div class="qr-public-url">${esc(material.url)}</div><p class="ri-muted">Este QR no contiene IP, contraseña Wi-Fi ni identificadores internos. Funciona con datos móviles o Wi-Fi siempre que haya acceso a la URL pública.</p><div class="ri-actions"><button type="button" class="ri-btn" data-copy-qr>Copiar enlace</button><button type="button" class="ri-btn" data-open-qr>Abrir como cliente</button><button type="button" class="ri-btn primary" data-print-qr>Imprimir QR</button>${can('RESTAURANTE.ADMINISTRAR') ? '<button type="button" class="ri-btn danger" data-regenerate-qr>Regenerar QR</button>' : ''}</div>`;
+      dialog.querySelector('[data-dialog-close]')?.addEventListener('click', () => dialog.close?.());
+      dialog.querySelector('[data-copy-qr]')?.addEventListener('click', () => navigator.clipboard?.writeText(material.url));
+      dialog.querySelector('[data-open-qr]')?.addEventListener('click', () => window.open(material.url, '_blank', 'noopener'));
+      dialog.querySelector('[data-print-qr]')?.addEventListener('click', () => printQrRows([material], `QR ${material.tableName}`));
+      dialog.querySelector('[data-regenerate-qr]')?.addEventListener('click', async () => { dialog.close?.(); await regenerateQr(id); });
+      openDialog(dialog);
+    } catch (error) { message(error.message, true); }
+  }
+  async function regenerateQr(id) {
+    if (!can('RESTAURANTE.ADMINISTRAR') || !confirm('¿Regenerar este QR? El QR anterior dejará de funcionar inmediatamente.')) return;
+    try {
+      const material = await api(`/api/v1/restaurante/mesas/${id}/qr/regenerar`, { method:'POST', body:'{}' });
+      message(`QR de ${material.tableName} regenerado. El enlace anterior quedó invalidado.`);
+      await loadTables();
+      await showQr(id);
+    } catch (error) { message(error.message, true); }
+  }
+  async function openQrManager() {
+    const zone = selectedZone();
+    const rows = tablesInSelectedZone();
+    const admin = can('RESTAURANTE.ADMINISTRAR');
+    const dialog = ensureSalonDialog('salonQrManagerDialog', 'salon-dialog qr-manager-dialog');
+    dialog.innerHTML = `<div class="salon-dialog-head"><div><div class="ri-eyebrow">Autopedido</div><h2>Gestionar QR</h2><p class="ri-muted">Los QR impresos usan siempre la URL pública canónica, nunca la IP del computador o del Edge.</p></div><button type="button" class="ri-btn" data-dialog-close>Cerrar</button></div><div class="qr-manager-note"><b>Conectividad</b><span>El mismo QR sirve con datos móviles o Wi-Fi. La continuidad por Wi-Fi sin Internet requiere Edge y resolución DNS local del establecimiento.</span></div><div class="salon-manager-list">${rows.map((table) => `<div class="salon-manager-row"><div><b>${esc(table.name)}</b><small>${esc(zone?.name || 'Sin zona')} · ${esc(salonStateLabel(table.state))}</small></div><div class="ri-actions"><button type="button" class="ri-btn small" data-qr-view="${table.id}">Ver / imprimir</button>${admin ? `<button type="button" class="ri-btn small danger" data-qr-regenerate="${table.id}">Regenerar</button>` : ''}</div></div>`).join('') || '<div class="salon-empty"><b>Sin mesas en esta zona</b></div>'}</div>${admin ? `<div class="ri-actions"><button type="button" class="ri-btn primary" id="printZoneQrs" ${!zone || !rows.length ? 'disabled' : ''}>Imprimir QR de esta zona</button><button type="button" class="ri-btn" id="printAllQrs">Imprimir todos los QR</button></div>` : ''}`;
+    dialog.querySelector('[data-dialog-close]')?.addEventListener('click', () => dialog.close?.());
+    dialog.querySelectorAll('[data-qr-view]').forEach((button) => button.addEventListener('click', async () => { dialog.close?.(); await showQr(button.dataset.qrView); }));
+    dialog.querySelectorAll('[data-qr-regenerate]').forEach((button) => button.addEventListener('click', async () => { dialog.close?.(); await regenerateQr(button.dataset.qrRegenerate); }));
+    dialog.querySelector('#printZoneQrs')?.addEventListener('click', async () => { try { const materials = await api(`/api/v1/restaurante/zonas/${zone.id}/qrs`); printQrRows(materials, `QR · ${zone.name}`); } catch (error) { message(error.message, true); } });
+    dialog.querySelector('#printAllQrs')?.addEventListener('click', async () => { try { const materials = await api('/api/v1/restaurante/qrs'); printQrRows(materials, 'QR · Todas las mesas'); } catch (error) { message(error.message, true); } });
+    openDialog(dialog);
+  }
+
   function bindTableDrag() {
-    $$('.table-ticket').forEach((el) => {
+    $$('.salon-table.edit-mode').forEach((el) => {
       let sx, sy, ox, oy;
       el.addEventListener('pointerdown', (event) => {
         if (event.target.closest('button')) return;
