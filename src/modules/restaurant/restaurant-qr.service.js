@@ -71,7 +71,7 @@ async function tableMaterial(tenantId, user, tableId) {
   return rows[0];
 }
 
-async function regenerateTableQr(tenantId, userId, tableId) {
+async function regenerateTableQr(tenantId, tableId) {
   const updated = await prisma.$transaction(async (tx) => {
     const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
@@ -79,7 +79,7 @@ async function regenerateTableQr(tenantId, userId, tableId) {
     await tx.auditoriaContable.create({
       data: {
         tenantId,
-        userId: userId || null,
+        userId: null,
         entidad: 'RESTAURANT_TABLE_QR',
         entidadId: table.id,
         accion: 'REGENERATE',
