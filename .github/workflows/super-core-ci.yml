@@ -214,6 +214,9 @@ jobs:
       - name: Validate Restaurant zones and existing-table backfill against PostgreSQL
         run: node scripts/restaurant-zones-smoke.js
 
+      - name: Validate Restaurant Waiter V2 persons and billing workflow against PostgreSQL
+        run: node scripts/restaurant-waiter-v2-smoke.js
+
       - name: Validate Restaurant simulated fiscal governance, audit and immutable history
         run: node scripts/restaurant-fiscal-governance-smoke.js
 
