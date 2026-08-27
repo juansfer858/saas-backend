@@ -1,0 +1,44 @@
+name: Apply Salon QR V2
+
+on:
+  push:
+    branches:
+      - 'feature/restaurant-tables-qr-v2'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/restaurant-tables-qr-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install local QR encoder and apply product changes
+        run: |
+          npm install qrcode@1.5.4 --save
+          python3 scripts/apply-salon-qr-v2-temp.py
+          node - <<'NODE'
+          const fs=require('node:fs');
+          new Function(fs.readFileSync('src/web/restaurant-ui.js','utf8'));
+          require('./src/modules/restaurant/restaurant-qr.service');
+          const ui=fs.readFileSync('src/web/restaurant-ui.js','utf8');
+          if (ui.includes('location.origin}/r/')) throw new Error('QR still depends on browser origin');
+          if (!ui.includes('Gestionar QR') || !ui.includes('Editar plano')) throw new Error('Salon V2 missing');
+          console.log('SALON_QR_V2_SOURCE_OK');
+          NODE
+          git diff --check
+      - name: Commit product changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .env.example package.json package-lock.json src/modules/restaurant/restaurant.routes.js src/modules/restaurant/restaurant-qr.service.js src/web/restaurant-ui.js src/web/restaurant-control-center.css src/web/restaurant.html scripts/
+          git commit -m "feat(restaurante): rediseñar salón y gestión QR canónica"
+          git push origin HEAD:feature/restaurant-tables-qr-v2
