@@ -22,7 +22,18 @@ async function main() {
     }
   });
 
+  let auditUser = null;
   try {
+    auditUser = await prisma.user.create({
+      data: {
+        tenantId: tenant.id,
+        nombre: 'Restaurant QR QA',
+        email: `restaurant-qr-${stamp}@example.test`,
+        password: 'qa-not-used',
+        rol: 'ADMIN'
+      }
+    });
+
     // Simula un tenant existente antes de introducir zonas: mesa válida con zoneId null.
     const legacyTable = await restaurant.createTable(tenant.id, {
       code: 'M1', name: 'Mesa heredada', seats: 4, posX: 30, posY: 30
@@ -67,9 +78,12 @@ async function main() {
     assert.ok(!qrBefore.url.includes('192.168.'));
     assert.ok(!qrBefore.url.includes('localhost'));
     const oldToken = (await prisma.restaurantTable.findUnique({ where: { id:legacyTable.id } })).qrToken;
-    const qrAfter = await qr.regenerateTableQr(tenant.id, legacyTable.id);
+    const qrAfter = await qr.regenerateTableQr(tenant.id, auditUser.id, legacyTable.id);
     assert.notEqual(qrAfter.url, qrBefore.url);
     assert.equal(await prisma.restaurantTable.count({ where: { tenantId:tenant.id, qrToken:oldToken } }), 0, 'old QR token must be invalidated immediately');
+    const qrAudit = await prisma.auditoriaContable.findFirst({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_TABLE_QR', entidadId: legacyTable.id, accion: 'REGENERATE' } });
+    assert.ok(qrAudit, 'QR regeneration must leave an audit record');
+    assert.equal(qrAudit.userId, auditUser.id);
 
     const second = await restaurant.createTable(tenant.id, { code: 'M2', name: 'Mesa nueva', seats: 2 });
     const assignedSecond = await zones.assignTable(tenant.id, second.id, reactivated.id);
@@ -85,12 +99,14 @@ async function main() {
       deletedZoneReactivated: true,
       canonicalPublicQr: true,
       qrSvgGeneratedLocally: true,
-      qrRegenerationInvalidatesOldToken: true
+      qrRegenerationInvalidatesOldToken: true,
+      qrRegenerationAudited: true
     }, null, 2));
   } finally {
     await prisma.auditoriaContable.deleteMany({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_TABLE_QR' } });
     await prisma.restaurantTable.deleteMany({ where: { tenantId: tenant.id } });
     await prisma.restaurantZone.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.user.deleteMany({ where: { tenantId: tenant.id } });
     await prisma.tenant.delete({ where: { id: tenant.id } });
   }
 }
