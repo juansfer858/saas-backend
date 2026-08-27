@@ -1,0 +1,41 @@
+name: Fix Salon V2 Smoke Temp
+on:
+  push:
+    branches: ['feature/restaurant-tables-qr-v2']
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/restaurant-tables-qr-v2
+          fetch-depth: 0
+      - name: Update obsolete floor assertions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/restaurant-control-center-operational-smoke.js')
+          s=p.read_text()
+          old="""  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.floor\\{[^}]*display:grid!important;[^}]*minmax\\(155px,1fr\\)/);
+  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.table-ticket\\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
+"""
+          new="""  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.salon-floor\\{[^}]*display:grid;[^}]*repeat\\(2,minmax\\(0,1fr\\)\\)/);
+  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.salon-table\\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
+  assert.ok(!shellCss.includes('.floor{'), 'Salon V1 floor owner must be removed');
+  assert.ok(!shellCss.includes('.table-ticket{'), 'Salon V1 table card owner must be removed');
+"""
+          if old not in s: raise SystemExit('obsolete floor smoke block not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check scripts/restaurant-control-center-operational-smoke.js
+          git diff --check
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/restaurant-control-center-operational-smoke.js
+          git commit -m "test(restaurante): validar layout móvil Salón V2"
+          git push origin HEAD:feature/restaurant-tables-qr-v2
