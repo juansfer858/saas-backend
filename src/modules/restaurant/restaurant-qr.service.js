@@ -4,6 +4,8 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const liveTables = require('./restaurant-live-tables.service');
 
+const DEFAULT_RESTAURANT_PUBLIC_BASE_URL = 'https://core.vantixgc.com';
+
 function normalizeBaseUrl(value) {
   const raw = String(value || '').trim().replace(/\/+$/, '');
   if (!raw) return null;
@@ -17,8 +19,8 @@ function publicBaseUrl() {
   const configured = normalizeBaseUrl(process.env.RESTAURANT_PUBLIC_BASE_URL);
   if (configured) return configured;
   const tenantBaseDomain = String(process.env.TENANT_BASE_DOMAIN || '').trim().replace(/^\.+|\.+$/g, '');
-  if (!tenantBaseDomain) throw new AppError(500, 'Configure RESTAURANT_PUBLIC_BASE_URL o TENANT_BASE_DOMAIN para generar QR públicos', 'RESTAURANT_PUBLIC_BASE_URL_REQUIRED');
-  return `https://core.${tenantBaseDomain}`;
+  if (tenantBaseDomain) return `https://core.${tenantBaseDomain}`;
+  return DEFAULT_RESTAURANT_PUBLIC_BASE_URL;
 }
 
 function buildPublicTableUrl(qrToken) {
@@ -96,6 +98,7 @@ async function regenerateTableQr(tenantId, userId, tableId) {
 }
 
 module.exports = {
+  DEFAULT_RESTAURANT_PUBLIC_BASE_URL,
   publicBaseUrl,
   buildPublicTableUrl,
   tableMaterial,
