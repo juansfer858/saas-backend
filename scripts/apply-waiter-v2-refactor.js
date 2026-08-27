@@ -86,7 +86,35 @@ function replaceRange(content, start, end, replacement, label) {
   src = src.replaceAll('restaurant-ui\\.js\\?v=zones-v1', 'restaurant-ui\\.js\\?v=waiter-v2');
   const start = '  // Waiter continuity:';
   const end = '  new Function(shellJs);';
-  const block = `  // Mesero V2: zona, mesa, cuenta conjunta/individual, personas y envío explícito a Caja.\n  for (const token of [\n    'waiterSeat: 1',\n    'Panel del mesero',\n    'data-waiter-table',\n    'data-billing-mode=\\"CONJUNTA\\"',\n    'data-billing-mode=\\"INDIVIDUAL\\"',\n    '+ Agregar persona',\n    'data-waiter-seat',\n    'data-waiter-move',\n    'data-waiter-note',\n    'Enviar a cocina / barra',\n    'Preparar cuenta',\n    'Enviar a caja',\n    'Imprimir pre-cuenta',\n    '/servicio',\n    '/items/',\n    '/preparar-cuenta',\n    '/enviar-caja',\n    'waiterPrecheckHtml',\n    'waiterProgressMarkup'\n  ]) assert.ok(operationalEngine.includes(token), \\`Mesero V2 must contain \\${token}\\`);\n  assert.match(shellCss, /\\/\\* Mesero V2 — zona, mesa, personas, pedido y cuenta en un solo flujo canónico\\. \\*\\//);\n  assert.match(shellCss, /\\.waiter-workspace\\{[^}]*grid-template-columns:minmax\\(0,1\\.55fr\\) minmax\\(390px,\\.85fr\\)/);\n  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.waiter-workspace\\{grid-template-columns:1fr\\}/);\n\n`;
+  const block = [
+    '  // Mesero V2: zona, mesa, cuenta conjunta/individual, personas y envío explícito a Caja.',
+    '  for (const token of [',
+    "    'waiterSeat: 1',",
+    "    'Panel del mesero',",
+    "    'data-waiter-table',",
+    "    'data-billing-mode=\\\"CONJUNTA\\\"',",
+    "    'data-billing-mode=\\\"INDIVIDUAL\\\"',",
+    "    '+ Agregar persona',",
+    "    'data-waiter-seat',",
+    "    'data-waiter-move',",
+    "    'data-waiter-note',",
+    "    'Enviar a cocina / barra',",
+    "    'Preparar cuenta',",
+    "    'Enviar a caja',",
+    "    'Imprimir pre-cuenta',",
+    "    '/servicio',",
+    "    '/items/',",
+    "    '/preparar-cuenta',",
+    "    '/enviar-caja',",
+    "    'waiterPrecheckHtml',",
+    "    'waiterProgressMarkup'",
+    '  ]) assert.ok(operationalEngine.includes(token), `Mesero V2 must contain ${token}`);',
+    '  assert.match(shellCss, /\\/\\* Mesero V2 — zona, mesa, personas, pedido y cuenta en un solo flujo canónico\\. \\*\\//);',
+    '  assert.match(shellCss, /\\.waiter-workspace\\{[^}]*grid-template-columns:minmax\\(0,1\\.55fr\\) minmax\\(390px,\\.85fr\\)/);',
+    '  assert.match(shellCss, /@media\\(max-width:780px\\)[\\s\\S]*?\\.waiter-workspace\\{grid-template-columns:1fr\\}/);',
+    '',
+    ''
+  ].join('\n');
   const a = src.indexOf(start);
   const b = src.indexOf(end, a);
   if (a < 0 || b < 0) throw new Error('No se encontró bloque waiter del smoke UI');
