@@ -17,19 +17,9 @@ jobs:
         with:
           ref: ui/restaurant-kds-v2
           fetch-depth: 0
-      - name: Apply saved KDS V2 script
+      - name: Apply KDS V2 patch
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          source = Path('.github/workflows/apply-restaurant-kds-v2.yml').read_text()
-          match = re.search(r"          python3 - <<'PY'\n(.*?)\n          PY\n", source, re.S)
-          if not match:
-              raise SystemExit('saved KDS application script not found')
-          lines = match.group(1).splitlines()
-          code = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
-          exec(compile(code, 'apply-kds-v2', 'exec'))
-          PY
+          python3 scripts/apply-kds-v2-temp.py
           node - <<'NODE'
           const fs=require('node:fs');
           new Function(fs.readFileSync('src/web/restaurant-ui.js','utf8'));
