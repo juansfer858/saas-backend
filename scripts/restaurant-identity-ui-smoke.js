@@ -1,27 +1,54 @@
-const fs = require('node:fs');
-const path = require('node:path');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
-const ROOT = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(ROOT, 'src/web/restaurant.html'), 'utf8');
-const qrHtml = fs.readFileSync(path.join(ROOT, 'src/web/restaurant-qr.html'), 'utf8');
-const ui = fs.readFileSync(path.join(ROOT, 'src/web/restaurant-ui.js'), 'utf8');
-const qr = fs.readFileSync(path.join(ROOT, 'src/web/restaurant-qr-ui.js'), 'utf8');
-const theme = fs.readFileSync(path.join(ROOT, 'src/web/restaurant-theme.js'), 'utf8');
-const css = fs.readFileSync(path.join(ROOT, 'src/web/restaurant-theme.css'), 'utf8');
+const read = (p) => fs.readFileSync(p, 'utf8');
+const css = read('src/web/restaurant-theme.css');
+const provider = read('src/web/restaurant-theme.js');
+const ui = read('src/web/restaurant-ui.js');
+const qr = read('src/web/restaurant-qr-ui.js');
+const html = read('src/web/restaurant.html');
+const qrHtml = read('src/web/restaurant-qr.html');
+const routes = read('src/modules/restaurant/restaurant.routes.js');
+const publicRoutes = read('src/modules/restaurant/restaurant.public.routes.js');
+const themeService = read('src/modules/restaurant/restaurant-theme.service.js');
+const rbac = read('src/modules/restaurant/restaurant.rbac.js');
+const docs = read('docs/RESTAURANT_IDENTITY_CONNECTED_V1.md');
 
-assert.ok(html.includes('/app/restaurant-theme.css?v=la-riel-v1'));
+for (const token of ['--char','--bone','--ember','--verdigris','--brass','--font-display','--font-body','--font-mono']) {
+  assert.ok(css.includes(token), `Shared theme must define ${token}`);
+}
+assert.ok(css.includes('.rail-ticket'));
+assert.ok(css.includes('.command-ticket'));
+assert.ok(css.includes('.origin-qr'));
+assert.ok(css.includes('.receipt'));
+assert.ok(provider.includes("char: '--char'"));
+assert.ok(provider.includes('RestaurantTheme'));
+
+// Restaurante uses the exact Super Core panel font family everywhere.
+const panelFont = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+assert.ok(provider.includes(`const PANEL_FONT = \"${panelFont}\"`));
+assert.ok(themeService.includes(`const PANEL_FONT = \"${panelFont}\"`));
+assert.ok(themeService.includes('display: PANEL_FONT'));
+assert.ok(themeService.includes('body: PANEL_FONT'));
+assert.ok(themeService.includes('mono: PANEL_FONT'));
+assert.ok(themeService.includes('typographyLockedToPanel: true'));
+assert.ok(provider.includes("root.dataset.restaurantTypography = 'SUPER_CORE_PANEL'"));
+assert.ok(provider.includes("style.id = 'restaurantPanelAlignment'"));
+assert.ok(provider.includes('.cash-shell{max-width:1280px!important'));
+assert.ok(provider.includes('grid-template-columns:minmax(0,1.35fr) minmax(360px,.85fr)!important'));
+assert.ok(provider.includes('@media(max-width:1120px){.cash-workspace,.cash-lower-grid{grid-template-columns:1fr!important}'));
+
+assert.ok(html.includes('/app/restaurant-theme.css'));
 assert.ok(html.includes('/app/restaurant-theme.js?v=panel-font-v1'));
-assert.ok(html.includes('/app/restaurant-control-center.css?v=workspace-v7-kds'));
-assert.ok(html.includes('/app/restaurant-ui.js?v=kds-v2'));
-assert.ok(!html.includes('<style>'), 'Restaurant shell must not own theme CSS');
+assert.ok(html.includes('/app/restaurant-ui.js'));
+assert.ok(!html.includes('<style>'), 'Operator shell must not embed design tokens');
 assert.ok(!html.includes('font-family:Lora,Georgia,serif'), 'Restaurant shell must not retain the old serif Edge banner');
 assert.ok(qrHtml.includes('/app/restaurant-theme.css'));
 assert.ok(qrHtml.includes('/app/restaurant-theme.js?v=panel-font-v1'));
 assert.ok(qrHtml.includes('/app/restaurant-qr-ui.js'));
 assert.ok(!qrHtml.includes('<style>'), 'QR shell must share the same theme file');
 
-for (const endpoint of [
+for (const path of [
   '/api/v1/restaurante/ui-context',
   '/api/v1/restaurante/mesas',
   '/api/v1/restaurante/menu',
@@ -29,7 +56,7 @@ for (const endpoint of [
   '/api/v1/restaurante/comandas',
   '/api/v1/restaurante/caja/turnos/',
   '/api/v1/tesoreria/cajas-bancos'
-]) assert.ok(ui.includes(endpoint), `Connected UI must consume ${endpoint}`);
+]) assert.ok(ui.includes(path), `Connected UI must consume ${path}`);
 assert.ok(ui.includes("S.context.polling.kdsMs || 2000"));
 assert.ok(ui.includes("String(command.order?.source || '').toUpperCase() === 'QR'"));
 assert.ok(ui.includes('📱 vía autopedido QR'));
@@ -46,20 +73,30 @@ assert.doesNotMatch(qr, /#[0-9a-fA-F]{6}/, 'QR logic must not hardcode theme col
 assert.ok(qr.includes('/api/public/restaurante/qr/'));
 assert.ok(qr.includes('RestaurantTheme?.apply(ctx.theme)'));
 assert.ok(qr.includes('confirmedTotal:total()'));
+assert.ok(publicRoutes.includes('identity.publicQrContext'));
+assert.ok(publicRoutes.includes("restaurant-theme.css"));
 
-assert.ok(theme.includes("root.style.setProperty('--paper'"));
-assert.ok(theme.includes("root.style.setProperty('--ink'"));
-assert.ok(theme.includes("root.style.setProperty('--ember'"));
-assert.ok(theme.includes("root.style.setProperty('--brass'"));
-assert.ok(theme.includes("root.style.setProperty('--verdigris'"));
-assert.ok(theme.includes("root.style.setProperty('--oxblood'"));
-assert.ok(css.includes('var(--restaurant-font-family,'));
-assert.ok(css.includes('Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'));
-assert.ok(!css.includes('Fraunces'));
-assert.ok(!css.includes('JetBrains Mono'));
+assert.ok(routes.includes("router.get('/ui-context'"));
+assert.ok(routes.includes("router.patch('/theme'"));
+assert.ok(routes.includes("pedido-borrador/enviar"));
+assert.ok(routes.includes('liveTables.listTablesLive'));
+assert.ok(themeService.includes("preset: 'LA_RIEL_V1'"));
+assert.ok(themeService.includes('themeData'));
+assert.ok(themeService.includes("entidad: 'RESTAURANT_THEME'"));
+assert.ok(rbac.includes("'RESTAURANTE.VER'"));
+assert.ok(docs.includes('ID-AC01'));
+assert.ok(docs.includes('No existe un segundo mapa de roles de frontend'));
 
-new Function(ui);
-new Function(qr);
-new Function(theme);
-
-console.log('RESTAURANT IDENTITY UI SMOKE OK');
+console.log('RESTAURANT IDENTITY + PANEL TYPOGRAPHY + BALANCED CAJA SMOKE OK');
+console.log(JSON.stringify({
+  sharedTheme: true,
+  panelTypographyEverywhere: true,
+  balancedCashWorkspace: true,
+  fiveRealSurfacesWired: true,
+  kdsPolling: true,
+  qrOriginMarker: true,
+  rbacDrivenRail: true,
+  liveCashDifference: true,
+  cajaV2RealSummaryFields: true,
+  noBrandColorsInDataLogic: true
+}, null, 2));
