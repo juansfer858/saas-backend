@@ -1,0 +1,215 @@
+  function waiterElapsed(value) {
+    const stamp = new Date(value || 0).getTime();
+    if (!stamp) return '—';
+    const minutes = Math.max(0, Math.floor((Date.now() - stamp) / 60000));
+    if (minutes < 1) return 'ahora';
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  }
+
+  function waiterTableChip(table) {
+    const selected = table.id === S.selectedTableId;
+    const state = String(table.state || 'LIBRE');
+    const people = Number(table.activeSession?.guestCount || 0);
+    const meta = state === 'LIBRE' ? 'Libre' : state === 'CUENTA_PEDIDA' ? 'Cuenta pedida' : `${state.replaceAll('_',' ')}${people ? ` · ${people} pers.` : ''}`;
+    return `<button type="button" class="waiter-table-chip ${selected ? 'selected' : ''} ${state}" data-waiter-table="${table.id}"><b>${esc(table.name)}</b><span>${esc(meta)}</span></button>`;
+  }
+
+  function waiterServiceGroups(service) {
+    if (!service) return [];
+    if (service.billingMode === 'INDIVIDUAL') return service.seats || [];
+    return [{ seatNumber:null, label:'Cuenta conjunta', items:service.allItems || [], total:service.total || 0 }];
+  }
+
+  function waiterStage(service, draftItems, sentOrders) {
+    if (draftItems.length) return { step:1, label:'Por enviar' };
+    if (!sentOrders.length) return { step:0, label:'Borrador' };
+    const states = sentOrders.map(waiterOrderStatus);
+    if (states.some((row) => row.key === 'LISTA')) return { step:3, label:'Listo' };
+    if (states.some((row) => ['PENDIENTE','PREPARACION','PARCIAL'].includes(row.key))) return { step:2, label:'En cocina' };
+    return { step:2, label:'En cocina' };
+  }
+
+  function waiterProgressMarkup(stage) {
+    const labels = ['Borrador','Por enviar','En cocina','Listo'];
+    return `<div class="waiter-progress">${labels.map((label, index) => `<span class="${index <= stage.step ? 'done' : ''} ${index === stage.step ? 'active' : ''}"><i></i>${label}</span>`).join('')}</div>`;
+  }
+
+  function waiterItemRow(item, service, activeSessionId) {
+    const sent = item.orderState !== 'BORRADOR';
+    const seat = Number(item.seatNumber || 0);
+    const seatOptions = service?.billingMode === 'INDIVIDUAL'
+      ? (service.seats || []).map((row) => `<option value="${row.seatNumber}" ${row.seatNumber === seat ? 'selected' : ''}>Persona ${row.seatNumber}</option>`).join('')
+      : '';
+    return `<div class="waiter-item-row"><div class="waiter-item-copy"><b>${esc(item.quantity)}× ${esc(item.description)}</b><small>${esc(item.station)} · ${sent ? 'Enviado' : 'Por enviar'}${item.notes ? ` · ${esc(item.notes)}` : ''}</small></div><strong>${money(item.lineTotal)}</strong>${service?.billingMode === 'INDIVIDUAL' ? `<select class="ri-select waiter-move-select" data-waiter-move="${item.id}" data-session="${activeSessionId}">${seatOptions}</select>` : ''}${!sent ? `<button type="button" class="ri-btn small" data-waiter-note="${item.id}" data-session="${activeSessionId}" data-current-note="${esc(item.notes || '')}">Nota</button>` : ''}</div>`;
+  }
+
+  function waiterGroupMarkup(group, service, activeSessionId) {
+    const selected = service.billingMode === 'INDIVIDUAL' && Number(group.seatNumber) === Number(S.waiterSeat || 1);
+    return `<section class="waiter-person-order ${selected ? 'selected' : ''}"><div class="waiter-person-head"><div><b>${esc(group.label || 'Cuenta')}</b>${selected ? '<span>Seleccionada</span>' : ''}</div><strong>${money(group.total)}</strong></div>${(group.items || []).length ? group.items.map((item) => waiterItemRow(item, service, activeSessionId)).join('') : '<div class="empty-ticket">Sin productos todavía.</div>'}</section>`;
+  }
+
+  function waiterPrecheckHtml(table, zone, service) {
+    const groups = waiterServiceGroups(service);
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Pre-cuenta · ${esc(table.name)}</title><style>body{font-family:Inter,Arial,sans-serif;margin:28px;color:#111827}h1{margin:0 0 4px}.muted{color:#64748b}.group{border-top:1px solid #d1d5db;margin-top:18px;padding-top:12px}.row{display:flex;justify-content:space-between;gap:20px;padding:5px 0}.total{font-size:22px;font-weight:800;border-top:2px solid #111827;margin-top:18px;padding-top:12px;display:flex;justify-content:space-between}.no-print{margin-top:24px;padding:12px 18px}@media print{.no-print{display:none}}</style></head><body><div class="muted">VantixGC Restaurante · PRE-CUENTA NO FISCAL</div><h1>${esc(table.name)}</h1><div class="muted">${esc(zone?.name || 'Zona')} · ${service.billingMode === 'INDIVIDUAL' ? 'Cuenta individual' : 'Cuenta conjunta'} · ${service.guestCount} persona(s)</div>${groups.map((group) => `<div class="group"><b>${esc(group.label)}</b>${(group.items || []).map((item) => `<div class="row"><span>${esc(item.quantity)}× ${esc(item.description)}</span><span>${money(item.lineTotal)}</span></div>`).join('')}<div class="row"><b>Subtotal</b><b>${money(group.total)}</b></div></div>`).join('')}<div class="total"><span>Total mesa</span><span>${money(service.total)}</span></div><button class="no-print" onclick="print()">Imprimir</button></body></html>`;
+  }
+
+  async function renderWaiter() {
+    await Promise.all([loadZones(), loadTables(), loadMenu()]);
+    let table = selectedTable();
+    if (table?.zoneId) S.selectedZoneId = table.zoneId;
+    if (!S.selectedZoneId) S.selectedZoneId = S.zones[0]?.id || null;
+    let zoneTables = tablesInSelectedZone();
+    if (!table || table.zoneId !== S.selectedZoneId) {
+      table = zoneTables[0] || null;
+      S.selectedTableId = table?.id || null;
+    }
+    const zone = selectedZone();
+    const active = table?.activeSession;
+    if (active) await Promise.all([loadWaiterDraft(active.id), loadSessionOrders(active.id)]);
+    else { S.draft = null; S.orders = []; }
+
+    const service = S.draft?.service || (active ? {
+      billingMode:active.billingMode || 'CONJUNTA', guestCount:Number(active.guestCount || 1), allItems:[], seats:[], total:active.sale?.total || 0,
+      accountPreparedAt:active.accountPreparedAt || null, cashierRequestedAt:active.cashierRequestedAt || null
+    } : null);
+    const billingMode = service?.billingMode || 'CONJUNTA';
+    const guestCount = Math.max(Number(service?.guestCount || active?.guestCount || 1), 1);
+    if (!S.waiterSeat || S.waiterSeat > guestCount) S.waiterSeat = 1;
+    const draftItems = S.draft?.order?.items || [];
+    const sentOrders = S.orders.filter((row) => !['BORRADOR','CANCELADO'].includes(String(row.state || '').toUpperCase()));
+    const allItems = service?.allItems || [];
+    const hasConsumption = allItems.length > 0;
+    const stage = waiterStage(service, draftItems, sentOrders);
+    const search = String(S.waiterSearch || '').trim().toLocaleLowerCase('es');
+    const category = S.waiterCategory || 'ENTRADAS';
+    const visibleMenu = S.menu.filter((item) => item.category === category && (!search || String(item.product?.nombre || '').toLocaleLowerCase('es').includes(search)));
+    const canEditService = active && can('MESAS.EDITAR');
+    const prepared = Boolean(service?.accountPreparedAt);
+    const sentToCash = Boolean(service?.cashierRequestedAt || table?.state === 'CUENTA_PEDIDA');
+
+    const top = `<section class="ri-card waiter-top-card"><div class="waiter-title-row"><div><div class="ri-eyebrow">Toma de pedido</div><h1 class="ri-title">Panel del mesero</h1><p class="ri-muted">Zona → mesa → cuenta → personas → pedido → cocina → caja.</p></div><div class="waiter-user-badge"><small>Mesero</small><b>${esc(S.context.user.nombre || 'Usuario')}</b></div></div><div class="waiter-zone-row"><label class="ri-label">Zona<select id="waiterZone" class="ri-select">${S.zones.map((row) => `<option value="${row.id}" ${row.id === S.selectedZoneId ? 'selected' : ''}>${esc(row.name)}</option>`).join('')}</select></label><div class="waiter-table-strip">${zoneTables.map(waiterTableChip).join('') || '<div class="empty-ticket">Esta zona no tiene mesas visibles.</div>'}</div>${table ? `<div class="waiter-table-summary"><small>Mesa seleccionada</small><b>${esc(table.name)}</b><span>${active ? `${guestCount} persona(s) · ${waiterElapsed(active.openedAt)}` : 'Libre'}</span></div>` : ''}</div></section>`;
+
+    if (!table) {
+      $('#view').innerHTML = `${top}<section class="ri-card"><div class="empty-ticket">Selecciona una zona con mesas para comenzar.</div></section>`;
+      bindWaiterTop();
+      return;
+    }
+
+    if (!active) {
+      $('#view').innerHTML = `${top}<section class="ri-card waiter-open-card"><div><div class="ri-eyebrow">${esc(zone?.name || 'Zona')} · ${esc(table.name)}</div><h2>Abrir mesa</h2><p class="ri-muted">Define desde el inicio cuántas personas hay y cómo quieren manejar la cuenta.</p></div><div class="waiter-open-grid"><label class="ri-label">Personas<input id="waiterOpenGuests" class="ri-input" type="number" min="1" max="50" value="1"></label><div><div class="ri-label">Modo de cuenta</div><div class="waiter-mode-buttons"><button type="button" class="ri-btn primary" data-open-mode="CONJUNTA">Cuenta conjunta</button><button type="button" class="ri-btn" data-open-mode="INDIVIDUAL">Cuenta individual</button></div></div><button type="button" class="ri-btn primary waiter-open-action" id="waiterOpenTable">Abrir ${esc(table.name)}</button></div></section>`;
+      bindWaiterTop();
+      $$('[data-open-mode]').forEach((button) => button.addEventListener('click', () => { $$('[data-open-mode]').forEach((row) => row.classList.toggle('primary', row === button)); }));
+      $('#waiterOpenTable')?.addEventListener('click', async () => {
+        const mode = $('[data-open-mode].primary')?.dataset.openMode || 'CONJUNTA';
+        const people = Math.max(1, Math.min(50, Number($('#waiterOpenGuests')?.value || 1)));
+        try {
+          const result = await api(`/api/v1/restaurante/mesas/${table.id}/abrir`, { method:'POST', body:JSON.stringify({ guestCount:people, billingMode:mode }) });
+          message(`${table.name} abierta · ${mode === 'INDIVIDUAL' ? 'cuenta individual' : 'cuenta conjunta'} · ${people} persona(s).`);
+          S.waiterSeat = 1;
+          await renderWaiter();
+        } catch (error) { message(error.message, true); }
+      });
+      return;
+    }
+
+    const modeButtons = `<div class="waiter-mode-buttons"><button type="button" class="ri-btn ${billingMode === 'CONJUNTA' ? 'primary' : ''}" data-billing-mode="CONJUNTA" ${hasConsumption && billingMode !== 'CONJUNTA' ? 'disabled' : ''}>Cuenta conjunta</button><button type="button" class="ri-btn ${billingMode === 'INDIVIDUAL' ? 'primary' : ''}" data-billing-mode="INDIVIDUAL" ${hasConsumption && billingMode !== 'INDIVIDUAL' ? 'disabled' : ''}>Cuenta individual</button></div>`;
+    const peopleTabs = billingMode === 'INDIVIDUAL' ? `<div class="waiter-person-tabs">${Array.from({length:guestCount},(_,i)=>i+1).map((seat) => `<button type="button" class="ri-btn ${seat === Number(S.waiterSeat) ? 'primary' : ''}" data-waiter-seat="${seat}">Persona ${seat}</button>`).join('')}${canEditService ? '<button type="button" class="ri-btn" id="addWaiterPerson">+ Agregar persona</button>' : ''}</div>` : `<div class="waiter-joint-info"><b>${guestCount} persona(s)</b>${canEditService ? '<button type="button" class="ri-btn small" id="addWaiterPerson">+ Persona</button>' : ''}<span>Todos los consumos van a una sola cuenta.</span></div>`;
+
+    const catalog = `<section class="ri-card waiter-catalog"><div class="waiter-menu-tabs">${['ENTRADAS','FUERTES','BEBIDAS','POSTRES'].map((cat) => `<button type="button" class="${cat === category ? 'active' : ''}" data-waiter-category="${cat}">${cat}</button>`).join('')}</div><div class="waiter-search-row"><input id="waiterSearch" class="ri-input" placeholder="Buscar producto…" value="${esc(S.waiterSearch || '')}"><span class="ri-muted">${billingMode === 'INDIVIDUAL' ? `Agregando a Persona ${S.waiterSeat}` : 'Agregando a cuenta conjunta'}</span></div><div class="menu-grid waiter-product-grid">${visibleMenu.map((item) => { const q=draftQty(item.id, billingMode === 'INDIVIDUAL' ? S.waiterSeat : null); return `<article class="menu-ticket ${item.warning ? 'warn' : ''}" data-waiter-product="${esc(String(item.product?.nombre || '').toLocaleLowerCase('es'))}"><div class="menu-station">${esc(item.station)}</div><div class="menu-name">${esc(item.product?.nombre || 'Producto')}</div><div class="menu-price">${money(item.product?.precio1)}</div>${item.warning ? `<div class="ri-muted">${esc(item.warning)}</div>` : `<div class="qty-control"><button class="ri-btn small" data-draft-minus="${item.id}">−</button><span class="qty-number">${q}</span><button class="ri-btn small primary" data-draft-plus="${item.id}">+</button></div>`}</article>`; }).join('') || '<div class="empty-ticket">No hay productos para este filtro.</div>'}</div></section>`;
+
+    const groups = waiterServiceGroups(service);
+    const accountAction = sentToCash
+      ? `<div class="waiter-sent-cash"><b>✓ Enviado a Caja</b><span>Caja ya puede cobrar esta mesa.</span></div>`
+      : prepared
+        ? `<button type="button" class="ri-btn primary waiter-main-action" id="sendToCash" ${draftItems.length ? 'disabled' : ''}>Enviar a caja · ${money(service.total)}</button>`
+        : `<button type="button" class="ri-btn brass waiter-main-action" id="prepareAccount" ${draftItems.length || !hasConsumption ? 'disabled' : ''}>Preparar cuenta</button>`;
+    const orderPanel = `<aside class="ri-card waiter-order-panel"><div class="waiter-order-head"><div><div class="ri-eyebrow">Pedido en curso</div><h2>${esc(table.name)}</h2></div><span class="state-stamp ${esc(stage.label.replaceAll(' ','_').toUpperCase())}">${esc(stage.label)}</span></div>${waiterProgressMarkup(stage)}<div class="waiter-order-scroll">${groups.map((group) => waiterGroupMarkup(group, service, active.id)).join('')}</div><div class="waiter-total"><span>Total mesa</span><b>${money(service.total)}</b></div><div class="waiter-action-stack">${draftItems.length ? `<button type="button" class="ri-btn primary waiter-main-action" id="sendDraft">Enviar a cocina / barra · ${money(S.draft?.order?.total)}</button>` : ''}${accountAction}${hasConsumption ? '<button type="button" class="ri-btn" id="printPrecheck">Imprimir pre-cuenta</button>' : ''}</div></aside>`;
+
+    $('#view').innerHTML = `${top}<section class="ri-card waiter-service-bar"><div><div class="ri-label">Modo de cuenta</div>${modeButtons}</div><div><div class="ri-label">Personas en la mesa</div>${peopleTabs}</div><div class="waiter-service-meta"><small>Zona</small><b>${esc(zone?.name || '—')}</b><small>Tiempo</small><b>${waiterElapsed(active.openedAt)}</b></div></section><div class="waiter-workspace">${catalog}${orderPanel}</div>${waiterHistoryHtml(S.orders)}`;
+
+    bindWaiterTop();
+    $$('[data-billing-mode]').forEach((button) => button.addEventListener('click', async () => {
+      if (button.disabled || button.dataset.billingMode === billingMode) return;
+      await updateWaiterService(active.id, { billingMode:button.dataset.billingMode }, 'Modo de cuenta actualizado.');
+    }));
+    $$('[data-waiter-seat]').forEach((button) => button.addEventListener('click', () => { S.waiterSeat=Number(button.dataset.waiterSeat); renderWaiter().catch((error)=>message(error.message,true)); }));
+    $('#addWaiterPerson')?.addEventListener('click', () => updateWaiterService(active.id, { guestCount:guestCount+1 }, `Persona ${guestCount+1} agregada.`));
+    $$('[data-waiter-category]').forEach((button) => button.addEventListener('click', () => { S.waiterCategory=button.dataset.waiterCategory; renderWaiter().catch((error)=>message(error.message,true)); }));
+    $('#waiterSearch')?.addEventListener('input', (event) => {
+      S.waiterSearch=event.target.value;
+      const needle=String(S.waiterSearch||'').trim().toLocaleLowerCase('es');
+      $$('[data-waiter-product]').forEach((card)=>{card.hidden=Boolean(needle)&&!String(card.dataset.waiterProduct||'').includes(needle);});
+    });
+    $$('[data-draft-plus]').forEach((button) => button.addEventListener('click', () => changeDraftQty(active.id, button.dataset.draftPlus, draftQty(button.dataset.draftPlus, billingMode === 'INDIVIDUAL' ? S.waiterSeat : null)+1, billingMode === 'INDIVIDUAL' ? S.waiterSeat : null)));
+    $$('[data-draft-minus]').forEach((button) => button.addEventListener('click', () => changeDraftQty(active.id, button.dataset.draftMinus, Math.max(0,draftQty(button.dataset.draftMinus, billingMode === 'INDIVIDUAL' ? S.waiterSeat : null)-1), billingMode === 'INDIVIDUAL' ? S.waiterSeat : null)));
+    $$('[data-waiter-move]').forEach((select) => select.addEventListener('change', () => updateWaiterItem(select.dataset.session, select.dataset.waiterMove, { seatNumber:Number(select.value) }, 'Producto movido de persona.')));
+    $$('[data-waiter-note]').forEach((button) => button.addEventListener('click', async () => { const notes=prompt('Nota para cocina / barra',button.dataset.currentNote||''); if(notes===null)return; await updateWaiterItem(button.dataset.session,button.dataset.waiterNote,{notes},'Nota guardada.'); }));
+    $('#sendDraft')?.addEventListener('click', () => sendDraft(active.id));
+    $('#prepareAccount')?.addEventListener('click', () => prepareWaiterAccount(table.id));
+    $('#sendToCash')?.addEventListener('click', () => sendWaiterToCash(table.id));
+    $('#printPrecheck')?.addEventListener('click', () => { const popup=window.open('','_blank','width=520,height=760'); if(!popup)return; popup.document.write(waiterPrecheckHtml(table,zone,service)); popup.document.close(); });
+
+    stopPoll();
+    const sessionId=active.id, tableId=table.id;
+    S.poll=setInterval(()=>{if(S.tab==='mesero')refreshWaiterHistory(sessionId,tableId).catch(()=>{});},Math.max(Number(S.context.polling.floorMs||3000),2500));
+  }
+
+  function bindWaiterTop() {
+    $('#waiterZone')?.addEventListener('change', (event) => {
+      S.selectedZoneId=event.target.value;
+      const first=S.tables.find((row)=>row.zoneId===S.selectedZoneId);
+      S.selectedTableId=first?.id||null;
+      S.waiterSeat=1;
+      renderWaiter().catch((error)=>message(error.message,true));
+    });
+    $$('[data-waiter-table]').forEach((button)=>button.addEventListener('click',()=>{S.selectedTableId=button.dataset.waiterTable;S.waiterSeat=1;renderWaiter().catch((error)=>message(error.message,true));}));
+  }
+
+  async function updateWaiterService(sessionId, payload, successText) {
+    try {
+      await api(`/api/v1/restaurante/sesiones/${sessionId}/servicio`, { method:'PATCH', body:JSON.stringify(payload) });
+      message(successText);
+      await renderWaiter();
+    } catch (error) { message(error.message,true); }
+  }
+
+  async function changeDraftQty(sessionId, menuItemId, quantity, seatNumber = null) {
+    try {
+      await api(`/api/v1/restaurante/sesiones/${sessionId}/pedido-borrador/items/${menuItemId}`, { method:'PUT', body:JSON.stringify({ quantity, seatNumber }) });
+      await renderWaiter();
+    } catch (error) { message(error.message, true); }
+  }
+
+  async function updateWaiterItem(sessionId, itemId, payload, successText) {
+    try {
+      await api(`/api/v1/restaurante/sesiones/${sessionId}/items/${itemId}`, { method:'PATCH', body:JSON.stringify(payload) });
+      message(successText);
+      await renderWaiter();
+    } catch (error) { message(error.message,true); }
+  }
+
+  async function sendDraft(sessionId) {
+    const wasSentToCash=Boolean(S.draft?.service?.cashierRequestedAt);
+    try {
+      const order=await api(`/api/v1/restaurante/sesiones/${sessionId}/pedido-borrador/enviar`, { method:'POST', body:'{}' });
+      message(wasSentToCash ? `Nueva ronda enviada. ${order.commands.length} comanda(s). La mesa volvió a servicio activo.` : `Pedido enviado. ${order.commands.length} comanda(s) reales en cola.`);
+      await renderWaiter();
+    } catch (error) { message(error.message,true); }
+  }
+
+  async function prepareWaiterAccount(tableId) {
+    try {
+      await api(`/api/v1/restaurante/mesas/${tableId}/preparar-cuenta`, { method:'POST', body:'{}' });
+      message('Cuenta preparada. Revísala y envíala a Caja cuando el cliente confirme.');
+      await renderWaiter();
+    } catch (error) { message(error.message,true); }
+  }
+
+  async function sendWaiterToCash(tableId) {
+    try {
+      await api(`/api/v1/restaurante/mesas/${tableId}/enviar-caja`, { method:'POST', body:'{}' });
+      message('Cuenta enviada a Caja. La mesa quedó marcada como cuenta pedida.');
+      await renderWaiter();
+    } catch (error) { message(error.message,true); }
+  }
