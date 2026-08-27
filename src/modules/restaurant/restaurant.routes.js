@@ -159,7 +159,7 @@ router.get('/mesas/:id/qr', requirePermission('MESAS.VER'), async (req, res, nex
   try { res.json({ ok: true, data: await qr.tableMaterial(req.tenantId, req.user, req.params.id) }); } catch (error) { next(error); }
 });
 router.post('/mesas/:id/qr/regenerar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await qr.regenerateTableQr(req.tenantId, req.params.id) }); } catch (error) { next(error); }
+  try { res.json({ ok: true, data: await qr.regenerateTableQr(req.tenantId, req.userId, req.params.id) }); } catch (error) { next(error); }
 });
 
 router.get('/mesas', requirePermission('MESAS.VER'), async (req, res, next) => {
