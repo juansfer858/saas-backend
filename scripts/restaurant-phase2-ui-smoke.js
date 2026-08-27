@@ -117,7 +117,6 @@ for (const token of [
   'id="reviewButton"',
   'id="helpPanel"',
   'Pedir es muy fácil',
-  'AGREGAR OTRO PEDIDO',
   'four-profiles-v3'
 ]) assert.ok(customer.includes(token), `Restaurant QR V3 shell must contain ${token}`);
 for (const token of [
@@ -126,6 +125,7 @@ for (const token of [
   'cartCount',
   'ELIGE UN PRODUCTO',
   'ENVIAR PEDIDO A COCINA',
+  'AGREGAR OTRO PEDIDO',
   'consentWhatsApp',
   '/api/public/restaurante/qr/',
   'No necesitas avisarle al mesero'
