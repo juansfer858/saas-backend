@@ -108,11 +108,29 @@ assert.match(themeCss, /\.floor/);
 assert.match(themeCss, /\.command-ticket/);
 assert.match(themeCss, /\.receipt/);
 
-assert.match(customer, /restaurant-qr-ui\.js/);
-assert.match(customerUi, /Pedido directo a producción · sin aprobación previa del mesero/);
-assert.match(customerUi, /Revisé el total · Confirmar pedido/);
-assert.match(customerUi, /consentWhatsApp/);
-assert.match(customerUi, /Entró de inmediato a Cocina \/ Barra/);
+// QR V3 is intentionally one simple surface for four stress profiles: child, elderly,
+// busy guest and guest who should not need to infer hidden interactions.
+for (const token of [
+  'id="helpButton"',
+  'id="categoryNav"',
+  'id="cartBar"',
+  'id="reviewButton"',
+  'id="helpPanel"',
+  'Pedir es muy fácil',
+  'AGREGAR OTRO PEDIDO',
+  'four-profiles-v3'
+]) assert.ok(customer.includes(token), `Restaurant QR V3 shell must contain ${token}`);
+for (const token of [
+  "label:'★ MÁS PEDIDOS'",
+  'visibleProducts',
+  'cartCount',
+  'ELIGE UN PRODUCTO',
+  'ENVIAR PEDIDO A COCINA',
+  'consentWhatsApp',
+  '/api/public/restaurante/qr/',
+  'No necesitas avisarle al mesero'
+]) assert.ok(customerUi.includes(token), `Restaurant QR V3 behavior must contain ${token}`);
+assert.ok(!customerUi.includes('location.origin'), 'QR customer UI must never derive its public identity from browser origin');
 
 assert.match(service, /physicalPrinterFieldPass/);
 assert.match(service, /metaBusinessManagementReviewPass/);
@@ -144,9 +162,10 @@ assert.match(edgeGate, /DESARROLLO FUNCIONAL SIMULADO AUTORIZADO/);
 assert.match(edgeGate, /RESTAURANTE PRODUCCIÓN REAL: BLOQUEADA/);
 
 new Function(operatorUi);
+new Function(customerUi);
 new Function(zonesService);
 
-console.log('RESTAURANT PHASE 2 + SALÓN/QR V2 + CAJA V2 + NOTICE DIALOG SMOKE OK');
+console.log('RESTAURANT PHASE 2 + SALÓN/QR V3 + CAJA V2 + NOTICE DIALOG SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
   dynamicProductionBlockedStatus: true,
@@ -160,6 +179,9 @@ console.log(JSON.stringify({
   kdsUi: true,
   simulatedPdfCommandUi: true,
   qrDirectOrderUi: true,
+  qrFourProfileUx: true,
+  qrPersistentCart: true,
+  qrHelpFlow: true,
   cashShiftUi: true,
   cashV2RealSummaryFields: true,
   restaurantRbacDeclared: true,
