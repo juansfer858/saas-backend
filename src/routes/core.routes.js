@@ -47,7 +47,9 @@ router.use('/seguridad', rbacRouter);
 router.use('/edge', edgeTenantRouter);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
-router.use('/restaurante', restaurantRouter);
+// Extension first so it can replace only the cash-summary route while every other
+// Restaurant endpoint falls through unchanged to the proven base router.
 router.use('/restaurante', restaurantVisitPaymentsRouter);
+router.use('/restaurante', restaurantRouter);
 
 module.exports = { coreRouter: router };
