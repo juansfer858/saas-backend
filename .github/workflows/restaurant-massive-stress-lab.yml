@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - stress-restaurant-e2e-accounting
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
