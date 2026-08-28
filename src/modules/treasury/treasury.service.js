@@ -538,7 +538,7 @@ async function listCartera(tenantId, filters = {}) {
       take: pageSize
     }),
     prisma.cartera.count({ where })
-  ];
+  ]);
 
   return { items, meta: { page, pageSize, total, pages: Math.max(Math.ceil(total / pageSize), 1) } };
 }
