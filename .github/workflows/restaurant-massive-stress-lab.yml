@@ -60,6 +60,9 @@ jobs:
       - name: Sync isolated stress database
         run: npx prisma db push
 
+      - name: Enable isolated fiscal queue
+        run: node scripts/restaurant-stress-dian-setup.js
+
       - name: Execute 96-table end-to-end stress
         id: stress
         continue-on-error: true
