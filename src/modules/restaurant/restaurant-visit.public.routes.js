@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const fs = require('node:fs');
 const path = require('node:path');
 const { z } = require('zod');
 const visitPayments = require('./restaurant-visit-payments.service');
@@ -39,6 +40,30 @@ const orderSchema = z.object({
   notes: z.string().trim().max(500).optional().nullable(),
   externalRequestId: z.string().trim().min(3).max(120).optional().nullable()
 }).refine((x) => !x.consentWhatsApp || Boolean(x.customerPhoneE164), { message: 'El consentimiento WhatsApp requiere número celular', path: ['customerPhoneE164'] });
+
+// Keep the approved QR V3 and operator engines intact, but prepend/append the new guarded
+// layers at delivery time so the feature remains removable without forking the base interfaces.
+router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
+  try {
+    const [visitUi, baseUi] = await Promise.all([
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-ui.js'), 'utf8')
+    ]);
+    res.set('Cache-Control', 'no-store');
+    res.type('application/javascript').send(`${visitUi}\n;${baseUi}`);
+  } catch (error) { next(error); }
+});
+
+router.get('/app/restaurant-ui.js', async (_req, res, next) => {
+  try {
+    const [baseUi, paymentsUi] = await Promise.all([
+      fs.promises.readFile(path.join(webRoot, 'restaurant-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-visit-payments-ui.js'), 'utf8')
+    ]);
+    res.set('Cache-Control', 'no-store');
+    res.type('application/javascript').send(`${baseUi}\n;${paymentsUi}`);
+  } catch (error) { next(error); }
+});
 
 router.get('/app/restaurant-qr-visit-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
