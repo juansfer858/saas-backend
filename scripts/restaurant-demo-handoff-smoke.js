@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const bcrypt = require('bcryptjs');
 
 const seed = fs.readFileSync('scripts/ensure-restaurant-demo-tenant.js','utf8');
-const routes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8');
+const routes = `${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8')}\n${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.base.js','utf8')}`;
 const hash = seed.match(/const PASSWORD_HASH = '([^']+)'/)?.[1];
 assert.ok(hash, 'Demo password hash must exist');
 assert.equal(bcrypt.compareSync('VantixGC!RestDemo#2026', hash), true, 'Known handoff password must match demo seed');
