@@ -1,0 +1,44 @@
+name: Temporary Production Network Probe
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Diagnose core.vantixgc.com without changing production
+        shell: bash
+        run: |
+          set +e
+          echo '=== DNS ==='
+          getent ahosts core.vantixgc.com || true
+          echo '=== RESOLV.CONF ==='
+          cat /etc/resolv.conf || true
+          echo '=== HTTPS ROOT ==='
+          curl -sS -L --max-time 20 -o /tmp/root.body -D /tmp/root.headers -w 'curl_rc=%{exitcode} http=%{http_code} remote_ip=%{remote_ip} dns=%{time_namelookup} connect=%{time_connect} tls=%{time_appconnect} total=%{time_total}\n' https://core.vantixgc.com/app
+          rc=$?
+          echo "shell_rc=$rc"
+          cat /tmp/root.headers 2>/dev/null || true
+          head -c 800 /tmp/root.body 2>/dev/null || true
+          echo
+          echo '=== RESTAURANT BUILD MARKER ==='
+          curl -sS --max-time 20 -o /tmp/marker.body -D /tmp/marker.headers -w 'curl_rc=%{exitcode} http=%{http_code} remote_ip=%{remote_ip} dns=%{time_namelookup} connect=%{time_connect} tls=%{time_appconnect} total=%{time_total}\n' https://core.vantixgc.com/api/public/restaurante/build-marker
+          rc=$?
+          echo "shell_rc=$rc"
+          cat /tmp/marker.headers 2>/dev/null || true
+          cat /tmp/marker.body 2>/dev/null || true
+          echo
+          echo '=== HEALTH/READY (new deployment if present) ==='
+          for path in healthz readyz api/public/runtime-info; do
+            echo "--- /$path"
+            curl -sS --max-time 20 -o /tmp/probe.body -D /tmp/probe.headers -w 'curl_rc=%{exitcode} http=%{http_code} remote_ip=%{remote_ip} dns=%{time_namelookup} connect=%{time_connect} tls=%{time_appconnect} total=%{time_total}\n' "https://core.vantixgc.com/$path"
+            rc=$?
+            echo "shell_rc=$rc"
+            cat /tmp/probe.headers 2>/dev/null || true
+            cat /tmp/probe.body 2>/dev/null || true
+            echo
+          done
+          exit 0
