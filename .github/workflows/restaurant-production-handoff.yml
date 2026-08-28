@@ -13,7 +13,21 @@ jobs:
   verify-production:
     runs-on: ubuntu-latest
     steps:
+      - name: Validate handoff contract on pull request
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f server.js
+          test -f scripts/runtime-stability-smoke.js
+          test -f scripts/runtime-stability-db-smoke.js
+          grep -q "app.get('/healthz'" server.js
+          grep -q "app.get('/readyz'" server.js
+          grep -q "app.get('/api/public/runtime-info'" server.js
+          echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
+
       - name: Wait for Restaurant V2 marker in production
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
@@ -68,6 +82,7 @@ jobs:
           echo "PRODUCTION_RUNTIME_IDENTITY_OK"
 
       - name: Verify Super Core Restaurant runtime status
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
@@ -78,6 +93,7 @@ jobs:
           echo "PRODUCTION_CORE_STATUS_OK"
 
       - name: Verify supported central tenant login entrypoint
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
