@@ -15,6 +15,8 @@ const DIAN_QUEUE_INTERVAL_MS = Math.max(Number(process.env.DIAN_QUEUE_INTERVAL_M
 const NOTIFICATION_QUEUE_INTERVAL_MS = Math.max(Number(process.env.NOTIFICATION_QUEUE_INTERVAL_MS) || 30000, 5000);
 const RESTAURANT_DEMO_RETRY_MS = Math.max(Number(process.env.RESTAURANT_DEMO_RETRY_MS) || 5000, 1000);
 const RESTAURANT_DEMO_MAX_ATTEMPTS = Math.max(Number(process.env.RESTAURANT_DEMO_MAX_ATTEMPTS) || 12, 1);
+const RESTAURANT_SCHEMA_STARTUP_RETRY_MS = Math.max(Number(process.env.RESTAURANT_SCHEMA_STARTUP_RETRY_MS) || 3000, 500);
+const RESTAURANT_SCHEMA_STARTUP_MAX_ATTEMPTS = Math.max(Number(process.env.RESTAURANT_SCHEMA_STARTUP_MAX_ATTEMPTS) || 12, 1);
 const EDGE_SCHEMA_RETRY_MS = Math.max(Number(process.env.EDGE_SCHEMA_RETRY_MS) || 5000, 1000);
 const EDGE_SCHEMA_MAX_ATTEMPTS = Math.max(Number(process.env.EDGE_SCHEMA_MAX_ATTEMPTS) || 12, 1);
 const SELF_SERVICE_SCHEMA_RETRY_MS = Math.max(Number(process.env.SELF_SERVICE_SCHEMA_RETRY_MS) || 5000, 1000);
@@ -27,6 +29,27 @@ let notificationTimer = null;
 let restaurantDemoTimer = null;
 let edgeSchemaTimer = null;
 let selfServiceSchemaTimer = null;
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureRestaurantSchemaBeforeListen() {
+  for (let attempt = 1; attempt <= RESTAURANT_SCHEMA_STARTUP_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const schema = await ensureRestaurantRuntimeSchema();
+      if (schema.changed) console.log('RESTAURANT_SCHEMA_SYNC_APPLIED');
+      console.log(`RESTAURANT_SCHEMA_STARTUP_READY attempt=${attempt}`);
+      return schema;
+    } catch (error) {
+      const terminal = attempt >= RESTAURANT_SCHEMA_STARTUP_MAX_ATTEMPTS;
+      console.error(`RESTAURANT_SCHEMA_STARTUP_RETRY attempt=${attempt} error=${error.message}`);
+      if (terminal) throw error;
+      await wait(RESTAURANT_SCHEMA_STARTUP_RETRY_MS);
+    }
+  }
+  throw new Error('No fue posible preparar el esquema Restaurante antes de publicar el servidor');
+}
 
 async function runDianQueue() {
   if (dianWorkerBusy) return;
@@ -98,8 +121,6 @@ async function ensureRestaurantDemoInBackground(attempt = 1) {
 
   demoBootstrapState.markStart(attempt);
   try {
-    const schema = await ensureRestaurantRuntimeSchema();
-    if (schema.changed) console.log('RESTAURANT_SCHEMA_SYNC_APPLIED');
     const demo = await ensureRestaurantDemoTenant();
     demoBootstrapState.markReady();
     console.log(`RESTAURANT_DEMO_RUNTIME_READY subdomain=${demo.subdomain} tables=${demo.tables} menuItems=${demo.menuItems} attempt=${attempt}`);
@@ -116,7 +137,12 @@ async function ensureRestaurantDemoInBackground(attempt = 1) {
   }
 }
 
-function startRuntime() {
+async function startRuntime() {
+  // Restaurante is a user-facing critical surface. Do not accept HTTP traffic until
+  // its runtime schema is present; otherwise the first requests after a deploy can
+  // hit Prisma before db push finishes and surface transient HTTP 500 errors.
+  await ensureRestaurantSchemaBeforeListen();
+
   server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor activo en el puerto ${PORT}`);
   });
@@ -135,6 +161,8 @@ function startRuntime() {
   selfServiceSchemaTimer = setTimeout(() => ensureSelfServiceSchemaInBackground(1), 0);
   selfServiceSchemaTimer.unref?.();
 
+  // Demo data stays non-blocking. Only the schema required by real Restaurant traffic
+  // is a startup gate.
   restaurantDemoTimer = setTimeout(() => ensureRestaurantDemoInBackground(1), 0);
   restaurantDemoTimer.unref?.();
 }
@@ -162,4 +190,8 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-startRuntime();
+startRuntime().catch(async (error) => {
+  console.error(`CORE_STARTUP_FAILED: ${error.message}`);
+  try { await prisma.$disconnect(); } catch {}
+  process.exit(1);
+});
