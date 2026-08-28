@@ -21,10 +21,7 @@ assert.match(mobile, /restaurantVisitCode/, 'mobile guard must detect visit code
 assert.match(mobile, /input\.blur\(\)/, 'mobile guard must avoid forced keyboard on first QR paint');
 assert.match(visit, /input\?\.focus\(\{ preventScroll:true \}\)/, 'test must cover current visit overlay autofocus behavior');
 
-const mobileIndex = routes.indexOf("restaurant-qr-mobile-fit.js");
-const visitIndex = routes.indexOf("restaurant-qr-visit-ui.js");
-const baseIndex = routes.indexOf("restaurant-qr-ui.js");
-assert.ok(mobileIndex >= 0 && visitIndex > mobileIndex && baseIndex > visitIndex, 'composed QR asset must prepend mobile fit before visit and base UI');
-assert.match(routes, /send\(`\$\{mobileFit\}\\n;\$\{visitUi\}\\n;\$\{baseUi\}`\)/, 'combined QR asset must execute mobile fit first');
+assert.match(routes, /const \[mobileFit, visitUi, baseUi\] = await Promise\.all/, 'QR compositor must load mobile guard with visit and base engines');
+assert.match(routes, /send\(`\$\{mobileFit\}\\n;\$\{visitUi\}\\n;\$\{baseUi\}`\)/, 'combined QR asset must execute mobile fit before visit and base UI');
 
 console.log('RESTAURANT QR MOBILE FIT SMOKE OK');
