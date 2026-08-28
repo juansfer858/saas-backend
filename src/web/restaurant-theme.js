@@ -24,6 +24,16 @@
     document.head.appendChild(style);
   }
 
+  function loadControlCenterAddons() {
+    if (!location.pathname.startsWith('/app/centro-de-control')) return;
+    if (document.querySelector('script[data-restaurant-menu-import]')) return;
+    const script = document.createElement('script');
+    script.src = '/app/restaurant-menu-import-ui.js?v=ocr-v1';
+    script.async = true;
+    script.dataset.restaurantMenuImport = 'true';
+    document.head.appendChild(script);
+  }
+
   function apply(theme) {
     const root = document.documentElement;
     const tokens = theme?.tokens || {};
@@ -49,4 +59,6 @@
     TOKEN_MAP: { ...TOKEN_MAP },
     FONT_MAP: { ...FONT_MAP }
   };
+
+  loadControlCenterAddons();
 })();
