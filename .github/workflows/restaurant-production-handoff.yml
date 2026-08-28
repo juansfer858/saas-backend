@@ -32,6 +32,41 @@ jobs:
           echo "Production did not expose expected Restaurant V2 marker in time" >&2
           exit 1
 
+      - name: Verify production liveness and readiness
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            health_code=$(curl -sS --max-time 12 -o /tmp/healthz.json -w '%{http_code}' https://core.vantixgc.com/healthz || true)
+            ready_code=$(curl -sS --max-time 12 -o /tmp/readyz.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
+            if [ "$health_code" = "200" ] && [ "$ready_code" = "200" ]; then
+              cat /tmp/healthz.json
+              cat /tmp/readyz.json
+              grep -q '"status":"alive"' /tmp/healthz.json
+              grep -q '"status":"ready"' /tmp/readyz.json
+              grep -q '"database":"OK"' /tmp/readyz.json
+              echo "PRODUCTION_RUNTIME_READY_OK"
+              exit 0
+            fi
+            echo "Waiting for runtime readiness... attempt=$attempt health=$health_code ready=$ready_code"
+            sleep 5
+          done
+          echo "Production runtime did not become ready in time" >&2
+          exit 1
+
+      - name: Verify deployed runtime identity surface
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(curl -fsSL --max-time 15 https://core.vantixgc.com/api/public/runtime-info)
+          echo "$body"
+          echo "$body" | grep -q '"phase":"READY"'
+          echo "$body" | grep -q '"uptimeSeconds"'
+          echo "$body" | grep -q '"commit"'
+          echo "PRODUCTION_RUNTIME_IDENTITY_OK"
+
       - name: Verify Super Core Restaurant runtime status
         shell: bash
         run: |
