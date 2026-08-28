@@ -59,6 +59,9 @@ jobs:
       - name: Load complete application graph
         run: node -e "require('./src/app'); console.log('SUPER CORE LOAD OK')"
 
+      - name: Validate SaaS runtime stability contracts
+        run: node scripts/runtime-stability-smoke.js
+
       - name: Validate Accounting V2 operational UI
         run: node scripts/accounting-ui-smoke.js
 
@@ -156,6 +159,9 @@ jobs:
 
       - name: Sync integration database
         run: npx prisma db push
+
+      - name: Validate runtime health, readiness and singleton worker leases
+        run: node scripts/runtime-stability-db-smoke.js
 
       - name: Run Super Core smoke test
         run: node scripts/super-core-smoke.js
