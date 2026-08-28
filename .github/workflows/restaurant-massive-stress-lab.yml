@@ -1,0 +1,99 @@
+name: Restaurant Massive Stress Lab
+
+on:
+  push:
+    branches:
+      - stress-restaurant-e2e-accounting
+  workflow_dispatch:
+
+jobs:
+  massive-stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vantix_stress
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d vantix_stress"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      NODE_ENV: test
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_stress?schema=public
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+      STRESS_CONFIRM_ISOLATED_DB: 'YES'
+      STRESS_TABLES: '96'
+      STRESS_ROUNDS: '3'
+      STRESS_GUESTS: '4'
+      STRESS_CONCURRENCY: '32'
+      STRESS_REPORT_DIR: stress-results
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run build
+
+      - name: Sync isolated stress database
+        run: npx prisma db push
+
+      - name: Execute 96-table end-to-end stress
+        id: stress
+        continue-on-error: true
+        run: node scripts/restaurant-massive-stress.js
+
+      - name: Print stress report
+        if: always()
+        run: |
+          echo '================ RESTAURANT MASSIVE STRESS REPORT ================'
+          if [ -f stress-results/restaurant-massive-stress-report.md ]; then
+            cat stress-results/restaurant-massive-stress-report.md
+          else
+            echo 'Stress report was not generated.'
+          fi
+
+      - name: Upload stress evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restaurant-massive-stress-report
+          path: stress-results/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce stress verdict
+        if: always()
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const file = 'stress-results/restaurant-massive-stress-report.json';
+          if (!fs.existsSync(file)) {
+            console.error('STRESS_REPORT_MISSING');
+            process.exit(1);
+          }
+          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+          console.log(`FINAL_STRESS_VERDICT=${report.verdict}`);
+          console.log(`FINAL_STRESS_ERRORS=${report.errors?.length || 0}`);
+          console.log(`FINAL_STRESS_FINDINGS=${report.findings?.length || 0}`);
+          if (report.verdict !== 'PASS') process.exit(1);
+          NODE
