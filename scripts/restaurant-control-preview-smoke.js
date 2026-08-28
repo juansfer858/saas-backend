@@ -4,7 +4,7 @@ const { app } = require('../src/app');
 
 async function main() {
   const html = fs.readFileSync('src/web/restaurant-control-preview.html', 'utf8');
-  const routes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
+  const routes = `${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8')}\n${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.base.js', 'utf8')}`;
   const panelEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
 
   assert.match(html, /Centro de control/);

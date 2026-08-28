@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const server = fs.readFileSync('server.js','utf8');
-const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8');
+const publicRoutes = `${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8')}\n${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.base.js','utf8')}`;
 
 assert.ok(server.includes("require('./scripts/ensure-restaurant-demo-tenant')"));
 assert.ok(server.includes('ensureRestaurantDemoTenant()'));

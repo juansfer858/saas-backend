@@ -18,6 +18,7 @@ const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
+const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 require('../modules/restaurant/restaurant-draft-fix');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
@@ -46,6 +47,9 @@ router.use('/seguridad', rbacRouter);
 router.use('/edge', edgeTenantRouter);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
+// Extension first so it can replace only the cash-summary route while every other
+// Restaurant endpoint falls through unchanged to the proven base router.
+router.use('/restaurante', restaurantVisitPaymentsRouter);
 router.use('/restaurante', restaurantRouter);
 
 module.exports = { coreRouter: router };

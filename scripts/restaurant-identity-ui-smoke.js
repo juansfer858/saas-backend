@@ -9,7 +9,9 @@ const qr = read('src/web/restaurant-qr-ui.js');
 const html = read('src/web/restaurant.html');
 const qrHtml = read('src/web/restaurant-qr.html');
 const routes = read('src/modules/restaurant/restaurant.routes.js');
-const publicRoutes = read('src/modules/restaurant/restaurant.public.routes.js');
+const publicRoutes = `${read('src/modules/restaurant/restaurant.public.routes.js')}\n${read('src/modules/restaurant/restaurant.public.routes.base.js')}\n${read('src/modules/restaurant/restaurant-visit.public.routes.js')}`;
+const visitUi = read('src/web/restaurant-qr-visit-ui.js');
+const paymentsUi = read('src/web/restaurant-visit-payments-ui.js');
 const themeService = read('src/modules/restaurant/restaurant-theme.service.js');
 const rbac = read('src/modules/restaurant/restaurant.rbac.js');
 const docs = read('docs/RESTAURANT_IDENTITY_CONNECTED_V1.md');
@@ -75,6 +77,14 @@ assert.ok(qr.includes('RestaurantTheme?.apply(ctx.theme)'));
 assert.ok(qr.includes('confirmedTotal:total()'));
 assert.ok(publicRoutes.includes('identity.publicQrContext'));
 assert.ok(publicRoutes.includes("restaurant-theme.css"));
+assert.ok(publicRoutes.includes('/autorizar'));
+assert.ok(publicRoutes.includes('x-vantix-restaurant-visit'));
+assert.ok(visitUi.includes('Confirma que estás en esta mesa'));
+assert.ok(visitUi.includes('Persona ${seat}'));
+assert.ok(paymentsUi.includes('CUENTA SEPARADA / PAGOS POR PERSONA'));
+assert.ok(paymentsUi.includes('EFECTIVO'));
+assert.ok(paymentsUi.includes('TRANSFERENCIA'));
+assert.ok(paymentsUi.includes('TARJETA'));
 
 assert.ok(routes.includes("router.get('/ui-context'"));
 assert.ok(routes.includes("router.patch('/theme'"));
@@ -87,7 +97,10 @@ assert.ok(rbac.includes("'RESTAURANTE.VER'"));
 assert.ok(docs.includes('ID-AC01'));
 assert.ok(docs.includes('No existe un segundo mapa de roles de frontend'));
 
-console.log('RESTAURANT IDENTITY + PANEL TYPOGRAPHY + BALANCED CAJA SMOKE OK');
+new Function(visitUi);
+new Function(paymentsUi);
+
+console.log('RESTAURANT IDENTITY + PANEL TYPOGRAPHY + BALANCED CAJA + SECURE VISIT UI SMOKE OK');
 console.log(JSON.stringify({
   sharedTheme: true,
   panelTypographyEverywhere: true,
@@ -95,6 +108,8 @@ console.log(JSON.stringify({
   fiveRealSurfacesWired: true,
   kdsPolling: true,
   qrOriginMarker: true,
+  qrVisitAuthorizationUi: true,
+  splitPaymentsUi: true,
   rbacDrivenRail: true,
   liveCashDifference: true,
   cajaV2RealSummaryFields: true,

@@ -4,7 +4,7 @@ const { app } = require('../src/app');
 
 async function main() {
   const html = fs.readFileSync('src/web/ui-sandbox.html', 'utf8');
-  const routes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
+  const routes = `${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8')}\n${fs.readFileSync('src/modules/restaurant/restaurant.public.routes.base.js', 'utf8')}`;
 
   assert.match(html, /VantixGC Super Core · UI Sandbox/);
   assert.match(html, /function useState\(/);

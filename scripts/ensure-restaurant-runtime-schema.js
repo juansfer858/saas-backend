@@ -40,7 +40,21 @@ async function readRestaurantSchemaState() {
           AND table_name = 'RestaurantTableSession'
           AND column_name = 'cashierRequestedAt'
       ) AS "sessionCashierRequestedAt",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'qrVisitNonce'
+      ) AS "sessionQrVisitNonce",
+      to_regclass('public."RestaurantQrVisitDevice"')::text AS "qrVisitDevice",
+      to_regclass('public."RestaurantSessionPayment"')::text AS "sessionPayment",
       to_regclass('public."RestaurantOrder"')::text AS "order",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantOrder'
+          AND column_name = 'qrVisitDeviceId'
+      ) AS "orderQrVisitDeviceId",
       to_regclass('public."RestaurantOrderItem"')::text AS "orderItem",
       EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -54,8 +68,9 @@ async function readRestaurantSchemaState() {
   const state = rows?.[0] || {};
   const required = [
     'config', 'zone', 'table', 'tableZoneId', 'menuItem', 'session',
-    'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt',
-    'order', 'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument'
+    'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
+    'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
+    'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument'
   ];
   const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };

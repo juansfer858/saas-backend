@@ -158,6 +158,9 @@ model RestaurantTableSession {
   tipAmount           Decimal                @default(0) @db.Decimal(18, 2)
   splitMode           String?
   splitMetadata       Json?
+  qrVisitNonce        String                 @default(uuid())
+  qrVisitFailedAttempts Int                  @default(0)
+  qrVisitLockedUntil  DateTime?
   openedAt            DateTime               @default(now())
   accountPreparedAt   DateTime?
   cashierRequestedAt  DateTime?
@@ -168,11 +171,50 @@ model RestaurantTableSession {
   table               RestaurantTable        @relation(fields: [tableId], references: [id], onDelete: Restrict)
   orders              RestaurantOrder[]
   fiscalDocuments     RestaurantFiscalDocument[]
+  qrVisitDevices      RestaurantQrVisitDevice[]
+  sessionPayments     RestaurantSessionPayment[]
 
   @@unique([tenantId, saleId])
   @@index([tenantId, tableId, state])
   @@index([tenantId, billingMode, state])
   @@index([tenantId, cashShiftId, closedAt])
+}
+
+model RestaurantQrVisitDevice {
+  id                  String                 @id @default(uuid())
+  tenantId            String
+  sessionId           String
+  tokenHash           String                 @unique
+  seatNumber          Int?
+  authorizedAt        DateTime               @default(now())
+  lastSeenAt          DateTime               @default(now())
+  revokedAt           DateTime?
+
+  session             RestaurantTableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, sessionId, revokedAt])
+  @@index([sessionId, seatNumber])
+}
+
+model RestaurantSessionPayment {
+  id                  String                 @id @default(uuid())
+  tenantId            String
+  sessionId           String
+  partKey             String
+  treasuryPaymentId   String                 @unique
+  cashShiftId         String?
+  metodoPago          MetodoPago
+  cajaBancoId         String
+  saleAmount          Decimal                @db.Decimal(18, 2)
+  reference           String?
+  recordedByUserId    String
+  paidAt              DateTime               @default(now())
+
+  session             RestaurantTableSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, partKey])
+  @@index([tenantId, sessionId, paidAt])
+  @@index([tenantId, cashShiftId, paidAt])
 }
 
 model RestaurantOrder {
@@ -184,6 +226,7 @@ model RestaurantOrder {
   createdByUserId     String?
   customerPhoneE164   String?
   externalRequestId   String?
+  qrVisitDeviceId     String?
   total               Decimal                @default(0) @db.Decimal(18, 2)
   notes               String?
   creadoEn            DateTime               @default(now())
@@ -196,6 +239,7 @@ model RestaurantOrder {
   @@unique([tenantId, externalRequestId])
   @@index([tenantId, sessionId, creadoEn])
   @@index([tenantId, state, creadoEn])
+  @@index([tenantId, qrVisitDeviceId, creadoEn])
 }
 
 model RestaurantOrderItem {
