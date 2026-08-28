@@ -28,6 +28,8 @@ jobs:
         run: npm run build
       - name: Validate isolated interactive UI sandbox
         run: node scripts/ui-sandbox-smoke.js
+      - name: Validate Restaurant QR mobile viewport fit
+        run: node scripts/restaurant-qr-mobile-fit-smoke.js
       - name: Validate real read-only restaurant control preview
         run: node scripts/restaurant-control-preview-smoke.js
       - name: Validate operational restaurant control center
