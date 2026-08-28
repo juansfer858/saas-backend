@@ -115,13 +115,21 @@ async function recordTreasuryMovementInTx(tx, params) {
   if (amount.lte(0)) throw new AppError(400, 'El monto debe ser mayor que cero', 'TREASURY_AMOUNT_INVALID');
 
   const direction = Number(params.sign || 1) >= 0 ? 1 : -1;
-  const previous = money(caja.saldoActual);
-  const next = money(direction > 0 ? previous.plus(amount) : previous.minus(amount));
 
+  // saldoActual es un acumulador compartido por muchas operaciones concurrentes.
+  // Nunca debe calcularse con read -> absolute write porque dos cobros simultáneos
+  // pueden leer el mismo saldo y el último commit borra el incremento del anterior.
+  // Prisma traduce increment/decrement a una operación atómica en PostgreSQL.
   const updated = await tx.cajaBanco.update({
     where: { id: caja.id },
-    data: { saldoActual: next }
+    data: {
+      saldoActual: direction > 0
+        ? { increment: amount }
+        : { decrement: amount }
+    }
   });
+  const next = money(updated.saldoActual);
+  const previous = money(direction > 0 ? next.minus(amount) : next.plus(amount));
 
   const movement = await tx.movimientoTesoreria.create({
     data: {
