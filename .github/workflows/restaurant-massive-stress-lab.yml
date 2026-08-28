@@ -12,7 +12,7 @@ on:
 jobs:
   massive-stress:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -40,6 +40,8 @@ jobs:
       STRESS_ROUNDS: '3'
       STRESS_GUESTS: '4'
       STRESS_CONCURRENCY: '32'
+      SAME_TABLE_STRESS_CASES: '24'
+      SAME_TABLE_STRESS_CONCURRENCY: '12'
       STRESS_REPORT_DIR: stress-results
     steps:
       - name: Checkout
@@ -68,6 +70,11 @@ jobs:
         continue-on-error: true
         run: node scripts/restaurant-massive-stress.js
 
+      - name: Execute simultaneous same-table split payments
+        id: same_table
+        continue-on-error: true
+        run: node scripts/restaurant-same-table-payment-stress.js
+
       - name: Print stress report
         if: always()
         run: |
@@ -75,7 +82,13 @@ jobs:
           if [ -f stress-results/restaurant-massive-stress-report.md ]; then
             cat stress-results/restaurant-massive-stress-report.md
           else
-            echo 'Stress report was not generated.'
+            echo 'Massive stress report was not generated.'
+          fi
+          echo '================ SAME TABLE PAYMENT STRESS ========================'
+          if [ -f stress-results/restaurant-same-table-payment-report.json ]; then
+            cat stress-results/restaurant-same-table-payment-report.json
+          else
+            echo 'Same-table payment report was not generated.'
           fi
 
       - name: Upload stress evidence
@@ -87,19 +100,27 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Enforce stress verdict
+      - name: Enforce stress verdicts
         if: always()
         run: |
           node - <<'NODE'
           const fs = require('node:fs');
-          const file = 'stress-results/restaurant-massive-stress-report.json';
-          if (!fs.existsSync(file)) {
-            console.error('STRESS_REPORT_MISSING');
-            process.exit(1);
+          const files = [
+            'stress-results/restaurant-massive-stress-report.json',
+            'stress-results/restaurant-same-table-payment-report.json'
+          ];
+          let failed = false;
+          for (const file of files) {
+            if (!fs.existsSync(file)) {
+              console.error(`STRESS_REPORT_MISSING=${file}`);
+              failed = true;
+              continue;
+            }
+            const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+            console.log(`STRESS_REPORT=${file}`);
+            console.log(`VERDICT=${report.verdict}`);
+            console.log(`ERRORS=${report.errors?.length || 0}`);
+            if (report.verdict !== 'PASS') failed = true;
           }
-          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
-          console.log(`FINAL_STRESS_VERDICT=${report.verdict}`);
-          console.log(`FINAL_STRESS_ERRORS=${report.errors?.length || 0}`);
-          console.log(`FINAL_STRESS_FINDINGS=${report.findings?.length || 0}`);
-          if (report.verdict !== 'PASS') process.exit(1);
+          if (failed) process.exit(1);
           NODE
