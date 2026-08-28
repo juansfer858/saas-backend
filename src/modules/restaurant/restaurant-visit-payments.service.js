@@ -365,7 +365,9 @@ async function registerPartPayment(tenantId, user, tableId, input) {
     if (pre.cashShiftId) await tx.restaurantTableSession.updateMany({ where: { id: pre.session.id, cashShiftId: null }, data: { cashShiftId: pre.cashShiftId } });
     const current = await tx.restaurantTableSession.findFirst({ where: { id: pre.session.id, tenantId }, include: { table: true } });
     const summary = await settlementSummaryInTx(tx, tenantId, current);
-    const allPaid = summary.parts.length > 0 && summary.parts.every((part) => part.paid) && money(summary.remaining).eq(0);
+    const allPartsPaid = summary.parts.length > 0 && summary.parts.every((part) => part.paid) && money(summary.remaining).eq(0);
+    const commercialPaid = summary.sale && summary.sale.estado === 'PAGADO_TOTAL' && money(summary.sale.saldo).eq(0);
+    const allPaid = allPartsPaid && commercialPaid;
     if (allPaid && current.state !== 'CERRADA') {
       const closedAt = new Date();
       const closed = await tx.restaurantTableSession.update({ where: { id: current.id }, data: { state: 'CERRADA', closedByUserId: user.id, closedAt } });
