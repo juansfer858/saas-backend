@@ -42,6 +42,51 @@
     panel.addEventListener('click',e=>{if(e.target===panel)panel.close?.()});
   })();
   </script>
+  <script>
+  (()=>{
+    // Resilience layer: only retries idempotent Restaurant GETs. Mutations are never replayed.
+    const nativeFetch=window.fetch.bind(window),retryStatuses=new Set([429,500,502,503,504]);
+    const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+    const isRestaurantGet=(input,init)=>{
+      const method=String(init?.method||(input instanceof Request?input.method:'GET')||'GET').toUpperCase();
+      if(method!=='GET'&&method!=='HEAD')return false;
+      try{const u=new URL(typeof input==='string'?input:input.url,location.href);return u.origin===location.origin&&u.pathname.startsWith('/api/v1/restaurante/')}catch{return false}
+    };
+    window.fetch=async(input,init={})=>{
+      if(!isRestaurantGet(input,init))return nativeFetch(input,init);
+      const maxAttempts=6;let lastResponse=null,lastError=null;
+      for(let attempt=1;attempt<=maxAttempts;attempt++){
+        try{
+          const response=await nativeFetch(input,init);lastResponse=response;lastError=null;
+          if(!retryStatuses.has(response.status)){
+            if(attempt>1)window.dispatchEvent(new CustomEvent('vantixgc:api-recovered'));
+            return response;
+          }
+        }catch(error){lastError=error;lastResponse=null}
+        if(attempt<maxAttempts){const delay=Math.min(350*Math.pow(2,attempt-1),5000)+Math.floor(Math.random()*180);await sleep(delay)}
+      }
+      window.dispatchEvent(new CustomEvent('vantixgc:api-final-unavailable',{detail:{status:lastResponse?.status||0}}));
+      if(lastResponse)return lastResponse;
+      throw lastError||new Error('Servicio temporalmente no disponible');
+    };
+
+    let recoveryTimer=null,recoveryAttempts=0;
+    const clearRecovery=()=>{if(recoveryTimer)clearTimeout(recoveryTimer);recoveryTimer=null;recoveryAttempts=0};
+    window.addEventListener('vantixgc:api-recovered',clearRecovery);
+    window.addEventListener('vantixgc:api-final-unavailable',()=>{
+      if(recoveryTimer)return;
+      recoveryAttempts+=1;
+      const notice=document.querySelector('#message');
+      if(notice)notice.innerHTML='<div class="ri-notice"><b>Reconectando con VantixGC…</b><div>La vista se recuperará automáticamente cuando el servicio vuelva a estar disponible.</div></div>';
+      const delay=Math.min(2500*Math.pow(2,recoveryAttempts-1),30000);
+      recoveryTimer=setTimeout(()=>{
+        recoveryTimer=null;
+        const active=document.querySelector('#rail .rail-ticket.active');
+        if(active)active.click();else location.reload();
+      },delay);
+    });
+  })();
+  </script>
   <script src="/app/restaurant-theme.js?v=panel-font-v1"></script>
   <script src="/app/restaurant-ui.js?v=salon-qr-v2"></script>
   <script src="/app/restaurant-control-center.js?v=workspace-v3-nav2"></script>
