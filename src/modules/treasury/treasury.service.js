@@ -115,13 +115,21 @@ async function recordTreasuryMovementInTx(tx, params) {
   if (amount.lte(0)) throw new AppError(400, 'El monto debe ser mayor que cero', 'TREASURY_AMOUNT_INVALID');
 
   const direction = Number(params.sign || 1) >= 0 ? 1 : -1;
-  const previous = money(caja.saldoActual);
-  const next = money(direction > 0 ? previous.plus(amount) : previous.minus(amount));
 
+  // saldoActual es un acumulador compartido por muchas operaciones concurrentes.
+  // Nunca debe calcularse con read -> absolute write porque dos cobros simultáneos
+  // pueden leer el mismo saldo y el último commit borra el incremento del anterior.
+  // Prisma traduce increment/decrement a una operación atómica en PostgreSQL.
   const updated = await tx.cajaBanco.update({
     where: { id: caja.id },
-    data: { saldoActual: next }
+    data: {
+      saldoActual: direction > 0
+        ? { increment: amount }
+        : { decrement: amount }
+    }
   });
+  const next = money(updated.saldoActual);
+  const previous = money(direction > 0 ? next.minus(amount) : next.plus(amount));
 
   const movement = await tx.movimientoTesoreria.create({
     data: {
@@ -255,11 +263,39 @@ async function registerPayment(tenantId, userId, input) {
     if (!cartera) throw new AppError(404, 'Saldo de cartera no encontrado', 'PAYMENT_RECEIVABLE_NOT_FOUND');
 
     const amount = money(input.monto);
-    if (amount.lte(0) || amount.gt(money(cartera.saldo))) {
+    if (amount.lte(0)) {
       throw new AppError(400, 'Monto de abono inválido', 'PAYMENT_AMOUNT_INVALID', {
         saldo: money(cartera.saldo).toString()
       });
     }
+
+    // Cartera.saldo también es un acumulador compartido. La resta condicional
+    // adquiere el lock de la fila y PostgreSQL serializa pagos concurrentes del
+    // mismo documento. Si otro pago agotó el saldo mientras esperábamos, esta
+    // transacción no modifica nada y se revierte completa.
+    const reserved = await tx.cartera.updateMany({
+      where: {
+        id: cartera.id,
+        tenantId,
+        estado: { in: ['PENDIENTE', 'PARCIAL'] },
+        saldo: { gte: amount }
+      },
+      data: { saldo: { decrement: amount } }
+    });
+    if (reserved.count !== 1) {
+      const fresh = await tx.cartera.findFirst({ where: { id: cartera.id, tenantId }, select: { saldo: true, estado: true } });
+      throw new AppError(400, 'Monto de abono inválido', 'PAYMENT_AMOUNT_INVALID', {
+        saldo: money(fresh?.saldo || 0).toString(), estado: fresh?.estado || null
+      });
+    }
+
+    const currentCartera = await tx.cartera.findFirst({ where: { id: cartera.id, tenantId } });
+    if (!currentCartera) throw new AppError(404, 'Saldo de cartera no encontrado', 'PAYMENT_RECEIVABLE_NOT_FOUND');
+    const newBalance = money(currentCartera.saldo);
+    const previousBalance = money(newBalance.plus(amount));
+    const carteraEstado = newBalance.eq(0) ? 'PAGADA' : 'PARCIAL';
+    const documentState = newBalance.eq(0) ? 'PAGADO_TOTAL' : 'PAGADO_PARCIAL';
+    await tx.cartera.update({ where: { id: cartera.id }, data: { estado: carteraEstado } });
 
     const isSale = documento.tipo === 'FACTURA_VENTA';
     const receiptType = isSale ? 'RECIBO_CAJA' : 'COMPROBANTE_EGRESO';
@@ -294,16 +330,6 @@ async function registerPayment(tenantId, userId, input) {
       sign: isSale ? 1 : -1,
       referencia: receipt.numero,
       concepto: `Pago ${documento.numero}`
-    });
-
-    const previousBalance = money(cartera.saldo);
-    const newBalance = money(previousBalance.minus(amount));
-    const carteraEstado = newBalance.eq(0) ? 'PAGADA' : 'PARCIAL';
-    const documentState = newBalance.eq(0) ? 'PAGADO_TOTAL' : 'PAGADO_PARCIAL';
-
-    await tx.cartera.update({
-      where: { id: cartera.id },
-      data: { saldo: newBalance, estado: carteraEstado }
     });
 
     await tx.movimientoCartera.create({
