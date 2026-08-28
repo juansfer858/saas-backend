@@ -1,0 +1,38 @@
+name: Temporary Menu OCR Deploy Probe
+
+on:
+  push:
+    branches:
+      - diag-menu-ocr-deploy-20260828
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact production revision and OCR asset
+        run: |
+          set -euo pipefail
+          EXPECTED='c785011df619e0c0bc11c4087b8690ed0ce95f0a'
+          for attempt in $(seq 1 60); do
+            info_code=$(curl -sS --max-time 12 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
+            asset_code=$(curl -sS --max-time 12 -o /tmp/ocr.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-menu-import-ui.js || true)
+            current=$(python - <<'PY'
+          import json
+          try:
+              print(json.load(open('/tmp/runtime.json')).get('data',{}).get('commit',''))
+          except Exception:
+              print('')
+          PY
+            )
+            echo "attempt=$attempt runtime=$info_code asset=$asset_code commit=$current"
+            if [ "$info_code" = '200' ] && [ "$asset_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q 'Importar carta (foto/PDF)' /tmp/ocr.js; then
+              cat /tmp/runtime.json
+              echo
+              echo 'PRODUCTION_MENU_OCR_REVISION_OK'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'Expected OCR revision did not become live in time' >&2
+          cat /tmp/runtime.json 2>/dev/null || true
+          exit 1
