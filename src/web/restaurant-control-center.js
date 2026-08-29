@@ -13,7 +13,7 @@
     caja:'Caja',
     carta:'Carta y productos',
     promo:'Plato / promo del día',
-    estado:'Tema / Estado'
+    estado:'Estado'
   });
   let session = null;
   let shellOpeningTab = false;

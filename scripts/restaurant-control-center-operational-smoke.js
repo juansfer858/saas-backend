@@ -104,7 +104,7 @@ async function main() {
 
   for (const token of [
     "dashboard:'Centro de control'", "salon:'Mesas'", "mesero:'Mesero'", "pedidos:'Pedidos en curso'", "kds:'Cocina / Barra'",
-    "caja:'Caja'", "carta:'Carta y productos'", "estado:'Tema / Estado'", 'function currentView()',
+    "caja:'Caja'", "carta:'Carta y productos'", "estado:'Estado'", 'function currentView()',
     'function enterView(view, pushState = true)', 'function navigateBack()', 'function renderBackControl', 'ccTrail', 'ccBackBar',
     'data-cc-back="true"', '← Atrás', 'routeCurrentView', 'history.replaceState'
   ]) assert.ok(shellJs.includes(token), `Restaurant origin-aware back must contain ${token}`);
