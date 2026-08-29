@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'vantixgc-waiter-shell-v2';
+const CACHE = 'vantixgc-waiter-shell-v3';
 const START = '/app/centro-de-control/mesero?view=mesero&pwa=1';
 const SHELL = [
   START,
@@ -8,8 +8,7 @@ const SHELL = [
   '/app/restaurant-control-center.css?v=workspace-v8-salon',
   '/restaurantes/theme-v1.css',
   '/app/restaurant-theme.js?v=panel-font-v1',
-  '/app/restaurant-ui.js?v=salon-qr-v2',
-  '/app/restaurant-control-center.js?v=workspace-v3-nav2'
+  '/app/restaurant-ui.js?v=salon-qr-v2'
 ];
 
 self.addEventListener('install', (event) => {
