@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const restaurant = require('../src/modules/restaurant/restaurant.service');
+const zones = require('../src/modules/restaurant/restaurant-zones.service');
 const work = require('../src/modules/restaurant/restaurant-employee-work.service');
 const { ensureRestaurantDemoTenant, SUBDOMAIN } = require('./ensure-restaurant-demo-tenant');
 
@@ -22,6 +23,27 @@ async function main() {
   const waiter = await prisma.user.findFirst({ where:{ tenantId:tenant.id, rol:'MESERO', activo:true } });
   assert.ok(admin?.id, 'admin demo faltante');
   assert.ok(waiter?.id, 'mesero demo faltante');
+
+  const zone = await zones.ensureDefaultZone(tenant.id);
+  let table = await prisma.restaurantTable.findFirst({ where:{ tenantId:tenant.id, active:true } });
+  if (!table) {
+    const stamp = String(Date.now()).slice(-8);
+    table = await prisma.restaurantTable.create({
+      data:{
+        tenantId:tenant.id,
+        zoneId:zone.id,
+        code:`FW${stamp}`,
+        name:`Mesa flexible ${stamp}`,
+        seats:4,
+        posX:20,
+        posY:20,
+        width:150,
+        height:120,
+        state:'LIBRE',
+        active:true
+      }
+    });
+  }
 
   const opts = await work.options(tenant.id);
   assert.ok(opts.zones.length >= 1, 'zonas demo faltantes');
