@@ -1,0 +1,102 @@
+enum RestaurantDeliveryState {
+  NUEVO
+  CONFIRMADO
+  EN_PREPARACION
+  LISTO
+  EN_CAMINO
+  ENTREGADO
+  CANCELADO
+}
+
+enum RestaurantDeliveryPaymentStatus {
+  PENDIENTE
+  PAGADO
+}
+
+enum RestaurantDeliveryChannel {
+  MANUAL
+  WEB
+  WHATSAPP
+}
+
+model RestaurantDeliveryOrder {
+  id                    String                          @id @default(uuid())
+  tenantId              String
+  code                  String
+  saleId                String                          @unique
+  state                 RestaurantDeliveryState         @default(NUEVO)
+  paymentStatus         RestaurantDeliveryPaymentStatus @default(PENDIENTE)
+  channel               RestaurantDeliveryChannel       @default(MANUAL)
+  customerName          String
+  customerPhone         String
+  address               String
+  neighborhood          String?
+  deliveryReference     String?
+  notes                 String?
+  itemsSubtotal         Decimal                         @default(0) @db.Decimal(18, 2)
+  deliveryFee           Decimal                         @default(0) @db.Decimal(18, 2)
+  total                 Decimal                         @default(0) @db.Decimal(18, 2)
+  paymentMethod         MetodoPago?
+  cajaBancoId           String?
+  treasuryPaymentId     String?                         @unique
+  createdByUserId       String
+  acceptedByUserId      String?
+  courierName           String?
+  promisedAt            DateTime?
+  acceptedAt            DateTime?
+  readyAt               DateTime?
+  dispatchedAt          DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+  creadoEn              DateTime                        @default(now())
+  actualizadoEn         DateTime                        @updatedAt
+
+  items                 RestaurantDeliveryItem[]
+  commands              RestaurantDeliveryCommand[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, state, creadoEn])
+  @@index([tenantId, paymentStatus, creadoEn])
+  @@index([tenantId, customerPhone])
+}
+
+model RestaurantDeliveryItem {
+  id                    String                  @id @default(uuid())
+  tenantId              String
+  deliveryId            String
+  menuItemId            String
+  productId             String
+  saleDetailId          String
+  description           String
+  quantity              Decimal                 @db.Decimal(18, 4)
+  unitPrice             Decimal                 @db.Decimal(18, 2)
+  lineTotal             Decimal                 @db.Decimal(18, 2)
+  station               RestaurantStation
+  notes                 String?
+  creadoEn              DateTime                @default(now())
+
+  delivery              RestaurantDeliveryOrder @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, deliveryId])
+  @@index([tenantId, station])
+  @@index([saleDetailId])
+}
+
+model RestaurantDeliveryCommand {
+  id                    String                 @id @default(uuid())
+  tenantId              String
+  deliveryId            String
+  station               RestaurantStation
+  state                 RestaurantCommandState @default(PENDIENTE)
+  simulationRecord      Json
+  creadoEn              DateTime               @default(now())
+  startedAt             DateTime?
+  readyAt               DateTime?
+  deliveredAt           DateTime?
+  actualizadoEn         DateTime               @updatedAt
+
+  delivery              RestaurantDeliveryOrder @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryId, station])
+  @@index([tenantId, station, state, creadoEn])
+}
