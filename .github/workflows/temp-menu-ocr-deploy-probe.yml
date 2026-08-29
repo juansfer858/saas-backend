@@ -9,15 +9,15 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify exact Domicilios V1 production revision
+      - name: Verify exact Estado label production revision
         run: |
           set -euo pipefail
-          EXPECTED='cf2feb9c71d2fddc17d28a424c83e4c3a82d180f'
+          EXPECTED='e848315db2d25c2d0d630002b407f92640500da6'
           for attempt in $(seq 1 60); do
             info_code=$(curl -sS --max-time 12 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
             ready_code=$(curl -sS --max-time 12 -o /tmp/ready.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
-            delivery_code=$(curl -sS --max-time 12 -o /tmp/delivery.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-delivery-ui.js || true)
-            theme_code=$(curl -sS --max-time 12 -o /tmp/theme.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-theme.js || true)
+            ui_code=$(curl -sS --max-time 12 -o /tmp/restaurant-ui.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-ui.js || true)
+            center_code=$(curl -sS --max-time 12 -o /tmp/control-center.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-control-center.js || true)
             current=$(python - <<'PY'
           import json
           try:
@@ -26,19 +26,20 @@ jobs:
               print('')
           PY
             )
-            echo "attempt=$attempt runtime=$info_code ready=$ready_code delivery=$delivery_code theme=$theme_code commit=$current"
-            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$delivery_code" = '200' ] && [ "$theme_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q 'Domicilios' /tmp/delivery.js && grep -q 'NUEVO DOMICILIO' /tmp/delivery.js && grep -q 'ACEPTAR PEDIDO' /tmp/delivery.js && grep -q 'deliveryLayoutReady' /tmp/delivery.js && grep -q 'restaurant-delivery-ui.js?v=delivery-v1' /tmp/theme.js; then
+            echo "attempt=$attempt runtime=$info_code ready=$ready_code ui=$ui_code center=$center_code commit=$current"
+            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$ui_code" = '200' ] && [ "$center_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q "id:'estado', kicker:'05', label:'Estado'" /tmp/restaurant-ui.js && ! grep -q 'Tema / Estado' /tmp/restaurant-ui.js && grep -q "estado:'Estado'" /tmp/control-center.js && ! grep -q 'Tema / Estado' /tmp/control-center.js; then
               cat /tmp/runtime.json
               echo
               cat /tmp/ready.json
               echo
-              grep -E 'Domicilios|NUEVO DOMICILIO|ACEPTAR PEDIDO|deliveryLayoutReady' /tmp/delivery.js | head -12
-              echo 'PRODUCTION_RESTAURANT_DELIVERY_V1_OK'
+              grep -F "id:'estado', kicker:'05', label:'Estado'" /tmp/restaurant-ui.js
+              grep -F "estado:'Estado'" /tmp/control-center.js
+              echo 'PRODUCTION_RESTAURANT_ESTADO_LABEL_OK'
               exit 0
             fi
             sleep 5
           done
-          echo 'Expected Domicilios V1 revision/assets did not become live in time' >&2
+          echo 'Expected Estado label revision did not become live in time' >&2
           cat /tmp/runtime.json 2>/dev/null || true
           cat /tmp/ready.json 2>/dev/null || true
           exit 1
