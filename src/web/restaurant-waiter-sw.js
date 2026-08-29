@@ -1,8 +1,9 @@
 'use strict';
 
-const CACHE = 'vantixgc-waiter-shell-v1';
+const CACHE = 'vantixgc-waiter-shell-v2';
+const START = '/app/centro-de-control/mesero?view=mesero&pwa=1';
 const SHELL = [
-  '/app/centro-de-control?view=mesero&pwa=1',
+  START,
   '/app/restaurant-theme.css?v=la-riel-v1',
   '/app/restaurant-control-center.css?v=workspace-v8-salon',
   '/restaurantes/theme-v1.css',
@@ -41,7 +42,7 @@ self.addEventListener('fetch', (event) => {
       const cached = await caches.match(request);
       if (cached) return cached;
       if (request.mode === 'navigate') {
-        const shell = await caches.match('/app/centro-de-control?view=mesero&pwa=1');
+        const shell = await caches.match(START);
         if (shell) return shell;
       }
       throw error;
