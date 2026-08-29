@@ -3,6 +3,7 @@
 const express = require('express');
 const { z } = require('zod');
 const service = require('./restaurant-menu-import.service');
+const localOcr = require('./restaurant-menu-local-ocr.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 
@@ -12,6 +13,18 @@ function parse(schema, value) {
   const result = schema.safeParse(value);
   if (!result.success) throw new AppError(400, 'Datos de importación de carta inválidos', 'VALIDATION_ERROR', result.error.flatten());
   return result.data;
+}
+
+function resolvedOcrStatus() {
+  const local = localOcr.providerStatus(service.MAX_FILE_BYTES);
+  if (local.configured) return local;
+  return service.providerStatus();
+}
+
+async function analyzeWithAvailableProvider(input) {
+  const local = localOcr.providerStatus(service.MAX_FILE_BYTES);
+  if (local.configured) return localOcr.analyzeDocument(input, service.MAX_FILE_BYTES);
+  return service.analyzeDocument(input);
 }
 
 const analyzeSchema = z.object({
@@ -36,13 +49,15 @@ const confirmSchema = z.object({
 
 router.get('/carta-importacion/status', requirePermission('RESTAURANTE.ADMINISTRAR'), async (_req, res, next) => {
   try {
-    const status = service.providerStatus();
+    const status = resolvedOcrStatus();
     res.json({
       ok: true,
       data: {
         ...status,
         acceptedMimeTypes: [...service.ALLOWED_MIME_TYPES],
-        note: status.configured ? 'OCR listo para analizar foto o PDF' : 'Importador instalado; falta configurar proveedor OCR'
+        note: status.configured
+          ? status.provider === 'LOCAL_OCR' ? 'OCR local listo para analizar foto o PDF sin API key' : 'OCR listo para analizar foto o PDF'
+          : 'OCR no disponible en este servidor'
       }
     });
   } catch (error) { next(error); }
@@ -55,7 +70,7 @@ router.get('/carta-importacion/lista', requirePermission('PEDIDOS.VER'), async (
 router.post('/carta-importacion/analizar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try {
     const input = parse(analyzeSchema, req.body || {});
-    res.json({ ok: true, data: await service.analyzeDocument(input) });
+    res.json({ ok: true, data: await analyzeWithAvailableProvider(input) });
   } catch (error) { next(error); }
 });
 
@@ -66,4 +81,4 @@ router.post('/carta-importacion/confirmar', requirePermission('RESTAURANTE.ADMIN
   } catch (error) { next(error); }
 });
 
-module.exports = { restaurantMenuImportRouter: router };
+module.exports = { restaurantMenuImportRouter: router, resolvedOcrStatus, analyzeWithAvailableProvider };
