@@ -13,6 +13,7 @@
     caja:'Caja',
     carta:'Carta y productos',
     promo:'Plato / promo del día',
+    domicilios:'Domicilios',
     estado:'Estado'
   });
   let session = null;
@@ -155,6 +156,15 @@
     if (custom) custom.hidden = kind !== 'custom';
     if (message) message.hidden = kind === 'dashboard' || kind === 'custom';
     if (view) view.hidden = kind !== 'operational';
+  }
+
+  function openCustomView(view, pushState = true) {
+    ensureShellExtras();
+    if (!VIEW_LABELS[view]) return null;
+    enterView(view, pushState);
+    setActiveHome(false);
+    showOnly('custom');
+    return $('#ccCustomView');
   }
 
   function openOperationalTab(tab, pushState = true) {
@@ -499,6 +509,15 @@
     if (view === 'carta') { showMenu(false); return; }
     if (view === 'pedidos') { showOrders(false); return; }
     if (view === 'promo') { showSpotlight(false); return; }
+    if (view === 'domicilios') {
+      const tryOpenDelivery = (attempt = 0) => {
+        if (window.VantixGCRestaurantDelivery?.open) { window.VantixGCRestaurantDelivery.open(false); return; }
+        if (attempt < 60) requestAnimationFrame(() => tryOpenDelivery(attempt + 1));
+        else showDashboard(false);
+      };
+      tryOpenDelivery();
+      return;
+    }
     if (['salon','mesero','kds','caja','estado'].includes(view)) {
       const tryOpen = (attempt = 0) => {
         const button = $(`[data-tab="${view}"]`);
@@ -545,6 +564,7 @@
     showOrders: () => showOrders(true),
     showMenu: () => showMenu(true),
     showSpotlight: () => showSpotlight(true),
+    openCustomView,
     openOperationalTab,
     navigateBack
   });
