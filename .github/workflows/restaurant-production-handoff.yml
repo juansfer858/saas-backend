@@ -30,6 +30,9 @@ jobs:
           test -f src/web/restaurant-menu-browser-ocr-v4.js
           test -f src/web/restaurant-menu-ocr-cleanup-ui.js
           test -f src/modules/restaurant/restaurant-menu-ocr-cleanup.service.js
+          test -f src/web/restaurant-waiter-pwa.html
+          test -f src/web/restaurant-waiter-sw.js
+          test -f scripts/restaurant-waiter-table-pool-db-smoke.js
           test ! -f railpack.json
           grep -q "app.get('/healthz'" server.js
           grep -q "app.get('/readyz'" server.js
@@ -45,6 +48,12 @@ jobs:
           grep -q "browserPreprocessMarker: 'VANTIX_BROWSER_OCR_PREPROCESS_V4'" src/modules/restaurant/restaurant-menu-import.public.routes.js
           grep -q "browserStrictMarker: 'VANTIX_MENU_OCR_STRICT_V4'" src/modules/restaurant/restaurant-menu-import.public.routes.js
           grep -q "browserCleanupMarker: 'VANTIX_MENU_OCR_CLEANUP_UI_V1'" src/modules/restaurant/restaurant-menu-import.public.routes.js
+          grep -q "applyWaiterTableVisibility" src/modules/restaurant/restaurant.service.js
+          grep -q "assignedWaiterId: null" src/modules/restaurant/restaurant.service.js
+          grep -q "assignedWaiterId: null" src/modules/restaurant/restaurant-zones.service.js
+          grep -q "vantixgc-waiter-shell-v4" src/web/restaurant-waiter-sw.js
+          grep -q "restaurant-ui.js?v=waiter-full-v4" src/web/restaurant-waiter-sw.js
+          grep -q "restaurant-ui.js?v=waiter-full-v4" src/web/restaurant-waiter-pwa.html
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
       - name: Wait for exact commit in production
@@ -150,6 +159,21 @@ jobs:
           grep -q 'tesseract.js@5' /tmp/restaurant-menu-import-ui.js
           grep -q 'pdfjs-dist@3.11.174' /tmp/restaurant-menu-import-ui.js
           echo "PRODUCTION_RESTAURANT_BROWSER_OCR_V4_READY"
+
+      - name: Verify waiter tablet PWA in production
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -o /tmp/waiter-sw.js https://core.vantixgc.com/app/centro-de-control/sw.js
+          grep -q 'vantixgc-waiter-shell-v4' /tmp/waiter-sw.js
+          grep -q 'restaurant-ui.js?v=waiter-full-v4' /tmp/waiter-sw.js
+          curl -fsSL --max-time 20 -o /tmp/waiter-pwa.html 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1'
+          grep -q '<title>VantixGC Mesero</title>' /tmp/waiter-pwa.html
+          grep -q 'restaurant-ui.js?v=waiter-full-v4' /tmp/waiter-pwa.html
+          grep -q 'waiter-user-badge' /tmp/waiter-pwa.html
+          grep -q 'VER PEDIDO' /tmp/waiter-pwa.html
+          echo "PRODUCTION_RESTAURANT_WAITER_PWA_V4_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

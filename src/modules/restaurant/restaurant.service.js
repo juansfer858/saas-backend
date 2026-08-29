@@ -126,6 +126,16 @@ async function validateAssignedWaiter(tenantId, assignedWaiterId, client = prism
   return user;
 }
 
+function applyWaiterTableVisibility(where, user) {
+  if (user?.rol === 'MESERO') {
+    where.OR = [
+      { assignedWaiterId: null },
+      { assignedWaiterId: user.id }
+    ];
+  }
+  return where;
+}
+
 async function createTable(tenantId, input) {
   await validateAssignedWaiter(tenantId, input.assignedWaiterId || null);
   try {
@@ -150,8 +160,7 @@ async function createTable(tenantId, input) {
 }
 
 async function listTables(tenantId, user = null) {
-  const where = { tenantId, active: true };
-  if (user?.rol === 'MESERO') where.assignedWaiterId = user.id;
+  const where = applyWaiterTableVisibility({ tenantId, active: true }, user);
   const tables = await prisma.restaurantTable.findMany({
     where,
     include: { sessions: { where: { state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } }, orderBy: { openedAt: 'desc' }, take: 1 } },
@@ -197,8 +206,8 @@ async function removeTable(tenantId, id) {
 }
 
 function assertWaiterTableAccess(user, table) {
-  if (user?.rol === 'MESERO' && table.assignedWaiterId !== user.id) {
-    throw new AppError(403, 'La mesa no está asignada a este mesero', 'RESTAURANT_WAITER_TABLE_FORBIDDEN');
+  if (user?.rol === 'MESERO' && table.assignedWaiterId && table.assignedWaiterId !== user.id) {
+    throw new AppError(403, 'La mesa está asignada a otro mesero', 'RESTAURANT_WAITER_TABLE_FORBIDDEN');
   }
 }
 
@@ -532,7 +541,10 @@ async function listOrders(tenantId, filters = {}, user = null) {
   if (filters.sessionId) where.sessionId = filters.sessionId;
   if (filters.state) where.state = filters.state;
   if (user?.rol === 'MESERO') {
-    const tables = await prisma.restaurantTable.findMany({ where: { tenantId, assignedWaiterId: user.id, active: true }, select: { id: true } });
+    const tables = await prisma.restaurantTable.findMany({
+      where: applyWaiterTableVisibility({ tenantId, active: true }, user),
+      select: { id: true }
+    });
     const sessions = await prisma.restaurantTableSession.findMany({ where: { tenantId, tableId: { in: tables.map((x) => x.id) } }, select: { id: true } });
     where.sessionId = { in: sessions.map((x) => x.id) };
   }
