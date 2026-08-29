@@ -130,9 +130,9 @@
     const qty = Number(S.cart.get(item.id) || 0);
     const label = config.label || (config.kind === 'PROMO_DIA' ? 'Promo del día' : 'Plato del día');
     const symbol = SYMBOLS[item.category] || '🍴';
-    return `<section data-client-spotlight="true" style="margin:0 0 18px;border-radius:22px;padding:18px;background:linear-gradient(135deg,#7c2d12,#c2410c 60%,#ea580c);color:#fff;box-shadow:0 14px 34px rgba(124,45,18,.22);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center">
-      <div style="min-width:0"><small style="display:block;font-size:10px;font-weight:950;letter-spacing:.11em;text-transform:uppercase;color:#fed7aa">${esc(label)}</small><h2 style="margin:5px 0 4px;font-size:22px;line-height:1.08;color:#fff">${esc(item.product.name)}</h2>${config.description ? `<p style="margin:0 0 9px;font-size:13px;line-height:1.4;color:#ffedd5">${esc(config.description)}</p>` : ''}<strong style="display:block;font-size:20px;color:#fff">${money(lineTotal(item, 1))}</strong><button type="button" data-spotlight-add="${item.id}" style="margin-top:12px;min-height:44px;border:0;border-radius:12px;padding:0 16px;background:#fff;color:#9a3412;font-weight:950;cursor:pointer">${qty ? `AGREGAR OTRO · ${qty} EN PEDIDO` : 'AGREGAR AL PEDIDO'}</button></div>
-      <div aria-hidden="true" style="width:74px;height:74px;border-radius:20px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:38px">${symbol}</div>
+    return `<section data-client-spotlight="true" class="qrv3-product" style="display:grid;grid-template-columns:minmax(110px,.32fr) minmax(0,1fr);margin:0 0 18px">
+      <div class="qrv3-media" data-cat="${esc(item.category)}" style="min-height:150px"><span class="qrv3-badge">${esc(label)}</span><span class="qrv3-media-symbol" aria-hidden="true">${symbol}</span></div>
+      <div class="qrv3-product-body" style="display:flex;flex-direction:column;justify-content:center"><h2 class="qrv3-product-name" style="font-size:24px">${esc(item.product.name)}</h2>${config.description ? `<p class="qrv3-product-meta" style="min-height:0">${esc(config.description)}</p>` : ''}<strong class="qrv3-price">${money(lineTotal(item, 1))}</strong><button type="button" class="qrv3-review" data-spotlight-add="${item.id}" style="width:fit-content">${qty ? `AGREGAR OTRO · ${qty} EN PEDIDO` : 'AGREGAR AL PEDIDO'}</button></div>
     </section>`;
   }
 
