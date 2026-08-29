@@ -123,16 +123,22 @@ async function saveTheme(tenantId, userId, input) {
     }
   });
   if (userId) {
-    await prisma.auditoriaContable.create({
-      data: {
-        tenantId,
-        userId,
-        entidad: hasSpotlight ? 'RESTAURANT_CLIENT_SPOTLIGHT' : 'RESTAURANT_THEME',
-        entidadId: tenantId,
-        accion: 'UPDATE',
-        metadata: { before, after: publicTheme(updated, tenant) }
-      }
-    });
+    const auditBase = {
+      tenantId,
+      userId,
+      entidadId: tenantId,
+      accion: 'UPDATE',
+      metadata: { before, after: publicTheme(updated, tenant) }
+    };
+    if (hasSpotlight) {
+      await prisma.auditoriaContable.create({
+        data: { ...auditBase, entidad: 'RESTAURANT_CLIENT_SPOTLIGHT' }
+      });
+    } else {
+      await prisma.auditoriaContable.create({
+        data: { ...auditBase, entidad: 'RESTAURANT_THEME' }
+      });
+    }
   }
   return publicTheme(updated, tenant);
 }
