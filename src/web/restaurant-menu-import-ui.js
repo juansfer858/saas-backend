@@ -105,7 +105,7 @@
     });
   }
 
-  async function imageToJpeg(file) {
+  async function imageToJpeg(file, maxSide = 2200, quality = .88) {
     if (!String(file.type || '').startsWith('image/')) return file;
     let source = null;
     let width = 0;
@@ -124,13 +124,15 @@
         source = img; width = img.naturalWidth; height = img.naturalHeight;
         release = () => URL.revokeObjectURL(url);
       }
-      const maxSide = 2200;
       const scale = Math.min(1, maxSide / Math.max(width || 1, height || 1));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(width * scale));
       canvas.height = Math.max(1, Math.round(height * scale));
-      canvas.getContext('2d', { alpha:false }).drawImage(source, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', .88));
+      const ctx = canvas.getContext('2d', { alpha:false });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
       if (!blob) throw new Error('No fue posible preparar la imagen');
       const base = String(file.name || 'carta').replace(/\.[^.]+$/, '') || 'carta';
       return new File([blob], `${base}.jpg`, { type:'image/jpeg' });
@@ -196,14 +198,19 @@
   async function processFile(file) {
     if (!file || busy) return;
     busy = true;
-    renderState('Reconociendo carta…', 'Estamos leyendo únicamente texto y precios. Esto puede tardar unos segundos.');
+    renderState('Reconociendo carta…', 'VantixGC está comparando varias lecturas para escoger la más limpia. Puede tardar un poco más, pero evita importar nombres deformados.');
     try {
       const status = await api('/api/v1/restaurante/carta-importacion/status');
-      if (!status.configured) throw new Error('El importador OCR está instalado, pero el proveedor de reconocimiento todavía no está configurado en el servidor.');
-      let prepared = file;
-      if (String(file.type || '').startsWith('image/')) prepared = await imageToJpeg(file);
-      if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(prepared.type)) throw new Error('Usa una foto JPG/PNG/WEBP o un archivo PDF.');
+      if (!status.configured) throw new Error('El importador OCR no está disponible en este momento.');
       const maxBytes = Number(status.maxBytes || MAX_BYTES);
+      let prepared = file;
+      if (String(file.type || '').startsWith('image/')) {
+        const nativeType = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+        if (!(status.preserveOriginalImage && nativeType && file.size <= maxBytes)) {
+          prepared = await imageToJpeg(file, status.preserveOriginalImage ? 3600 : 2200, status.preserveOriginalImage ? .94 : .88);
+        }
+      }
+      if (!['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(prepared.type)) throw new Error('Usa una foto JPG/PNG/WEBP o un archivo PDF.');
       if (prepared.size > maxBytes) throw new Error(`El archivo es muy grande. Máximo ${Math.floor(maxBytes / 1024 / 1024)} MB.`);
       currentFileName = prepared.name || file.name || 'carta';
       const dataUrl = await fileToDataUrl(prepared);
