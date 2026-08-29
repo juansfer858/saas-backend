@@ -1,0 +1,38 @@
+name: Temporary Remove Restaurant Estado Rail
+
+on:
+  push:
+    branches:
+      - fix/remove-restaurant-estado-rail
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/remove-restaurant-estado-rail
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Remove Estado from operational rail
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/web/restaurant-ui.js')
+          s = p.read_text()
+          old = "    { id:'caja', kicker:'04', label:'Caja', allowed:() => can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR') },\n    { id:'estado', kicker:'05', label:'Estado', allowed:() => can('RESTAURANTE.ADMINISTRAR') }\n"
+          new = "    { id:'caja', kicker:'04', label:'Caja', allowed:() => can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR') }\n"
+          if old not in s:
+              raise SystemExit('Expected Estado rail entry not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git rm .github/workflows/temp-remove-estado-rail.yml
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/web/restaurant-ui.js
+          git commit -m "fix(restaurante): retirar Estado del menú lateral"
+          git push
