@@ -36,12 +36,18 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Install local OCR runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-spa poppler-utils
       - name: Install dependencies
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
       - name: Sync test database
         run: npx prisma db push
+      - name: Validate local OCR runtime and menu parser
+        run: node scripts/restaurant-menu-local-ocr-smoke.js
       - name: Validate OCR import contracts and UI
         run: node scripts/restaurant-menu-import-smoke.js
       - name: Validate transactional menu import against PostgreSQL
