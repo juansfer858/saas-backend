@@ -21,6 +21,8 @@ const pair = read('src/web/restaurant-waiter-pair.html');
 const pwa = read('src/web/restaurant-waiter-pwa.html');
 const manifest = JSON.parse(read('src/web/restaurant-waiter-manifest.webmanifest'));
 const sw = read('src/web/restaurant-waiter-sw.js');
+const restaurantService = read('src/modules/restaurant/restaurant.service.js');
+const zoneService = read('src/modules/restaurant/restaurant-zones.service.js');
 
 assert.match(service, /RESTAURANT_WAITER_DEVICE/);
 assert.match(service, /PAIRING_TTL_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
@@ -64,6 +66,12 @@ assert.match(admin, /button\.dataset\.ccTab\s*=\s*'mesero'/);
 assert.match(admin, /button\.textContent\s*=\s*'👤 Mesero'/);
 assert.match(admin, /if \(!isAdmin\) return;/, 'conectar dispositivos debe seguir restringido a administración');
 
+assert.match(restaurantService, /applyWaiterTableVisibility/);
+assert.match(restaurantService, /assignedWaiterId:\s*null/);
+assert.match(restaurantService, /table\.assignedWaiterId\s*&&\s*table\.assignedWaiterId\s*!==\s*user\.id/);
+assert.match(zoneService, /assignedWaiterId:\s*null/);
+assert.match(zoneService, /assignedWaiterId:\s*user\.id/);
+
 assert.equal(manifest.name, 'VantixGC Mesero');
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.orientation, 'any');
@@ -83,7 +91,8 @@ assert.match(pair, /localStorage\.setItem\(SESSION_KEY/);
 assert.match(pair, /meta name="referrer" content="no-referrer"/);
 
 assert.match(pwa, /<title>VantixGC Mesero<\/title>/);
-assert.match(pwa, /restaurant-ui\.js\?v=salon-qr-v2/);
+assert.match(pwa, /restaurant-ui\.js\?v=waiter-full-v4/);
+assert.match(pwa, /waiter-user-badge/);
 assert.doesNotMatch(pwa, /restaurant-control-center\.js/, 'la PWA dedicada no debe reescribir su ruta mediante el shell administrativo');
 assert.match(pwa, /@media\(min-width:1000px\)/);
 assert.match(pwa, /@media\(max-width:999px\)/);
@@ -92,6 +101,8 @@ assert.match(pwa, /VER PEDIDO/);
 assert.match(pwa, /MutationObserver/);
 assert.match(pwa, /100dvh/);
 
+assert.match(sw, /vantixgc-waiter-shell-v4/);
+assert.match(sw, /restaurant-ui\.js\?v=waiter-full-v4/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
 assert.match(sw, /centro-de-control\/mesero/);
@@ -104,6 +115,10 @@ console.log(JSON.stringify({
   deviceSession: 'server-revocable',
   targetRole: 'MESERO',
   centerPrimaryAction: 'Mesero',
+  sharedTablePool: true,
+  explicitOtherWaiterIsolation: true,
+  fullPanelAsset: 'waiter-full-v4',
+  serviceWorkerCache: 'vantixgc-waiter-shell-v4',
   themeRemovedFromPrimaryGrid: true,
   icons: ['192x192-png', '512x512-png', 'svg'],
   layouts: ['tablet-landscape', 'tablet-portrait', 'mobile', 'desktop'],
