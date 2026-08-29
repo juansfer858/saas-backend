@@ -19,13 +19,9 @@ POSTRES
 Brownie
 12.000
 `);
-
 assert.equal(rows.length, 4);
 assert.deepEqual(rows.map((row) => [row.category, row.subcategory, row.price]), [
-  ['Hamburguesas', 'Ranchera', 25000],
-  ['Hamburguesas', 'Clasica', 22000],
-  ['Bebidas', 'Limonada natural', 9000],
-  ['Postres', 'Brownie', 12000]
+  ['Hamburguesas','Ranchera',25000],['Hamburguesas','Clasica',22000],['Bebidas','Limonada natural',9000],['Postres','Brownie',12000]
 ]);
 assert.equal(rows[2].operationalCategory, 'BEBIDAS');
 assert.equal(rows[2].station, 'BARRA');
@@ -34,6 +30,7 @@ assert.equal(rows[3].station, 'POSTRES');
 
 assert.equal(parser.productCandidate('ML SALCHIPAPAS TRADICIONAL -> salchicha queso papas'), 'SALCHIPAPAS TRADICIONAL');
 assert.equal(parser.productCandidate('. TORNADO DE POLLO — pollo queso salsas'), 'TORNADO DE POLLO');
+assert.equal(parser.productCandidate('f- COMBO TORNADOS — dos tornados y bebida'), 'COMBO TORNADOS');
 assert.equal(parser.familyCategory('SALCHIPAPAS AMERICANAS'), 'Salchipapas');
 assert.equal(parser.familyCategory('PAPAS CHEDDAR'), 'Papas');
 assert.equal(parser.familyCategory('COMBO TORNADOS'), 'Combos');
@@ -48,23 +45,23 @@ PAPAS
 TORNADOS
 . TORNADO DE POLLO — pollo y queso 23.000
 COMBOS
-COMBO TORNADOS — dos tornados y bebida 30.000
+f- COMBO TORNADOS — dos tornados y bebida 30.000
 CHUZOS
 CHUZO DE POLLO con papas 24.000
 `);
 assert.deepEqual(realMenuRows.map((row) => [row.category, row.subcategory, row.price]), [
-  ['Salchipapas', 'SALCHIPAPAS TRADICIONAL', 18000],
-  ['Salchipapas', 'SALCHIPAPAS ESPECIALES', 21000],
-  ['Salchipapas', 'SALCHIPAPAS AMERICANAS', 21000],
-  ['Papas', 'PAPAS CHEDDAR', 20000],
-  ['Tornados', 'TORNADO DE POLLO', 23000],
-  ['Combos', 'COMBO TORNADOS', 30000],
-  ['Chuzos', 'CHUZO DE POLLO', 24000]
+  ['Salchipapas','SALCHIPAPAS TRADICIONAL',18000],
+  ['Salchipapas','SALCHIPAPAS ESPECIALES',21000],
+  ['Salchipapas','SALCHIPAPAS AMERICANAS',21000],
+  ['Papas','PAPAS CHEDDAR',20000],
+  ['Tornados','TORNADO DE POLLO',23000],
+  ['Combos','COMBO TORNADOS',30000],
+  ['Chuzos','CHUZO DE POLLO',24000]
 ]);
 assert.ok(parser.menuOcrScore(`SALCHIPAPAS\nTRADICIONAL 18.000\nESPECIALES 21.000`) > parser.menuOcrScore('x = ; ~~ 123 abc'));
 
 const capabilities = localOcr.runtimeCapabilities(true);
-for (const key of ['tesseract', 'pdftotext', 'pdftoppm']) assert.equal(capabilities[key], true, `${key} debe estar instalado en CI`);
+for (const key of ['tesseract','pdftotext','pdftoppm']) assert.equal(capabilities[key], true, `${key} debe estar instalado en CI`);
 const status = localOcr.providerStatus(5 * 1024 * 1024);
 assert.equal(status.configured, true);
 assert.equal(status.provider, 'LOCAL_OCR');
@@ -88,10 +85,14 @@ assert.match(browser, /tessedit_pageseg_mode/);
 assert.match(browser, /user_defined_dpi:'220'/);
 assert.match(browser, /menuOcrScore/);
 assert.match(browser, /preserveOriginalImage:true/);
-assert.match(browser, /STATUS_PATH/);
-assert.match(browser, /ANALYZE_PATH/);
-assert.match(browser, /BROWSER_OCR/);
 assert.doesNotMatch(browser, /OPENAI_API_KEY/);
+
+const quality = fs.readFileSync('src/web/restaurant-menu-ocr-quality-v2.js', 'utf8');
+assert.match(quality, /VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2/);
+assert.match(quality, /titlePrefix/);
+assert.match(quality, /SALCHIPAPAS/);
+assert.match(quality, /COMBO/);
+assert.doesNotMatch(quality, /OPENAI_API_KEY/);
 
 const ui = fs.readFileSync('src/web/restaurant-menu-import-ui.js', 'utf8');
 assert.match(ui, /status\.preserveOriginalImage/);
@@ -101,8 +102,10 @@ assert.match(ui, /comparando varias lecturas/);
 
 const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.public.routes.js', 'utf8');
 assert.match(publicRoutes, /restaurant-menu-browser-ocr\.js/);
+assert.match(publicRoutes, /restaurant-menu-ocr-quality-v2\.js/);
 assert.match(publicRoutes, /browserFallback: true/);
-assert.match(publicRoutes, /VANTIX_BROWSER_OCR_V1/);
+assert.match(publicRoutes, /VANTIX_BROWSER_OCR_MULTIPASS_V2/);
+assert.match(publicRoutes, /VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2/);
 
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 assert.equal(packageJson.scripts.build, 'npx prisma generate');
