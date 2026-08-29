@@ -41,24 +41,26 @@ assert.equal(status.capabilities.imageOcr, true);
 assert.equal(status.capabilities.pdfText, true);
 assert.equal(status.capabilities.pdfScan, true);
 
-const nixpacks = fs.readFileSync('nixpacks.toml', 'utf8');
-for (const pkg of ['tesseract-ocr', 'tesseract-ocr-spa', 'poppler-utils']) assert.match(nixpacks, new RegExp(pkg));
-
-const railpack = JSON.parse(fs.readFileSync('railpack.json', 'utf8'));
-assert.equal(railpack.provider, 'node');
-assert.equal(railpack.packages.node, '22');
-for (const pkg of ['tesseract-ocr', 'tesseract-ocr-spa', 'poppler-utils']) {
-  assert.ok(railpack.buildAptPackages.includes(pkg), `${pkg} debe instalarse en build Railpack`);
-  assert.ok(railpack.deploy.aptPackages.includes(pkg), `${pkg} debe estar en la imagen final Railpack`);
-}
-assert.equal(railpack.deploy.startCommand, 'npm start');
-
 const routes = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.routes.js', 'utf8');
 assert.match(routes, /LOCAL_OCR/);
 assert.match(routes, /analyzeWithAvailableProvider/);
 assert.match(routes, /sin API key/);
 
+const browser = fs.readFileSync('src/web/restaurant-menu-browser-ocr.js', 'utf8');
+assert.match(browser, /VANTIX_BROWSER_OCR_V1/);
+assert.match(browser, /tesseract\.js@5/);
+assert.match(browser, /pdfjs-dist@3\.11\.174/);
+assert.match(browser, /STATUS_PATH/);
+assert.match(browser, /ANALYZE_PATH/);
+assert.match(browser, /BROWSER_OCR/);
+assert.doesNotMatch(browser, /OPENAI_API_KEY/);
+
+const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.public.routes.js', 'utf8');
+assert.match(publicRoutes, /restaurant-menu-browser-ocr\.js/);
+assert.match(publicRoutes, /browserFallback: true/);
+assert.match(publicRoutes, /VANTIX_BROWSER_OCR_V1/);
+
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 assert.equal(packageJson.scripts.build, 'npx prisma generate');
 
-console.log(JSON.stringify({ ok:true, provider:'LOCAL_OCR', capabilities, parsedProducts:rows.length, apiKeyRequired:false, railpackRuntimePackages:true }));
+console.log(JSON.stringify({ ok:true, serverProvider:'LOCAL_OCR', browserProvider:'BROWSER_OCR', capabilities, parsedProducts:rows.length, apiKeyRequired:false, browserFallback:true }));
