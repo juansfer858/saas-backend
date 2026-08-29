@@ -13,6 +13,8 @@ const adminScript = path.join(__dirname, '../../web/restaurant-waiter-device-adm
 const manifestFile = path.join(__dirname, '../../web/restaurant-waiter-manifest.webmanifest');
 const swFile = path.join(__dirname, '../../web/restaurant-waiter-sw.js');
 const iconFile = path.join(__dirname, '../../web/restaurant-waiter-icon.svg');
+const icon192File = path.join(__dirname, '../../web/restaurant-waiter-icon-192.png');
+const icon512File = path.join(__dirname, '../../web/restaurant-waiter-icon-512.png');
 
 function parse(schema, value) {
   const result = schema.safeParse(value);
@@ -71,6 +73,16 @@ router.get('/app/centro-de-control/sw.js', (_req, res) => {
 router.get('/app/centro-de-control/waiter-icon.svg', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   res.type('image/svg+xml').sendFile(iconFile);
+});
+
+router.get('/app/centro-de-control/waiter-icon-192.png', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.type('image/png').sendFile(icon192File);
+});
+
+router.get('/app/centro-de-control/waiter-icon-512.png', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.type('image/png').sendFile(icon512File);
 });
 
 module.exports = { restaurantWaiterDevicePublicRouter: router };
