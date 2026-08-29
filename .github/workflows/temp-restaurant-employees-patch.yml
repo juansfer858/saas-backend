@@ -21,7 +21,6 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          # Control center: canonical Employees view + admin-only entry.
           p = Path('src/web/restaurant-control-center.js')
           s = p.read_text(encoding='utf-8')
           s = s.replace("    domicilios:'Domicilios',\n    estado:'Estado'", "    domicilios:'Domicilios',\n    empleados:'Empleados',\n    estado:'Estado'")
@@ -29,22 +28,13 @@ jobs:
           s = s.replace("          <button class=\"cc-action\" data-cc-tab=\"estado\">⚙ Estado / tema</button>\n", "          <button class=\"cc-action\" data-cc-tab=\"estado\">⚙ Estado / tema</button>\n          ${canManageEmployees ? '<button class=\"cc-action\" data-cc-employees=\"true\">👥 Empleados</button>' : ''}\n")
           if "function openEmployees(" not in s:
               marker = "  async function renderDashboard() {\n"
-              helper = """  function openEmployees(pushState = true, attempt = 0) {
-    if (window.VantixGCRestaurantEmployees?.open) { window.VantixGCRestaurantEmployees.open(pushState); return; }
-    if (attempt < 60) { requestAnimationFrame(() => openEmployees(pushState, attempt + 1)); return; }
-    const custom = openCustomView('empleados', pushState);
-    if (custom) custom.innerHTML = '<div class=\"ri-error\">No fue posible cargar Empleados. Recarga esta pantalla.</div>';
-  }
-
-"""
+              helper = "  function openEmployees(pushState = true, attempt = 0) {\n    if (window.VantixGCRestaurantEmployees?.open) { window.VantixGCRestaurantEmployees.open(pushState); return; }\n    if (attempt < 60) { requestAnimationFrame(() => openEmployees(pushState, attempt + 1)); return; }\n    const custom = openCustomView('empleados', pushState);\n    if (custom) custom.innerHTML = '<div class=\\\"ri-error\\\">No fue posible cargar Empleados. Recarga esta pantalla.</div>';\n  }\n\n"
               s = s.replace(marker, helper + marker)
           s = s.replace("    $$('[data-cc-spotlight]', root).forEach((button) => button.addEventListener('click', () => showSpotlight()));", "    $$('[data-cc-spotlight]', root).forEach((button) => button.addEventListener('click', () => showSpotlight()));\n    $$('[data-cc-employees]', root).forEach((button) => button.addEventListener('click', () => openEmployees(true)));")
           if "view === 'empleados'" not in s:
-              needle = "    if (view === 'domicilios') {\n"
-              s = s.replace(needle, "    if (view === 'empleados') { openEmployees(false); return; }\n" + needle)
+              s = s.replace("    if (view === 'domicilios') {\n", "    if (view === 'empleados') { openEmployees(false); return; }\n    if (view === 'domicilios') {\n")
           p.write_text(s, encoding='utf-8')
 
-          # Domicilios dashboard normalization keeps Empleados as ninth tile.
           p = Path('src/web/restaurant-delivery-ui.js')
           s = p.read_text(encoding='utf-8')
           if "const employees = $('[data-cc-employees]'" not in s:
@@ -52,7 +42,6 @@ jobs:
           s = s.replace("[cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu]", "[cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu, employees]")
           p.write_text(s, encoding='utf-8')
 
-          # Waiter device manager supports preselection from Employees.
           p = Path('src/web/restaurant-waiter-device-admin.js')
           s = p.read_text(encoding='utf-8')
           s = s.replace("  async function openManager() {", "  async function openManager(preselectedUserId = null) {")
