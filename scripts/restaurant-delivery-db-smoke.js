@@ -15,7 +15,6 @@ async function main() {
 
   const menu = await prisma.restaurantMenuItem.findMany({
     where: { tenantId: demo.tenantId, active: true },
-    include: { product: true },
     orderBy: { sortOrder: 'asc' },
     take: 2
   });
