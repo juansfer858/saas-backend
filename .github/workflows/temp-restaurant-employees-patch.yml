@@ -1,0 +1,76 @@
+name: Temporary Restaurant Employees Patch
+
+on:
+  push:
+    branches:
+      - feature/restaurant-employees
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/restaurant-employees
+      - name: Patch control center integrations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Control center: canonical Employees view + admin-only entry.
+          p = Path('src/web/restaurant-control-center.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("    domicilios:'Domicilios',\n    estado:'Estado'", "    domicilios:'Domicilios',\n    empleados:'Empleados',\n    estado:'Estado'")
+          s = s.replace("    const canPublish = permissions.includes('RESTAURANTE.ADMINISTRAR');", "    const canPublish = permissions.includes('RESTAURANTE.ADMINISTRAR');\n    const canManageEmployees = ['ADMIN','SUPER_ADMIN'].includes(String(session.user?.rol || '').toUpperCase());")
+          s = s.replace("          <button class=\"cc-action\" data-cc-tab=\"estado\">⚙ Estado / tema</button>\n", "          <button class=\"cc-action\" data-cc-tab=\"estado\">⚙ Estado / tema</button>\n          ${canManageEmployees ? '<button class=\"cc-action\" data-cc-employees=\"true\">👥 Empleados</button>' : ''}\n")
+          if "function openEmployees(" not in s:
+              marker = "  async function renderDashboard() {\n"
+              helper = """  function openEmployees(pushState = true, attempt = 0) {
+    if (window.VantixGCRestaurantEmployees?.open) { window.VantixGCRestaurantEmployees.open(pushState); return; }
+    if (attempt < 60) { requestAnimationFrame(() => openEmployees(pushState, attempt + 1)); return; }
+    const custom = openCustomView('empleados', pushState);
+    if (custom) custom.innerHTML = '<div class=\"ri-error\">No fue posible cargar Empleados. Recarga esta pantalla.</div>';
+  }
+
+"""
+              s = s.replace(marker, helper + marker)
+          s = s.replace("    $$('[data-cc-spotlight]', root).forEach((button) => button.addEventListener('click', () => showSpotlight()));", "    $$('[data-cc-spotlight]', root).forEach((button) => button.addEventListener('click', () => showSpotlight()));\n    $$('[data-cc-employees]', root).forEach((button) => button.addEventListener('click', () => openEmployees(true)));")
+          if "view === 'empleados'" not in s:
+              needle = "    if (view === 'domicilios') {\n"
+              s = s.replace(needle, "    if (view === 'empleados') { openEmployees(false); return; }\n" + needle)
+          p.write_text(s, encoding='utf-8')
+
+          # Domicilios dashboard normalization keeps Empleados as ninth tile.
+          p = Path('src/web/restaurant-delivery-ui.js')
+          s = p.read_text(encoding='utf-8')
+          if "const employees = $('[data-cc-employees]'" not in s:
+              s = s.replace("    const menu = $('[data-cc-menu]', actions);\n", "    const menu = $('[data-cc-menu]', actions);\n    const employees = $('[data-cc-employees]', actions);\n")
+          s = s.replace("[cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu]", "[cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu, employees]")
+          p.write_text(s, encoding='utf-8')
+
+          # Waiter device manager supports preselection from Employees.
+          p = Path('src/web/restaurant-waiter-device-admin.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("  async function openManager() {", "  async function openManager(preselectedUserId = null) {")
+          marker = "      dialog.querySelector('[data-wd-close]')?.addEventListener('click', () => dialog.close?.());\n"
+          if "const selectedWaiter = String(preselectedUserId" not in s:
+              s = s.replace(marker, "      const selectedWaiter = String(preselectedUserId || '');\n      if (selectedWaiter && waiters.some((user) => user.id === selectedWaiter)) dialog.querySelector('#wdWaiter').value = selectedWaiter;\n" + marker)
+          if "window.VantixGCWaiterDeviceAdmin" not in s:
+              s = s.replace("  enhance();\n})();", "  enhance();\n\n  window.VantixGCWaiterDeviceAdmin = Object.freeze({\n    open: (userId = null) => openManager(userId)\n  });\n})();")
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/web/restaurant-control-center.js src/web/restaurant-delivery-ui.js src/web/restaurant-waiter-device-admin.js
+          git commit -m "feat(restaurante): conectar Empleados al centro de control"
+          git push origin feature/restaurant-employees
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/temp-restaurant-employees-patch.yml
+          git commit -m "chore: retirar workflow temporal Empleados"
+          git push origin feature/restaurant-employees
