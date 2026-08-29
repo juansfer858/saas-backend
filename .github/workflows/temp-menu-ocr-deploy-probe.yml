@@ -9,15 +9,19 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for exact production revision and spotlight assets
+      - name: Wait for exact PWA Mesero production revision and public assets
         run: |
           set -euo pipefail
-          EXPECTED='f24376b0db9524845b96319d5c3e57b61debb06d'
+          EXPECTED='293194d925e67c063774e48f61fc80537a9d98ac'
           for attempt in $(seq 1 60); do
             info_code=$(curl -sS --max-time 12 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
             ready_code=$(curl -sS --max-time 12 -o /tmp/ready.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
-            center_code=$(curl -sS --max-time 12 -o /tmp/center.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-control-center.js || true)
-            qr_code=$(curl -sS --max-time 12 -o /tmp/qr.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-qr-ui.js || true)
+            manifest_code=$(curl -sS --max-time 12 -o /tmp/manifest.json -w '%{http_code}' https://core.vantixgc.com/app/centro-de-control/manifest.webmanifest || true)
+            pwa_code=$(curl -sS --max-time 12 -o /tmp/mesero.html -w '%{http_code}' 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1' || true)
+            pair_code=$(curl -sS --max-time 12 -o /tmp/pair.html -w '%{http_code}' https://core.vantixgc.com/app/centro-de-control/conectar || true)
+            admin_code=$(curl -sS --max-time 12 -o /tmp/admin.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-waiter-device-admin.js || true)
+            icon192_code=$(curl -sS --max-time 12 -o /tmp/icon192.png -w '%{http_code}' https://core.vantixgc.com/app/centro-de-control/waiter-icon-192.png || true)
+            icon512_code=$(curl -sS --max-time 12 -o /tmp/icon512.png -w '%{http_code}' https://core.vantixgc.com/app/centro-de-control/waiter-icon-512.png || true)
             current=$(python - <<'PY'
           import json
           try:
@@ -26,18 +30,27 @@ jobs:
               print('')
           PY
             )
-            echo "attempt=$attempt runtime=$info_code ready=$ready_code center=$center_code qr=$qr_code commit=$current"
-            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$center_code" = '200' ] && [ "$qr_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q 'Publicar / editar' /tmp/center.js && grep -q 'clientSpotlight' /tmp/center.js && grep -q 'data-client-spotlight' /tmp/qr.js && grep -q 'AGREGAR AL PEDIDO' /tmp/qr.js; then
+            echo "attempt=$attempt runtime=$info_code ready=$ready_code manifest=$manifest_code pwa=$pwa_code pair=$pair_code admin=$admin_code icons=$icon192_code/$icon512_code commit=$current"
+            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$manifest_code" = '200' ] && [ "$pwa_code" = '200' ] && [ "$pair_code" = '200' ] && [ "$admin_code" = '200' ] && [ "$icon192_code" = '200' ] && [ "$icon512_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q '"name": "VantixGC Mesero"' /tmp/manifest.json && grep -q '192x192' /tmp/manifest.json && grep -q '512x512' /tmp/manifest.json && grep -q '<title>VantixGC Mesero</title>' /tmp/mesero.html && grep -q 'VER PEDIDO' /tmp/mesero.html && grep -q 'Vincular este dispositivo' /tmp/pair.html && grep -q 'Conectar tablet o celular' /tmp/admin.js; then
+              file /tmp/icon192.png /tmp/icon512.png
+              python - <<'PY'
+          from pathlib import Path
+          for p in ('/tmp/icon192.png','/tmp/icon512.png'):
+              data=Path(p).read_bytes()
+              assert data[:8] == b'\x89PNG\r\n\x1a\n', p
+              assert len(data) > 100, p
+          print('PNG_ICONS_OK')
+          PY
               cat /tmp/runtime.json
               echo
               cat /tmp/ready.json
               echo
-              echo 'PRODUCTION_CLIENT_SPOTLIGHT_REVISION_OK'
+              echo 'PRODUCTION_WAITER_PWA_REVISION_OK'
               exit 0
             fi
             sleep 5
           done
-          echo 'Expected client spotlight revision did not become live in time' >&2
+          echo 'Expected PWA Mesero revision/assets did not become live in time' >&2
           cat /tmp/runtime.json 2>/dev/null || true
           cat /tmp/ready.json 2>/dev/null || true
           exit 1
