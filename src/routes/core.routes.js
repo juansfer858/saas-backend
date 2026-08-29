@@ -22,6 +22,7 @@ const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaur
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
 const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaurant-waiter-device.routes');
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
+const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaurant-employee-work.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 require('../modules/restaurant/restaurant-draft-fix');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
@@ -56,6 +57,7 @@ router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
 router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
+router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantRouter);
 
 module.exports = { coreRouter: router };
