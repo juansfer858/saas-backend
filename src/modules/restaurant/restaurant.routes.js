@@ -108,7 +108,14 @@ const themeSchema = z.object({
     char: hexColor.optional(), bone: hexColor.optional(), ember: hexColor.optional(), verdigris: hexColor.optional(), brass: hexColor.optional(),
     paper: hexColor.optional(), ink: hexColor.optional(), muted: hexColor.optional(), line: hexColor.optional(), success: hexColor.optional(), danger: hexColor.optional()
   }).optional(),
-  typography: z.object({ display: fontFamily.optional(), body: fontFamily.optional(), mono: fontFamily.optional() }).optional()
+  typography: z.object({ display: fontFamily.optional(), body: fontFamily.optional(), mono: fontFamily.optional() }).optional(),
+  clientSpotlight: z.object({
+    active: z.boolean(),
+    kind: z.enum(['PLATO_DIA', 'PROMO_DIA']).optional(),
+    menuItemId: z.string().uuid().optional().nullable(),
+    label: z.string().trim().max(60).optional().nullable(),
+    description: z.string().trim().max(180).optional().nullable()
+  }).optional()
 }).refine((x) => Object.keys(x).length > 0, { message: 'Debe enviar al menos un cambio de tema' });
 
 router.get('/ui-context', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
