@@ -7,6 +7,7 @@ const {
   RESTAURANT_SHARED_WAITER_ROLE,
   runtimeUserForRequest
 } = require('../src/middleware/auth-middleware');
+const { securityUser } = require('../src/middleware/require-permission');
 
 function read(relative) {
   return fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
@@ -45,6 +46,9 @@ for (const url of [
   assert.equal(operational.id, waiter.id);
   assert.equal(operational.rol, RESTAURANT_SHARED_WAITER_ROLE, `${url} debe operar con piso compartido`);
   assert.equal(operational.securityRole, 'MESERO');
+  const secured = securityUser({ user:operational, userRole:'MESERO' });
+  assert.equal(secured.id, waiter.id);
+  assert.equal(secured.rol, 'MESERO', 'RBAC debe evaluar siempre el rol real, no el actor operacional');
 }
 
 for (const url of [
@@ -65,6 +69,7 @@ console.log(JSON.stringify({
   allZonesAndTablesOperational:true,
   reinforcementSupported:true,
   securityRolePreserved:true,
+  noPrivilegeEscalation:true,
   uiRolePreserved:true,
   scopeLimitedToWaiterFloor:true,
   runtimeRole:RESTAURANT_SHARED_WAITER_ROLE
