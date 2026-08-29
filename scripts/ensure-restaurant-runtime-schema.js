@@ -64,14 +64,18 @@ async function readRestaurantSchemaState() {
           AND column_name = 'seatNumber'
       ) AS "orderItemSeatNumber",
       to_regclass('public."RestaurantCommand"')::text AS "command",
-      to_regclass('public."RestaurantFiscalDocument"')::text AS "fiscalDocument"
+      to_regclass('public."RestaurantFiscalDocument"')::text AS "fiscalDocument",
+      to_regclass('public."RestaurantDeliveryOrder"')::text AS "deliveryOrder",
+      to_regclass('public."RestaurantDeliveryItem"')::text AS "deliveryItem",
+      to_regclass('public."RestaurantDeliveryCommand"')::text AS "deliveryCommand"
   `);
   const state = rows?.[0] || {};
   const required = [
     'config', 'zone', 'table', 'tableZoneId', 'menuItem', 'session',
     'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
     'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
-    'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument'
+    'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
+    'deliveryOrder', 'deliveryItem', 'deliveryCommand'
   ];
   const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };

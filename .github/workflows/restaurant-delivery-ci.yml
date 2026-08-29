@@ -1,0 +1,61 @@
+name: Restaurant Delivery CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  delivery-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vantix_delivery
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d vantix_delivery"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      NODE_ENV: test
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_delivery?schema=public
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run build
+
+      - name: Validate static delivery contract
+        run: node scripts/restaurant-delivery-smoke.js
+
+      - name: Sync isolated delivery database
+        run: npx prisma db push
+
+      - name: Enable isolated fiscal queue
+        run: node scripts/restaurant-stress-dian-setup.js
+
+      - name: Validate delivery through KDS, inventory, Treasury and Accounting
+        run: node scripts/restaurant-delivery-db-smoke.js
