@@ -31,6 +31,9 @@ jobs:
           grep -q "app.get('/api/public/runtime-info'" server.js
           grep -q "menu-ocr-readiness" src/modules/restaurant/restaurant-menu-import.public.routes.js
           grep -q "VANTIX_BROWSER_OCR_V1" src/web/restaurant-menu-browser-ocr.js
+          grep -q "VANTIX_BROWSER_OCR_MULTIPASS_V2" src/web/restaurant-menu-browser-ocr.js
+          grep -q "PSM_MODES = \['6', '11', '4'\]" src/web/restaurant-menu-browser-ocr.js
+          grep -q "preserveOriginalImage:true" src/web/restaurant-menu-browser-ocr.js
           grep -q "browserFallback: true" src/modules/restaurant/restaurant-menu-import.public.routes.js
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
@@ -109,7 +112,7 @@ jobs:
           echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""
           echo "PRODUCTION_RUNTIME_IDENTITY_OK"
 
-      - name: Verify Restaurant OCR fallback in production
+      - name: Verify Restaurant OCR multipass in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
@@ -120,9 +123,13 @@ jobs:
           echo "$readiness" | grep -q '"browserMarker":"VANTIX_BROWSER_OCR_V1"'
           asset=$(curl -fsSL --max-time 20 https://core.vantixgc.com/app/restaurant-menu-import-ui.js)
           echo "$asset" | grep -q 'VANTIX_BROWSER_OCR_V1'
+          echo "$asset" | grep -q 'VANTIX_BROWSER_OCR_MULTIPASS_V2'
+          echo "$asset" | grep -q "PSM_MODES = \['6', '11', '4'\]"
+          echo "$asset" | grep -q "user_defined_dpi:'220'"
+          echo "$asset" | grep -q 'preserveOriginalImage:true'
           echo "$asset" | grep -q 'tesseract.js@5'
           echo "$asset" | grep -q 'pdfjs-dist@3.11.174'
-          echo "PRODUCTION_RESTAURANT_BROWSER_OCR_READY"
+          echo "PRODUCTION_RESTAURANT_BROWSER_OCR_MULTIPASS_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
