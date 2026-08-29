@@ -24,6 +24,7 @@ jobs:
           test -f server.js
           test -f scripts/runtime-stability-smoke.js
           test -f scripts/runtime-stability-db-smoke.js
+          test -f src/web/restaurant-menu-layout-parser-v3.js
           test -f src/web/restaurant-menu-browser-ocr.js
           test ! -f railpack.json
           grep -q "app.get('/healthz'" server.js
@@ -32,8 +33,12 @@ jobs:
           grep -q "menu-ocr-readiness" src/modules/restaurant/restaurant-menu-import.public.routes.js
           grep -q "VANTIX_BROWSER_OCR_V1" src/web/restaurant-menu-browser-ocr.js
           grep -q "VANTIX_BROWSER_OCR_MULTIPASS_V2" src/web/restaurant-menu-browser-ocr.js
+          grep -q "VANTIX_MENU_OCR_LAYOUT_V3" src/web/restaurant-menu-layout-parser-v3.js
+          grep -q "blocks:true" src/web/restaurant-menu-browser-ocr.js
+          grep -q "detectVerticalCategories" src/web/restaurant-menu-browser-ocr.js
           grep -q "PSM_MODES = \['6', '11', '4'\]" src/web/restaurant-menu-browser-ocr.js
           grep -q "preserveOriginalImage:true" src/web/restaurant-menu-browser-ocr.js
+          grep -q "browserLayoutMarker: 'VANTIX_MENU_OCR_LAYOUT_V3'" src/modules/restaurant/restaurant-menu-import.public.routes.js
           grep -q "browserFallback: true" src/modules/restaurant/restaurant-menu-import.public.routes.js
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
@@ -112,7 +117,7 @@ jobs:
           echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""
           echo "PRODUCTION_RUNTIME_IDENTITY_OK"
 
-      - name: Verify Restaurant OCR multipass in production
+      - name: Verify Restaurant OCR layout V3 in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
@@ -122,17 +127,21 @@ jobs:
           grep -q '"browserFallback":true' /tmp/ocr-readiness.json
           grep -q '"browserMarker":"VANTIX_BROWSER_OCR_V1"' /tmp/ocr-readiness.json
           grep -q '"browserQualityMarker":"VANTIX_BROWSER_OCR_MULTIPASS_V2"' /tmp/ocr-readiness.json
+          grep -q '"browserLayoutMarker":"VANTIX_MENU_OCR_LAYOUT_V3"' /tmp/ocr-readiness.json
           grep -q '"browserPostprocessMarker":"VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2"' /tmp/ocr-readiness.json
           curl -fsSL --max-time 20 -o /tmp/restaurant-menu-import-ui.js https://core.vantixgc.com/app/restaurant-menu-import-ui.js
           grep -q 'VANTIX_BROWSER_OCR_V1' /tmp/restaurant-menu-import-ui.js
           grep -q 'VANTIX_BROWSER_OCR_MULTIPASS_V2' /tmp/restaurant-menu-import-ui.js
+          grep -q 'VANTIX_MENU_OCR_LAYOUT_V3' /tmp/restaurant-menu-import-ui.js
           grep -q 'VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2' /tmp/restaurant-menu-import-ui.js
+          grep -q 'detectVerticalCategories' /tmp/restaurant-menu-import-ui.js
+          grep -q 'blocks:true' /tmp/restaurant-menu-import-ui.js
           grep -q "PSM_MODES = \['6', '11', '4'\]" /tmp/restaurant-menu-import-ui.js
           grep -q "user_defined_dpi:'220'" /tmp/restaurant-menu-import-ui.js
           grep -q 'preserveOriginalImage:true' /tmp/restaurant-menu-import-ui.js
           grep -q 'tesseract.js@5' /tmp/restaurant-menu-import-ui.js
           grep -q 'pdfjs-dist@3.11.174' /tmp/restaurant-menu-import-ui.js
-          echo "PRODUCTION_RESTAURANT_BROWSER_OCR_MULTIPASS_READY"
+          echo "PRODUCTION_RESTAURANT_BROWSER_OCR_LAYOUT_V3_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
