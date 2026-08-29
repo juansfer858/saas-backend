@@ -5,9 +5,8 @@ const { verifyAccessToken } = require('../utils/jwt');
 const RESTAURANT_SHARED_WAITER_ROLE = 'MESERO_OPERATIVO_COMPARTIDO';
 
 function isRestaurantOperationalRequest(req) {
-  const url = String(req.originalUrl || req.url || '');
-  if (!/^\/api\/v1\/restaurante(?:\/|$)/.test(url)) return false;
-  return !/^\/api\/v1\/restaurante\/ui-context(?:[/?]|$)/.test(url);
+  const url = String(req.originalUrl || req.url || '').split('?')[0];
+  return /^\/api\/v1\/restaurante\/(?:zonas|mesas|menu|sesiones|pedidos)(?:\/|$)/.test(url);
 }
 
 function runtimeUserForRequest(req, user) {
@@ -26,10 +25,12 @@ function runtimeUserForRequest(req, user) {
  * El JWT nunca puede cambiar el tenant activo de la petición; únicamente puede
  * demostrar que el usuario autenticado pertenece al mismo tenant.
  *
- * En Restaurante, MESERO usa un actor operacional compartido. Esto evita que
- * assignedWaiterId se convierta en una barrera de acceso: todos los meseros ven
- * todas las zonas/mesas y pueden reforzar cualquier servicio. La identidad y
- * los permisos de seguridad siguen siendo MESERO mediante req.userRole.
+ * En el flujo de salón del Restaurante, MESERO usa un actor operacional
+ * compartido. Esto evita que assignedWaiterId se convierta en una barrera de
+ * acceso: todos los meseros ven todas las zonas/mesas y pueden reforzar una
+ * atención iniciada por otro. La identidad y los permisos de seguridad siguen
+ * siendo MESERO mediante req.userRole. El resto de módulos conserva el rol
+ * original sin cambios.
  */
 async function authMiddleware(req, _res, next) {
   try {
