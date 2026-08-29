@@ -1,0 +1,19 @@
+name: Restaurant Waiter Adaptive CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  waiter-adaptive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate adaptive waiter UI contract
+        run: node scripts/restaurant-waiter-adaptive-smoke.js

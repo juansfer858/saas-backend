@@ -2,11 +2,130 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>VantixGC Restaurante</title>
   <link rel="stylesheet" href="/app/restaurant-theme.css?v=la-riel-v1">
   <link rel="stylesheet" href="/app/restaurant-control-center.css?v=workspace-v8-salon">
   <link rel="stylesheet" href="/restaurantes/theme-v1.css">
+  <style id="waiterAdaptiveTouchV1">
+  /* WAITER_ADAPTIVE_TOUCH_V1_START — presentation only; no business mutations live here. */
+  #view .waiter-top-card,#view .waiter-service-bar,#view .waiter-catalog,#view .waiter-order-panel{touch-action:manipulation}
+  #view .waiter-table-chip{min-height:64px!important;padding:10px 13px!important}
+  #view .waiter-menu-tabs button{min-height:52px!important;font-size:13px!important}
+  #view .waiter-mode-buttons .ri-btn,#view .waiter-person-tabs .ri-btn{min-height:52px!important}
+  #view .waiter-product-grid .menu-ticket{min-height:168px!important;padding:14px!important;display:flex!important;flex-direction:column!important;gap:6px!important;border-radius:16px!important}
+  #view .waiter-product-grid .menu-name{font-size:17px!important;line-height:1.2!important}
+  #view .waiter-product-grid .menu-price{font-size:19px!important;margin:4px 0 8px!important}
+  #view .waiter-product-grid .qty-control{margin-top:auto!important;display:grid!important;grid-template-columns:56px minmax(42px,1fr) 56px!important;gap:8px!important}
+  #view .waiter-product-grid .qty-control .ri-btn{min-width:56px!important;min-height:56px!important;padding:0!important;font-size:25px!important;border-radius:14px!important}
+  #view .waiter-product-grid .qty-number{display:grid!important;place-items:center!important;min-height:56px!important;font-size:19px!important}
+  #view .waiter-main-action{min-height:60px!important;font-size:16px!important}
+  #view .waiter-order-toggle,#view .waiter-order-close,#view .waiter-history-toggle,.waiter-order-backdrop{display:none}
+
+  @media (min-width:1280px){
+    #view .waiter-workspace{grid-template-columns:minmax(0,1.65fr) minmax(390px,.78fr)!important}
+    #view .waiter-product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  }
+
+  @media (min-width:800px) and (max-width:1279px) and (orientation:landscape){
+    .ri-main{padding-left:18px!important;padding-right:18px!important}
+    #view .waiter-top-card{padding:12px 14px!important;margin-bottom:10px!important}
+    #view .waiter-title-row{align-items:center!important}
+    #view .waiter-title-row .ri-title{font-size:24px!important}
+    #view .waiter-title-row p{display:none!important}
+    #view .waiter-user-badge{min-width:150px!important;padding:7px 10px!important}
+    #view .waiter-zone-row{grid-template-columns:150px minmax(0,1fr) 165px!important;gap:8px!important;margin-top:9px!important}
+    #view .waiter-table-chip{min-width:116px!important;min-height:58px!important}
+    #view .waiter-service-bar{grid-template-columns:minmax(230px,.8fr) minmax(300px,1.2fr) 145px!important;gap:10px!important;padding:12px 14px!important;margin-bottom:10px!important}
+    #view .waiter-workspace{grid-template-columns:minmax(0,1.55fr) minmax(340px,.9fr)!important;gap:10px!important;align-items:start!important}
+    #view .waiter-catalog,#view .waiter-order-panel{padding:14px!important}
+    #view .waiter-product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important}
+    #view .waiter-product-grid .menu-ticket{min-height:154px!important}
+    #view .waiter-order-panel{position:sticky!important;top:8px!important;max-height:calc(100dvh - 16px)!important}
+    #view .waiter-order-scroll{overflow:auto!important}
+    #view #waiterHistory{margin-top:10px!important;padding:12px!important}
+    #view #waiterHistory:not(.waiter-history-open) .metric-strip,
+    #view #waiterHistory:not(.waiter-history-open) .command-ticket,
+    #view #waiterHistory:not(.waiter-history-open) > .empty-ticket{display:none!important}
+    #view .waiter-history-toggle{display:inline-flex!important;min-height:46px!important}
+  }
+
+  @media (min-width:600px) and (max-width:999px) and (orientation:portrait){
+    .ri-main{padding-left:14px!important;padding-right:14px!important;padding-bottom:96px!important}
+    #view .waiter-top-card{padding:12px!important;margin-bottom:9px!important}
+    #view .waiter-title-row{display:grid!important;grid-template-columns:1fr auto!important;align-items:center!important;gap:8px!important}
+    #view .waiter-title-row .ri-title{font-size:24px!important}
+    #view .waiter-title-row p{display:none!important}
+    #view .waiter-user-badge{min-width:0!important;margin:0!important;padding:7px 9px!important}
+    #view .waiter-zone-row{grid-template-columns:150px minmax(0,1fr)!important;gap:8px!important;margin-top:9px!important}
+    #view .waiter-table-summary{display:none!important}
+    #view .waiter-service-bar{grid-template-columns:1fr!important;gap:10px!important;padding:12px!important;margin-bottom:9px!important}
+    #view .waiter-service-meta{display:none!important}
+    #view .waiter-workspace{display:block!important}
+    #view .waiter-catalog{padding:12px!important}
+    #view .waiter-product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:9px!important}
+    #view .waiter-product-grid .menu-ticket{min-height:160px!important}
+    #view .waiter-order-panel{position:fixed!important;z-index:220!important;left:10px!important;right:10px!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;max-height:min(78dvh,760px)!important;padding:16px!important;border-radius:24px!important;transform:translateY(calc(100% + 28px))!important;opacity:0!important;pointer-events:none!important;transition:transform .22s ease,opacity .18s ease!important;box-shadow:0 26px 70px rgba(15,23,42,.32)!important}
+    html.waiter-order-open #view .waiter-order-panel{transform:translateY(0)!important;opacity:1!important;pointer-events:auto!important}
+    #view .waiter-order-scroll{overflow:auto!important;overscroll-behavior:contain!important}
+    #view .waiter-order-toggle{display:flex!important;position:fixed!important;z-index:205!important;right:16px!important;bottom:max(16px,env(safe-area-inset-bottom))!important;min-height:62px!important;padding:0 20px!important;align-items:center!important;gap:9px!important;border:0!important;border-radius:18px!important;background:#111c2b!important;color:#fff!important;font-weight:950!important;box-shadow:0 14px 34px rgba(15,23,42,.28)!important}
+    #view .waiter-order-close{display:grid!important;place-items:center!important;min-width:48px!important;width:48px!important;height:48px!important;margin-left:auto!important;border:1px solid #dbe3ea!important;border-radius:14px!important;background:#fff!important;font-size:22px!important;font-weight:900!important}
+    .waiter-order-backdrop{position:fixed!important;z-index:210!important;inset:0!important;border:0!important;background:rgba(15,23,42,.42)!important;backdrop-filter:blur(2px)!important}
+    html.waiter-order-open .waiter-order-backdrop{display:block!important}
+    #view #waiterHistory{margin-top:10px!important;padding:12px!important}
+    #view #waiterHistory:not(.waiter-history-open) .metric-strip,
+    #view #waiterHistory:not(.waiter-history-open) .command-ticket,
+    #view #waiterHistory:not(.waiter-history-open) > .empty-ticket{display:none!important}
+    #view .waiter-history-toggle{display:inline-flex!important;min-height:48px!important}
+  }
+
+  @media (max-width:599px){
+    .ri-main{padding:8px 8px 92px!important}
+    #view .ri-card{border-radius:14px!important}
+    #view .waiter-top-card{padding:10px!important;margin-bottom:8px!important}
+    #view .waiter-title-row{display:flex!important;align-items:center!important;gap:8px!important}
+    #view .waiter-title-row .ri-eyebrow,#view .waiter-title-row p,#view .waiter-user-badge{display:none!important}
+    #view .waiter-title-row .ri-title{font-size:22px!important}
+    #view .waiter-zone-row{display:grid!important;grid-template-columns:120px minmax(0,1fr)!important;gap:7px!important;margin-top:8px!important}
+    #view .waiter-zone-row .ri-label{font-size:11px!important}
+    #view .waiter-table-strip{gap:6px!important}
+    #view .waiter-table-chip{min-width:104px!important;min-height:54px!important;padding:7px 9px!important}
+    #view .waiter-table-summary{display:none!important}
+    #view .waiter-service-bar{grid-template-columns:1fr!important;gap:8px!important;padding:10px!important;margin-bottom:8px!important}
+    #view .waiter-service-meta{display:none!important}
+    #view .waiter-mode-buttons{display:grid!important;grid-template-columns:1fr 1fr!important}
+    #view .waiter-mode-buttons .ri-btn{min-height:50px!important;padding:8px!important;font-size:12px!important}
+    #view .waiter-person-tabs .ri-btn{min-height:50px!important}
+    #view .waiter-joint-info span{display:none!important}
+    #view .waiter-workspace{display:block!important}
+    #view .waiter-catalog{padding:10px!important}
+    #view .waiter-menu-tabs{display:flex!important;overflow:auto!important;gap:5px!important;margin-bottom:8px!important}
+    #view .waiter-menu-tabs button{min-width:96px!important;min-height:50px!important;padding:0 9px!important}
+    #view .waiter-search-row{grid-template-columns:1fr!important;gap:5px!important;margin-bottom:8px!important}
+    #view .waiter-search-row .ri-muted{font-size:11px!important}
+    #view .waiter-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+    #view .waiter-product-grid .menu-ticket{min-height:158px!important;padding:10px!important}
+    #view .waiter-product-grid .menu-name{font-size:15px!important}
+    #view .waiter-product-grid .menu-price{font-size:17px!important}
+    #view .waiter-product-grid .qty-control{grid-template-columns:50px minmax(34px,1fr) 50px!important;gap:5px!important}
+    #view .waiter-product-grid .qty-control .ri-btn,#view .waiter-product-grid .qty-number{min-height:52px!important;min-width:0!important}
+    #view .waiter-order-panel{position:fixed!important;z-index:220!important;left:5px!important;right:5px!important;bottom:max(5px,env(safe-area-inset-bottom))!important;top:auto!important;max-height:84dvh!important;padding:13px!important;border-radius:22px!important;transform:translateY(calc(100% + 24px))!important;opacity:0!important;pointer-events:none!important;transition:transform .22s ease,opacity .18s ease!important;box-shadow:0 24px 64px rgba(15,23,42,.34)!important}
+    html.waiter-order-open #view .waiter-order-panel{transform:translateY(0)!important;opacity:1!important;pointer-events:auto!important}
+    #view .waiter-order-scroll{overflow:auto!important;overscroll-behavior:contain!important}
+    #view .waiter-item-row{grid-template-columns:1fr auto!important;gap:6px!important}
+    #view .waiter-order-toggle{display:flex!important;position:fixed!important;z-index:205!important;right:10px!important;bottom:max(10px,env(safe-area-inset-bottom))!important;min-height:58px!important;padding:0 17px!important;align-items:center!important;gap:8px!important;border:0!important;border-radius:17px!important;background:#111c2b!important;color:#fff!important;font-size:13px!important;font-weight:950!important;box-shadow:0 13px 30px rgba(15,23,42,.3)!important}
+    #view .waiter-order-close{display:grid!important;place-items:center!important;min-width:46px!important;width:46px!important;height:46px!important;margin-left:auto!important;border:1px solid #dbe3ea!important;border-radius:13px!important;background:#fff!important;font-size:21px!important;font-weight:900!important}
+    .waiter-order-backdrop{position:fixed!important;z-index:210!important;inset:0!important;border:0!important;background:rgba(15,23,42,.45)!important}
+    html.waiter-order-open .waiter-order-backdrop{display:block!important}
+    #view #waiterHistory{margin-top:8px!important;padding:10px!important}
+    #view #waiterHistory:not(.waiter-history-open) .metric-strip,
+    #view #waiterHistory:not(.waiter-history-open) .command-ticket,
+    #view #waiterHistory:not(.waiter-history-open) > .empty-ticket{display:none!important}
+    #view #waiterHistory .ri-toolbar .push{display:none!important}
+    #view .waiter-history-toggle{display:inline-flex!important;min-height:46px!important}
+  }
+  /* WAITER_ADAPTIVE_TOUCH_V1_END */
+  </style>
 </head>
 <body>
   <div class="ri-shell">
@@ -90,6 +209,54 @@
   <script src="/app/restaurant-theme.js?v=panel-font-v1"></script>
   <script src="/app/restaurant-ui.js?v=salon-qr-v2"></script>
   <script src="/app/restaurant-control-center.js?v=workspace-v3-nav2"></script>
+  <script id="waiterAdaptiveTouchRuntimeV1">
+  (()=>{
+    /* WAITER_ADAPTIVE_RUNTIME_V1_START — DOM-only enhancement; intentionally no fetch/API calls. */
+    const view=document.querySelector('#view');
+    if(!view)return;
+    const html=document.documentElement;
+    let backdrop=null;
+    const closeOrder=()=>html.classList.remove('waiter-order-open');
+    const openOrder=()=>html.classList.add('waiter-order-open');
+    const totalText=panel=>panel?.querySelector('.waiter-total b')?.textContent?.trim()||'';
+    const enhance=()=>{
+      const panel=view.querySelector('.waiter-order-panel');
+      const workspace=view.querySelector('.waiter-workspace');
+      if(!panel||!workspace){closeOrder();backdrop?.remove();backdrop=null;return}
+      if(!panel.dataset.adaptiveTouch){
+        panel.dataset.adaptiveTouch='v1';
+        const head=panel.querySelector('.waiter-order-head');
+        if(head&&!head.querySelector('.waiter-order-close')){
+          const close=document.createElement('button');
+          close.type='button';close.className='waiter-order-close';close.setAttribute('aria-label','Cerrar pedido');close.textContent='×';
+          close.addEventListener('click',closeOrder);head.appendChild(close);
+        }
+      }
+      let toggle=view.querySelector('#waiterOrderToggle');
+      if(!toggle){
+        toggle=document.createElement('button');toggle.type='button';toggle.id='waiterOrderToggle';toggle.className='waiter-order-toggle';
+        toggle.addEventListener('click',openOrder);workspace.parentNode.insertBefore(toggle,workspace.nextSibling);
+      }
+      toggle.innerHTML=`<span>VER PEDIDO</span><strong>${totalText(panel)||'—'}</strong>`;
+      if(!backdrop||!backdrop.isConnected){
+        backdrop=document.createElement('button');backdrop.type='button';backdrop.className='waiter-order-backdrop';backdrop.setAttribute('aria-label','Cerrar pedido');backdrop.addEventListener('click',closeOrder);document.body.appendChild(backdrop);
+      }
+      const history=view.querySelector('#waiterHistory');
+      if(history&&!history.querySelector('.waiter-history-toggle')){
+        const toolbar=history.querySelector('.ri-toolbar');
+        const toggleHistory=document.createElement('button');toggleHistory.type='button';toggleHistory.className='ri-btn small waiter-history-toggle';toggleHistory.textContent='Ver rondas';
+        toggleHistory.addEventListener('click',()=>{const opened=history.classList.toggle('waiter-history-open');toggleHistory.textContent=opened?'Ocultar rondas':'Ver rondas'});
+        toolbar?.appendChild(toggleHistory);
+      }
+    };
+    const observer=new MutationObserver(()=>requestAnimationFrame(enhance));
+    observer.observe(view,{childList:true,subtree:true});
+    window.addEventListener('resize',()=>{if(matchMedia('(min-width:1000px)').matches)closeOrder()},{passive:true});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape')closeOrder()});
+    enhance();
+    /* WAITER_ADAPTIVE_RUNTIME_V1_END */
+  })();
+  </script>
   <script>
   (()=>{
     const ORIGIN_KEY='vantixgc_core_origin_v1',SESSION_KEY='vantixgc_core_session_v1',MAX_AGE_MS=4*60*60*1000;
