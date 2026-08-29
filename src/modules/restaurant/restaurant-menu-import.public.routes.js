@@ -15,6 +15,7 @@ const browserOcrPath = path.join(webRoot, 'restaurant-menu-browser-ocr.js');
 const browserOcrV4Path = path.join(webRoot, 'restaurant-menu-browser-ocr-v4.js');
 const qualityOcrPath = path.join(webRoot, 'restaurant-menu-ocr-quality-v2.js');
 const cleanupUiPath = path.join(webRoot, 'restaurant-menu-ocr-cleanup-ui.js');
+const editableUiPath = path.join(webRoot, 'restaurant-menu-ocr-editable-ui-v1.js');
 
 router.get('/app/restaurant-menu-import-ui.js', (_req, res, next) => {
   try {
@@ -26,7 +27,8 @@ router.get('/app/restaurant-menu-import-ui.js', (_req, res, next) => {
       fs.readFileSync(browserOcrPath, 'utf8'),
       fs.readFileSync(browserOcrV4Path, 'utf8'),
       fs.readFileSync(qualityOcrPath, 'utf8'),
-      fs.readFileSync(cleanupUiPath, 'utf8')
+      fs.readFileSync(cleanupUiPath, 'utf8'),
+      fs.readFileSync(editableUiPath, 'utf8')
     ].join('\n'));
   } catch (error) { next(error); }
 });
@@ -48,6 +50,7 @@ router.get('/api/public/restaurante/menu-ocr-readiness', (_req, res) => {
       browserStrictMarker: 'VANTIX_MENU_OCR_STRICT_V4',
       browserPostprocessMarker: 'VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2',
       browserCleanupMarker: 'VANTIX_MENU_OCR_CLEANUP_UI_V1',
+      browserEditableMarker: 'VANTIX_MENU_OCR_EDITABLE_UI_V1',
       capabilities: {
         imageOcr: Boolean(status.capabilities?.imageOcr),
         pdfText: Boolean(status.capabilities?.pdfText),
