@@ -9,6 +9,7 @@ const localOcr = require('./restaurant-menu-local-ocr.service');
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
 const menuUiPath = path.join(webRoot, 'restaurant-menu-import-ui.js');
+const layoutOcrPath = path.join(webRoot, 'restaurant-menu-layout-parser-v3.js');
 const browserOcrPath = path.join(webRoot, 'restaurant-menu-browser-ocr.js');
 const qualityOcrPath = path.join(webRoot, 'restaurant-menu-ocr-quality-v2.js');
 
@@ -17,6 +18,7 @@ router.get('/app/restaurant-menu-import-ui.js', (_req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.type('application/javascript').send([
       fs.readFileSync(menuUiPath, 'utf8'),
+      fs.readFileSync(layoutOcrPath, 'utf8'),
       fs.readFileSync(browserOcrPath, 'utf8'),
       fs.readFileSync(qualityOcrPath, 'utf8')
     ].join('\n'));
@@ -35,6 +37,7 @@ router.get('/api/public/restaurante/menu-ocr-readiness', (_req, res) => {
       browserFallback: true,
       browserMarker: 'VANTIX_BROWSER_OCR_V1',
       browserQualityMarker: 'VANTIX_BROWSER_OCR_MULTIPASS_V2',
+      browserLayoutMarker: 'VANTIX_MENU_OCR_LAYOUT_V3',
       browserPostprocessMarker: 'VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2',
       capabilities: {
         imageOcr: Boolean(status.capabilities?.imageOcr),

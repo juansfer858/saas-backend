@@ -46,9 +46,12 @@ jobs:
         run: npm run build
       - name: Sync test database
         run: npx prisma db push
-      - name: Validate browser OCR syntax
-        run: node --check src/web/restaurant-menu-browser-ocr.js
-      - name: Validate local OCR runtime and browser fallback
+      - name: Validate OCR browser and layout syntax
+        run: |
+          node --check src/web/restaurant-menu-layout-parser-v3.js
+          node --check src/web/restaurant-menu-browser-ocr.js
+          node --check src/web/restaurant-menu-ocr-quality-v2.js
+      - name: Validate local OCR runtime, layout and browser fallback
         run: node scripts/restaurant-menu-local-ocr-smoke.js
       - name: Validate OCR import contracts and UI
         run: node scripts/restaurant-menu-import-smoke.js
