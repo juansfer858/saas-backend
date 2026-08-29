@@ -74,6 +74,7 @@
     const tables = $('[data-cc-tab="salon"]', actions);
     const kds = $('[data-cc-tab="kds"]', actions);
     const menu = $('[data-cc-menu]', actions);
+    const employees = $('[data-cc-employees]', actions);
     let waiter = $$('.cc-action', actions).find((node) => /^\s*👤?\s*Mesero\s*$/i.test(node.textContent || ''));
     const oldTheme = $('[data-cc-tab="estado"]', actions);
     if (!waiter && oldTheme) {
@@ -98,7 +99,7 @@
       deliveryButton.addEventListener('click', () => openDeliveries());
     }
 
-    [cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu].filter(Boolean).forEach((node) => actions.appendChild(node));
+    [cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu, employees].filter(Boolean).forEach((node) => actions.appendChild(node));
     actions.dataset.deliveryLayoutReady = '1';
   }
 

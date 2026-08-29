@@ -10,7 +10,7 @@ function parse(schema, value) {
 
 async function createUser(req, res, next) {
   try {
-    const data = await service.createUser(req.tenantId, parse(userSchema, req.body));
+    const data = await service.createUser(req.tenantId, parse(userSchema, req.body), { actorRole:req.userRole, actorUserId:req.userId });
     res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
 }
@@ -22,7 +22,7 @@ async function listUsers(req, res, next) {
 
 async function updateUser(req, res, next) {
   try {
-    const data = await service.updateUser(req.tenantId, req.params.id, parse(updateUserSchema, req.body));
+    const data = await service.updateUser(req.tenantId, req.params.id, parse(updateUserSchema, req.body), { actorRole:req.userRole, actorUserId:req.userId });
     res.json({ ok: true, data });
   } catch (error) { next(error); }
 }

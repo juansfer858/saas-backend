@@ -46,7 +46,7 @@
     return `<span style="padding:5px 8px;border-radius:999px;background:${bg};color:${color};font-size:10px;font-weight:900">${label}</span>`;
   }
 
-  async function openManager() {
+  async function openManager(preselectedUserId = null) {
     const dialog = ensureDialog();
     dialog.innerHTML = '<div style="padding:22px"><div class="ri-muted">Cargando dispositivos…</div></div>';
     if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open','');
@@ -59,9 +59,11 @@
             <label class="ri-label">Mesero<select id="wdWaiter" class="ri-select"><option value="">Selecciona…</option>${waiters.map((user) => `<option value="${user.id}">${esc(user.nombre)} · ${esc(user.email)}</option>`).join('')}</select></label>
             <label class="ri-label">Nombre del dispositivo<input id="wdDeviceName" class="ri-input" maxlength="80" value="Tablet Mesero"></label>
             <button type="button" class="ri-btn primary" id="wdGenerate" ${waiters.length ? '' : 'disabled'}>Generar QR</button>
-          </div>${waiters.length ? '' : '<div class="ri-error" style="margin-top:12px">No hay usuarios activos con rol MESERO. Créalo primero en Usuarios.</div>'}<div id="wdPairResult"></div></section>
+          </div>${waiters.length ? '' : '<div class="ri-error" style="margin-top:12px">No hay usuarios activos con rol MESERO. Créalo primero en Empleados.</div>'}<div id="wdPairResult"></div></section>
           <section><div class="ri-toolbar"><div><div class="ri-eyebrow">Equipos vinculados</div><h3 style="margin:2px 0">Tablets y celulares</h3></div><span class="push ri-muted">${devices.length} registro(s)</span></div><div style="display:grid;gap:8px">${devices.map((row) => `<article style="display:grid;grid-template-columns:minmax(180px,1fr) minmax(160px,.8fr) auto auto;gap:10px;align-items:center;padding:11px 12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc"><div><b style="display:block">${esc(row.deviceName)}</b><small class="ri-muted">${esc(row.waiter?.nombre || 'Mesero no disponible')}</small></div><div><small class="ri-muted">Último uso</small><b style="display:block;font-size:12px">${esc(fmt(row.lastSeenAt))}</b></div>${statusPill(row)}${row.active || row.status === 'PAIRING' ? `<button type="button" class="ri-btn small danger" data-wd-revoke="${row.id}">Desautorizar</button>` : '<span></span>'}</article>`).join('') || '<div class="empty-ticket">Aún no hay dispositivos vinculados.</div>'}</div></section>
         </div>`;
+      const selectedWaiter = String(preselectedUserId || '');
+      if (selectedWaiter && waiters.some((user) => user.id === selectedWaiter)) dialog.querySelector('#wdWaiter').value = selectedWaiter;
       dialog.querySelector('[data-wd-close]')?.addEventListener('click', () => dialog.close?.());
       dialog.querySelector('#wdGenerate')?.addEventListener('click', async () => {
         const userId = dialog.querySelector('#wdWaiter')?.value;
@@ -107,7 +109,7 @@
     button.dataset.connectWaiterDevice = 'true';
     button.textContent = '▣ Conectar tablet o celular';
     button.style.minHeight = '48px';
-    button.addEventListener('click', openManager);
+    button.addEventListener('click', () => openManager());
     const badge = titleRow.querySelector('.waiter-user-badge');
     if (badge) titleRow.insertBefore(button, badge); else titleRow.appendChild(button);
   }
@@ -115,4 +117,8 @@
   const observer = new MutationObserver(enhance);
   observer.observe(document.documentElement, { childList:true, subtree:true });
   enhance();
+
+  window.VantixGCWaiterDeviceAdmin = Object.freeze({
+    open: (userId = null) => openManager(userId)
+  });
 })();
