@@ -235,7 +235,7 @@
       let toggle=view.querySelector('#waiterOrderToggle');
       if(!toggle){
         toggle=document.createElement('button');toggle.type='button';toggle.id='waiterOrderToggle';toggle.className='waiter-order-toggle';
-        toggle.addEventListener('click',openOrder);workspace.insertAdjacentElement('afterend',toggle);
+        toggle.addEventListener('click',openOrder);workspace.parentNode.insertBefore(toggle,workspace.nextSibling);
       }
       toggle.innerHTML=`<span>VER PEDIDO</span><strong>${totalText(panel)||'—'}</strong>`;
       if(!backdrop||!backdrop.isConnected){
