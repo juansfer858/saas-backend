@@ -58,6 +58,11 @@ assert.match(admin, /\/api\/v1\/usuarios/);
 assert.match(admin, /\/api\/v1\/restaurante\/dispositivos-mesero\/vinculo/);
 assert.match(admin, /Desautorizar/);
 assert.match(admin, /rol\s*===\s*'MESERO'/);
+assert.match(admin, /normalizePrimaryCenterAction/);
+assert.match(admin, /\[data-cc-tab=\"estado\"\]/);
+assert.match(admin, /button\.dataset\.ccTab\s*=\s*'mesero'/);
+assert.match(admin, /button\.textContent\s*=\s*'👤 Mesero'/);
+assert.match(admin, /if \(!isAdmin\) return;/, 'conectar dispositivos debe seguir restringido a administración');
 
 assert.equal(manifest.name, 'VantixGC Mesero');
 assert.equal(manifest.display, 'standalone');
@@ -98,6 +103,8 @@ console.log(JSON.stringify({
   pairing: 'single-use-10m',
   deviceSession: 'server-revocable',
   targetRole: 'MESERO',
+  centerPrimaryAction: 'Mesero',
+  themeRemovedFromPrimaryGrid: true,
   icons: ['192x192-png', '512x512-png', 'svg'],
   layouts: ['tablet-landscape', 'tablet-portrait', 'mobile', 'desktop'],
   businessMutationReplay: false
