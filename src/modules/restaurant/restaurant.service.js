@@ -673,7 +673,7 @@ function splitByItem(sale, tipAmount, assignments) {
     return { name: assignment.name || `Comensal ${index + 1}`, saleDetailIds: assignment.saleDetailIds, itemTotal: itemTotal.toString(), tip: tipShare.toString(), amount: money(itemTotal.plus(tipShare)).toString() };
   });
   if (used.size !== details.size) throw new AppError(400, 'Todos los ítems deben quedar asignados para dividir por ítem', 'RESTAURANT_SPLIT_ITEMS_INCOMPLETE');
-  return { mode: 'BY_ITEM', parts, total: money(total).toString() };
+  return { mode: 'BY_ITEM', parts, total: money(decimal(sale.total).plus(tip)).toString() };
 }
 
 function computeSplit(sale, tipAmount, input = null) {
