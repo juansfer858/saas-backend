@@ -10,6 +10,7 @@ const { publicBaseUrl } = require('./restaurant-qr.service');
 const ORIGIN_TYPE = 'RESTAURANT_WAITER_DEVICE';
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 const DEVICE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+const LAST_SEEN_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 
 function secretKey() {
   const seed = process.env.RESTAURANT_DEVICE_SECRET || process.env.JWT_SECRET;
@@ -165,12 +166,13 @@ async function listDevices(tenantId) {
   const userIds = [...new Set(rows.map((row) => row.publicReference).filter(Boolean))];
   const users = userIds.length ? await prisma.user.findMany({ where: { tenantId, id: { in: userIds } }, select: { id: true, nombre: true, email: true, rol: true, activo: true } }) : [];
   const byId = new Map(users.map((user) => [user.id, user]));
+  const now = new Date();
   return rows.map((row) => {
     const meta = latestDeviceMeta(row);
     return {
       id: row.id,
       status: row.currentStatus,
-      active: Boolean(row.active && row.currentStatus === 'ACTIVE' && row.expiresAt > new Date()),
+      active: Boolean(row.active && row.currentStatus === 'ACTIVE' && row.expiresAt > now),
       deviceName: meta?.deviceName || 'Tablet / celular Mesero',
       waiter: byId.get(row.publicReference) || null,
       lastSeenAt: row.lastNotificationAt,
@@ -196,15 +198,21 @@ async function revokeDevice(tenantId, actorUserId, deviceId) {
 async function assertActiveDevice(deviceId, tenantId, userId) {
   const row = await prisma.trackingLink.findFirst({
     where: { id: deviceId, tenantId, originType: ORIGIN_TYPE, publicReference: userId, active: true, currentStatus: 'ACTIVE', expiresAt: { gt: new Date() } },
-    select: { id: true }
+    select: { id: true, lastNotificationAt: true }
   });
   if (!row) throw new AppError(401, 'Este dispositivo Mesero fue revocado o venció', 'RESTAURANT_WAITER_DEVICE_REVOKED');
-  await prisma.trackingLink.update({ where: { id: row.id }, data: { lastNotificationAt: new Date() } }).catch(() => {});
+  const lastSeen = row.lastNotificationAt ? new Date(row.lastNotificationAt).getTime() : 0;
+  if (!lastSeen || Date.now() - lastSeen >= LAST_SEEN_WRITE_INTERVAL_MS) {
+    await prisma.trackingLink.update({ where: { id: row.id }, data: { lastNotificationAt: new Date() } }).catch(() => {});
+  }
   return true;
 }
 
 module.exports = {
   ORIGIN_TYPE,
+  PAIRING_TTL_MS,
+  DEVICE_TTL_MS,
+  LAST_SEEN_WRITE_INTERVAL_MS,
   createPairing,
   inspectPairing,
   claimPairing,
