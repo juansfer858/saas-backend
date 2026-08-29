@@ -41,19 +41,6 @@ router.post('/api/public/restaurante/mesero-dispositivo/vincular', async (req, r
   } catch (error) { next(error); }
 });
 
-// The normal Control Center stays owned by the proven legacy route. This middleware only
-// appends the isolated device-management UI after that route renders the page.
-router.get('/app/centro-de-control', (_req, res, next) => {
-  const originalSend = res.send.bind(res);
-  res.send = (body) => {
-    if (typeof body === 'string' && body.includes('</body>') && !body.includes('restaurant-waiter-device-admin.js')) {
-      body = body.replace('</body>', '  <script src="/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1"></script>\n</body>');
-    }
-    return originalSend(body);
-  };
-  next();
-});
-
 router.get('/app/restaurant-waiter-device-admin.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(adminScript);
