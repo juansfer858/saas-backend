@@ -102,7 +102,9 @@
     actions.dataset.deliveryLayoutReady = '1';
   }
 
-  function showCustom() {
+  function showCustom(pushState = true) {
+    const canonical = window.VantixGCRestaurantControlCenter?.openCustomView?.('domicilios', pushState);
+    if (canonical) return canonical;
     const dashboard = $('#ccDashboard');
     const custom = $('#ccCustomView');
     const message = $('#message');
@@ -122,7 +124,8 @@
   function goHome() {
     active = false;
     stopPoll();
-    window.VantixGCRestaurantControlCenter?.showDashboard?.();
+    if (window.VantixGCRestaurantControlCenter?.navigateBack) window.VantixGCRestaurantControlCenter.navigateBack();
+    else window.VantixGCRestaurantControlCenter?.showDashboard?.();
   }
 
   function age(value) {
@@ -179,9 +182,9 @@
     return (isLate(row) ? -100 : 0) + state;
   }
 
-  async function openDeliveries(filter = 'ACTIVOS', fromPoll = false) {
+  async function openDeliveries(filter = 'ACTIVOS', fromPoll = false, pushState = true) {
     active = true;
-    const root = showCustom();
+    const root = fromPoll ? ($('#ccCustomView') || showCustom(false)) : showCustom(pushState);
     if (!root) return;
     if (!fromPoll) root.innerHTML = '<div class="ri-muted">Cargando domicilios…</div>';
     try {
@@ -193,21 +196,23 @@
       const list = (Array.isArray(rows) ? rows : []).sort((a, b) => priority(a) - priority(b) || new Date(a.creadoEn) - new Date(b.creadoEn));
       const visible = filter === 'ACTIVOS' ? list.filter((row) => !['ENTREGADO','CANCELADO'].includes(row.state)) : filter === 'PENDIENTE_PAGO' ? list.filter((row) => row.paymentStatus === 'PENDIENTE' && row.state !== 'CANCELADO') : filter === 'TODOS' ? list : list.filter((row) => row.state === filter);
       root.innerHTML = `<section class="delivery-shell">
-        <header class="delivery-head"><div><div class="ri-eyebrow">CANAL DOMICILIOS</div><h1>Domicilios</h1><p>Primero lo que necesita atención. El sistema te muestra la siguiente acción.</p></div><div class="ri-actions"><button type="button" class="ri-btn" data-delivery-home>← Centro de control</button><button type="button" class="ri-btn primary" data-new-delivery>+ NUEVO DOMICILIO</button></div></header>
+        <header class="delivery-head"><div><div class="ri-eyebrow">CANAL DOMICILIOS</div><h1>Domicilios</h1><p>Primero lo que necesita atención. El sistema te muestra la siguiente acción.</p></div><div class="ri-actions"><button type="button" class="ri-btn primary" data-new-delivery>+ NUEVO DOMICILIO</button></div></header>
         <div class="delivery-summary"><button class="attention" data-delivery-filter="NUEVO"><small>Nuevos</small><strong>${summary.counts?.NUEVO || 0}</strong></button><button data-delivery-filter="EN_PREPARACION"><small>Preparando</small><strong>${summary.counts?.EN_PREPARACION || 0}</strong></button><button data-delivery-filter="LISTO"><small>Listos para salir</small><strong>${summary.counts?.LISTO || 0}</strong></button><button data-delivery-filter="EN_CAMINO"><small>En camino</small><strong>${summary.counts?.EN_CAMINO || 0}</strong></button><button class="late" data-delivery-filter="ACTIVOS"><small>Retrasados</small><strong>${summary.late || 0}</strong></button></div>
         <div class="delivery-filterbar">${[['ACTIVOS','Necesitan atención'],['NUEVO','Nuevos'],['LISTO','Listos'],['EN_CAMINO','En camino'],['PENDIENTE_PAGO','Pago pendiente'],['TODOS','Todos']].map(([value,label]) => `<button type="button" class="${filter === value ? 'active' : ''}" data-delivery-filter="${value}">${label}</button>`).join('')}</div>
         <div class="delivery-list">${visible.map(card).join('') || '<div class="ri-card"><b>No hay domicilios en este estado.</b><p class="ri-muted">Cuando llegue uno aparecerá aquí automáticamente.</p></div>'}</div>
       </section>`;
       bindDeliveryView(root, filter);
-      if (!poll) poll = setInterval(() => { if (active && !creating) openDeliveries(filter, true).catch(() => {}); }, 5000);
+      if (!poll) poll = setInterval(() => {
+        const current = new URLSearchParams(location.search).get('view') || 'dashboard';
+        if (current !== 'domicilios') { active = false; stopPoll(); return; }
+        if (active && !creating) openDeliveries(filter, true, false).catch(() => {});
+      }, 5000);
     } catch (error) {
-      root.innerHTML = `<div class="ri-error">${esc(error.message)}</div><button class="ri-btn" data-delivery-home>← Centro de control</button>`;
-      $('[data-delivery-home]', root)?.addEventListener('click', goHome);
+      root.innerHTML = `<div class="ri-error">${esc(error.message)}</div>`;
     }
   }
 
   function bindDeliveryView(root, currentFilter) {
-    $('[data-delivery-home]', root)?.addEventListener('click', goHome);
     $('[data-new-delivery]', root)?.addEventListener('click', openCreateDialog);
     $$('[data-delivery-filter]', root).forEach((button) => button.addEventListener('click', () => openDeliveries(button.dataset.deliveryFilter || currentFilter)));
     $$('[data-delivery-action]', root).forEach((button) => button.addEventListener('click', () => runAction(button.dataset.deliveryAction, button.dataset.deliveryId, currentFilter)));
@@ -389,7 +394,8 @@
   normalizeDashboardActions();
 
   window.VantixGCRestaurantDelivery = Object.freeze({
-    open: () => openDeliveries(),
-    refresh: () => openDeliveries('ACTIVOS', true)
+    open: (pushState = true) => openDeliveries('ACTIVOS', false, pushState),
+    refresh: () => openDeliveries('ACTIVOS', true, false),
+    deactivate: () => { active = false; stopPoll(); }
   });
 })();

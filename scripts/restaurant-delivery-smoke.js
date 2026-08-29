@@ -14,6 +14,7 @@ const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
 const publicRoutes = read('src/modules/restaurant/restaurant-delivery.public.routes.js');
 const theme = read('src/web/restaurant-theme.js');
 const ui = read('src/web/restaurant-delivery-ui.js');
+const center = read('src/web/restaurant-control-center.js');
 const rbac = read('src/modules/restaurant/restaurant.rbac.js');
 const runtime = read('scripts/ensure-restaurant-runtime-schema.js');
 
@@ -56,6 +57,13 @@ assert.match(ui, /MARCAR ENTREGADO/);
 assert.match(ui, /PAGO PENDIENTE/);
 assert.match(ui, /Ya conocemos a/);
 assert.match(ui, /deliveryLayoutReady/, 'El MutationObserver debe quedar estabilizado después de ordenar los botones');
+assert.match(center, /domicilios:'Domicilios'/);
+assert.match(center, /function openCustomView\(view, pushState = true\)/);
+assert.match(center, /view === 'domicilios'/);
+assert.match(center, /VantixGCRestaurantDelivery\.open\(false\)/);
+assert.match(ui, /openCustomView\?\.\('domicilios', pushState\)/);
+assert.match(ui, /navigateBack\(\)/);
+assert.doesNotMatch(ui, /data-delivery-home/, 'Domicilios debe usar el Atrás canónico y no un botón paralelo');
 
 assert.match(runtime, /RestaurantDeliveryOrder/);
 assert.match(runtime, /RestaurantDeliveryItem/);
