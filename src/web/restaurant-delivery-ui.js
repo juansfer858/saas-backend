@@ -64,6 +64,7 @@
   function normalizeDashboardActions() {
     const actions = $('.cc-actions');
     if (!actions) return;
+    if (actions.dataset.deliveryLayoutReady === '1') return;
     injectStyles();
     actions.classList.add('delivery-layout');
 
@@ -98,6 +99,7 @@
     }
 
     [cash, tables, deliveryButton, newOrder, orders, waiter, kds, menu].filter(Boolean).forEach((node) => actions.appendChild(node));
+    actions.dataset.deliveryLayoutReady = '1';
   }
 
   function showCustom() {
