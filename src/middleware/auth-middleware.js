@@ -2,12 +2,35 @@ const { prisma } = require('../config/prisma');
 const { AppError } = require('../utils/app-error');
 const { verifyAccessToken } = require('../utils/jwt');
 
+const RESTAURANT_SHARED_WAITER_ROLE = 'MESERO_OPERATIVO_COMPARTIDO';
+
+function isRestaurantOperationalRequest(req) {
+  const url = String(req.originalUrl || req.url || '').split('?')[0];
+  return /^\/api\/v1\/restaurante\/(?:zonas|mesas|menu|sesiones|pedidos)(?:\/|$)/.test(url);
+}
+
+function runtimeUserForRequest(req, user) {
+  if (user?.rol !== 'MESERO' || !isRestaurantOperationalRequest(req)) return user;
+  return {
+    ...user,
+    rol: RESTAURANT_SHARED_WAITER_ROLE,
+    securityRole: 'MESERO'
+  };
+}
+
 /**
  * Middleware de autenticación del Super Core.
  *
  * Regla absoluta: el tenant debe haberse resuelto antes por el host/subdominio.
  * El JWT nunca puede cambiar el tenant activo de la petición; únicamente puede
  * demostrar que el usuario autenticado pertenece al mismo tenant.
+ *
+ * En el flujo de salón del Restaurante, MESERO usa un actor operacional
+ * compartido. Esto evita que assignedWaiterId se convierta en una barrera de
+ * acceso: todos los meseros ven todas las zonas/mesas y pueden reforzar una
+ * atención iniciada por otro. La identidad y los permisos de seguridad siguen
+ * siendo MESERO mediante req.userRole. El resto de módulos conserva el rol
+ * original sin cambios.
  */
 async function authMiddleware(req, _res, next) {
   try {
@@ -71,9 +94,10 @@ async function authMiddleware(req, _res, next) {
 
     req.userId = user.id;
     req.userRole = user.rol;
-    req.user = user;
+    req.user = runtimeUserForRequest(req, user);
     req.authType = payload.authType || 'USER';
     req.deviceId = payload.deviceId || null;
+    req.restaurantWaiterSharedFloor = req.user.rol === RESTAURANT_SHARED_WAITER_ROLE;
 
     next();
   } catch (error) {
@@ -81,4 +105,9 @@ async function authMiddleware(req, _res, next) {
   }
 }
 
-module.exports = { authMiddleware };
+module.exports = {
+  RESTAURANT_SHARED_WAITER_ROLE,
+  isRestaurantOperationalRequest,
+  runtimeUserForRequest,
+  authMiddleware
+};

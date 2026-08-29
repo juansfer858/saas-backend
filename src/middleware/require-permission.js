@@ -1,10 +1,17 @@
 const { AppError } = require('../utils/app-error');
 const rbac = require('../modules/platform/rbac/rbac.service');
 
+function securityUser(req) {
+  if (!req.user) return null;
+  const role = req.userRole || req.user.rol;
+  if (!role || role === req.user.rol) return req.user;
+  return { ...req.user, rol: role };
+}
+
 function requirePermission(code) {
   return async (req, _res, next) => {
     try {
-      const allowed = await rbac.hasPermission(req.tenantId, req.user, code);
+      const allowed = await rbac.hasPermission(req.tenantId, securityUser(req), code);
       if (!allowed) return next(new AppError(403, `Permiso requerido: ${code}`, 'AUTH_PERMISSION_FORBIDDEN', { permission: code }));
       next();
     } catch (error) {
@@ -50,10 +57,11 @@ function permissionForRequest(req) {
 
 async function enforceTenantPermissions(req, _res, next) {
   try {
-    if (!req.user || ['ADMIN', 'SUPER_ADMIN'].includes(req.user.rol)) return next();
+    const actor = securityUser(req);
+    if (!actor || ['ADMIN', 'SUPER_ADMIN'].includes(actor.rol)) return next();
     const code = permissionForRequest(req);
     if (!code) return next();
-    const allowed = await rbac.hasPermission(req.tenantId, req.user, code);
+    const allowed = await rbac.hasPermission(req.tenantId, actor, code);
     if (!allowed) return next(new AppError(403, `Permiso requerido: ${code}`, 'AUTH_PERMISSION_FORBIDDEN', { permission: code }));
     next();
   } catch (error) {
@@ -61,4 +69,4 @@ async function enforceTenantPermissions(req, _res, next) {
   }
 }
 
-module.exports = { requirePermission, permissionForRequest, enforceTenantPermissions };
+module.exports = { securityUser, requirePermission, permissionForRequest, enforceTenantPermissions };

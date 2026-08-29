@@ -44,7 +44,9 @@ jobs:
         run: npx prisma db push
       - name: Validate PWA static contract
         run: node scripts/restaurant-waiter-device-pwa-smoke.js
+      - name: Validate shared-floor security contract
+        run: node scripts/restaurant-waiter-shared-floor-smoke.js
       - name: Validate one-time pairing and immediate revocation
         run: node scripts/restaurant-waiter-device-pwa-db-smoke.js
-      - name: Validate shared table pool and full waiter operation
+      - name: Validate all-zone waiter floor and reinforcement
         run: node scripts/restaurant-waiter-table-pool-db-smoke.js
