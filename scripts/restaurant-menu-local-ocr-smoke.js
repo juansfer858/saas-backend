@@ -43,14 +43,22 @@ assert.equal(status.capabilities.pdfScan, true);
 
 const nixpacks = fs.readFileSync('nixpacks.toml', 'utf8');
 for (const pkg of ['tesseract-ocr', 'tesseract-ocr-spa', 'poppler-utils']) assert.match(nixpacks, new RegExp(pkg));
+
+const railpack = JSON.parse(fs.readFileSync('railpack.json', 'utf8'));
+assert.equal(railpack.provider, 'node');
+assert.equal(railpack.packages.node, '22');
+for (const pkg of ['tesseract-ocr', 'tesseract-ocr-spa', 'poppler-utils']) {
+  assert.ok(railpack.buildAptPackages.includes(pkg), `${pkg} debe instalarse en build Railpack`);
+  assert.ok(railpack.deploy.aptPackages.includes(pkg), `${pkg} debe estar en la imagen final Railpack`);
+}
+assert.equal(railpack.deploy.startCommand, 'npm start');
+
 const routes = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.routes.js', 'utf8');
 assert.match(routes, /LOCAL_OCR/);
 assert.match(routes, /analyzeWithAvailableProvider/);
 assert.match(routes, /sin API key/);
-const buildBootstrap = fs.readFileSync('scripts/prepare-restaurant-ocr-runtime.js', 'utf8');
-for (const marker of ['tesseract-ocr-spa', 'poppler-utils', 'RESTAURANT_LOCAL_OCR_RUNTIME_INSTALLED']) assert.match(buildBootstrap, new RegExp(marker));
-const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-assert.match(packageJson.scripts.build, /prepare-restaurant-ocr-runtime\.js/);
-assert.match(packageJson.scripts.build, /prisma generate/);
 
-console.log(JSON.stringify({ ok:true, provider:'LOCAL_OCR', capabilities, parsedProducts:rows.length, apiKeyRequired:false, buildBootstrap:true }));
+const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+assert.equal(packageJson.scripts.build, 'npx prisma generate');
+
+console.log(JSON.stringify({ ok:true, provider:'LOCAL_OCR', capabilities, parsedProducts:rows.length, apiKeyRequired:false, railpackRuntimePackages:true }));
