@@ -1,0 +1,17 @@
+model RestaurantEmployeeWorkProfile {
+  id              String   @id @default(uuid())
+  tenantId        String
+  userId          String
+  roleSnapshot    String
+  zoneIds         Json
+  tableIds        Json
+  stations        Json
+  flexibleSupport Boolean  @default(true)
+  updatedByUserId String?
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, roleSnapshot])
+  @@index([tenantId, actualizadoEn])
+}
