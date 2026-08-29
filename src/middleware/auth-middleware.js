@@ -61,9 +61,19 @@ async function authMiddleware(req, _res, next) {
       throw new AppError(401, 'Sesión no válida', 'AUTH_INVALID');
     }
 
+    if (payload.authType === 'WAITER_DEVICE') {
+      if (!payload.deviceId || user.rol !== 'MESERO') {
+        throw new AppError(401, 'La autorización de este dispositivo Mesero ya no es válida', 'RESTAURANT_WAITER_DEVICE_INVALID');
+      }
+      const { assertActiveDevice } = require('../modules/restaurant/restaurant-waiter-device.service');
+      await assertActiveDevice(payload.deviceId, req.tenantId, user.id);
+    }
+
     req.userId = user.id;
     req.userRole = user.rol;
     req.user = user;
+    req.authType = payload.authType || 'USER';
+    req.deviceId = payload.deviceId || null;
 
     next();
   } catch (error) {
