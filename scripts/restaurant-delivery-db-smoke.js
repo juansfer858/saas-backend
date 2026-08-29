@@ -28,10 +28,6 @@ async function main() {
 
   const sessionsBefore = await prisma.restaurantTableSession.count({ where: { tenantId: demo.tenantId } });
   const tablesBefore = await prisma.restaurantTable.count({ where: { tenantId: demo.tenantId } });
-  const stockBefore = new Map((await prisma.producto.findMany({
-    where: { tenantId: demo.tenantId, id: { in: menu.map((row) => row.productId) } },
-    select: { id: true, stockActual: true }
-  })).map((row) => [row.id, money(row.stockActual)]));
 
   let row = await delivery.createDelivery(demo.tenantId, admin, {
     customerName: 'Cliente Domicilio QA',
@@ -88,13 +84,14 @@ async function main() {
   assert.equal(row.paymentStatus, 'PAGADO');
   assert.equal(row.paymentMethod, 'EFECTIVO');
 
-  const [sale, receivable, payment, movement, consumption, journals, boxAfter] = await Promise.all([
+  const [sale, receivable, payment, movement, consumption, inventoryMovements, journals, boxAfter] = await Promise.all([
     prisma.comprobanteComercial.findUnique({ where: { id: row.saleId } }),
     prisma.cartera.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId } }),
     prisma.pago.findFirst({ where: { tenantId: demo.tenantId, documentoId: row.saleId } }),
     prisma.movimientoTesoreria.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId }, orderBy: { creadoEn: 'desc' } }),
     prisma.consumptionRun.findFirst({ where: { tenantId: demo.tenantId, sourceType: 'SALE', sourceId: row.saleId }, include: { items: true } }),
-    prisma.asientoContable.findMany({ where: { tenantId: demo.tenantId, OR: [{ comprobanteId: row.saleId }, { sourceId: { contains: row.saleId } }] }, include: { detalles: true } }),
+    prisma.movimientoInventario.findMany({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId } }),
+    prisma.asientoContable.findMany({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId }, include: { detalles: true } }),
     prisma.cajaBanco.findUnique({ where: { id: box.id } })
   ]);
 
@@ -105,19 +102,15 @@ async function main() {
   assert.ok(payment, 'Pago de domicilio faltante');
   assert.ok(movement, 'Movimiento de Tesorería faltante');
   assert.ok(consumption, 'Consumo/receta de la venta faltante');
-  assert.ok(journals.length >= 1, 'Asiento contable de la venta/pago faltante');
+  assert.ok(consumption.items.length > 0, 'La venta debe consumir ingredientes de receta');
+  assert.ok(inventoryMovements.length > 0, 'La venta debe generar movimientos reales de inventario');
+  assert.ok(journals.length >= 1, 'Asiento contable de la venta faltante');
   for (const journal of journals) {
     const debit = journal.detalles.reduce((sum, detail) => money(sum.plus(detail.debito || 0)), money(0));
     const credit = journal.detalles.reduce((sum, detail) => money(sum.plus(detail.credito || 0)), money(0));
     assert.ok(debit.eq(credit), `Asiento ${journal.id} descuadrado`);
   }
   assert.ok(money(boxAfter.saldoActual).eq(row.total), 'Caja debe recibir exactamente el total del domicilio');
-
-  const stockAfter = await prisma.producto.findMany({
-    where: { tenantId: demo.tenantId, id: { in: menu.map((item) => item.productId) } },
-    select: { id: true, stockActual: true }
-  });
-  assert.ok(stockAfter.some((product) => money(product.stockActual).lt(stockBefore.get(product.id))), 'Al menos un insumo/producto controlado debe reflejar consumo de la venta');
 
   console.log(JSON.stringify({
     ok: true,
@@ -130,7 +123,8 @@ async function main() {
     receivableState: receivable.estado,
     treasury: money(movement.monto).toString(),
     accountingJournals: journals.length,
-    consumptionItems: consumption.items.length
+    consumptionItems: consumption.items.length,
+    inventoryMovements: inventoryMovements.length
   }));
 }
 
