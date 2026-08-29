@@ -117,18 +117,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          readiness=$(curl -fsSL --max-time 15 https://core.vantixgc.com/api/public/restaurante/menu-ocr-readiness)
-          echo "$readiness"
-          echo "$readiness" | grep -q '"browserFallback":true'
-          echo "$readiness" | grep -q '"browserMarker":"VANTIX_BROWSER_OCR_V1"'
-          asset=$(curl -fsSL --max-time 20 https://core.vantixgc.com/app/restaurant-menu-import-ui.js)
-          echo "$asset" | grep -q 'VANTIX_BROWSER_OCR_V1'
-          echo "$asset" | grep -q 'VANTIX_BROWSER_OCR_MULTIPASS_V2'
-          echo "$asset" | grep -q "PSM_MODES = \['6', '11', '4'\]"
-          echo "$asset" | grep -q "user_defined_dpi:'220'"
-          echo "$asset" | grep -q 'preserveOriginalImage:true'
-          echo "$asset" | grep -q 'tesseract.js@5'
-          echo "$asset" | grep -q 'pdfjs-dist@3.11.174'
+          curl -fsSL --max-time 15 -o /tmp/ocr-readiness.json https://core.vantixgc.com/api/public/restaurante/menu-ocr-readiness
+          cat /tmp/ocr-readiness.json
+          grep -q '"browserFallback":true' /tmp/ocr-readiness.json
+          grep -q '"browserMarker":"VANTIX_BROWSER_OCR_V1"' /tmp/ocr-readiness.json
+          grep -q '"browserQualityMarker":"VANTIX_BROWSER_OCR_MULTIPASS_V2"' /tmp/ocr-readiness.json
+          grep -q '"browserPostprocessMarker":"VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2"' /tmp/ocr-readiness.json
+          curl -fsSL --max-time 20 -o /tmp/restaurant-menu-import-ui.js https://core.vantixgc.com/app/restaurant-menu-import-ui.js
+          grep -q 'VANTIX_BROWSER_OCR_V1' /tmp/restaurant-menu-import-ui.js
+          grep -q 'VANTIX_BROWSER_OCR_MULTIPASS_V2' /tmp/restaurant-menu-import-ui.js
+          grep -q 'VANTIX_MENU_OCR_QUALITY_POSTPROCESS_V2' /tmp/restaurant-menu-import-ui.js
+          grep -q "PSM_MODES = \['6', '11', '4'\]" /tmp/restaurant-menu-import-ui.js
+          grep -q "user_defined_dpi:'220'" /tmp/restaurant-menu-import-ui.js
+          grep -q 'preserveOriginalImage:true' /tmp/restaurant-menu-import-ui.js
+          grep -q 'tesseract.js@5' /tmp/restaurant-menu-import-ui.js
+          grep -q 'pdfjs-dist@3.11.174' /tmp/restaurant-menu-import-ui.js
           echo "PRODUCTION_RESTAURANT_BROWSER_OCR_MULTIPASS_READY"
 
       - name: Verify Super Core Restaurant runtime status
