@@ -53,10 +53,12 @@
     if (!label || !context) return;
     const role = baseRole();
     const work = assignment();
+    let next = label.textContent;
     if (['COCINA','BARRA','POSTRES'].includes(role)) {
       const stations = (work.stations?.length ? work.stations : [role]).map(stationLabel);
-      label.textContent = `Producción · ${stations.join(' + ')}`;
-    } else if (role === 'MESERO') label.textContent = 'MESERO';
+      next = `Producción · ${stations.join(' + ')}`;
+    } else if (role === 'MESERO') next = 'MESERO';
+    if (label.textContent !== next) label.textContent = next;
   }
 
   function preferredWaiterZones() {
@@ -74,20 +76,26 @@
     const work = assignment();
     const preferredZones = preferredWaiterZones();
     const assignedTables = new Set(work.tableIds || []);
-    const selectedBefore = select.value;
+    const optionSignature = `${[...preferredZones].sort().join(',')}|${[...select.options].map((option) => option.value).join(',')}`;
 
-    const options = [...select.options];
-    for (const option of options) {
-      if (!option.dataset.workOriginalLabel) option.dataset.workOriginalLabel = option.textContent.replace(/^★\s*/, '');
-      const preferred = preferredZones.has(option.value);
-      option.textContent = `${preferred ? '★ ' : ''}${option.dataset.workOriginalLabel}`;
-      option.dataset.workPreferred = preferred ? '1' : '0';
+    if (select.dataset.workScopeSignature !== optionSignature) {
+      const selectedBefore = select.value;
+      const options = [...select.options];
+      for (const option of options) {
+        if (!option.dataset.workOriginalLabel) option.dataset.workOriginalLabel = option.textContent.replace(/^★\s*/, '');
+        const preferred = preferredZones.has(option.value);
+        const nextText = `${preferred ? '★ ' : ''}${option.dataset.workOriginalLabel}`;
+        if (option.textContent !== nextText) option.textContent = nextText;
+        option.dataset.workPreferred = preferred ? '1' : '0';
+      }
+      const preferredOptions = options.filter((option) => option.dataset.workPreferred === '1');
+      const otherOptions = options.filter((option) => option.dataset.workPreferred !== '1');
+      for (const option of [...preferredOptions, ...otherOptions]) select.appendChild(option);
+      if ([...select.options].some((option) => option.value === selectedBefore)) select.value = selectedBefore;
+      select.dataset.workScopeSignature = optionSignature;
     }
-    const preferredOptions = options.filter((option) => option.dataset.workPreferred === '1');
-    const otherOptions = options.filter((option) => option.dataset.workPreferred !== '1');
-    for (const option of [...preferredOptions, ...otherOptions]) select.appendChild(option);
-    if ([...select.options].some((option) => option.value === selectedBefore)) select.value = selectedBefore;
 
+    const preferredOptions = [...select.options].filter((option) => option.dataset.workPreferred === '1');
     if (!autoSelectedWaiterZone && preferredOptions.length && !preferredZones.has(select.value)) {
       autoSelectedWaiterZone = true;
       select.value = preferredOptions[0].value;
@@ -96,27 +104,32 @@
     }
     autoSelectedWaiterZone = true;
 
-    const zoneAssigned = preferredZones.has(select.value) && (work.zoneIds || []).includes(select.value);
+    const zoneAssigned = (work.zoneIds || []).includes(select.value);
     const strip = document.querySelector('.waiter-table-strip');
     if (strip) {
       const buttons = [...strip.querySelectorAll('[data-waiter-table]')];
-      for (const button of buttons) {
-        const direct = assignedTables.has(button.dataset.waiterTable);
-        const primary = direct || zoneAssigned;
-        button.classList.toggle('work-primary', primary);
-        let badge = button.querySelector('.work-primary-badge');
-        if (primary && !badge) {
-          badge = document.createElement('small');
-          badge.className = 'work-primary-badge';
-          badge.textContent = direct ? '★ Mesa principal' : '★ Zona principal';
-          button.appendChild(badge);
-        } else if (primary && badge) {
-          badge.textContent = direct ? '★ Mesa principal' : '★ Zona principal';
-        } else if (!primary && badge) badge.remove();
+      const stripSignature = `${select.value}|${zoneAssigned ? '1' : '0'}|${[...assignedTables].sort().join(',')}|${buttons.map((button) => button.dataset.waiterTable).join(',')}`;
+      if (strip.dataset.workScopeSignature !== stripSignature) {
+        for (const button of buttons) {
+          const direct = assignedTables.has(button.dataset.waiterTable);
+          const primary = direct || zoneAssigned;
+          button.classList.toggle('work-primary', primary);
+          let badge = button.querySelector('.work-primary-badge');
+          if (primary && !badge) {
+            badge = document.createElement('small');
+            badge.className = 'work-primary-badge';
+            button.appendChild(badge);
+          }
+          if (primary && badge) {
+            const nextText = direct ? '★ Mesa principal' : '★ Zona principal';
+            if (badge.textContent !== nextText) badge.textContent = nextText;
+          } else if (!primary && badge) badge.remove();
+        }
+        const primaryButtons = buttons.filter((button) => button.classList.contains('work-primary'));
+        const supportButtons = buttons.filter((button) => !button.classList.contains('work-primary'));
+        for (const button of [...primaryButtons, ...supportButtons]) strip.appendChild(button);
+        strip.dataset.workScopeSignature = stripSignature;
       }
-      const primaryButtons = buttons.filter((button) => button.classList.contains('work-primary'));
-      const supportButtons = buttons.filter((button) => !button.classList.contains('work-primary'));
-      for (const button of [...primaryButtons, ...supportButtons]) strip.appendChild(button);
     }
 
     const titleRow = document.querySelector('.waiter-title-row');
@@ -156,7 +169,8 @@
         });
         actions.prepend(toggle);
       }
-      toggle.textContent = showAllProduction ? 'Ver mis módulos' : 'Ver todas las estaciones';
+      const nextText = showAllProduction ? 'Ver mis módulos' : 'Ver todas las estaciones';
+      if (toggle.textContent !== nextText) toggle.textContent = nextText;
     }
 
     const header = document.querySelector('.kds-v2-header');
