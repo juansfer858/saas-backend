@@ -61,12 +61,13 @@ router.post('/mesas/:id/pagos-divididos/preparar', requirePermission('RESTAURANT
 
 router.post('/mesas/:id/pagos-divididos', requirePermission('RESTAURANTE.CERRAR'), requirePermission('TESORERIA.PAGAR'), async (req, res, next) => {
   try {
-    await service.registerPartPayment(req.tenantId, req.user, req.params.id, parse(paymentSchema, req.body || {}));
-    // Re-read after the payment transaction has committed. Under four simultaneous parts,
-    // the last completed request now sees every committed RestaurantSessionPayment and can
-    // close the session/table deterministically instead of relying on an in-transaction snapshot.
-    await settlementFinalizer.reconcilePaidSessionAfterCommit(req.tenantId, req.user, req.params.id);
-    res.json({ ok: true, data: await service.paymentSummary(req.tenantId, req.user, req.params.id) });
+    const data = await settlementFinalizer.registerPartPaymentFinalized(
+      req.tenantId,
+      req.user,
+      req.params.id,
+      parse(paymentSchema, req.body || {})
+    );
+    res.json({ ok: true, data });
   } catch (error) { next(error); }
 });
 
