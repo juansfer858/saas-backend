@@ -83,14 +83,12 @@ async function main() {
   assert.equal(row.paymentStatus, 'PAGADO');
   assert.equal(row.paymentMethod, 'EFECTIVO');
 
-  const [sale, receivable, payment, movement, consumption, inventoryMovements, journals, boxAfter] = await Promise.all([
+  const [sale, receivable, payment, consumption, inventoryMovements, boxAfter] = await Promise.all([
     prisma.comprobanteComercial.findUnique({ where: { id: row.saleId } }),
     prisma.cartera.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId } }),
     prisma.pago.findFirst({ where: { tenantId: demo.tenantId, documentoId: row.saleId } }),
-    prisma.movimientoTesoreria.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId }, orderBy: { creadoEn: 'desc' } }),
     prisma.consumptionRun.findFirst({ where: { tenantId: demo.tenantId, sourceType: 'SALE', sourceId: row.saleId }, include: { items: true } }),
     prisma.movimientoInventario.findMany({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId } }),
-    prisma.asientoContable.findMany({ where: { tenantId: demo.tenantId, comprobanteId: row.saleId }, include: { detalles: true } }),
     prisma.cajaBanco.findUnique({ where: { id: box.id } })
   ]);
 
@@ -99,11 +97,25 @@ async function main() {
   assert.equal(receivable.estado, 'PAGADA');
   assert.ok(money(receivable.saldo).eq(0));
   assert.ok(payment, 'Pago de domicilio faltante');
-  assert.ok(movement, 'Movimiento de Tesorería faltante');
+  assert.ok(payment.comprobanteTesoreriaId, 'El pago debe generar Recibo de Caja');
+
+  const [movement, journals] = await Promise.all([
+    prisma.movimientoTesoreria.findFirst({
+      where: { tenantId: demo.tenantId, comprobanteId: payment.comprobanteTesoreriaId },
+      orderBy: { creadoEn: 'desc' }
+    }),
+    prisma.asientoContable.findMany({
+      where: { tenantId: demo.tenantId, comprobanteId: { in: [row.saleId, payment.comprobanteTesoreriaId] } },
+      include: { detalles: true }
+    })
+  ]);
+
+  assert.ok(movement, 'Movimiento de Tesorería ligado al Recibo de Caja faltante');
+  assert.ok(money(movement.monto).eq(row.total), 'El movimiento de Tesorería debe coincidir con el total cobrado');
   assert.ok(consumption, 'Consumo/receta de la venta faltante');
   assert.ok(consumption.items.length > 0, 'La venta debe consumir ingredientes de receta');
   assert.ok(inventoryMovements.length > 0, 'La venta debe generar movimientos reales de inventario');
-  assert.ok(journals.length >= 1, 'Asiento contable de la venta faltante');
+  assert.ok(journals.length >= 2, 'Deben existir asiento de venta y asiento de recaudo');
   for (const journal of journals) {
     const debit = journal.detalles.reduce((sum, detail) => money(sum.plus(detail.debito || 0)), money(0));
     const credit = journal.detalles.reduce((sum, detail) => money(sum.plus(detail.credito || 0)), money(0));
