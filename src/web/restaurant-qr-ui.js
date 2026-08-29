@@ -52,11 +52,20 @@
     return (S.ctx?.menu || []).filter((item) => item.product);
   }
 
+  function clientSpotlight() {
+    const config = S.ctx?.theme?.clientSpotlight;
+    if (!config?.active || !config.menuItemId) return null;
+    const item = products().find((row) => row.id === config.menuItemId && row.available);
+    return item ? { config, item } : null;
+  }
+
   function visibleProducts() {
     const rows = products();
     if (S.filter === 'FEATURED') {
       const available = rows.filter((item) => item.available);
-      return (available.length ? available : rows).slice(0, 6);
+      const spotlightId = clientSpotlight()?.item?.id;
+      const withoutSpotlight = (available.length ? available : rows).filter((item) => item.id !== spotlightId);
+      return withoutSpotlight.slice(0, 6);
     }
     return rows.filter((item) => item.category === S.filter);
   }
@@ -114,6 +123,19 @@
     </article>`;
   }
 
+  function spotlightMarkup() {
+    const spotlight = clientSpotlight();
+    if (!spotlight) return '';
+    const { config, item } = spotlight;
+    const qty = Number(S.cart.get(item.id) || 0);
+    const label = config.label || (config.kind === 'PROMO_DIA' ? 'Promo del día' : 'Plato del día');
+    const symbol = SYMBOLS[item.category] || '🍴';
+    return `<section data-client-spotlight="true" style="margin:0 0 18px;border-radius:22px;padding:18px;background:linear-gradient(135deg,#7c2d12,#c2410c 60%,#ea580c);color:#fff;box-shadow:0 14px 34px rgba(124,45,18,.22);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center">
+      <div style="min-width:0"><small style="display:block;font-size:10px;font-weight:950;letter-spacing:.11em;text-transform:uppercase;color:#fed7aa">${esc(label)}</small><h2 style="margin:5px 0 4px;font-size:22px;line-height:1.08;color:#fff">${esc(item.product.name)}</h2>${config.description ? `<p style="margin:0 0 9px;font-size:13px;line-height:1.4;color:#ffedd5">${esc(config.description)}</p>` : ''}<strong style="display:block;font-size:20px;color:#fff">${money(lineTotal(item, 1))}</strong><button type="button" data-spotlight-add="${item.id}" style="margin-top:12px;min-height:44px;border:0;border-radius:12px;padding:0 16px;background:#fff;color:#9a3412;font-weight:950;cursor:pointer">${qty ? `AGREGAR OTRO · ${qty} EN PEDIDO` : 'AGREGAR AL PEDIDO'}</button></div>
+      <div aria-hidden="true" style="width:74px;height:74px;border-radius:20px;background:rgba(255,255,255,.14);display:grid;place-items:center;font-size:38px">${symbol}</div>
+    </section>`;
+  }
+
   function renderProducts() {
     const app = $('#app');
     if (!app || !S.ctx) return;
@@ -127,9 +149,10 @@
     }
     const rows = visibleProducts();
     const heading = titleForFilter();
-    app.innerHTML = `<div class="qrv3-intro"><div><h2>${esc(heading.title)}</h2><p>${esc(heading.subtitle)}</p></div><strong>${rows.length} producto${rows.length === 1 ? '' : 's'}</strong></div>
+    app.innerHTML = `${spotlightMarkup()}<div class="qrv3-intro"><div><h2>${esc(heading.title)}</h2><p>${esc(heading.subtitle)}</p></div><strong>${rows.length} producto${rows.length === 1 ? '' : 's'}</strong></div>
       ${rows.length ? `<div class="qrv3-grid">${rows.map(productCard).join('')}</div>` : '<div class="qrv3-empty"><strong>Aún no hay productos aquí.</strong><span>Prueba otra categoría.</span></div>'}`;
     bindProductButtons();
+    $('[data-spotlight-add]')?.addEventListener('click', (event) => setQuantity(event.currentTarget.dataset.spotlightAdd, 1));
   }
 
   function setQuantity(id, delta) {
