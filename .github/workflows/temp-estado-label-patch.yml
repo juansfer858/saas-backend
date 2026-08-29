@@ -1,0 +1,41 @@
+name: Temporary Estado Label Patch
+
+on:
+  push:
+    branches:
+      - fix/restaurant-estado-label
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restaurant-estado-label
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Quitar Tema del menú Restaurante
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          files = [
+              Path('src/web/restaurant-ui.js'),
+              Path('src/web/restaurant-control-center.js'),
+          ]
+          for path in files:
+              text = path.read_text(encoding='utf-8')
+              old = "Tema / Estado"
+              if old not in text:
+                  raise SystemExit(f'No se encontró {old!r} en {path}')
+              path.write_text(text.replace(old, 'Estado'), encoding='utf-8')
+          PY
+          rm .github/workflows/temp-estado-label-patch.yml
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/web/restaurant-ui.js src/web/restaurant-control-center.js .github/workflows/temp-estado-label-patch.yml
+          git commit -m "fix(restaurante): mostrar Estado sin Tema"
+          git push origin HEAD:fix/restaurant-estado-label
