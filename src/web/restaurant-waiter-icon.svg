@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VantixGC Mesero">
+  <rect width="512" height="512" rx="112" fill="#111c2b"/>
+  <rect x="72" y="72" width="368" height="368" rx="86" fill="#f97316"/>
+  <path d="M142 152h52v108c0 34 19 56 51 65v43c-61-11-103-53-103-111V152Zm176 0h52v105c0 58-42 100-103 111v-43c32-9 51-31 51-65V152Z" fill="#fff"/>
+  <circle cx="256" cy="211" r="34" fill="#111c2b"/>
+  <path d="M206 381h100" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
+</svg>

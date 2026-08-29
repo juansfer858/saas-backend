@@ -13,13 +13,16 @@ function getJwtSecret() {
   return secret;
 }
 
-function signAccessToken({ userId, tenantId, rol }) {
+function signAccessToken({ userId, tenantId, rol, deviceId = null, authType = null, expiresIn = null }) {
+  const payload = { userId, tenantId, rol };
+  if (deviceId) payload.deviceId = deviceId;
+  if (authType) payload.authType = authType;
   return jwt.sign(
-    { userId, tenantId, rol },
+    payload,
     getJwtSecret(),
     {
       algorithm: 'HS256',
-      expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+      expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '8h',
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE
     }
