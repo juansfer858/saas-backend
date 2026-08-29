@@ -50,7 +50,9 @@
     if (!Number.isFinite(price) || price <= 0) return false;
     if (String(currency || '').toUpperCase() === 'COP') {
       if (price < 1000 || price > 2000000) return false;
-      if (Math.round(price) % 50 !== 0) return false;
+      const rounded = Math.round(price);
+      const commercialEnding = rounded % 50 === 0 || rounded % 1000 === 990 || rounded % 1000 === 900;
+      if (!commercialEnding) return false;
     } else if (price > 1000000000) return false;
     return true;
   }
