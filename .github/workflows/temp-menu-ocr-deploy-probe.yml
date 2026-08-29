@@ -9,15 +9,17 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify exact Delivery canonical back production revision
+      - name: Verify exact Employees module production revision
         run: |
           set -euo pipefail
-          EXPECTED='959eb0f1b5a8cd3c721d94858436e0c793e8be4c'
+          EXPECTED='61bbccca5bb098f7c37f80e2eaa912770b18a98f'
           for attempt in $(seq 1 60); do
             info_code=$(curl -sS --max-time 12 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
             ready_code=$(curl -sS --max-time 12 -o /tmp/ready.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
-            delivery_code=$(curl -sS --max-time 12 -o /tmp/delivery.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-delivery-ui.js || true)
+            employees_code=$(curl -sS --max-time 12 -o /tmp/employees.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-employees-ui.js || true)
             center_code=$(curl -sS --max-time 12 -o /tmp/center.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-control-center.js || true)
+            theme_code=$(curl -sS --max-time 12 -o /tmp/theme.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-theme.js || true)
+            waiter_code=$(curl -sS --max-time 12 -o /tmp/waiter.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-waiter-device-admin.js || true)
             current=$(python - <<'PY'
           import json
           try:
@@ -26,20 +28,21 @@ jobs:
               print('')
           PY
             )
-            echo "attempt=$attempt runtime=$info_code ready=$ready_code delivery=$delivery_code center=$center_code commit=$current"
-            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$delivery_code" = '200' ] && [ "$center_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q "domicilios:'Domicilios'" /tmp/center.js && grep -q "view === 'domicilios'" /tmp/center.js && grep -q "openCustomView?.('domicilios', pushState)" /tmp/delivery.js && ! grep -q 'data-delivery-home' /tmp/delivery.js; then
+            echo "attempt=$attempt runtime=$info_code ready=$ready_code employees=$employees_code center=$center_code theme=$theme_code waiter=$waiter_code commit=$current"
+            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$employees_code" = '200' ] && [ "$center_code" = '200' ] && [ "$theme_code" = '200' ] && [ "$waiter_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q 'NUEVO EMPLEADO' /tmp/employees.js && grep -q "empleados:'Empleados'" /tmp/center.js && grep -q 'data-cc-employees' /tmp/center.js && grep -q 'restaurant-employees-ui.js?v=employees-v1' /tmp/theme.js && grep -q 'VantixGCWaiterDeviceAdmin' /tmp/waiter.js && grep -q 'Créalo primero en Empleados' /tmp/waiter.js; then
               cat /tmp/runtime.json
               echo
               cat /tmp/ready.json
               echo
-              grep -F "domicilios:'Domicilios'" /tmp/center.js | head -1
-              grep -F "openCustomView?.('domicilios', pushState)" /tmp/delivery.js | head -1
-              echo 'PRODUCTION_RESTAURANT_DELIVERY_CANONICAL_BACK_OK'
+              grep -F "empleados:'Empleados'" /tmp/center.js | head -1
+              grep -F 'NUEVO EMPLEADO' /tmp/employees.js | head -1
+              grep -F 'Créalo primero en Empleados' /tmp/waiter.js | head -1
+              echo 'PRODUCTION_RESTAURANT_EMPLOYEES_V1_OK'
               exit 0
             fi
             sleep 5
           done
-          echo 'Expected Delivery canonical back revision did not become live in time' >&2
+          echo 'Expected Employees V1 revision/assets did not become live in time' >&2
           cat /tmp/runtime.json 2>/dev/null || true
           cat /tmp/ready.json 2>/dev/null || true
           exit 1
