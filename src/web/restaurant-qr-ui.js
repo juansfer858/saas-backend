@@ -52,11 +52,20 @@
     return (S.ctx?.menu || []).filter((item) => item.product);
   }
 
+  function clientSpotlight() {
+    const config = S.ctx?.theme?.clientSpotlight;
+    if (!config?.active || !config.menuItemId) return null;
+    const item = products().find((row) => row.id === config.menuItemId && row.available);
+    return item ? { config, item } : null;
+  }
+
   function visibleProducts() {
     const rows = products();
     if (S.filter === 'FEATURED') {
       const available = rows.filter((item) => item.available);
-      return (available.length ? available : rows).slice(0, 6);
+      const spotlightId = clientSpotlight()?.item?.id;
+      const withoutSpotlight = (available.length ? available : rows).filter((item) => item.id !== spotlightId);
+      return withoutSpotlight.slice(0, 6);
     }
     return rows.filter((item) => item.category === S.filter);
   }
@@ -114,6 +123,19 @@
     </article>`;
   }
 
+  function spotlightMarkup() {
+    const spotlight = clientSpotlight();
+    if (!spotlight) return '';
+    const { config, item } = spotlight;
+    const qty = Number(S.cart.get(item.id) || 0);
+    const label = config.label || (config.kind === 'PROMO_DIA' ? 'Promo del día' : 'Plato del día');
+    const symbol = SYMBOLS[item.category] || '🍴';
+    return `<section data-client-spotlight="true" class="qrv3-product" style="display:grid;grid-template-columns:minmax(110px,.32fr) minmax(0,1fr);margin:0 0 18px">
+      <div class="qrv3-media" data-cat="${esc(item.category)}" style="min-height:150px"><span class="qrv3-badge">${esc(label)}</span><span class="qrv3-media-symbol" aria-hidden="true">${symbol}</span></div>
+      <div class="qrv3-product-body" style="display:flex;flex-direction:column;justify-content:center"><h2 class="qrv3-product-name" style="font-size:24px">${esc(item.product.name)}</h2>${config.description ? `<p class="qrv3-product-meta" style="min-height:0">${esc(config.description)}</p>` : ''}<strong class="qrv3-price">${money(lineTotal(item, 1))}</strong><button type="button" class="qrv3-review" data-spotlight-add="${item.id}" style="width:fit-content">${qty ? `AGREGAR OTRO · ${qty} EN PEDIDO` : 'AGREGAR AL PEDIDO'}</button></div>
+    </section>`;
+  }
+
   function renderProducts() {
     const app = $('#app');
     if (!app || !S.ctx) return;
@@ -127,9 +149,10 @@
     }
     const rows = visibleProducts();
     const heading = titleForFilter();
-    app.innerHTML = `<div class="qrv3-intro"><div><h2>${esc(heading.title)}</h2><p>${esc(heading.subtitle)}</p></div><strong>${rows.length} producto${rows.length === 1 ? '' : 's'}</strong></div>
+    app.innerHTML = `${spotlightMarkup()}<div class="qrv3-intro"><div><h2>${esc(heading.title)}</h2><p>${esc(heading.subtitle)}</p></div><strong>${rows.length} producto${rows.length === 1 ? '' : 's'}</strong></div>
       ${rows.length ? `<div class="qrv3-grid">${rows.map(productCard).join('')}</div>` : '<div class="qrv3-empty"><strong>Aún no hay productos aquí.</strong><span>Prueba otra categoría.</span></div>'}`;
     bindProductButtons();
+    $('[data-spotlight-add]')?.addEventListener('click', (event) => setQuantity(event.currentTarget.dataset.spotlightAdd, 1));
   }
 
   function setQuantity(id, delta) {
