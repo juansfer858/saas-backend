@@ -2,9 +2,11 @@
 
 const express = require('express');
 const { z } = require('zod');
+const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const delivery = require('./restaurant-delivery.service');
+const restaurant = require('./restaurant.service');
 
 const router = express.Router();
 
@@ -41,6 +43,39 @@ const paymentSchema = z.object({
   metodoPago: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA']),
   cajaBancoId: z.string().uuid(),
   referencia: z.string().trim().max(180).optional().nullable()
+});
+
+const commandSchema = z.object({ state: z.enum(['PENDIENTE', 'EN_PREPARACION', 'LISTA', 'ENTREGADA', 'CANCELADA']) });
+
+// The extension owns the KDS surface before the base Restaurant router is mounted. It
+// returns one chronological feed while keeping table orders and delivery orders in
+// separate persistence models.
+router.get('/comandas', requirePermission('COMANDAS.VER'), async (req, res, next) => {
+  try {
+    const filters = { station: req.query.station || undefined, state: req.query.state || undefined, limit: req.query.limit };
+    const [tableCommands, deliveryCommands] = await Promise.all([
+      restaurant.listCommands(req.tenantId, req.user, filters),
+      delivery.listKdsCommands(req.tenantId, req.user, filters)
+    ]);
+    const limit = Math.min(Number(req.query.limit) || 200, 500);
+    const rows = [...tableCommands, ...deliveryCommands]
+      .sort((a, b) => new Date(a.creadoEn).getTime() - new Date(b.creadoEn).getTime())
+      .slice(0, limit);
+    res.json({ ok: true, data: rows });
+  } catch (error) { next(error); }
+});
+
+router.patch('/comandas/:id', requirePermission('COMANDAS.EDITAR'), async (req, res, next) => {
+  try {
+    const input = parse(commandSchema, req.body || {});
+    const deliveryCommand = await prisma.restaurantDeliveryCommand.findFirst({ where: { id: req.params.id, tenantId: req.tenantId }, select: { id: true } });
+    if (deliveryCommand) {
+      const row = await delivery.updateDeliveryCommandState(req.tenantId, req.user, req.params.id, input.state);
+      res.json({ ok: true, data: { delivery: row, notification: null } });
+      return;
+    }
+    res.json({ ok: true, data: await restaurant.updateCommandState(req.tenantId, req.user, req.params.id, input.state) });
+  } catch (error) { next(error); }
 });
 
 router.get('/domicilios/resumen', requirePermission('DOMICILIOS.VER'), async (req, res, next) => {
