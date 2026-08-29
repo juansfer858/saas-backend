@@ -48,7 +48,12 @@ async function listZones(tenantId, user = null) {
   if (!ids.length) return [];
 
   const tableWhere = { tenantId, active: true, zoneId: { in: ids } };
-  if (user?.rol === 'MESERO') tableWhere.assignedWaiterId = user.id;
+  if (user?.rol === 'MESERO') {
+    tableWhere.OR = [
+      { assignedWaiterId: null },
+      { assignedWaiterId: user.id }
+    ];
+  }
   const tables = await prisma.restaurantTable.findMany({
     where: tableWhere,
     select: { id: true, zoneId: true, state: true }
