@@ -6,6 +6,7 @@ const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-visit-payments.service');
 const splitReport = require('./restaurant-split-report.service');
+const settlementFinalizer = require('./restaurant-settlement-finalizer.service');
 
 const router = express.Router();
 
@@ -59,8 +60,15 @@ router.post('/mesas/:id/pagos-divididos/preparar', requirePermission('RESTAURANT
 });
 
 router.post('/mesas/:id/pagos-divididos', requirePermission('RESTAURANTE.CERRAR'), requirePermission('TESORERIA.PAGAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.registerPartPayment(req.tenantId, req.user, req.params.id, parse(paymentSchema, req.body || {})) }); }
-  catch (error) { next(error); }
+  try {
+    const data = await settlementFinalizer.registerPartPaymentFinalized(
+      req.tenantId,
+      req.user,
+      req.params.id,
+      parse(paymentSchema, req.body || {})
+    );
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
 });
 
 // Override only this summary surface when the route is mounted before the base Restaurant

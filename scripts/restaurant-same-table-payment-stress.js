@@ -8,6 +8,7 @@ const { ensureRestaurantDemoTenant } = require('./ensure-restaurant-demo-tenant'
 const restaurant = require('../src/modules/restaurant/restaurant.service');
 const identity = require('../src/modules/restaurant/restaurant-identity.service');
 const visitPayments = require('../src/modules/restaurant/restaurant-visit-payments.service');
+const settlementFinalizer = require('../src/modules/restaurant/restaurant-settlement-finalizer.service');
 const treasury = require('../src/modules/treasury/treasury.service');
 
 const CASES = Math.max(1, Math.min(Number(process.env.SAME_TABLE_STRESS_CASES) || 24, 100));
@@ -108,11 +109,12 @@ async function main() {
   ];
 
   // Cada worker procesa UNA mesa, pero dispara sus cuatro partes con Promise.all.
-  // Esto fuerza concurrencia real sobre la misma venta/cartera/sesión.
+  // Esto fuerza concurrencia real sobre la misma venta/cartera/sesión y ejerce la
+  // reconciliación post-commit usada por la ruta productiva de pagos divididos.
   await pool(contexts, TABLE_CONCURRENCY, async (context) => {
     const results = await Promise.allSettled(context.plan.parts.map((part, partIndex) => {
       const method = methods[partIndex];
-      return visitPayments.registerPartPayment(demo.tenantId, admin, context.table.id, {
+      return settlementFinalizer.registerPartPaymentFinalized(demo.tenantId, admin, context.table.id, {
         partKey: part.key,
         metodoPago: method.metodoPago,
         cajaBancoId: method.cajaBancoId,

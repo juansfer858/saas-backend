@@ -3,7 +3,8 @@
   const SESSION_KEY = 'vantixgc_core_session_v1';
   let session = null;
   try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch {}
-  if (!session?.token || !session?.subdomain || !['ADMIN','SUPER_ADMIN'].includes(String(session.user?.rol || ''))) return;
+  if (!session?.token || !session?.subdomain) return;
+  const isAdmin = ['ADMIN','SUPER_ADMIN'].includes(String(session.user?.rol || ''));
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
   const fmt = (value) => value ? new Date(value).toLocaleString('es-CO', { dateStyle:'short', timeStyle:'short' }) : '—';
@@ -86,7 +87,18 @@
     }
   }
 
+  function normalizePrimaryCenterAction() {
+    if (location.pathname !== '/app/centro-de-control') return;
+    const button = document.querySelector('#ccDashboard .cc-actions [data-cc-tab="estado"]');
+    if (!button) return;
+    button.dataset.ccTab = 'mesero';
+    button.textContent = '👤 Mesero';
+    button.setAttribute('aria-label', 'Abrir panel del mesero');
+  }
+
   function enhance() {
+    normalizePrimaryCenterAction();
+    if (!isAdmin) return;
     const titleRow = document.querySelector('#view .waiter-title-row');
     if (!titleRow || titleRow.querySelector('[data-connect-waiter-device]')) return;
     const button = document.createElement('button');
