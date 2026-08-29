@@ -39,6 +39,8 @@ assert.match(publicRoutes, /\/app\/centro-de-control\/conectar/);
 assert.match(publicRoutes, /\/app\/centro-de-control\/mesero/);
 assert.match(publicRoutes, /manifest\.webmanifest/);
 assert.match(publicRoutes, /Service-Worker-Allowed/);
+assert.match(publicRoutes, /waiter-icon-192\.png/);
+assert.match(publicRoutes, /waiter-icon-512\.png/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
 
@@ -48,6 +50,7 @@ assert.match(auth, /payload\.authType\s*===\s*'WAITER_DEVICE'/);
 assert.match(auth, /assertActiveDevice/);
 assert.match(auth, /user\.rol\s*!==\s*'MESERO'/);
 
+assert.match(theme, /location\.pathname\.startsWith\('\/app\/centro-de-control'\)/);
 assert.match(theme, /location\.pathname\s*!==\s*'\/app\/centro-de-control'/);
 assert.match(theme, /restaurant-waiter-device-admin\.js/);
 assert.match(admin, /Conectar tablet o celular/);
@@ -61,7 +64,11 @@ assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.orientation, 'any');
 assert.equal(manifest.start_url, '/app/centro-de-control/mesero?view=mesero&pwa=1');
 assert.equal(manifest.scope, '/app/centro-de-control');
-assert.ok(Array.isArray(manifest.icons) && manifest.icons.length > 0);
+assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 3);
+assert.ok(manifest.icons.some((icon) => icon.type === 'image/png' && icon.sizes === '192x192' && /waiter-icon-192\.png$/.test(icon.src)), 'manifest debe incluir icono PNG 192x192');
+assert.ok(manifest.icons.some((icon) => icon.type === 'image/png' && icon.sizes === '512x512' && /waiter-icon-512\.png$/.test(icon.src)), 'manifest debe incluir icono PNG 512x512');
+assert.ok(fs.statSync(path.join(__dirname, '..', 'src/web/restaurant-waiter-icon-192.png')).size > 100, 'PNG 192 faltante o vacío');
+assert.ok(fs.statSync(path.join(__dirname, '..', 'src/web/restaurant-waiter-icon-512.png')).size > 100, 'PNG 512 faltante o vacío');
 
 assert.match(pair, /beforeinstallprompt/);
 assert.match(pair, /Añadir a pantalla de inicio/);
@@ -91,6 +98,7 @@ console.log(JSON.stringify({
   pairing: 'single-use-10m',
   deviceSession: 'server-revocable',
   targetRole: 'MESERO',
+  icons: ['192x192-png', '512x512-png', 'svg'],
   layouts: ['tablet-landscape', 'tablet-portrait', 'mobile', 'desktop'],
   businessMutationReplay: false
 }));
