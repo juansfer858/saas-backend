@@ -36,3 +36,7 @@ jobs:
         run: node scripts/restaurant-employees-smoke.js
       - name: Validate Restaurant employee roles and permissions against PostgreSQL
         run: node scripts/restaurant-employees-db-smoke.js
+      - name: Validate flexible work assignment contract
+        run: node scripts/restaurant-employee-work-smoke.js
+      - name: Validate flexible zones tables and production modules against PostgreSQL
+        run: node scripts/restaurant-employee-work-db-smoke.js
