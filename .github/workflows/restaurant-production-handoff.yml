@@ -24,11 +24,35 @@ jobs:
           test -f server.js
           test -f scripts/runtime-stability-smoke.js
           test -f scripts/runtime-stability-db-smoke.js
+          test -f src/web/restaurant-menu-browser-ocr.js
+          test ! -f railpack.json
           grep -q "app.get('/healthz'" server.js
           grep -q "app.get('/readyz'" server.js
           grep -q "app.get('/api/public/runtime-info'" server.js
           grep -q "menu-ocr-readiness" src/modules/restaurant/restaurant-menu-import.public.routes.js
+          grep -q "VANTIX_BROWSER_OCR_V1" src/web/restaurant-menu-browser-ocr.js
+          grep -q "browserFallback: true" src/modules/restaurant/restaurant-menu-import.public.routes.js
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
+
+      - name: Wait for exact commit in production
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for exact production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA in time" >&2
+          exit 1
 
       - name: Wait for Restaurant V2 marker in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -36,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://core.vantixgc.com/api/public/restaurante/build-marker"
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 30); do
             if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
               echo "$body"
               if echo "$body" | grep -q 'LA_RIEL_CONNECTED_V1' && echo "$body" | grep -q 'ROTATED_V2_2026_08_21'; then
@@ -44,8 +68,8 @@ jobs:
                 exit 0
               fi
             fi
-            echo "Waiting for production deploy... attempt=$attempt"
-            sleep 10
+            echo "Waiting for production marker... attempt=$attempt"
+            sleep 5
           done
           echo "Production did not expose expected Restaurant V2 marker in time" >&2
           exit 1
@@ -55,7 +79,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 30); do
             health_code=$(curl -sS --max-time 12 -o /tmp/healthz.json -w '%{http_code}' https://core.vantixgc.com/healthz || true)
             ready_code=$(curl -sS --max-time 12 -o /tmp/readyz.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
             if [ "$health_code" = "200" ] && [ "$ready_code" = "200" ]; then
@@ -82,32 +106,23 @@ jobs:
           echo "$body"
           echo "$body" | grep -q '"phase":"READY"'
           echo "$body" | grep -q '"uptimeSeconds"'
-          echo "$body" | grep -q '"commit"'
+          echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""
           echo "PRODUCTION_RUNTIME_IDENTITY_OK"
 
-      - name: Verify local Restaurant OCR runtime in production
+      - name: Verify Restaurant OCR fallback in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
-          URL="https://core.vantixgc.com/api/public/restaurante/menu-ocr-readiness"
-          for attempt in $(seq 1 60); do
-            if body=$(curl -fsSL --max-time 15 "$URL" 2>/dev/null); then
-              echo "$body"
-              if echo "$body" | grep -q '"configured":true' && \
-                 echo "$body" | grep -q '"provider":"LOCAL_OCR"' && \
-                 echo "$body" | grep -q '"imageOcr":true' && \
-                 echo "$body" | grep -q '"pdfText":true' && \
-                 echo "$body" | grep -q '"pdfScan":true'; then
-                echo "PRODUCTION_RESTAURANT_LOCAL_OCR_READY"
-                exit 0
-              fi
-            fi
-            echo "Waiting for local OCR runtime... attempt=$attempt"
-            sleep 10
-          done
-          echo "Production local Restaurant OCR did not become ready in time" >&2
-          exit 1
+          readiness=$(curl -fsSL --max-time 15 https://core.vantixgc.com/api/public/restaurante/menu-ocr-readiness)
+          echo "$readiness"
+          echo "$readiness" | grep -q '"browserFallback":true'
+          echo "$readiness" | grep -q '"browserMarker":"VANTIX_BROWSER_OCR_V1"'
+          asset=$(curl -fsSL --max-time 20 https://core.vantixgc.com/app/restaurant-menu-import-ui.js)
+          echo "$asset" | grep -q 'VANTIX_BROWSER_OCR_V1'
+          echo "$asset" | grep -q 'tesseract.js@5'
+          echo "$asset" | grep -q 'pdfjs-dist@3.11.174'
+          echo "PRODUCTION_RESTAURANT_BROWSER_OCR_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -137,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://core.vantixgc.com/api/public/restaurante/demo-readiness"
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 30); do
             if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
               echo "$body"
               if echo "$body" | grep -q '"ready":true' && \
@@ -151,7 +166,7 @@ jobs:
               fi
             fi
             echo "Waiting for demo tenant bootstrap... attempt=$attempt"
-            sleep 10
+            sleep 5
           done
           echo "demo-restaurante was not fully seeded in production" >&2
           exit 1
