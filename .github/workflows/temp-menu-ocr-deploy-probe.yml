@@ -9,13 +9,15 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for exact production revision and readiness
+      - name: Wait for exact production revision and spotlight assets
         run: |
           set -euo pipefail
-          EXPECTED='2c891f3529f4b63c64a61b940629f52269f70cc1'
+          EXPECTED='f24376b0db9524845b96319d5c3e57b61debb06d'
           for attempt in $(seq 1 60); do
             info_code=$(curl -sS --max-time 12 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
             ready_code=$(curl -sS --max-time 12 -o /tmp/ready.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
+            center_code=$(curl -sS --max-time 12 -o /tmp/center.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-control-center.js || true)
+            qr_code=$(curl -sS --max-time 12 -o /tmp/qr.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-qr-ui.js || true)
             current=$(python - <<'PY'
           import json
           try:
@@ -24,18 +26,18 @@ jobs:
               print('')
           PY
             )
-            echo "attempt=$attempt runtime=$info_code ready=$ready_code commit=$current"
-            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json; then
+            echo "attempt=$attempt runtime=$info_code ready=$ready_code center=$center_code qr=$qr_code commit=$current"
+            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$center_code" = '200' ] && [ "$qr_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q 'Publicar / editar' /tmp/center.js && grep -q 'clientSpotlight' /tmp/center.js && grep -q 'data-client-spotlight' /tmp/qr.js && grep -q 'AGREGAR AL PEDIDO' /tmp/qr.js; then
               cat /tmp/runtime.json
               echo
               cat /tmp/ready.json
               echo
-              echo 'PRODUCTION_EXACT_REVISION_READY_OK'
+              echo 'PRODUCTION_CLIENT_SPOTLIGHT_REVISION_OK'
               exit 0
             fi
             sleep 5
           done
-          echo 'Expected production revision did not become live in time' >&2
+          echo 'Expected client spotlight revision did not become live in time' >&2
           cat /tmp/runtime.json 2>/dev/null || true
           cat /tmp/ready.json 2>/dev/null || true
           exit 1
