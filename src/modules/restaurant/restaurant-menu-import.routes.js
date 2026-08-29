@@ -4,6 +4,7 @@ const express = require('express');
 const { z } = require('zod');
 const service = require('./restaurant-menu-import.service');
 const localOcr = require('./restaurant-menu-local-ocr.service');
+const cleanup = require('./restaurant-menu-ocr-cleanup.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 
@@ -78,6 +79,12 @@ router.post('/carta-importacion/confirmar', requirePermission('RESTAURANTE.ADMIN
   try {
     const input = parse(confirmSchema, req.body || {});
     res.status(201).json({ ok: true, data: await service.confirmImport(req.tenantId, req.userId, input) });
+  } catch (error) { next(error); }
+});
+
+router.delete('/carta-importacion/importados-ocr', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    res.json({ ok: true, data: await cleanup.clearImportedOcr(req.tenantId) });
   } catch (error) { next(error); }
 });
 

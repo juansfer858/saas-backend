@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const service = require('../src/modules/restaurant/restaurant-menu-import.service');
+const cleanup = require('../src/modules/restaurant/restaurant-menu-ocr-cleanup.service');
 
 async function main() {
   const stamp = Date.now();
@@ -63,6 +64,41 @@ async function main() {
     assert.equal(publicRanchera.category, 'Hamburguesas');
     assert.equal(publicRanchera.price, 27000);
     assert.equal(publicRanchera.importedByOcr, true);
+
+    const manualProduct = await prisma.producto.create({
+      data: {
+        tenantId:tenant.id,
+        sku:`MANUAL-${stamp}`,
+        nombre:'Producto manual',
+        descripcion:'Debe sobrevivir limpieza OCR',
+        unidadMedida:'UND',
+        controlaInventario:false,
+        precio1:15000,
+        activo:true
+      }
+    });
+    await prisma.restaurantMenuItem.create({
+      data: { tenantId:tenant.id, productId:manualProduct.id, category:'FUERTES', station:'COCINA', requiresRecipe:false, active:true }
+    });
+
+    const cleared = await cleanup.clearImportedOcr(tenant.id);
+    assert.equal(cleared.found, 2);
+    assert.equal(cleared.productsDeactivated, 2);
+    assert.equal(cleared.menuItemsHidden, 2);
+
+    const hiddenProducts = await prisma.producto.findMany({ where:{ tenantId:tenant.id, sku:{ startsWith:'MENU-OCR-' } } });
+    assert.equal(hiddenProducts.length, 2);
+    assert.ok(hiddenProducts.every((row) => row.activo === false));
+    const hiddenMenu = await prisma.restaurantMenuItem.findMany({ where:{ tenantId:tenant.id, productId:{ in:hiddenProducts.map((row) => row.id) } } });
+    assert.ok(hiddenMenu.every((row) => row.active === false));
+
+    const manualAfter = await prisma.producto.findUnique({ where:{ id:manualProduct.id } });
+    const manualMenuAfter = await prisma.restaurantMenuItem.findUnique({ where:{ tenantId_productId:{ tenantId:tenant.id, productId:manualProduct.id } } });
+    assert.equal(manualAfter.activo, true, 'manual product must not be deactivated');
+    assert.equal(manualMenuAfter.active, true, 'manual menu item must not be hidden');
+
+    const visibleAfterCleanup = await service.listCarta(tenant.id);
+    assert.equal(visibleAfterCleanup.some((row) => row.importedByOcr), false, 'OCR items must disappear from visible menu');
 
     const audits = await prisma.auditoriaContable.findMany({ where:{ tenantId:tenant.id, entidad:'RESTAURANT_MENU_OCR_IMPORT' } });
     assert.equal(audits.length, 2, 'each confirmed import must leave an audit record');
