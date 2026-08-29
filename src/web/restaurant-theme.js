@@ -34,7 +34,8 @@
   }
 
   function loadControlCenterAddons() {
-    if (location.pathname !== '/app/centro-de-control') return;
+    const inControlCenterFamily = location.pathname.startsWith('/app/centro-de-control');
+    if (!inControlCenterFamily || location.pathname !== '/app/centro-de-control') return;
     appendControlAddon('/app/restaurant-menu-import-ui.js?v=ocr-v1', 'restaurant-menu-import');
     appendControlAddon('/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1', 'restaurant-waiter-device-admin');
   }
