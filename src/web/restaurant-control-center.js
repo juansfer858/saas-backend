@@ -402,7 +402,7 @@
     if (window.VantixGCRestaurantEmployees?.open) { window.VantixGCRestaurantEmployees.open(pushState); return; }
     if (attempt < 60) { requestAnimationFrame(() => openEmployees(pushState, attempt + 1)); return; }
     const custom = openCustomView('empleados', pushState);
-    if (custom) custom.innerHTML = '<div class=\"ri-error\">No fue posible cargar Empleados. Recarga esta pantalla.</div>';
+    if (custom) custom.innerHTML = '<div class="ri-error">No fue posible cargar Empleados. Recarga esta pantalla.</div>';
   }
 
   async function renderDashboard() {
