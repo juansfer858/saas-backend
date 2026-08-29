@@ -24,14 +24,19 @@
     document.head.appendChild(style);
   }
 
-  function loadControlCenterAddons() {
-    if (!location.pathname.startsWith('/app/centro-de-control')) return;
-    if (document.querySelector('script[data-restaurant-menu-import]')) return;
+  function appendControlAddon(src, dataKey) {
+    if (document.querySelector(`script[data-${dataKey}]`)) return;
     const script = document.createElement('script');
-    script.src = '/app/restaurant-menu-import-ui.js?v=ocr-v1';
+    script.src = src;
     script.async = true;
-    script.dataset.restaurantMenuImport = 'true';
+    script.setAttribute(`data-${dataKey}`, 'true');
     document.head.appendChild(script);
+  }
+
+  function loadControlCenterAddons() {
+    if (location.pathname !== '/app/centro-de-control') return;
+    appendControlAddon('/app/restaurant-menu-import-ui.js?v=ocr-v1', 'restaurant-menu-import');
+    appendControlAddon('/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1', 'restaurant-waiter-device-admin');
   }
 
   function apply(theme) {
