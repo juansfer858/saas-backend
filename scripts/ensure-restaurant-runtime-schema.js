@@ -67,7 +67,8 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantFiscalDocument"')::text AS "fiscalDocument",
       to_regclass('public."RestaurantDeliveryOrder"')::text AS "deliveryOrder",
       to_regclass('public."RestaurantDeliveryItem"')::text AS "deliveryItem",
-      to_regclass('public."RestaurantDeliveryCommand"')::text AS "deliveryCommand"
+      to_regclass('public."RestaurantDeliveryCommand"')::text AS "deliveryCommand",
+      to_regclass('public."RestaurantEmployeeWorkProfile"')::text AS "employeeWorkProfile"
   `);
   const state = rows?.[0] || {};
   const required = [
@@ -75,7 +76,7 @@ async function readRestaurantSchemaState() {
     'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
     'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
-    'deliveryOrder', 'deliveryItem', 'deliveryCommand'
+    'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile'
   ];
   const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };
