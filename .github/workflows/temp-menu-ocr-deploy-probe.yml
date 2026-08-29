@@ -9,14 +9,15 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify exact Restaurant rail without Estado
+      - name: Verify exact Delivery canonical back production revision
         run: |
           set -euo pipefail
-          EXPECTED='d437ba82c0d984f667cf7d0810bac7fa5295fb35'
+          EXPECTED='959eb0f1b5a8cd3c721d94858436e0c793e8be4c'
           for attempt in $(seq 1 60); do
             info_code=$(curl -sS --max-time 12 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
             ready_code=$(curl -sS --max-time 12 -o /tmp/ready.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
-            ui_code=$(curl -sS --max-time 12 -o /tmp/restaurant-ui.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-ui.js || true)
+            delivery_code=$(curl -sS --max-time 12 -o /tmp/delivery.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-delivery-ui.js || true)
+            center_code=$(curl -sS --max-time 12 -o /tmp/center.js -w '%{http_code}' https://core.vantixgc.com/app/restaurant-control-center.js || true)
             current=$(python - <<'PY'
           import json
           try:
@@ -25,19 +26,20 @@ jobs:
               print('')
           PY
             )
-            echo "attempt=$attempt runtime=$info_code ready=$ready_code ui=$ui_code commit=$current"
-            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$ui_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q "id:'salon', kicker:'01', label:'Mesas'" /tmp/restaurant-ui.js && grep -q "id:'caja', kicker:'04', label:'Caja'" /tmp/restaurant-ui.js && ! grep -q "id:'estado', kicker:'05'" /tmp/restaurant-ui.js; then
+            echo "attempt=$attempt runtime=$info_code ready=$ready_code delivery=$delivery_code center=$center_code commit=$current"
+            if [ "$info_code" = '200' ] && [ "$ready_code" = '200' ] && [ "$delivery_code" = '200' ] && [ "$center_code" = '200' ] && [ "$current" = "$EXPECTED" ] && grep -q '"phase":"READY"' /tmp/runtime.json && grep -q '"database":"OK"' /tmp/ready.json && grep -q "domicilios:'Domicilios'" /tmp/center.js && grep -q "view === 'domicilios'" /tmp/center.js && grep -q "openCustomView?.('domicilios', pushState)" /tmp/delivery.js && ! grep -q 'data-delivery-home' /tmp/delivery.js; then
               cat /tmp/runtime.json
               echo
               cat /tmp/ready.json
               echo
-              grep -F "id:'caja', kicker:'04', label:'Caja'" /tmp/restaurant-ui.js
-              echo 'PRODUCTION_RESTAURANT_ESTADO_RAIL_REMOVED_OK'
+              grep -F "domicilios:'Domicilios'" /tmp/center.js | head -1
+              grep -F "openCustomView?.('domicilios', pushState)" /tmp/delivery.js | head -1
+              echo 'PRODUCTION_RESTAURANT_DELIVERY_CANONICAL_BACK_OK'
               exit 0
             fi
             sleep 5
           done
-          echo 'Expected Restaurant rail without Estado did not become live in time' >&2
+          echo 'Expected Delivery canonical back revision did not become live in time' >&2
           cat /tmp/runtime.json 2>/dev/null || true
           cat /tmp/ready.json 2>/dev/null || true
           exit 1
