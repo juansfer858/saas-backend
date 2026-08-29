@@ -1,0 +1,112 @@
+name: Temporary Delivery Canonical Back Patch
+
+on:
+  push:
+    branches:
+      - fix/delivery-canonical-back
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/delivery-canonical-back
+          fetch-depth: 0
+      - name: Patch canonical delivery navigation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          center_path = Path('src/web/restaurant-control-center.js')
+          center = center_path.read_text()
+
+          old = "    carta:'Carta y productos',\n    promo:'Plato / promo del día',\n    estado:'Estado'"
+          new = "    carta:'Carta y productos',\n    promo:'Plato / promo del día',\n    domicilios:'Domicilios',\n    estado:'Estado'"
+          assert old in center, 'VIEW_LABELS anchor not found'
+          center = center.replace(old, new, 1)
+
+          old = "  function showOnly(kind) {\n    const dashboard = $('#ccDashboard');\n    const custom = $('#ccCustomView');\n    const message = $('#message');\n    const view = $('#view');\n    if (dashboard) dashboard.hidden = kind !== 'dashboard';\n    if (custom) custom.hidden = kind !== 'custom';\n    if (message) message.hidden = kind === 'dashboard' || kind === 'custom';\n    if (view) view.hidden = kind !== 'operational';\n  }\n\n  function openOperationalTab(tab, pushState = true) {"
+          new = "  function showOnly(kind) {\n    const dashboard = $('#ccDashboard');\n    const custom = $('#ccCustomView');\n    const message = $('#message');\n    const view = $('#view');\n    if (dashboard) dashboard.hidden = kind !== 'dashboard';\n    if (custom) custom.hidden = kind !== 'custom';\n    if (message) message.hidden = kind === 'dashboard' || kind === 'custom';\n    if (view) view.hidden = kind !== 'operational';\n  }\n\n  function openCustomView(view, pushState = true) {\n    ensureShellExtras();\n    if (!VIEW_LABELS[view]) return null;\n    enterView(view, pushState);\n    setActiveHome(false);\n    showOnly('custom');\n    return $('#ccCustomView');\n  }\n\n  function openOperationalTab(tab, pushState = true) {"
+          assert old in center, 'showOnly anchor not found'
+          center = center.replace(old, new, 1)
+
+          old = "    if (view === 'carta') { showMenu(false); return; }\n    if (view === 'pedidos') { showOrders(false); return; }\n    if (view === 'promo') { showSpotlight(false); return; }\n    if (['salon','mesero','kds','caja','estado'].includes(view)) {"
+          new = "    if (view === 'carta') { showMenu(false); return; }\n    if (view === 'pedidos') { showOrders(false); return; }\n    if (view === 'promo') { showSpotlight(false); return; }\n    if (view === 'domicilios') {\n      const tryOpenDelivery = (attempt = 0) => {\n        if (window.VantixGCRestaurantDelivery?.open) { window.VantixGCRestaurantDelivery.open(false); return; }\n        if (attempt < 60) requestAnimationFrame(() => tryOpenDelivery(attempt + 1));\n        else showDashboard(false);\n      };\n      tryOpenDelivery();\n      return;\n    }\n    if (['salon','mesero','kds','caja','estado'].includes(view)) {"
+          assert old in center, 'routeCurrentView anchor not found'
+          center = center.replace(old, new, 1)
+
+          old = "    showSpotlight: () => showSpotlight(true),\n    openOperationalTab,\n    navigateBack"
+          new = "    showSpotlight: () => showSpotlight(true),\n    openCustomView,\n    openOperationalTab,\n    navigateBack"
+          assert old in center, 'control center export anchor not found'
+          center = center.replace(old, new, 1)
+          center_path.write_text(center)
+
+          delivery_path = Path('src/web/restaurant-delivery-ui.js')
+          delivery = delivery_path.read_text()
+
+          old = "  function showCustom() {\n    const dashboard = $('#ccDashboard');\n    const custom = $('#ccCustomView');\n    const message = $('#message');\n    const view = $('#view');\n    if (dashboard) dashboard.hidden = true;\n    if (custom) custom.hidden = false;\n    if (message) message.hidden = true;\n    if (view) view.hidden = true;\n    return custom;\n  }"
+          new = "  function showCustom(pushState = true) {\n    const canonical = window.VantixGCRestaurantControlCenter?.openCustomView?.('domicilios', pushState);\n    if (canonical) return canonical;\n    const dashboard = $('#ccDashboard');\n    const custom = $('#ccCustomView');\n    const message = $('#message');\n    const view = $('#view');\n    if (dashboard) dashboard.hidden = true;\n    if (custom) custom.hidden = false;\n    if (message) message.hidden = true;\n    if (view) view.hidden = true;\n    return custom;\n  }"
+          assert old in delivery, 'showCustom anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "  function goHome() {\n    active = false;\n    stopPoll();\n    window.VantixGCRestaurantControlCenter?.showDashboard?.();\n  }"
+          new = "  function goHome() {\n    active = false;\n    stopPoll();\n    if (window.VantixGCRestaurantControlCenter?.navigateBack) window.VantixGCRestaurantControlCenter.navigateBack();\n    else window.VantixGCRestaurantControlCenter?.showDashboard?.();\n  }"
+          assert old in delivery, 'goHome anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "  async function openDeliveries(filter = 'ACTIVOS', fromPoll = false) {\n    active = true;\n    const root = showCustom();"
+          new = "  async function openDeliveries(filter = 'ACTIVOS', fromPoll = false, pushState = true) {\n    active = true;\n    const root = fromPoll ? ($('#ccCustomView') || showCustom(false)) : showCustom(pushState);"
+          assert old in delivery, 'openDeliveries signature anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "<header class=\"delivery-head\"><div><div class=\"ri-eyebrow\">CANAL DOMICILIOS</div><h1>Domicilios</h1><p>Primero lo que necesita atención. El sistema te muestra la siguiente acción.</p></div><div class=\"ri-actions\"><button type=\"button\" class=\"ri-btn\" data-delivery-home>← Centro de control</button><button type=\"button\" class=\"ri-btn primary\" data-new-delivery>+ NUEVO DOMICILIO</button></div></header>"
+          new = "<header class=\"delivery-head\"><div><div class=\"ri-eyebrow\">CANAL DOMICILIOS</div><h1>Domicilios</h1><p>Primero lo que necesita atención. El sistema te muestra la siguiente acción.</p></div><div class=\"ri-actions\"><button type=\"button\" class=\"ri-btn primary\" data-new-delivery>+ NUEVO DOMICILIO</button></div></header>"
+          assert old in delivery, 'delivery header anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "      root.innerHTML = `<div class=\"ri-error\">${esc(error.message)}</div><button class=\"ri-btn\" data-delivery-home>← Centro de control</button>`;\n      $('[data-delivery-home]', root)?.addEventListener('click', goHome);"
+          new = "      root.innerHTML = `<div class=\"ri-error\">${esc(error.message)}</div>`;"
+          assert old in delivery, 'delivery error home anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "  function bindDeliveryView(root, currentFilter) {\n    $('[data-delivery-home]', root)?.addEventListener('click', goHome);\n    $('[data-new-delivery]', root)?.addEventListener('click', openCreateDialog);"
+          new = "  function bindDeliveryView(root, currentFilter) {\n    $('[data-new-delivery]', root)?.addEventListener('click', openCreateDialog);"
+          assert old in delivery, 'bind delivery home anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "      if (!poll) poll = setInterval(() => { if (active && !creating) openDeliveries(filter, true).catch(() => {}); }, 5000);"
+          new = "      if (!poll) poll = setInterval(() => {\n        const current = new URLSearchParams(location.search).get('view') || 'dashboard';\n        if (current !== 'domicilios') { active = false; stopPoll(); return; }\n        if (active && !creating) openDeliveries(filter, true, false).catch(() => {});\n      }, 5000);"
+          assert old in delivery, 'poll anchor not found'
+          delivery = delivery.replace(old, new, 1)
+
+          old = "  window.VantixGCRestaurantDelivery = Object.freeze({\n    open: () => openDeliveries(),\n    refresh: () => openDeliveries('ACTIVOS', true)\n  });"
+          new = "  window.VantixGCRestaurantDelivery = Object.freeze({\n    open: (pushState = true) => openDeliveries('ACTIVOS', false, pushState),\n    refresh: () => openDeliveries('ACTIVOS', true, false),\n    deactivate: () => { active = false; stopPoll(); }\n  });"
+          assert old in delivery, 'delivery export anchor not found'
+          delivery = delivery.replace(old, new, 1)
+          delivery_path.write_text(delivery)
+
+          smoke_path = Path('scripts/restaurant-delivery-smoke.js')
+          smoke = smoke_path.read_text()
+          old = "const ui = read('src/web/restaurant-delivery-ui.js');\nconst rbac = read('src/modules/restaurant/restaurant.rbac.js');"
+          new = "const ui = read('src/web/restaurant-delivery-ui.js');\nconst center = read('src/web/restaurant-control-center.js');\nconst rbac = read('src/modules/restaurant/restaurant.rbac.js');"
+          assert old in smoke, 'delivery smoke imports anchor not found'
+          smoke = smoke.replace(old, new, 1)
+
+          old = "assert.match(ui, /deliveryLayoutReady/, 'El MutationObserver debe quedar estabilizado después de ordenar los botones');\n\nassert.match(runtime, /RestaurantDeliveryOrder/);"
+          new = "assert.match(ui, /deliveryLayoutReady/, 'El MutationObserver debe quedar estabilizado después de ordenar los botones');\nassert.match(center, /domicilios:'Domicilios'/);\nassert.match(center, /function openCustomView\(view, pushState = true\)/);\nassert.match(center, /view === 'domicilios'/);\nassert.match(center, /VantixGCRestaurantDelivery\.open\(false\)/);\nassert.match(ui, /openCustomView\?\.\('domicilios', pushState\)/);\nassert.match(ui, /navigateBack\(\)/);\nassert.doesNotMatch(ui, /data-delivery-home/, 'Domicilios debe usar el Atrás canónico y no un botón paralelo');\n\nassert.match(runtime, /RestaurantDeliveryOrder/);"
+          assert old in smoke, 'delivery smoke assertions anchor not found'
+          smoke = smoke.replace(old, new, 1)
+          smoke_path.write_text(smoke)
+
+          Path('.github/workflows/temp-delivery-canonical-back.yml').unlink()
+      - name: Commit patch
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/web/restaurant-control-center.js src/web/restaurant-delivery-ui.js scripts/restaurant-delivery-smoke.js .github/workflows/temp-delivery-canonical-back.yml
+          git commit -m "fix(restaurante): integrar Domicilios al Atrás canónico"
+          git push origin HEAD:fix/delivery-canonical-back
