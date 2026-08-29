@@ -8,6 +8,8 @@ const service = require('./restaurant-waiter-device.service');
 
 const router = express.Router();
 const pairHtml = path.join(__dirname, '../../web/restaurant-waiter-pair.html');
+const waiterPwaHtml = path.join(__dirname, '../../web/restaurant-waiter-pwa.html');
+const adminScript = path.join(__dirname, '../../web/restaurant-waiter-device-admin.js');
 const manifestFile = path.join(__dirname, '../../web/restaurant-waiter-manifest.webmanifest');
 const swFile = path.join(__dirname, '../../web/restaurant-waiter-sw.js');
 const iconFile = path.join(__dirname, '../../web/restaurant-waiter-icon.svg');
@@ -39,9 +41,33 @@ router.post('/api/public/restaurante/mesero-dispositivo/vincular', async (req, r
   } catch (error) { next(error); }
 });
 
+// The normal Control Center stays owned by the proven legacy route. This middleware only
+// appends the isolated device-management UI after that route renders the page.
+router.get('/app/centro-de-control', (_req, res, next) => {
+  const originalSend = res.send.bind(res);
+  res.send = (body) => {
+    if (typeof body === 'string' && body.includes('</body>') && !body.includes('restaurant-waiter-device-admin.js')) {
+      body = body.replace('</body>', '  <script src="/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1"></script>\n</body>');
+    }
+    return originalSend(body);
+  };
+  next();
+});
+
+router.get('/app/restaurant-waiter-device-admin.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(adminScript);
+});
+
 router.get('/app/centro-de-control/conectar', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.sendFile(pairHtml);
+});
+
+router.get('/app/centro-de-control/mesero', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-VantixGC-Waiter-PWA', 'v1');
+  res.sendFile(waiterPwaHtml);
 });
 
 router.get('/app/centro-de-control/manifest.webmanifest', (_req, res) => {
