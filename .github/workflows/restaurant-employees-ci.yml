@@ -1,0 +1,38 @@
+name: Restaurant Employees CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  employees:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: employees_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/employees_ci?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma db push
+      - name: Validate Employees UI contract
+        run: node scripts/restaurant-employees-smoke.js
+      - name: Validate Restaurant employee roles and permissions against PostgreSQL
+        run: node scripts/restaurant-employees-db-smoke.js
