@@ -57,18 +57,37 @@ assert.match(cleanupUi, /Borrar lectura/);
 assert.match(cleanupUi, /method:'DELETE'/);
 assert.match(cleanupUi, /No afecta productos creados manualmente/);
 
+const editableUi = fs.readFileSync('src/web/restaurant-menu-ocr-editable-ui-v1.js', 'utf8');
+assert.match(editableUi, /VANTIX_MENU_OCR_EDITABLE_UI_V1/);
+assert.match(editableUi, /Todo es editable antes de importar/);
+assert.match(editableUi, /Mover seleccionados/);
+assert.match(editableUi, /ccOcrBulkCategory/);
+assert.match(editableUi, /data-field="operationalCategory"/);
+assert.match(editableUi, /data-field="station"/);
+assert.match(editableUi, /row\.dataset\.operationalCategory/);
+assert.match(editableUi, /row\.dataset\.station/);
+assert.match(editableUi, /inferRouting/);
+assert.match(editableUi, /Hamburguesas/);
+assert.match(editableUi, /Sándwiches/);
+assert.match(editableUi, /Postres/);
+
 const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.public.routes.js', 'utf8');
 assert.match(publicRoutes, /restaurant-menu-ocr-strict-v4\.js/);
 assert.match(publicRoutes, /restaurant-menu-browser-ocr-v4\.js/);
 assert.match(publicRoutes, /restaurant-menu-ocr-cleanup-ui\.js/);
+assert.match(publicRoutes, /restaurant-menu-ocr-editable-ui-v1\.js/);
 assert.match(publicRoutes, /browserPreprocessMarker: 'VANTIX_BROWSER_OCR_PREPROCESS_V4'/);
 assert.match(publicRoutes, /browserStrictMarker: 'VANTIX_MENU_OCR_STRICT_V4'/);
 assert.match(publicRoutes, /browserCleanupMarker: 'VANTIX_MENU_OCR_CLEANUP_UI_V1'/);
+assert.match(publicRoutes, /browserEditableMarker: 'VANTIX_MENU_OCR_EDITABLE_UI_V1'/);
 
 console.log(JSON.stringify({
   ok:true,
   marker:'VANTIX_BROWSER_OCR_PREPROCESS_V4',
   strict:'VANTIX_MENU_OCR_STRICT_V4',
+  editable:'VANTIX_MENU_OCR_EDITABLE_UI_V1',
   rejects:['yr','RNG','GAA','000M',31060,81844,1318,4110008],
-  cleanup:true
+  cleanup:true,
+  bulkMoveCategories:true,
+  editableFields:['category','subcategory','price','operationalCategory','station']
 }));
