@@ -75,8 +75,7 @@
     { id:'salon', kicker:'01', label:'Mesas', allowed:() => can('MESAS.VER') },
     { id:'mesero', kicker:'02', label:'Mesero', allowed:() => can('MESAS.VER') && can('PEDIDOS.CREAR') },
     { id:'kds', kicker:'03', label:'Cocina / Barra', allowed:() => can('COMANDAS.EDITAR') },
-    { id:'caja', kicker:'04', label:'Caja', allowed:() => can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR') },
-    { id:'estado', kicker:'05', label:'Estado', allowed:() => can('RESTAURANTE.ADMINISTRAR') }
+    { id:'caja', kicker:'04', label:'Caja', allowed:() => can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR') }
   ];
 
   function allowedTabs() { return tabDefs.filter((x) => x.allowed()); }
