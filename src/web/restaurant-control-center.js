@@ -14,6 +14,7 @@
     carta:'Carta y productos',
     promo:'Plato / promo del día',
     domicilios:'Domicilios',
+    empleados:'Empleados',
     estado:'Estado'
   });
   let session = null;
@@ -397,6 +398,13 @@
     return `<div class="cc-attention"><div class="cc-count">${esc(count)}</div><div class="cc-attention-main"><b>${esc(title)}</b><span>${esc(detail)}</span></div><button class="cc-mini-button" type="button" ${action === 'pedidos' ? 'data-cc-orders="true"' : action === 'carta' ? 'data-cc-menu="true"' : `data-cc-tab="${esc(action)}"`}>${esc(label)} →</button></div>`;
   }
 
+  function openEmployees(pushState = true, attempt = 0) {
+    if (window.VantixGCRestaurantEmployees?.open) { window.VantixGCRestaurantEmployees.open(pushState); return; }
+    if (attempt < 60) { requestAnimationFrame(() => openEmployees(pushState, attempt + 1)); return; }
+    const custom = openCustomView('empleados', pushState);
+    if (custom) custom.innerHTML = '<div class=\"ri-error\">No fue posible cargar Empleados. Recarga esta pantalla.</div>';
+  }
+
   async function renderDashboard() {
     const root = $('#ccDashboard');
     if (!root) return;
@@ -425,6 +433,7 @@
     const warnings = menuRows.filter((row) => row.warning).length;
     const permissions = ctx.ok && Array.isArray(ctx.value?.permissions) ? ctx.value.permissions : [];
     const canPublish = permissions.includes('RESTAURANTE.ADMINISTRAR');
+    const canManageEmployees = ['ADMIN','SUPER_ADMIN'].includes(String(session.user?.rol || '').toUpperCase());
     const spotlight = ctx.ok ? ctx.value?.theme?.clientSpotlight : null;
     const spotlightItem = spotlight?.active ? menuRows.find((row) => row.id === spotlight.menuItemId && row.product && !row.warning) : null;
     const spotlightLabel = spotlight?.kind === 'PROMO_DIA' ? 'PROMO DEL DÍA' : 'PLATO DEL DÍA';
@@ -458,6 +467,7 @@
           <button class="cc-action" data-cc-tab="kds">♨ Ver KDS</button>
           <button class="cc-action" data-cc-menu="true">▤ Carta y productos</button>
           <button class="cc-action" data-cc-tab="estado">⚙ Estado / tema</button>
+          ${canManageEmployees ? '<button class="cc-action" data-cc-employees="true">👥 Empleados</button>' : ''}
         </div></section>
         <aside class="cc-client"><div class="cc-client-top"><b>Vista cliente publicada</b><span class="cc-badge">● Real</span></div><div class="cc-phone">${spotlightMarkup}</div>${canPublish ? '<button class="cc-client-link" data-cc-spotlight="true">Publicar / editar →</button>' : '<button class="cc-client-link" data-cc-menu="true">Ver carta cargada →</button>'}</aside>
       </div>
@@ -482,6 +492,7 @@
     $$('[data-cc-menu]', root).forEach((button) => button.addEventListener('click', () => showMenu()));
     $$('[data-cc-orders]', root).forEach((button) => button.addEventListener('click', () => showOrders()));
     $$('[data-cc-spotlight]', root).forEach((button) => button.addEventListener('click', () => showSpotlight()));
+    $$('[data-cc-employees]', root).forEach((button) => button.addEventListener('click', () => openEmployees(true)));
   }
 
   function showDashboard(pushState = false) {
@@ -509,6 +520,7 @@
     if (view === 'carta') { showMenu(false); return; }
     if (view === 'pedidos') { showOrders(false); return; }
     if (view === 'promo') { showSpotlight(false); return; }
+    if (view === 'empleados') { openEmployees(false); return; }
     if (view === 'domicilios') {
       const tryOpenDelivery = (attempt = 0) => {
         if (window.VantixGCRestaurantDelivery?.open) { window.VantixGCRestaurantDelivery.open(false); return; }
