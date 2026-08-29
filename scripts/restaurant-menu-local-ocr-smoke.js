@@ -47,5 +47,10 @@ const routes = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.ro
 assert.match(routes, /LOCAL_OCR/);
 assert.match(routes, /analyzeWithAvailableProvider/);
 assert.match(routes, /sin API key/);
+const buildBootstrap = fs.readFileSync('scripts/prepare-restaurant-ocr-runtime.js', 'utf8');
+for (const marker of ['tesseract-ocr-spa', 'poppler-utils', 'RESTAURANT_LOCAL_OCR_RUNTIME_INSTALLED']) assert.match(buildBootstrap, new RegExp(marker));
+const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+assert.match(packageJson.scripts.build, /prepare-restaurant-ocr-runtime\.js/);
+assert.match(packageJson.scripts.build, /prisma generate/);
 
-console.log(JSON.stringify({ ok:true, provider:'LOCAL_OCR', capabilities, parsedProducts:rows.length, apiKeyRequired:false }));
+console.log(JSON.stringify({ ok:true, provider:'LOCAL_OCR', capabilities, parsedProducts:rows.length, apiKeyRequired:false, buildBootstrap:true }));
