@@ -1,0 +1,43 @@
+name: Temporary Employees Cleanup
+
+on:
+  push:
+    branches:
+      - feature/restaurant-employees
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/restaurant-employees
+      - name: Apply small cleanup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/web/restaurant-waiter-device-admin.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('Créalo primero en Usuarios.', 'Créalo primero en Empleados.')
+          s = s.replace("button.addEventListener('click', openManager);", "button.addEventListener('click', () => openManager());")
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('src/web/restaurant-control-center.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("'<div class=\\\"ri-error\\\">No fue posible cargar Empleados. Recarga esta pantalla.</div>'", "'<div class=\"ri-error\">No fue posible cargar Empleados. Recarga esta pantalla.</div>'")
+          p.write_text(s, encoding='utf-8')
+          PY
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add src/web/restaurant-waiter-device-admin.js src/web/restaurant-control-center.js
+          git commit -m "fix(restaurante): pulir acceso de Empleados"
+          git push origin feature/restaurant-employees
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/temp-employees-cleanup.yml
+          git commit -m "chore: retirar cleanup temporal Empleados"
+          git push origin feature/restaurant-employees
