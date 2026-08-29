@@ -48,7 +48,12 @@
     }
     const values = new Set(COMMON_CATEGORIES);
     table.querySelectorAll('[data-field="category"]').forEach((input) => { if (clean(input.value)) values.add(clean(input.value)); });
-    list.innerHTML = [...values].sort((a,b) => a.localeCompare(b, 'es')).map((value) => `<option value="${value.replace(/"/g, '&quot;')}"></option>`).join('');
+    list.replaceChildren();
+    [...values].sort((a,b) => a.localeCompare(b, 'es')).forEach((value) => {
+      const option = document.createElement('option');
+      option.value = value;
+      list.appendChild(option);
+    });
     table.querySelectorAll('[data-field="category"]').forEach((input) => input.setAttribute('list', list.id));
     return list;
   }
