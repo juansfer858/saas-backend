@@ -2,13 +2,14 @@
 
 const { prisma } = require('../../config/prisma');
 const { money } = require('../../utils/decimal');
+const visitPayments = require('./restaurant-visit-payments.service');
 
 function planFrom(session) {
   return session?.splitMetadata && typeof session.splitMetadata === 'object' ? session.splitMetadata : null;
 }
 
 async function reconcilePaidSessionAfterCommit(tenantId, user, tableId) {
-  const result = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const session = await tx.restaurantTableSession.findFirst({
       where: { tenantId, tableId, splitMode: { not: null } },
       orderBy: { openedAt: 'desc' },
@@ -59,8 +60,15 @@ async function reconcilePaidSessionAfterCommit(tenantId, user, tableId) {
 
     return { eligible: true, closed: true, sessionId: session.id };
   });
-
-  return result;
 }
 
-module.exports = { reconcilePaidSessionAfterCommit };
+async function registerPartPaymentFinalized(tenantId, user, tableId, input) {
+  await visitPayments.registerPartPayment(tenantId, user, tableId, input);
+  await reconcilePaidSessionAfterCommit(tenantId, user, tableId);
+  return visitPayments.paymentSummary(tenantId, user, tableId);
+}
+
+module.exports = {
+  reconcilePaidSessionAfterCommit,
+  registerPartPaymentFinalized
+};
