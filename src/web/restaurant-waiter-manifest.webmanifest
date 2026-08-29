@@ -1,10 +1,10 @@
 {
-  "id": "/app/centro-de-control?app=mesero",
+  "id": "/app/centro-de-control/mesero",
   "name": "VantixGC Mesero",
   "short_name": "Mesero",
   "description": "Toma de pedidos VantixGC Restaurante para tablet y celular.",
   "lang": "es-CO",
-  "start_url": "/app/centro-de-control?view=mesero&pwa=1",
+  "start_url": "/app/centro-de-control/mesero?view=mesero&pwa=1",
   "scope": "/app/centro-de-control",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
