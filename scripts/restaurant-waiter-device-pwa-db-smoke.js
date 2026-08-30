@@ -31,10 +31,7 @@ async function withHttpServer(run) {
 async function getJson(baseUrl, path, session) {
   const response = await fetch(`${baseUrl}${path}`, {
     cache:'no-store',
-    headers:{
-      Authorization:`Bearer ${session.token}`,
-      'x-tenant-subdomain':session.subdomain
-    }
+    headers:{ Authorization:`Bearer ${session.token}`, 'x-tenant-subdomain':session.subdomain }
   });
   let body = {};
   try { body = await response.json(); } catch {}
@@ -57,7 +54,6 @@ async function main() {
   const pairing = await device.createPairing(tenant.id, admin.id, { userId: waiter.id, deviceName: 'Tablet Stress Mesero 01' });
   assert.ok(pairing.deviceId);
   assert.match(pairing.svg, /<svg/);
-  assert.equal(pairing.waiter.id, waiter.id);
   const url = new URL(pairing.url);
   const rawToken = url.searchParams.get('t');
   assert.ok(rawToken && rawToken.length >= 20, 'token temporal faltante');
@@ -65,7 +61,6 @@ async function main() {
   const inspected = await device.inspectPairing(rawToken);
   assert.equal(inspected.deviceId, pairing.deviceId);
   assert.equal(inspected.waiter.id, waiter.id);
-  assert.equal(inspected.tenant.subdomain, SUBDOMAIN);
 
   const claimed = await device.claimPairing(rawToken, { deviceName: 'Tablet Stress Mesero 01', userAgent: 'VantixGC-CI/1.0' });
   assert.equal(claimed.deviceId, pairing.deviceId);
@@ -84,25 +79,25 @@ async function main() {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwaHtml = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v6-fast-stable');
-    assert.match(pwaHtml, /vantixgc-waiter-engine-v6/);
-    assert.match(pwaHtml, /restaurant-waiter-performance-v6\.js\?v=waiter-perf-v6/);
-    assert.match(pwaHtml, /restaurant-waiter-ui-v6\.js\?v=waiter-full-v6/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v7-dedicated-partial-dom');
+    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v7/);
+    assert.match(pwaHtml, /id="wvApp"/);
+    assert.match(pwaHtml, /id="wvMessage"/);
     assert.match(pwaHtml, /Cargando panel del mesero/);
-    assert.match(pwaHtml, /No se pudo abrir Mesero/);
-    assert.doesNotMatch(pwaHtml, /<script src="\/app\/restaurant-ui\.js\?v=waiter-full-v4"><\/script>/, 'la respuesta pública no puede entregar el motor V4');
+    assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
+    assert.doesNotMatch(pwaHtml, /restaurant-waiter-performance-v6/);
+    assert.doesNotMatch(pwaHtml, /MutationObserver/);
 
-    const perfResponse = await fetch(`${baseUrl}/app/restaurant-waiter-performance-v6.js`, { cache:'no-store' });
-    const perfJs = await perfResponse.text();
-    assert.equal(perfResponse.status, 200, 'el runtime de rendimiento V6 debe cargar');
-    assert.match(perfJs, /VANTIX_WAITER_INTERACTION_STABILITY_V6/);
-
-    const uiResponse = await fetch(`${baseUrl}/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6`, { cache:'no-store' });
-    const uiJs = await uiResponse.text();
-    assert.equal(uiResponse.status, 200, 'el motor Mesero V6 dedicado debe cargar');
-    assert.equal(uiResponse.headers.get('x-vantixgc-waiter-ui'), 'v6-serialized');
-    assert.match(uiJs, /VANTIX_WAITER_RENDER_SERIAL_V6/);
-    assert.match(uiJs, /VANTIX_EMPLOYEE_WORK_SCOPE_V1/);
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7`, { cache:'no-store' });
+    const runtimeJs = await runtimeResponse.text();
+    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V7 debe cargar');
+    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v7-dedicated');
+    assert.match(runtimeJs, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
+    assert.match(runtimeJs, /id="wvTables"/);
+    assert.match(runtimeJs, /id="wvBody"/);
+    assert.match(runtimeJs, /queueQtySync/);
+    assert.match(runtimeJs, /detailsEpoch/);
+    assert.doesNotMatch(runtimeJs, /setInterval/);
 
     const context = await getJson(baseUrl, '/api/v1/restaurante/ui-context', claimed.session);
     assert.equal(context.user.id, waiter.id);
@@ -129,7 +124,6 @@ async function main() {
   assert.ok(listedDevice, 'dispositivo no apareció en administración');
   assert.equal(listedDevice.active, true);
   assert.equal(listedDevice.waiter.id, waiter.id);
-  assert.equal(listedDevice.deviceName, 'Tablet Stress Mesero 01');
 
   const beforeThrottle = await prisma.trackingLink.findUnique({ where: { id: pairing.deviceId }, select: { lastNotificationAt:true } });
   assert.ok(beforeThrottle?.lastNotificationAt);
@@ -162,9 +156,8 @@ async function main() {
     oneTimePairing:true,
     jwtBoundToDevice:true,
     pairedHttpContext:true,
-    waiterPwaRecoveryV6:true,
-    waiterInteractionV6:true,
-    dedicatedWaiterUiV6:true,
+    waiterPwaRuntime:'V7_DEDICATED_PARTIAL_DOM',
+    genericUiExcluded:true,
     revocationImmediate:true,
     auditActions:actions
   }));

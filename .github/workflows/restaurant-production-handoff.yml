@@ -30,9 +30,9 @@ jobs:
           test -f src/web/restaurant-menu-browser-ocr-v4.js
           test -f src/web/restaurant-menu-ocr-cleanup-ui.js
           test -f src/modules/restaurant/restaurant-menu-ocr-cleanup.service.js
-          test -f src/web/restaurant-waiter-pwa.html
+          test -f src/web/restaurant-waiter-pwa-v7.html
+          test -f src/web/restaurant-waiter-runtime-v7.js
           test -f src/web/restaurant-waiter-sw.js
-          test -f src/web/restaurant-waiter-performance-v6.js
           test -f scripts/restaurant-waiter-table-pool-db-smoke.js
           test ! -f railpack.json
           grep -q "app.get('/healthz'" server.js
@@ -52,17 +52,17 @@ jobs:
           grep -q "applyWaiterTableVisibility" src/modules/restaurant/restaurant.service.js
           grep -q "assignedWaiterId: null" src/modules/restaurant/restaurant.service.js
           grep -q "assignedWaiterId: null" src/modules/restaurant/restaurant-zones.service.js
-          grep -q "VANTIX_WAITER_RENDER_SERIAL_V6" src/modules/restaurant/restaurant-employee-work.public.routes.js
-          grep -q "VANTIX_WAITER_INTERACTION_STABILITY_V6" src/web/restaurant-waiter-performance-v6.js
-          grep -q "vantixgc-waiter-shell-v6" src/web/restaurant-waiter-sw.js
-          grep -q "restaurant-waiter-performance-v6.js?v=waiter-perf-v6" src/web/restaurant-waiter-sw.js
-          grep -q "restaurant-waiter-ui-v6.js?v=waiter-full-v6" src/web/restaurant-waiter-sw.js
-          grep -q "WAITER_PWA_ENGINE_V6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "'/app/restaurant-waiter-ui-v6.js'" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "waiterStableBase(base)" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "restaurant-waiter-performance-v6.js?v=waiter-perf-v6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "restaurant-waiter-ui-v6.js?v=waiter-full-v6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "restaurant-ui.js?v=waiter-full-v4" src/web/restaurant-waiter-pwa.html
+          grep -q "VANTIX_WAITER_DEDICATED_RUNTIME_V7" src/web/restaurant-waiter-runtime-v7.js
+          grep -q "DEDICATED_PARTIAL_DOM_OPTIMISTIC" src/web/restaurant-waiter-runtime-v7.js
+          grep -q "qtyDesired:new Map" src/web/restaurant-waiter-runtime-v7.js
+          grep -q "queueQtySync" src/web/restaurant-waiter-runtime-v7.js
+          grep -q "vantixgc-waiter-shell-v7" src/web/restaurant-waiter-sw.js
+          grep -q "restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7" src/web/restaurant-waiter-sw.js
+          grep -q "restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7" src/web/restaurant-waiter-pwa-v7.html
+          grep -q "X-VantixGC-Waiter-PWA', 'v7-dedicated-partial-dom" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "X-VantixGC-Waiter-Runtime', 'v7-dedicated" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          ! grep -q "restaurant-ui.js" src/web/restaurant-waiter-pwa-v7.html
+          ! grep -q "MutationObserver" src/web/restaurant-waiter-pwa-v7.html
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
       - name: Wait for exact commit in production
@@ -169,32 +169,33 @@ jobs:
           grep -q 'pdfjs-dist@3.11.174' /tmp/restaurant-menu-import-ui.js
           echo "PRODUCTION_RESTAURANT_BROWSER_OCR_V4_READY"
 
-      - name: Verify waiter tablet PWA in production
+      - name: Verify waiter tablet PWA V7 in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 20 -o /tmp/waiter-sw.js https://core.vantixgc.com/app/centro-de-control/sw.js
-          grep -q 'vantixgc-waiter-shell-v6' /tmp/waiter-sw.js
-          grep -q 'restaurant-waiter-performance-v6.js?v=waiter-perf-v6' /tmp/waiter-sw.js
-          grep -q 'restaurant-waiter-ui-v6.js?v=waiter-full-v6' /tmp/waiter-sw.js
-          curl -fsSL --max-time 20 -o /tmp/waiter-perf.js https://core.vantixgc.com/app/restaurant-waiter-performance-v6.js
-          grep -q 'VANTIX_WAITER_INTERACTION_STABILITY_V6' /tmp/waiter-perf.js
-          grep -q 'responseCache' /tmp/waiter-perf.js
-          curl -fsSL --max-time 20 -D /tmp/waiter-ui.headers -o /tmp/waiter-ui.js 'https://core.vantixgc.com/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6'
-          grep -qi 'x-vantixgc-waiter-ui: v6-serialized' /tmp/waiter-ui.headers
-          grep -q 'VANTIX_WAITER_RENDER_SERIAL_V6' /tmp/waiter-ui.js
-          grep -q 'VANTIX_EMPLOYEE_WORK_SCOPE_V1' /tmp/waiter-ui.js
+          grep -q 'vantixgc-waiter-shell-v7' /tmp/waiter-sw.js
+          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7' /tmp/waiter-sw.js
+          ! grep -q 'restaurant-waiter-ui-v6' /tmp/waiter-sw.js
+          curl -fsSL --max-time 20 -D /tmp/waiter-runtime.headers -o /tmp/waiter-runtime.js 'https://core.vantixgc.com/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7'
+          grep -qi 'x-vantixgc-waiter-runtime: v7-dedicated' /tmp/waiter-runtime.headers
+          grep -q 'VANTIX_WAITER_DEDICATED_RUNTIME_V7' /tmp/waiter-runtime.js
+          grep -q 'DEDICATED_PARTIAL_DOM_OPTIMISTIC' /tmp/waiter-runtime.js
+          grep -q 'queueQtySync' /tmp/waiter-runtime.js
+          grep -q 'detailsEpoch' /tmp/waiter-runtime.js
+          grep -q 'id="wvTables"' /tmp/waiter-runtime.js
+          grep -q 'id="wvBody"' /tmp/waiter-runtime.js
+          ! grep -q 'setInterval' /tmp/waiter-runtime.js
           curl -fsSL --max-time 20 -D /tmp/waiter-pwa.headers -o /tmp/waiter-pwa.html 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1'
-          grep -qi 'x-vantixgc-waiter-pwa: v6-fast-stable' /tmp/waiter-pwa.headers
+          grep -qi 'x-vantixgc-waiter-pwa: v7-dedicated-partial-dom' /tmp/waiter-pwa.headers
           grep -q '<title>VantixGC Mesero</title>' /tmp/waiter-pwa.html
-          grep -q 'vantixgc-waiter-engine-v6' /tmp/waiter-pwa.html
-          grep -q 'restaurant-waiter-performance-v6.js?v=waiter-perf-v6' /tmp/waiter-pwa.html
-          grep -q 'restaurant-waiter-ui-v6.js?v=waiter-full-v6' /tmp/waiter-pwa.html
-          grep -q 'No se pudo abrir Mesero' /tmp/waiter-pwa.html
-          grep -q 'waiter-user-badge' /tmp/waiter-pwa.html
-          grep -q 'VER PEDIDO' /tmp/waiter-pwa.html
-          echo "PRODUCTION_RESTAURANT_WAITER_PWA_V6_READY"
+          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7' /tmp/waiter-pwa.html
+          grep -q 'id="wvApp"' /tmp/waiter-pwa.html
+          grep -q 'id="wvMessage"' /tmp/waiter-pwa.html
+          ! grep -q 'restaurant-ui.js' /tmp/waiter-pwa.html
+          ! grep -q 'MutationObserver' /tmp/waiter-pwa.html
+          echo "PRODUCTION_RESTAURANT_WAITER_PWA_V7_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
