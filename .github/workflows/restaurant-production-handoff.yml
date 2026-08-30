@@ -56,10 +56,12 @@ jobs:
           grep -q "VANTIX_WAITER_INTERACTION_STABILITY_V6" src/web/restaurant-waiter-performance-v6.js
           grep -q "vantixgc-waiter-shell-v6" src/web/restaurant-waiter-sw.js
           grep -q "restaurant-waiter-performance-v6.js?v=waiter-perf-v6" src/web/restaurant-waiter-sw.js
-          grep -q "restaurant-ui.js?v=waiter-full-v6" src/web/restaurant-waiter-sw.js
+          grep -q "restaurant-waiter-ui-v6.js?v=waiter-full-v6" src/web/restaurant-waiter-sw.js
           grep -q "WAITER_PWA_ENGINE_V6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "'/app/restaurant-waiter-ui-v6.js'" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "waiterStableBase(base)" src/modules/restaurant/restaurant-waiter-device.public.routes.js
           grep -q "restaurant-waiter-performance-v6.js?v=waiter-perf-v6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "restaurant-ui.js?v=waiter-full-v6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "restaurant-waiter-ui-v6.js?v=waiter-full-v6" src/modules/restaurant/restaurant-waiter-device.public.routes.js
           grep -q "restaurant-ui.js?v=waiter-full-v4" src/web/restaurant-waiter-pwa.html
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
@@ -175,18 +177,20 @@ jobs:
           curl -fsSL --max-time 20 -o /tmp/waiter-sw.js https://core.vantixgc.com/app/centro-de-control/sw.js
           grep -q 'vantixgc-waiter-shell-v6' /tmp/waiter-sw.js
           grep -q 'restaurant-waiter-performance-v6.js?v=waiter-perf-v6' /tmp/waiter-sw.js
-          grep -q 'restaurant-ui.js?v=waiter-full-v6' /tmp/waiter-sw.js
+          grep -q 'restaurant-waiter-ui-v6.js?v=waiter-full-v6' /tmp/waiter-sw.js
           curl -fsSL --max-time 20 -o /tmp/waiter-perf.js https://core.vantixgc.com/app/restaurant-waiter-performance-v6.js
           grep -q 'VANTIX_WAITER_INTERACTION_STABILITY_V6' /tmp/waiter-perf.js
           grep -q 'responseCache' /tmp/waiter-perf.js
-          curl -fsSL --max-time 20 -o /tmp/restaurant-ui.js 'https://core.vantixgc.com/app/restaurant-ui.js?v=waiter-full-v6'
-          grep -q 'VANTIX_WAITER_RENDER_SERIAL_V6' /tmp/restaurant-ui.js
+          curl -fsSL --max-time 20 -D /tmp/waiter-ui.headers -o /tmp/waiter-ui.js 'https://core.vantixgc.com/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6'
+          grep -qi 'x-vantixgc-waiter-ui: v6-serialized' /tmp/waiter-ui.headers
+          grep -q 'VANTIX_WAITER_RENDER_SERIAL_V6' /tmp/waiter-ui.js
+          grep -q 'VANTIX_EMPLOYEE_WORK_SCOPE_V1' /tmp/waiter-ui.js
           curl -fsSL --max-time 20 -D /tmp/waiter-pwa.headers -o /tmp/waiter-pwa.html 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1'
           grep -qi 'x-vantixgc-waiter-pwa: v6-fast-stable' /tmp/waiter-pwa.headers
           grep -q '<title>VantixGC Mesero</title>' /tmp/waiter-pwa.html
           grep -q 'vantixgc-waiter-engine-v6' /tmp/waiter-pwa.html
           grep -q 'restaurant-waiter-performance-v6.js?v=waiter-perf-v6' /tmp/waiter-pwa.html
-          grep -q 'restaurant-ui.js?v=waiter-full-v6' /tmp/waiter-pwa.html
+          grep -q 'restaurant-waiter-ui-v6.js?v=waiter-full-v6' /tmp/waiter-pwa.html
           grep -q 'No se pudo abrir Mesero' /tmp/waiter-pwa.html
           grep -q 'waiter-user-badge' /tmp/waiter-pwa.html
           grep -q 'VER PEDIDO' /tmp/waiter-pwa.html
