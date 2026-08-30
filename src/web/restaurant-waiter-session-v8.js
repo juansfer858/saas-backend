@@ -1,7 +1,6 @@
 (() => {
   'use strict';
   const SESSION_KEY = 'vantixgc_core_session_v1';
-  const RUNTIME_URL = '/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8';
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
@@ -37,22 +36,11 @@
       if (!renewed?.token) return session;
       const merged = { ...session, ...renewed, persistent:true };
       localStorage.setItem(SESSION_KEY, JSON.stringify(merged));
+      document.documentElement.dataset.waiterPersistent = '1';
       return merged;
     } catch { return session; }
   }
 
-  function loadRuntime() {
-    const script = document.createElement('script');
-    script.src = RUNTIME_URL;
-    script.async = false;
-    script.dataset.waiterRuntimeLoader = 'v8';
-    script.onerror = () => {
-      const app = document.querySelector('#wvApp');
-      if (app) app.innerHTML = '<section class="wv-card wv-empty"><b>No se pudo cargar Mesero</b><span>Revisa la conexión y vuelve a abrir la aplicación.</span></section>';
-    };
-    document.body.appendChild(script);
-  }
-
-  renewIfNeeded(readSession()).finally(loadRuntime);
+  renewIfNeeded(readSession());
   window.VantixGCWaiterSessionV8 = Object.freeze({ version:'8.0.0', persistent:true, renewIfNeeded });
 })();
