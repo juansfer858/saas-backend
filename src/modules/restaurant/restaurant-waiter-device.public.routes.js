@@ -50,7 +50,6 @@ router.get('/app/restaurant-waiter-device-admin.js', (_req, res) => {
   res.type('application/javascript').sendFile(adminScript);
 });
 
-// Compatibilidad temporal para un dispositivo que todavía tenga el shell V6 en caché.
 router.get('/app/restaurant-waiter-performance-v6.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(performanceV6Script);
@@ -58,7 +57,7 @@ router.get('/app/restaurant-waiter-performance-v6.js', (_req, res) => {
 
 router.get('/app/restaurant-waiter-runtime-v7.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.set('X-VantixGC-Waiter-Runtime', 'v7-dedicated');
+  res.set('X-VantixGC-Waiter-Runtime', 'v8-adaptive-runtime-v7');
   res.type('application/javascript').sendFile(waiterRuntimeV7Script);
 });
 
@@ -69,7 +68,7 @@ router.get('/app/centro-de-control/conectar', (_req, res) => {
 
 router.get('/app/centro-de-control/mesero', (_req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.set('X-VantixGC-Waiter-PWA', 'v7-dedicated-partial-dom');
+  res.set('X-VantixGC-Waiter-PWA', 'v8-adaptive-persistent');
   res.sendFile(waiterPwaV7Html);
 });
 
