@@ -43,6 +43,13 @@ assert.match(publicRoutes, /manifest\.webmanifest/);
 assert.match(publicRoutes, /Service-Worker-Allowed/);
 assert.match(publicRoutes, /waiter-icon-192\.png/);
 assert.match(publicRoutes, /waiter-icon-512\.png/);
+assert.match(publicRoutes, /WAITER_PWA_ENGINE_V5/);
+assert.match(publicRoutes, /restaurant-ui\.js\?v=waiter-full-v5/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v5-recovery/);
+assert.match(publicRoutes, /Este dispositivo no quedó vinculado/);
+assert.match(publicRoutes, /No se pudo abrir Mesero/);
+assert.match(publicRoutes, /firstOperationalView/);
+assert.match(publicRoutes, /setTimeout\(\(\)=>meseroTab\.click\(\),0\)/, 'la PWA debe esperar la primera vista antes de forzar Mesero');
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
 
@@ -91,7 +98,7 @@ assert.match(pair, /localStorage\.setItem\(SESSION_KEY/);
 assert.match(pair, /meta name="referrer" content="no-referrer"/);
 
 assert.match(pwa, /<title>VantixGC Mesero<\/title>/);
-assert.match(pwa, /restaurant-ui\.js\?v=waiter-full-v4/);
+assert.match(pwa, /restaurant-ui\.js\?v=waiter-full-v4/, 'el HTML base conserva un placeholder estable; la ruta pública lo reemplaza por V5');
 assert.match(pwa, /waiter-user-badge/);
 assert.doesNotMatch(pwa, /restaurant-control-center\.js/, 'la PWA dedicada no debe reescribir su ruta mediante el shell administrativo');
 assert.match(pwa, /@media\(min-width:1000px\)/);
@@ -101,8 +108,8 @@ assert.match(pwa, /VER PEDIDO/);
 assert.match(pwa, /MutationObserver/);
 assert.match(pwa, /100dvh/);
 
-assert.match(sw, /vantixgc-waiter-shell-v4/);
-assert.match(sw, /restaurant-ui\.js\?v=waiter-full-v4/);
+assert.match(sw, /vantixgc-waiter-shell-v5/);
+assert.match(sw, /restaurant-ui\.js\?v=waiter-full-v5/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
 assert.match(sw, /centro-de-control\/mesero/);
@@ -117,8 +124,10 @@ console.log(JSON.stringify({
   centerPrimaryAction: 'Mesero',
   sharedTablePool: true,
   explicitOtherWaiterIsolation: true,
-  fullPanelAsset: 'waiter-full-v4',
-  serviceWorkerCache: 'vantixgc-waiter-shell-v4',
+  fullPanelAsset: 'waiter-full-v5',
+  serviceWorkerCache: 'vantixgc-waiter-shell-v5',
+  blankScreenRecovery: true,
+  delayedMeseroActivation: true,
   themeRemovedFromPrimaryGrid: true,
   icons: ['192x192-png', '512x512-png', 'svg'],
   layouts: ['tablet-landscape', 'tablet-portrait', 'mobile', 'desktop'],
