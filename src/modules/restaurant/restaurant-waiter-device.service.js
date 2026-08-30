@@ -9,7 +9,7 @@ const { publicBaseUrl } = require('./restaurant-qr.service');
 
 const ORIGIN_TYPE = 'RESTAURANT_WAITER_DEVICE';
 const PAIRING_TTL_MS = 10 * 60 * 1000;
-const DEVICE_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+const DEVICE_PERSISTENT_UNTIL = new Date('9999-12-31T23:59:59.000Z');
 const LAST_SEEN_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 
 function secretKey() {
@@ -122,23 +122,22 @@ async function claimPairing(rawToken, input = {}) {
     if (!tenant?.subdomain) throw new AppError(404, 'Restaurante no encontrado', 'TENANT_NOT_FOUND');
     const previousTimeline = timelineArray(row.timeline);
     const deviceName = safeDeviceLabel(input.deviceName || latestDeviceMeta(row)?.deviceName);
-    const activatedUntil = new Date(now.getTime() + DEVICE_TTL_MS);
     const consumeNonce = crypto.randomBytes(32).toString('base64url');
     const updatedCount = await tx.trackingLink.updateMany({
       where: { id: row.id, tokenHash, active: true, currentStatus: 'PAIRING', expiresAt: { gt: now } },
       data: {
         tokenHash: hashToken(consumeNonce),
-        tokenCiphertext: encryptJson({ purpose: 'ACTIVE_DEVICE', waiterUserId: waiter.id, pairedAt: now.toISOString() }),
+        tokenCiphertext: encryptJson({ purpose: 'ACTIVE_DEVICE', waiterUserId: waiter.id, pairedAt: now.toISOString(), persistent: true }),
         tokenHint: consumeNonce.slice(-6),
         currentStatus: 'ACTIVE',
-        expiresAt: activatedUntil,
+        expiresAt: DEVICE_PERSISTENT_UNTIL,
         lastNotificationAt: now,
-        timeline: [...previousTimeline, { type: 'DEVICE_PAIRED', at: now.toISOString(), waiterUserId: waiter.id, deviceName, userAgent: String(input.userAgent || '').slice(0, 240) }]
+        timeline: [...previousTimeline, { type: 'DEVICE_PAIRED', at: now.toISOString(), waiterUserId: waiter.id, deviceName, persistent: true, userAgent: String(input.userAgent || '').slice(0, 240) }]
       }
     });
     if (updatedCount.count !== 1) throw new AppError(409, 'El vínculo acaba de ser utilizado en otro dispositivo', 'RESTAURANT_WAITER_PAIRING_ALREADY_USED');
-    await audit(row.tenantId, 'DEVICE', row.id, 'WAITER_DEVICE_PAIRED', row.id, { waiterUserId: waiter.id, deviceName }, tx);
-    return { row: { ...row, id: row.id }, waiter, tenant, deviceName, activatedUntil };
+    await audit(row.tenantId, 'DEVICE', row.id, 'WAITER_DEVICE_PAIRED', row.id, { waiterUserId: waiter.id, deviceName, persistent: true }, tx);
+    return { row: { ...row, id: row.id }, waiter, tenant, deviceName };
   });
 
   const token = signAccessToken({
@@ -147,13 +146,14 @@ async function claimPairing(rawToken, input = {}) {
     rol: result.waiter.rol,
     deviceId: result.row.id,
     authType: 'WAITER_DEVICE',
-    expiresIn: '365d'
+    permanent: true
   });
   return {
     deviceId: result.row.id,
     deviceName: result.deviceName,
-    activatedUntil: result.activatedUntil,
-    session: { token, subdomain: result.tenant.subdomain, tenant: result.tenant, user: result.waiter }
+    persistent: true,
+    activatedUntil: null,
+    session: { token, subdomain: result.tenant.subdomain, tenant: result.tenant, user: result.waiter, persistent: true }
   };
 }
 
@@ -166,17 +166,18 @@ async function listDevices(tenantId) {
   const userIds = [...new Set(rows.map((row) => row.publicReference).filter(Boolean))];
   const users = userIds.length ? await prisma.user.findMany({ where: { tenantId, id: { in: userIds } }, select: { id: true, nombre: true, email: true, rol: true, activo: true } }) : [];
   const byId = new Map(users.map((user) => [user.id, user]));
-  const now = new Date();
   return rows.map((row) => {
     const meta = latestDeviceMeta(row);
+    const persistent = row.currentStatus === 'ACTIVE';
     return {
       id: row.id,
       status: row.currentStatus,
-      active: Boolean(row.active && row.currentStatus === 'ACTIVE' && row.expiresAt > now),
+      active: Boolean(row.active && row.currentStatus === 'ACTIVE'),
+      persistent,
       deviceName: meta?.deviceName || 'Tablet / celular Mesero',
       waiter: byId.get(row.publicReference) || null,
       lastSeenAt: row.lastNotificationAt,
-      expiresAt: row.expiresAt,
+      expiresAt: persistent ? null : row.expiresAt,
       createdAt: row.creadoEn
     };
   });
@@ -197,10 +198,10 @@ async function revokeDevice(tenantId, actorUserId, deviceId) {
 
 async function assertActiveDevice(deviceId, tenantId, userId) {
   const row = await prisma.trackingLink.findFirst({
-    where: { id: deviceId, tenantId, originType: ORIGIN_TYPE, publicReference: userId, active: true, currentStatus: 'ACTIVE', expiresAt: { gt: new Date() } },
+    where: { id: deviceId, tenantId, originType: ORIGIN_TYPE, publicReference: userId, active: true, currentStatus: 'ACTIVE' },
     select: { id: true, lastNotificationAt: true }
   });
-  if (!row) throw new AppError(401, 'Este dispositivo Mesero fue revocado o venció', 'RESTAURANT_WAITER_DEVICE_REVOKED');
+  if (!row) throw new AppError(401, 'Este dispositivo Mesero fue desautorizado', 'RESTAURANT_WAITER_DEVICE_REVOKED');
   const lastSeen = row.lastNotificationAt ? new Date(row.lastNotificationAt).getTime() : 0;
   if (!lastSeen || Date.now() - lastSeen >= LAST_SEEN_WRITE_INTERVAL_MS) {
     await prisma.trackingLink.update({ where: { id: row.id }, data: { lastNotificationAt: new Date() } }).catch(() => {});
@@ -211,7 +212,7 @@ async function assertActiveDevice(deviceId, tenantId, userId) {
 module.exports = {
   ORIGIN_TYPE,
   PAIRING_TTL_MS,
-  DEVICE_TTL_MS,
+  DEVICE_PERSISTENT_UNTIL,
   LAST_SEEN_WRITE_INTERVAL_MS,
   createPairing,
   inspectPairing,
