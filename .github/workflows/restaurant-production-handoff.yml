@@ -184,13 +184,15 @@ jobs:
           grep -q 'DEDICATED_PARTIAL_DOM_OPTIMISTIC' /tmp/waiter-runtime.js
           grep -q 'queueQtySync' /tmp/waiter-runtime.js
           grep -q 'detailsEpoch' /tmp/waiter-runtime.js
+          grep -q 'id="wvTables"' /tmp/waiter-runtime.js
+          grep -q 'id="wvBody"' /tmp/waiter-runtime.js
           ! grep -q 'setInterval' /tmp/waiter-runtime.js
           curl -fsSL --max-time 20 -D /tmp/waiter-pwa.headers -o /tmp/waiter-pwa.html 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1'
           grep -qi 'x-vantixgc-waiter-pwa: v7-dedicated-partial-dom' /tmp/waiter-pwa.headers
           grep -q '<title>VantixGC Mesero</title>' /tmp/waiter-pwa.html
           grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7' /tmp/waiter-pwa.html
-          grep -q 'wvTables' /tmp/waiter-pwa.html
-          grep -q 'wvBody' /tmp/waiter-pwa.html
+          grep -q 'id="wvApp"' /tmp/waiter-pwa.html
+          grep -q 'id="wvMessage"' /tmp/waiter-pwa.html
           ! grep -q 'restaurant-ui.js' /tmp/waiter-pwa.html
           ! grep -q 'MutationObserver' /tmp/waiter-pwa.html
           echo "PRODUCTION_RESTAURANT_WAITER_PWA_V7_READY"
