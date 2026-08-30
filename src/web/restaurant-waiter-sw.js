@@ -9,7 +9,7 @@ const SHELL = [
   '/restaurantes/theme-v1.css',
   '/app/restaurant-theme.js?v=panel-font-v1',
   '/app/restaurant-waiter-performance-v6.js?v=waiter-perf-v6',
-  '/app/restaurant-ui.js?v=waiter-full-v6'
+  '/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6'
 ];
 
 self.addEventListener('install', (event) => {
