@@ -13,20 +13,17 @@ function getJwtSecret() {
   return secret;
 }
 
-function signAccessToken({ userId, tenantId, rol, deviceId = null, authType = null, expiresIn = null }) {
+function signAccessToken({ userId, tenantId, rol, deviceId = null, authType = null, expiresIn = null, permanent = false }) {
   const payload = { userId, tenantId, rol };
   if (deviceId) payload.deviceId = deviceId;
   if (authType) payload.authType = authType;
-  return jwt.sign(
-    payload,
-    getJwtSecret(),
-    {
-      algorithm: 'HS256',
-      expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '8h',
-      issuer: JWT_ISSUER,
-      audience: JWT_AUDIENCE
-    }
-  );
+  const options = {
+    algorithm: 'HS256',
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE
+  };
+  if (!permanent) options.expiresIn = expiresIn || process.env.JWT_EXPIRES_IN || '8h';
+  return jwt.sign(payload, getJwtSecret(), options);
 }
 
 function verifyAccessToken(token) {

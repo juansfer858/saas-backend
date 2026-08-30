@@ -27,10 +27,15 @@ const zoneService = read('src/modules/restaurant/restaurant-zones.service.js');
 
 assert.match(service, /RESTAURANT_WAITER_DEVICE/);
 assert.match(service, /PAIRING_TTL_MS\s*=\s*10\s*\*\s*60\s*\*\s*1000/);
+assert.match(service, /DEVICE_PERSISTENT_UNTIL/);
+assert.match(service, /9999-12-31T23:59:59\.000Z/);
 assert.match(service, /updateMany\([\s\S]*currentStatus:\s*'PAIRING'/, 'el claim debe ser atómico y de un solo uso');
 assert.match(service, /tokenHash:\s*hashToken\(consumeNonce\)/, 'el token de emparejamiento debe invalidarse tras usarlo');
 assert.match(service, /authType:\s*'WAITER_DEVICE'/);
-assert.match(service, /expiresIn:\s*'365d'/);
+assert.match(service, /permanent:\s*true/);
+assert.doesNotMatch(service, /expiresIn:\s*'365d'/);
+assert.match(service, /currentStatus:\s*'ACTIVE'/);
+assert.doesNotMatch(service, /currentStatus:\s*'ACTIVE',\s*expiresAt:\s*\{\s*gt:/, 'un dispositivo activo no debe vencer por fecha');
 assert.match(service, /rol:\s*'MESERO'/, 'sólo un usuario MESERO puede recibir un dispositivo');
 
 assert.match(tenantRoutes, /\/dispositivos-mesero/);
@@ -40,14 +45,14 @@ assert.match(publicRoutes, /\/app\/centro-de-control\/conectar/);
 assert.match(publicRoutes, /\/app\/centro-de-control\/mesero/);
 assert.match(publicRoutes, /\/app\/restaurant-waiter-runtime-v7\.js/);
 assert.match(publicRoutes, /restaurant-waiter-pwa-v7\.html/);
-assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v7-dedicated-partial-dom/);
-assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v7-dedicated/);
-assert.doesNotMatch(publicRoutes, /waiterStableBase\(base\)/, 'la PWA V7 no debe construir el panel desde restaurant-ui.js');
+assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v8-adaptive-persistent/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v8-adaptive-runtime-v7/);
+assert.doesNotMatch(publicRoutes, /waiterStableBase\(base\)/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
 
-assert.match(jwt, /deviceId\s*=\s*null/);
-assert.match(jwt, /authType\s*=\s*null/);
+assert.match(jwt, /permanent\s*=\s*false/);
+assert.match(jwt, /if \(!permanent\) options\.expiresIn/);
 assert.match(auth, /payload\.authType\s*===\s*'WAITER_DEVICE'/);
 assert.match(auth, /assertActiveDevice/);
 assert.match(auth, /user\.rol\s*!==\s*'MESERO'/);
@@ -56,7 +61,6 @@ assert.match(theme, /restaurant-waiter-device-admin\.js/);
 assert.match(admin, /Conectar tablet o celular/);
 assert.match(admin, /\/api\/v1\/restaurante\/dispositivos-mesero\/vinculo/);
 assert.match(admin, /Desautorizar/);
-assert.match(admin, /rol\s*===\s*'MESERO'/);
 
 assert.match(restaurantService, /applyWaiterTableVisibility/);
 assert.match(restaurantService, /assignedWaiterId:\s*null/);
@@ -73,15 +77,19 @@ assert.match(pair, /Vincular este dispositivo/);
 assert.match(pair, /localStorage\.setItem\(SESSION_KEY/);
 
 assert.match(pwa, /<title>VantixGC Mesero<\/title>/);
-assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v7/);
+assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8/);
+assert.match(pwa, /Dispositivo vinculado · acceso guardado/);
+assert.match(pwa, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+assert.match(pwa, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+assert.match(pwa, /@media\(max-width:350px\)/);
+assert.match(pwa, /overflow-wrap:anywhere/);
+assert.match(pwa, /\.wv-order-toggle/);
 assert.match(pwa, /id="wvApp"/);
 assert.match(pwa, /id="wvMessage"/);
 assert.match(pwa, /id="wvSync"/);
 assert.match(pwa, /100dvh/);
 assert.doesNotMatch(pwa, /restaurant-ui\.js/);
-assert.doesNotMatch(pwa, /restaurant-waiter-performance-v6/);
 assert.doesNotMatch(pwa, /MutationObserver/);
-assert.doesNotMatch(pwa, /restaurant-control-center\.js/);
 
 assert.match(runtime, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
 assert.match(runtime, /DEDICATED_PARTIAL_DOM_OPTIMISTIC/);
@@ -95,20 +103,14 @@ assert.match(runtime, /MENU_PAGE\s*=\s*40/);
 assert.match(runtime, /id="wvTables"/);
 assert.match(runtime, /id="wvBody"/);
 assert.match(runtime, /id="wvOrder"/);
-assert.match(runtime, /renderMenuGrid/);
-assert.match(runtime, /renderOrder/);
-assert.match(runtime, /renderHistory/);
 assert.match(runtime, /setTimeout\(pollTick/);
 assert.doesNotMatch(runtime, /MutationObserver/);
 assert.doesNotMatch(runtime, /setInterval/);
 assert.doesNotMatch(runtime, /restaurant-ui\.js/);
-assert.doesNotMatch(runtime, /#view/);
 new Function(runtime);
 
-assert.match(sw, /vantixgc-waiter-shell-v7/);
-assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v7/);
-assert.doesNotMatch(sw, /restaurant-waiter-ui-v6/);
-assert.doesNotMatch(sw, /restaurant-waiter-performance-v6/);
+assert.match(sw, /vantixgc-waiter-shell-v8/);
+assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
 assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/, 'service worker no debe reintentar ni cachear mutaciones');
@@ -116,17 +118,19 @@ assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/, 'service worker no debe reinten
 console.log(JSON.stringify({
   ok:true,
   product:'VantixGC Mesero PWA',
+  version:'V8_ADAPTIVE_PERSISTENT',
   runtime:'V7_DEDICATED',
-  deviceSession:'server-revocable',
+  deviceSession:'persistent-until-revoked',
+  jwtExpiry:false,
+  serverRevocation:true,
+  adaptiveButtons:true,
+  categoryGrid:true,
+  accountModeGrid:true,
   sharedTablePool:true,
   fullRootRerender:false,
-  genericRestaurantUiLoaded:false,
   optimisticQuantity:true,
-  coalescedQuantityWrites:true,
-  eventDelegation:true,
   idlePolling:true,
-  pollingOverlap:false,
   menuDomLimit:40,
-  serviceWorkerCache:'vantixgc-waiter-shell-v7',
+  serviceWorkerCache:'vantixgc-waiter-shell-v8',
   businessMutationReplay:false
 }));

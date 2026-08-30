@@ -42,13 +42,15 @@ jobs:
         run: npm run build
       - name: Sync isolated database
         run: npx prisma db push
-      - name: Validate PWA static contract
+      - name: Validate PWA adaptive static contract
         run: node scripts/restaurant-waiter-device-pwa-smoke.js
+      - name: Validate persistent session migration
+        run: node scripts/restaurant-waiter-persistent-session-smoke.js
       - name: Validate fast serialized waiter interaction
         run: node scripts/restaurant-waiter-interaction-v6-smoke.js
       - name: Validate shared-floor security contract
         run: node scripts/restaurant-waiter-shared-floor-smoke.js
-      - name: Validate one-time pairing and immediate revocation
+      - name: Validate one-time pairing, persistent access and immediate revocation
         run: node scripts/restaurant-waiter-device-pwa-db-smoke.js
       - name: Validate all-zone waiter floor and reinforcement
         run: node scripts/restaurant-waiter-table-pool-db-smoke.js

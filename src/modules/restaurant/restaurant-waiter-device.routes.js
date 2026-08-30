@@ -30,6 +30,15 @@ router.post('/dispositivos-mesero/vinculo', requirePermission('RESTAURANTE.ADMIN
   } catch (error) { next(error); }
 });
 
+router.post('/dispositivos-mesero/renovar-sesion', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
+  try {
+    if (req.authType !== 'WAITER_DEVICE' || !req.deviceId || req.userRole !== 'MESERO') {
+      throw new AppError(403, 'Sólo un dispositivo Mesero vinculado puede renovar esta sesión', 'RESTAURANT_WAITER_DEVICE_REFRESH_FORBIDDEN');
+    }
+    res.json({ ok: true, data: await service.renewDeviceSession(req.deviceId, req.tenantId, req.userId) });
+  } catch (error) { next(error); }
+});
+
 router.delete('/dispositivos-mesero/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.revokeDevice(req.tenantId, req.userId, req.params.id) }); } catch (error) { next(error); }
 });
