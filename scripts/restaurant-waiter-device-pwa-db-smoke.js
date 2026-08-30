@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const { verifyAccessToken } = require('../src/utils/jwt');
+const { app } = require('../src/app');
 const device = require('../src/modules/restaurant/restaurant-waiter-device.service');
 const { ensureRestaurantDemoTenant, SUBDOMAIN } = require('./ensure-restaurant-demo-tenant');
 
@@ -12,6 +13,34 @@ async function rejectsCode(promise, code) {
   assert.ok(error, `Se esperaba error ${code}`);
   assert.equal(error.code, code);
   return error;
+}
+
+async function withHttpServer(run) {
+  const server = await new Promise((resolve, reject) => {
+    const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+    instance.once('error', reject);
+  });
+  try {
+    const address = server.address();
+    return await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+async function getJson(baseUrl, path, session) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    cache:'no-store',
+    headers:{
+      Authorization:`Bearer ${session.token}`,
+      'x-tenant-subdomain':session.subdomain
+    }
+  });
+  let body = {};
+  try { body = await response.json(); } catch {}
+  assert.equal(response.status, 200, `${path} debe responder 200: ${JSON.stringify(body)}`);
+  assert.equal(body.ok, true, `${path} debe responder ok=true`);
+  return body.data;
 }
 
 async function main() {
@@ -50,6 +79,33 @@ async function main() {
   assert.equal(payload.rol, 'MESERO');
   assert.equal(payload.deviceId, pairing.deviceId);
   assert.equal(payload.authType, 'WAITER_DEVICE');
+
+  await withHttpServer(async (baseUrl) => {
+    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
+    const pwaHtml = await pwaResponse.text();
+    assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v5-recovery');
+    assert.match(pwaHtml, /vantixgc-waiter-engine-v5/);
+    assert.match(pwaHtml, /restaurant-ui\.js\?v=waiter-full-v5/);
+    assert.match(pwaHtml, /Cargando panel del mesero/);
+    assert.match(pwaHtml, /No se pudo abrir Mesero/);
+    assert.doesNotMatch(pwaHtml, /<script src="\/app\/restaurant-ui\.js\?v=waiter-full-v4"><\/script>/, 'la respuesta pública no puede entregar el motor V4');
+
+    const context = await getJson(baseUrl, '/api/v1/restaurante/ui-context', claimed.session);
+    assert.equal(context.user.id, waiter.id);
+    assert.equal(context.user.baseRol || context.user.rol, 'MESERO');
+    assert.equal(context.workAssignment?.mode, 'FLEXIBLE');
+    assert.equal(context.workAssignment?.flexibleSupport, true);
+
+    const [zones, tables, menu] = await Promise.all([
+      getJson(baseUrl, '/api/v1/restaurante/zonas', claimed.session),
+      getJson(baseUrl, '/api/v1/restaurante/mesas', claimed.session),
+      getJson(baseUrl, '/api/v1/restaurante/menu', claimed.session)
+    ]);
+    assert.ok(Array.isArray(zones) && zones.length >= 1, 'la sesión vinculada debe ver zonas');
+    assert.ok(Array.isArray(tables) && tables.length >= 1, 'la sesión vinculada debe ver mesas');
+    assert.ok(Array.isArray(menu), 'la sesión vinculada debe cargar el menú');
+  });
 
   await rejectsCode(device.inspectPairing(rawToken), 'RESTAURANT_WAITER_PAIRING_EXPIRED');
   await rejectsCode(device.claimPairing(rawToken, { deviceName:'Segundo intento' }), 'RESTAURANT_WAITER_PAIRING_EXPIRED');
@@ -92,6 +148,8 @@ async function main() {
     waiter:waiter.nombre,
     oneTimePairing:true,
     jwtBoundToDevice:true,
+    pairedHttpContext:true,
+    waiterPwaRecoveryV5:true,
     revocationImmediate:true,
     auditActions:actions
   }));
