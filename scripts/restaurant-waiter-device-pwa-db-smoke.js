@@ -81,8 +81,8 @@ async function main() {
     assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
     assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v7-dedicated-partial-dom');
     assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v7/);
-    assert.match(pwaHtml, /wvTables/);
-    assert.match(pwaHtml, /wvBody/);
+    assert.match(pwaHtml, /id="wvApp"/);
+    assert.match(pwaHtml, /id="wvMessage"/);
     assert.match(pwaHtml, /Cargando panel del mesero/);
     assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
     assert.doesNotMatch(pwaHtml, /restaurant-waiter-performance-v6/);
@@ -93,6 +93,8 @@ async function main() {
     assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V7 debe cargar');
     assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v7-dedicated');
     assert.match(runtimeJs, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
+    assert.match(runtimeJs, /id="wvTables"/);
+    assert.match(runtimeJs, /id="wvBody"/);
     assert.match(runtimeJs, /queueQtySync/);
     assert.match(runtimeJs, /detailsEpoch/);
     assert.doesNotMatch(runtimeJs, /setInterval/);
