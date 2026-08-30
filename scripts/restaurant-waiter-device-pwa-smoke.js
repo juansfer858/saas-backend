@@ -42,14 +42,17 @@ assert.match(tenantRoutes, /router\.delete\('\/dispositivos-mesero\/:id'/);
 assert.match(publicRoutes, /\/api\/public\/restaurante\/mesero-dispositivo\/vincular/);
 assert.match(publicRoutes, /\/app\/centro-de-control\/conectar/);
 assert.match(publicRoutes, /\/app\/centro-de-control\/mesero/);
+assert.match(publicRoutes, /\/app\/restaurant-waiter-ui-v6\.js/);
 assert.match(publicRoutes, /manifest\.webmanifest/);
 assert.match(publicRoutes, /Service-Worker-Allowed/);
 assert.match(publicRoutes, /waiter-icon-192\.png/);
 assert.match(publicRoutes, /waiter-icon-512\.png/);
 assert.match(publicRoutes, /WAITER_PWA_ENGINE_V6/);
 assert.match(publicRoutes, /restaurant-waiter-performance-v6\.js\?v=waiter-perf-v6/);
-assert.match(publicRoutes, /restaurant-ui\.js\?v=waiter-full-v6/);
+assert.match(publicRoutes, /restaurant-waiter-ui-v6\.js\?v=waiter-full-v6/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-UI', 'v6-serialized/);
 assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v6-fast-stable/);
+assert.match(publicRoutes, /waiterStableBase\(base\)/);
 assert.match(publicRoutes, /Este dispositivo no quedó vinculado/);
 assert.match(publicRoutes, /No se pudo abrir Mesero/);
 assert.match(publicRoutes, /firstOperationalView/);
@@ -136,7 +139,7 @@ assert.match(pwa, /100dvh/);
 
 assert.match(sw, /vantixgc-waiter-shell-v6/);
 assert.match(sw, /restaurant-waiter-performance-v6\.js\?v=waiter-perf-v6/);
-assert.match(sw, /restaurant-ui\.js\?v=waiter-full-v6/);
+assert.match(sw, /restaurant-waiter-ui-v6\.js\?v=waiter-full-v6/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
 assert.match(sw, /centro-de-control\/mesero/);
@@ -151,7 +154,7 @@ console.log(JSON.stringify({
   centerPrimaryAction: 'Mesero',
   sharedTablePool: true,
   explicitOtherWaiterIsolation: true,
-  fullPanelAsset: 'waiter-full-v6',
+  fullPanelAsset: 'restaurant-waiter-ui-v6',
   serviceWorkerCache: 'vantixgc-waiter-shell-v6',
   blankScreenRecovery: true,
   delayedMeseroActivation: true,
@@ -159,6 +162,7 @@ console.log(JSON.stringify({
   requestDeduplication: true,
   shortLivedReadCache: true,
   mutationBusyGuard: true,
+  dedicatedWaiterUiRoute: true,
   themeRemovedFromPrimaryGrid: true,
   icons: ['192x192-png', '512x512-png', 'svg'],
   layouts: ['tablet-landscape', 'tablet-portrait', 'mobile', 'desktop'],
