@@ -87,7 +87,7 @@ async function main() {
     assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v6-fast-stable');
     assert.match(pwaHtml, /vantixgc-waiter-engine-v6/);
     assert.match(pwaHtml, /restaurant-waiter-performance-v6\.js\?v=waiter-perf-v6/);
-    assert.match(pwaHtml, /restaurant-ui\.js\?v=waiter-full-v6/);
+    assert.match(pwaHtml, /restaurant-waiter-ui-v6\.js\?v=waiter-full-v6/);
     assert.match(pwaHtml, /Cargando panel del mesero/);
     assert.match(pwaHtml, /No se pudo abrir Mesero/);
     assert.doesNotMatch(pwaHtml, /<script src="\/app\/restaurant-ui\.js\?v=waiter-full-v4"><\/script>/, 'la respuesta pública no puede entregar el motor V4');
@@ -97,10 +97,12 @@ async function main() {
     assert.equal(perfResponse.status, 200, 'el runtime de rendimiento V6 debe cargar');
     assert.match(perfJs, /VANTIX_WAITER_INTERACTION_STABILITY_V6/);
 
-    const uiResponse = await fetch(`${baseUrl}/app/restaurant-ui.js?v=waiter-full-v6`, { cache:'no-store' });
+    const uiResponse = await fetch(`${baseUrl}/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6`, { cache:'no-store' });
     const uiJs = await uiResponse.text();
-    assert.equal(uiResponse.status, 200, 'el motor operativo transformado debe cargar');
+    assert.equal(uiResponse.status, 200, 'el motor Mesero V6 dedicado debe cargar');
+    assert.equal(uiResponse.headers.get('x-vantixgc-waiter-ui'), 'v6-serialized');
     assert.match(uiJs, /VANTIX_WAITER_RENDER_SERIAL_V6/);
+    assert.match(uiJs, /VANTIX_EMPLOYEE_WORK_SCOPE_V1/);
 
     const context = await getJson(baseUrl, '/api/v1/restaurante/ui-context', claimed.session);
     assert.equal(context.user.id, waiter.id);
@@ -162,6 +164,7 @@ async function main() {
     pairedHttpContext:true,
     waiterPwaRecoveryV6:true,
     waiterInteractionV6:true,
+    dedicatedWaiterUiV6:true,
     revocationImmediate:true,
     auditActions:actions
   }));
