@@ -6,12 +6,15 @@ const express = require('express');
 const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const service = require('./restaurant-waiter-device.service');
+const { waiterStableBase } = require('./restaurant-employee-work.public.routes');
 
 const router = express.Router();
 const pairHtml = path.join(__dirname, '../../web/restaurant-waiter-pair.html');
 const waiterPwaHtml = path.join(__dirname, '../../web/restaurant-waiter-pwa.html');
 const adminScript = path.join(__dirname, '../../web/restaurant-waiter-device-admin.js');
 const performanceScript = path.join(__dirname, '../../web/restaurant-waiter-performance-v6.js');
+const restaurantUiScript = path.join(__dirname, '../../web/restaurant-ui.js');
+const employeeWorkRuntimeScript = path.join(__dirname, '../../web/restaurant-employee-work-runtime.js');
 const manifestFile = path.join(__dirname, '../../web/restaurant-waiter-manifest.webmanifest');
 const swFile = path.join(__dirname, '../../web/restaurant-waiter-sw.js');
 const iconFile = path.join(__dirname, '../../web/restaurant-waiter-icon.svg');
@@ -51,7 +54,7 @@ const WAITER_PWA_ENGINE_V6 = `<script src="/app/restaurant-waiter-performance-v6
   window.addEventListener('error',(event)=>{if(!engineLoaded)fail(event?.message||'La interfaz no terminó de cargar.');});
   window.addEventListener('unhandledrejection',(event)=>{if(!engineLoaded)fail(event?.reason?.message||'La interfaz no terminó de cargar.');});
   const engine=document.createElement('script');
-  engine.src='/app/restaurant-ui.js?v=waiter-full-v6';
+  engine.src='/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6';
   engine.async=false;
   engine.onload=()=>{engineLoaded=true;document.documentElement.dataset.waiterEngine='v6';};
   engine.onerror=()=>fail('No fue posible descargar la interfaz del mesero. Revisa la conexión y vuelve a intentar.');
@@ -100,6 +103,18 @@ router.get('/app/restaurant-waiter-device-admin.js', (_req, res) => {
 router.get('/app/restaurant-waiter-performance-v6.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(performanceScript);
+});
+
+router.get('/app/restaurant-waiter-ui-v6.js', async (_req, res, next) => {
+  try {
+    const [base, runtime] = await Promise.all([
+      fs.promises.readFile(restaurantUiScript, 'utf8'),
+      fs.promises.readFile(employeeWorkRuntimeScript, 'utf8')
+    ]);
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Waiter-UI', 'v6-serialized');
+    res.type('application/javascript').send(`${waiterStableBase(base)}\n;${runtime}`);
+  } catch (error) { next(error); }
 });
 
 router.get('/app/centro-de-control/conectar', (_req, res) => {
