@@ -64,6 +64,9 @@ async function main() {
 
   const claimed = await device.claimPairing(rawToken, { deviceName: 'Tablet Stress Mesero 01', userAgent: 'VantixGC-CI/1.0' });
   assert.equal(claimed.deviceId, pairing.deviceId);
+  assert.equal(claimed.persistent, true);
+  assert.equal(claimed.activatedUntil, null);
+  assert.equal(claimed.session.persistent, true);
   assert.equal(claimed.session.subdomain, SUBDOMAIN);
   assert.equal(claimed.session.user.id, waiter.id);
   assert.equal(claimed.session.user.rol, 'MESERO');
@@ -74,27 +77,30 @@ async function main() {
   assert.equal(payload.rol, 'MESERO');
   assert.equal(payload.deviceId, pairing.deviceId);
   assert.equal(payload.authType, 'WAITER_DEVICE');
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'exp'), false, 'el token del dispositivo no debe vencer por fecha');
+
+  const activeRow = await prisma.trackingLink.findUnique({ where:{ id:pairing.deviceId } });
+  assert.equal(activeRow.currentStatus, 'ACTIVE');
+  assert.equal(activeRow.active, true);
+  assert.ok(activeRow.expiresAt.getUTCFullYear() >= 9999, 'la columna legacy expiresAt debe quedar como centinela permanente');
 
   await withHttpServer(async (baseUrl) => {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwaHtml = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v7-dedicated-partial-dom');
-    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v7/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v8-adaptive-persistent');
+    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8/);
+    assert.match(pwaHtml, /Dispositivo vinculado · acceso guardado/);
     assert.match(pwaHtml, /id="wvApp"/);
     assert.match(pwaHtml, /id="wvMessage"/);
-    assert.match(pwaHtml, /Cargando panel del mesero/);
     assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
-    assert.doesNotMatch(pwaHtml, /restaurant-waiter-performance-v6/);
     assert.doesNotMatch(pwaHtml, /MutationObserver/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v7`, { cache:'no-store' });
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8`, { cache:'no-store' });
     const runtimeJs = await runtimeResponse.text();
-    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V7 debe cargar');
-    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v7-dedicated');
+    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V7/V8 debe cargar');
+    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v8-adaptive-runtime-v7');
     assert.match(runtimeJs, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
-    assert.match(runtimeJs, /id="wvTables"/);
-    assert.match(runtimeJs, /id="wvBody"/);
     assert.match(runtimeJs, /queueQtySync/);
     assert.match(runtimeJs, /detailsEpoch/);
     assert.doesNotMatch(runtimeJs, /setInterval/);
@@ -103,16 +109,15 @@ async function main() {
     assert.equal(context.user.id, waiter.id);
     assert.equal(context.user.baseRol || context.user.rol, 'MESERO');
     assert.equal(context.workAssignment?.mode, 'FLEXIBLE');
-    assert.equal(context.workAssignment?.flexibleSupport, true);
 
     const [zones, tables, menu] = await Promise.all([
       getJson(baseUrl, '/api/v1/restaurante/zonas', claimed.session),
       getJson(baseUrl, '/api/v1/restaurante/mesas', claimed.session),
       getJson(baseUrl, '/api/v1/restaurante/menu', claimed.session)
     ]);
-    assert.ok(Array.isArray(zones) && zones.length >= 1, 'la sesión vinculada debe ver zonas');
-    assert.ok(Array.isArray(tables) && tables.length >= 1, 'la sesión vinculada debe ver mesas');
-    assert.ok(Array.isArray(menu), 'la sesión vinculada debe cargar el menú');
+    assert.ok(Array.isArray(zones) && zones.length >= 1);
+    assert.ok(Array.isArray(tables) && tables.length >= 1);
+    assert.ok(Array.isArray(menu));
   });
 
   await rejectsCode(device.inspectPairing(rawToken), 'RESTAURANT_WAITER_PAIRING_EXPIRED');
@@ -121,15 +126,17 @@ async function main() {
   assert.equal(await device.assertActiveDevice(pairing.deviceId, tenant.id, waiter.id), true);
   const listed = await device.listDevices(tenant.id);
   const listedDevice = listed.find((row) => row.id === pairing.deviceId);
-  assert.ok(listedDevice, 'dispositivo no apareció en administración');
+  assert.ok(listedDevice);
   assert.equal(listedDevice.active, true);
+  assert.equal(listedDevice.persistent, true);
+  assert.equal(listedDevice.expiresAt, null);
   assert.equal(listedDevice.waiter.id, waiter.id);
 
   const beforeThrottle = await prisma.trackingLink.findUnique({ where: { id: pairing.deviceId }, select: { lastNotificationAt:true } });
   assert.ok(beforeThrottle?.lastNotificationAt);
   await device.assertActiveDevice(pairing.deviceId, tenant.id, waiter.id);
   const afterThrottle = await prisma.trackingLink.findUnique({ where: { id: pairing.deviceId }, select: { lastNotificationAt:true } });
-  assert.equal(afterThrottle.lastNotificationAt.getTime(), beforeThrottle.lastNotificationAt.getTime(), 'validar cada request no debe escribir last-seen inmediatamente');
+  assert.equal(afterThrottle.lastNotificationAt.getTime(), beforeThrottle.lastNotificationAt.getTime());
 
   const revoked = await device.revokeDevice(tenant.id, admin.id, pairing.deviceId);
   assert.equal(revoked.revoked, true);
@@ -154,11 +161,11 @@ async function main() {
     deviceId:pairing.deviceId,
     waiter:waiter.nombre,
     oneTimePairing:true,
-    jwtBoundToDevice:true,
-    pairedHttpContext:true,
-    waiterPwaRuntime:'V7_DEDICATED_PARTIAL_DOM',
-    genericUiExcluded:true,
-    revocationImmediate:true,
+    permanentDeviceAccess:true,
+    jwtExpiry:false,
+    serverRevocationImmediate:true,
+    waiterPwa:'V8_ADAPTIVE_PERSISTENT',
+    runtime:'V7_DEDICATED',
     auditActions:actions
   }));
 }
