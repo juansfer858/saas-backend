@@ -6,18 +6,23 @@ const express = require('express');
 const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const service = require('./restaurant-waiter-device.service');
+const { waiterStableBase } = require('./restaurant-employee-work.public.routes');
 
 const router = express.Router();
 const pairHtml = path.join(__dirname, '../../web/restaurant-waiter-pair.html');
 const waiterPwaHtml = path.join(__dirname, '../../web/restaurant-waiter-pwa.html');
 const adminScript = path.join(__dirname, '../../web/restaurant-waiter-device-admin.js');
+const performanceScript = path.join(__dirname, '../../web/restaurant-waiter-performance-v6.js');
+const restaurantUiScript = path.join(__dirname, '../../web/restaurant-ui.js');
+const employeeWorkRuntimeScript = path.join(__dirname, '../../web/restaurant-employee-work-runtime.js');
 const manifestFile = path.join(__dirname, '../../web/restaurant-waiter-manifest.webmanifest');
 const swFile = path.join(__dirname, '../../web/restaurant-waiter-sw.js');
 const iconFile = path.join(__dirname, '../../web/restaurant-waiter-icon.svg');
 const icon192File = path.join(__dirname, '../../web/restaurant-waiter-icon-192.png');
 const icon512File = path.join(__dirname, '../../web/restaurant-waiter-icon-512.png');
 
-const WAITER_PWA_ENGINE_V5 = `<script id="vantixgc-waiter-engine-v5">
+const WAITER_PWA_ENGINE_V6 = `<script src="/app/restaurant-waiter-performance-v6.js?v=waiter-perf-v6"></script>
+<script id="vantixgc-waiter-engine-v6">
 (()=>{
   'use strict';
   const SESSION_KEY='vantixgc_core_session_v1';
@@ -36,7 +41,7 @@ const WAITER_PWA_ENGINE_V5 = `<script id="vantixgc-waiter-engine-v5">
     if(allowRetry){const button=document.createElement('button');button.type='button';button.className='ri-btn primary';button.textContent='Reintentar';button.addEventListener('click',()=>location.reload());card.appendChild(button);}
     view.appendChild(card);
   }
-  renderState('Cargando panel del mesero…','Verificando este dispositivo y la conexión con el restaurante.',false);
+  renderState('Cargando panel del mesero…','Verificando este dispositivo y preparando una vista rápida del restaurante.',false);
   let saved=null;
   try{saved=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
   if(!saved?.token||!saved?.subdomain){
@@ -49,9 +54,9 @@ const WAITER_PWA_ENGINE_V5 = `<script id="vantixgc-waiter-engine-v5">
   window.addEventListener('error',(event)=>{if(!engineLoaded)fail(event?.message||'La interfaz no terminó de cargar.');});
   window.addEventListener('unhandledrejection',(event)=>{if(!engineLoaded)fail(event?.reason?.message||'La interfaz no terminó de cargar.');});
   const engine=document.createElement('script');
-  engine.src='/app/restaurant-ui.js?v=waiter-full-v5';
+  engine.src='/app/restaurant-waiter-ui-v6.js?v=waiter-full-v6';
   engine.async=false;
-  engine.onload=()=>{engineLoaded=true;document.documentElement.dataset.waiterEngine='v5';};
+  engine.onload=()=>{engineLoaded=true;document.documentElement.dataset.waiterEngine='v6';};
   engine.onerror=()=>fail('No fue posible descargar la interfaz del mesero. Revisa la conexión y vuelve a intentar.');
   document.head.appendChild(engine);
   setTimeout(()=>{
@@ -95,6 +100,23 @@ router.get('/app/restaurant-waiter-device-admin.js', (_req, res) => {
   res.type('application/javascript').sendFile(adminScript);
 });
 
+router.get('/app/restaurant-waiter-performance-v6.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(performanceScript);
+});
+
+router.get('/app/restaurant-waiter-ui-v6.js', async (_req, res, next) => {
+  try {
+    const [base, runtime] = await Promise.all([
+      fs.promises.readFile(restaurantUiScript, 'utf8'),
+      fs.promises.readFile(employeeWorkRuntimeScript, 'utf8')
+    ]);
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Waiter-UI', 'v6-serialized');
+    res.type('application/javascript').send(`${waiterStableBase(base)}\n;${runtime}`);
+  } catch (error) { next(error); }
+});
+
 router.get('/app/centro-de-control/conectar', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.sendFile(pairHtml);
@@ -104,13 +126,13 @@ router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
   try {
     const source = await fs.promises.readFile(waiterPwaHtml, 'utf8');
     const rendered = source
-      .replace('<script src="/app/restaurant-ui.js?v=waiter-full-v4"></script>', WAITER_PWA_ENGINE_V5)
+      .replace('<script src="/app/restaurant-ui.js?v=waiter-full-v4"></script>', WAITER_PWA_ENGINE_V6)
       .replace(
         "const meseroTab=document.querySelector('[data-tab=\"mesero\"]');\n      if(!forced&&meseroTab){forced=true;meseroTab.click();}",
         "const meseroTab=document.querySelector('[data-tab=\"mesero\"]');\n      const firstOperationalView=view.querySelector('.salon-shell,.waiter-top-card,.kds-v2,.cash-shell');\n      if(!forced&&meseroTab&&firstOperationalView){forced=true;setTimeout(()=>meseroTab.click(),0);}"
       );
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-PWA', 'v5-recovery');
+    res.set('X-VantixGC-Waiter-PWA', 'v6-fast-stable');
     res.type('html').send(rendered);
   } catch (error) { next(error); }
 });
@@ -141,4 +163,4 @@ router.get('/app/centro-de-control/waiter-icon-512.png', (_req, res) => {
   res.type('image/png').sendFile(icon512File);
 });
 
-module.exports = { restaurantWaiterDevicePublicRouter: router };
+module.exports = { restaurantWaiterDevicePublicRouter: router, WAITER_PWA_ENGINE_V6 };
