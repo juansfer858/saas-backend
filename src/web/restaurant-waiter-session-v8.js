@@ -50,12 +50,20 @@
   const MARKER = 'VANTIX_WAITER_ORDER_REVIEW_V12';
   const SYNC_MARKER = 'VANTIX_WAITER_ORDER_REVIEW_SYNC_V13';
   const HARD_GATE_MARKER = 'VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14';
+  const ENTRY_MARKER = 'VANTIX_WAITER_TABLET_REVIEW_ENTRY_V15';
   const RETRIES_MS = [0, 180, 450, 900, 1800, 3200];
+  const ENTRY_RETRIES_MS = [0, 120, 320, 700, 1300, 2600, 4200];
   let timers = [];
+  let entryTimers = [];
 
   function clearReviewTimers() {
     for (const timer of timers) clearTimeout(timer);
     timers = [];
+  }
+
+  function clearEntryTimers() {
+    for (const timer of entryTimers) clearTimeout(timer);
+    entryTimers = [];
   }
 
   function pendingRows(root) {
@@ -66,6 +74,36 @@
   function sentRows(root) {
     return [...root.querySelectorAll('.wv-order-list .wv-item')]
       .filter((row) => /Enviado/i.test(row.textContent || ''));
+  }
+
+  function ensureReviewEntryButton() {
+    const root = document.querySelector('#wvOrder');
+    const actions = root?.querySelector('.wv-actions');
+    if (!root || !actions) return false;
+
+    const hint = [...actions.querySelectorAll('.wv-msg')]
+      .find((node) => /Revisa el pedido antes de enviarlo/i.test(node.textContent || ''));
+    const existing = actions.querySelector('[data-wv-review-entry]');
+
+    if (!hint) {
+      existing?.remove();
+      return false;
+    }
+
+    if (existing) return true;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'wv-btn wv-review-entry';
+    button.dataset.wvReviewEntry = 'true';
+    button.textContent = 'REVISAR PEDIDO';
+    button.setAttribute('aria-label', 'Revisar el pedido antes de confirmarlo');
+    actions.insertBefore(button, hint);
+    return true;
+  }
+
+  function scheduleReviewEntry() {
+    clearEntryTimers();
+    entryTimers = ENTRY_RETRIES_MS.map((delay) => setTimeout(ensureReviewEntryButton, delay));
   }
 
   function enhanceOrderReview() {
@@ -133,12 +171,27 @@
   }
 
   document.addEventListener('click', (event) => {
+    const entry = event.target?.closest?.('[data-wv-review-entry]');
+    if (entry) {
+      event.preventDefault();
+      const toggle = document.querySelector('#wvOrderToggle');
+      if (toggle) toggle.click();
+      return;
+    }
+
     const toggle = event.target?.closest?.('#wvOrderToggle');
-    if (!toggle) return;
-    scheduleReview();
+    if (toggle) {
+      scheduleReview();
+      return;
+    }
+
+    if (event.target?.closest?.('#wvApp')) scheduleReviewEntry();
   }, false);
 
-  window.addEventListener('vantix:waiter-order-review-ready', scheduleReview);
+  window.addEventListener('vantix:waiter-order-review-ready', () => {
+    clearEntryTimers();
+    scheduleReview();
+  });
 
   document.addEventListener('click', (event) => {
     const confirm = event.target?.closest?.('[data-action="confirm-send-draft"]');
@@ -153,16 +206,21 @@
     .wv-order-review-note b{font-size:13px}.wv-order-review-note span{font-size:11px}
     .wv-order-section-label{margin:9px 0 5px;font-size:10px;font-weight:950;letter-spacing:.06em;color:#64748b}
     .wv-order-section-label.pending{color:#166534}.wv-order-section-label.sent{margin-top:14px}
+    .wv-review-entry{min-height:58px!important;border-color:#0f1a2b!important;background:#0f1a2b!important;color:#fff!important;font-size:14px!important;letter-spacing:.01em}
     #wvOrder[data-order-review="confirm"] [data-action="confirm-send-draft"]{min-height:60px;font-size:15px;box-shadow:0 9px 20px rgba(22,132,84,.18)}
   `;
   document.head.appendChild(style);
+
+  scheduleReviewEntry();
 
   window.VantixGCWaiterOrderReviewV12 = Object.freeze({
     marker:MARKER,
     syncMarker:SYNC_MARKER,
     hardGateMarker:HARD_GATE_MARKER,
+    entryMarker:ENTRY_MARKER,
     confirmBeforeSend:true,
     syncedBeforeReview:true,
+    tabletReviewEntry:true,
     noDirectKitchenSend:true,
     passiveEnhancement:true
   });
