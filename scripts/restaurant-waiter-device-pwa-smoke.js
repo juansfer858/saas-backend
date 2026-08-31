@@ -42,7 +42,7 @@ assert.match(publicRoutes, /restaurant-waiter-service-flex-v9/);
 assert.match(publicRoutes, /waiterRuntimeV11/);
 assert.match(publicRoutes, /waiterRuntimeV13/);
 assert.match(publicRoutes, /v13-order-review-sync/);
-assert.match(publicRoutes, /v13-order-review-sync-persistent/);
+assert.match(publicRoutes, /v11-no-rebound-persistent-v13-order-review-sync/);
 assert.doesNotMatch(publicRoutes, /waiterReactiveV9Script/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
