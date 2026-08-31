@@ -5,6 +5,7 @@ const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const service = require('./restaurant-self-service.service');
 const installClarity = require('./restaurant-install-clarity.service');
+const windowsInstaller = require('../public-installer/windows-installer.service');
 
 const publicRouter = express.Router();
 const tenantRouter = express.Router();
@@ -86,7 +87,7 @@ publicRouter.get('/instalador/:token.cmd', (req, res, next) => {
     if (token.length < 30) throw new AppError(404, 'Instalador no encontrado', 'INSTALLER_NOT_FOUND');
     res.set('Cache-Control', 'no-store');
     res.set('Content-Disposition', 'attachment; filename="INSTALAR_VANTIXGC_RESTAURANTES.cmd"');
-    res.type('text/plain').send(service.installerCmd(token, publicBaseUrl(req)));
+    res.type('text/plain').send(windowsInstaller.claimInstallerCmd(token, publicBaseUrl(req)));
   } catch (error) { next(error); }
 });
 
@@ -95,7 +96,7 @@ publicRouter.get('/instalador/:token.ps1', (req, res, next) => {
     const token = String(req.params.token || '');
     if (token.length < 30) throw new AppError(404, 'Instalador no encontrado', 'INSTALLER_NOT_FOUND');
     res.set('Cache-Control', 'no-store');
-    res.type('text/plain').send(service.installerPowerShell(token, publicBaseUrl(req)));
+    res.type('text/plain').send(windowsInstaller.claimInstallerPowerShell(token, publicBaseUrl(req)));
   } catch (error) { next(error); }
 });
 
