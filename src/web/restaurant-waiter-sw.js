@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'vantixgc-waiter-shell-v11';
+const CACHE = 'vantixgc-waiter-shell-v11-v12-review';
 const START = '/app/centro-de-control/mesero?view=mesero&pwa=1';
 const SHELL = [
   START,
