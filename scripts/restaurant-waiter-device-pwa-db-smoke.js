@@ -88,18 +88,19 @@ async function main() {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwaHtml = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v11-no-rebound-persistent-v13-order-review-sync');
-    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v11/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v14-review-hard-gate-persistent');
+    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
     assert.match(pwaHtml, /Dispositivo vinculado · acceso guardado/);
     assert.match(pwaHtml, /id="wvApp"/);
     assert.match(pwaHtml, /id="wvMessage"/);
     assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
     assert.doesNotMatch(pwaHtml, /MutationObserver/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11`, { cache:'no-store' });
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14`, { cache:'no-store' });
     const runtimeJs = await runtimeResponse.text();
-    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V13 debe cargar');
-    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v11-no-rebound-v13-order-review-sync');
+    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V14 debe cargar');
+    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v14-review-hard-gate');
+    assert.match(runtimeJs, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
     assert.match(runtimeJs, /VANTIX_WAITER_ORDER_REVIEW_SYNC_V13/);
     assert.match(runtimeJs, /VANTIX_WAITER_ORDER_REVIEW_V12/);
     assert.match(runtimeJs, /VANTIX_WAITER_NO_REBOUND_V11/);
@@ -112,7 +113,13 @@ async function main() {
     assert.match(runtimeJs, /await flushQtyJobs\(\)/);
     assert.match(runtimeJs, /REVISANDO PEDIDO/);
     assert.match(runtimeJs, /vantix:waiter-order-review-ready/);
+    assert.match(runtimeJs, /data-action="confirm-send-draft"/);
     assert.match(runtimeJs, /CONFIRMAR PEDIDO/);
+    assert.match(runtimeJs, /orderReviewReadySessionId:null/);
+    assert.match(runtimeJs, /hardReviewGate:true/);
+    assert.match(runtimeJs, /noDirectKitchenSend:true/);
+    assert.doesNotMatch(runtimeJs, /data-action="send-draft"/);
+    assert.doesNotMatch(runtimeJs, /if \(action === 'send-draft'\)/);
     assert.match(runtimeJs, /detailsEpoch/);
     assert.doesNotMatch(runtimeJs, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
     assert.doesNotMatch(runtimeJs, /setInterval/);
@@ -176,10 +183,11 @@ async function main() {
     permanentDeviceAccess:true,
     jwtExpiry:false,
     serverRevocationImmediate:true,
-    waiterPwa:'V13_ORDER_REVIEW_SYNC_PERSISTENT',
-    runtime:'V11_SINGLE_STATE_OWNER_PLUS_V13_ORDER_REVIEW_SYNC',
+    waiterPwa:'V14_REVIEW_HARD_GATE_PERSISTENT',
+    runtime:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE',
     orderReviewBeforeSend:true,
     orderSynchronizedBeforeReview:true,
+    directKitchenSendImpossibleFromReviewButton:true,
     removePerson:true,
     buttonsDoNotBounceBack:true,
     auditActions:actions
