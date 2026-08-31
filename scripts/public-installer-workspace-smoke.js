@@ -8,6 +8,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const installerModulePath = path.join(root, 'src/modules/public-installer/windows-installer.service.js');
 const installerSource = read('src/modules/public-installer/windows-installer.service.js');
 const routes = read('src/modules/public-installer/public-installer.routes.js');
+const selfServiceRoutes = read('src/modules/self-service/restaurant-self-service.routes.js');
 const landing = read('src/web/public-installer.html');
 
 for (const file of [
@@ -63,6 +64,11 @@ assert.match(routes, /\/instalar\/windows\.cmd/);
 assert.match(routes, /\/instalar\/windows\.ps1/);
 assert.match(routes, /genericInstallerCmd/);
 assert.match(routes, /genericInstallerPowerShell/);
+assert.match(selfServiceRoutes, /windows-installer\.service/);
+assert.match(selfServiceRoutes, /claimInstallerCmd/);
+assert.match(selfServiceRoutes, /claimInstallerPowerShell/);
+assert.doesNotMatch(selfServiceRoutes, /service\.installerCmd/);
+assert.doesNotMatch(selfServiceRoutes, /service\.installerPowerShell/);
 assert.match(landing, /href="\/instalar\/windows\.cmd"/);
 assert.doesNotMatch(landing, /raw\.githubusercontent\.com\/juansfer858\/saas-backend\/main\/public\/downloads/);
 assert.match(landing, /solicitará automáticamente permiso de Administrador/);
