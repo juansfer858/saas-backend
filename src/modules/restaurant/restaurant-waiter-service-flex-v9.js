@@ -4,7 +4,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const identity = require('./restaurant-identity.service');
 
-const MARKER = 'VANTIX_WAITER_FLEXIBLE_BILLING_V9';
+const MARKER = 'VANTIX_WAITER_FLEXIBLE_BILLING_V10';
 
 async function updateTableServiceSetupFlexible(tenantId, user, sessionId, input) {
   const updated = await prisma.$transaction(async (tx) => {
@@ -19,30 +19,32 @@ async function updateTableServiceSetupFlexible(tenantId, user, sessionId, input)
       select: { id: true }
     })).map((row) => row.id);
 
+    const currentGuests = Math.max(1, Number(session.guestCount || 1));
     const targetMode = input.billingMode || session.billingMode || 'CONJUNTA';
-    const targetGuests = input.guestCount !== undefined ? Number(input.guestCount) : Math.max(1, Number(session.guestCount || 1));
-
-    if (input.guestCount !== undefined && orderIds.length && targetMode === 'INDIVIDUAL' && input.billingMode === undefined) {
-      const highest = await tx.restaurantOrderItem.aggregate({
-        where: { tenantId, orderId: { in: orderIds }, seatNumber: { not: null } },
-        _max: { seatNumber: true }
-      });
-      if (Number(highest._max.seatNumber || 0) > targetGuests) {
-        throw new AppError(409, `La Persona ${highest._max.seatNumber} todavía tiene productos. Muévelos antes de reducir el número de personas.`, 'RESTAURANT_GUEST_COUNT_IN_USE');
-      }
-    }
-
+    const targetGuests = input.guestCount !== undefined ? Math.max(1, Number(input.guestCount)) : currentGuests;
     const modeChanged = Boolean(input.billingMode && input.billingMode !== session.billingMode);
+
     if (modeChanged && orderIds.length) {
       await tx.restaurantOrderItem.updateMany({
         where: { tenantId, orderId: { in: orderIds } },
         data: { seatNumber: targetMode === 'INDIVIDUAL' ? 1 : null }
       });
+    } else if (targetMode === 'INDIVIDUAL' && targetGuests < currentGuests && orderIds.length) {
+      // Al eliminar personas nunca se pierden consumos: cualquier ítem de una persona
+      // que desaparece se fusiona en la última persona que queda visible.
+      await tx.restaurantOrderItem.updateMany({
+        where: {
+          tenantId,
+          orderId: { in: orderIds },
+          seatNumber: { gt: targetGuests }
+        },
+        data: { seatNumber: targetGuests }
+      });
     }
 
     const data = {};
     if (input.billingMode !== undefined) data.billingMode = input.billingMode;
-    if (input.guestCount !== undefined) data.guestCount = input.guestCount;
+    if (input.guestCount !== undefined) data.guestCount = targetGuests;
     return tx.restaurantTableSession.update({ where: { id: session.id }, data, include: { table: true } });
   });
 
