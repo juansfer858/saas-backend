@@ -88,19 +88,20 @@ async function main() {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwaHtml = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v10-flexible-persistent');
-    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v10/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v9-reactive-persistent-v10-flexible-persons');
+    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8-v10/);
     assert.match(pwaHtml, /Dispositivo vinculado · acceso guardado/);
     assert.match(pwaHtml, /id="wvApp"/);
     assert.match(pwaHtml, /id="wvMessage"/);
     assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
     assert.doesNotMatch(pwaHtml, /MutationObserver/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v10`, { cache:'no-store' });
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8-v10`, { cache:'no-store' });
     const runtimeJs = await runtimeResponse.text();
     assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V10 debe cargar');
-    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v10-flexible-persons');
+    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v9-reactive-adaptive-v10-flexible-persons');
     assert.match(runtimeJs, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
+    assert.match(runtimeJs, /VANTIX_WAITER_REACTIVE_SERVICE_V9/);
     assert.match(runtimeJs, /data-action="remove-person"/);
     assert.match(runtimeJs, /Quitar última persona/);
     assert.match(runtimeJs, /queueMicrotask\(\(\) => paintGuestCount\(desired\)\)/);
