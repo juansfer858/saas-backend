@@ -183,8 +183,82 @@ function waiterRuntimeV13(runtime) {
     .replace('singleStateOwner:true', 'singleStateOwner:true, orderReviewSync:true');
 }
 
+function waiterRuntimeV14(runtime) {
+  const v13 = waiterRuntimeV13(runtime);
+  const stateNeedle = 'destroyed:false\n  };';
+  const stateReplacement = 'destroyed:false,\n    orderReviewReadySessionId:null\n  };';
+  const mainActionNeedle = 'if (draftItems.length) mainAction = `<button type="button" class="wv-btn primary" data-action="send-draft">Enviar a cocina / barra · ${money(S.draft?.order?.total || 0)}</button>`;';
+  const mainActionReplacement = `if (draftItems.length && S.orderReviewReadySessionId === selectedSessionId()) mainAction = \`<button type="button" class="wv-btn primary" data-action="confirm-send-draft">CONFIRMAR PEDIDO · \${money(S.draft?.order?.total || 0)}</button>\`;
+    else if (draftItems.length) mainAction = '<div class="wv-msg">Revisa el pedido antes de enviarlo.</div>';`;
+  const sendHeaderNeedle = `async function sendDraft() {
+    const sessionId = selectedSessionId();
+    if (!sessionId) return;`;
+  const sendHeaderReplacement = `async function sendDraft(reviewSessionId) {
+    const sessionId = selectedSessionId();
+    if (!sessionId || !reviewSessionId || reviewSessionId !== sessionId || S.orderReviewReadySessionId !== sessionId) {
+      message('Debes revisar el pedido antes de enviarlo.', true);
+      return;
+    }`;
+  const actionNeedle = "if (action === 'send-draft') return sendDraft();";
+  const actionReplacement = `if (action === 'confirm-send-draft') {
+      const reviewSessionId = S.orderReviewReadySessionId;
+      if (!reviewSessionId || reviewSessionId !== selectedSessionId()) return message('Debes revisar el pedido antes de confirmarlo.', true);
+      return sendDraft(reviewSessionId);
+    }`;
+  const reviewStartNeedle = `const sessionId = selectedSessionId();
+    const toggle = event.target;`;
+  const reviewStartReplacement = `const sessionId = selectedSessionId();
+    S.orderReviewReadySessionId = null;
+    const toggle = event.target;`;
+  const reviewReadyNeedle = `renderOrder();
+      window.dispatchEvent(new CustomEvent('vantix:waiter-order-review-ready', { detail:{ sessionId } }));`;
+  const reviewReadyReplacement = `S.orderReviewReadySessionId = sessionId;
+      renderOrder();
+      window.dispatchEvent(new CustomEvent('vantix:waiter-order-review-ready', { detail:{ sessionId } }));`;
+  const adjustNeedle = `function adjustQty(card, delta) {
+    const sessionId = selectedSessionId();`;
+  const adjustReplacement = `function adjustQty(card, delta) {
+    S.orderReviewReadySessionId = null;
+    const sessionId = selectedSessionId();`;
+  const updateItemNeedle = `async function updateItem(itemId, payload, successText) {
+    const sessionId = selectedSessionId();`;
+  const updateItemReplacement = `async function updateItem(itemId, payload, successText) {
+    S.orderReviewReadySessionId = null;
+    const sessionId = selectedSessionId();`;
+  const updateServiceNeedle = `const mutationEpoch = ++S.detailsEpoch;
+    touch();`;
+  const updateServiceReplacement = `const mutationEpoch = ++S.detailsEpoch;
+    S.orderReviewReadySessionId = null;
+    touch();`;
+  const closeNeedle = `function closeOrder() { document.documentElement.classList.remove('wv-order-open'); }`;
+  const closeReplacement = `function closeOrder() { S.orderReviewReadySessionId = null; document.documentElement.classList.remove('wv-order-open'); renderOrder(); }`;
+  const selectNeedle = `async function selectCurrentTable({ showLoader = true } = {}) {
+    touch();`;
+  const selectReplacement = `async function selectCurrentTable({ showLoader = true } = {}) {
+    S.orderReviewReadySessionId = null;
+    touch();`;
+
+  for (const needle of [stateNeedle, mainActionNeedle, sendHeaderNeedle, actionNeedle, reviewStartNeedle, reviewReadyNeedle, adjustNeedle, updateItemNeedle, updateServiceNeedle, closeNeedle, selectNeedle]) {
+    if (!v13.includes(needle)) throw new Error('No fue posible aplicar el hard gate Mesero V14');
+  }
+  return `/* VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14 */\n${v13}`
+    .replace(stateNeedle, stateReplacement)
+    .replace(mainActionNeedle, mainActionReplacement)
+    .replace(sendHeaderNeedle, sendHeaderReplacement)
+    .replace(actionNeedle, actionReplacement)
+    .replace(reviewStartNeedle, reviewStartReplacement)
+    .replace(reviewReadyNeedle, reviewReadyReplacement)
+    .replace(adjustNeedle, adjustReplacement)
+    .replace(updateItemNeedle, updateItemReplacement)
+    .replace(updateServiceNeedle, updateServiceReplacement)
+    .replace(closeNeedle, closeReplacement)
+    .replace(selectNeedle, selectReplacement)
+    .replace("version:'13.0.0'", "version:'14.0.0'")
+    .replace('orderReviewSync:true', 'orderReviewSync:true, hardReviewGate:true, noDirectKitchenSend:true');
+}
+
 function waiterPwaV11(html) {
-  return html.replace('restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8', 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11');
+  return html.replace('restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8', 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14');
 }
 
 const claimSchema = z.object({ token: z.string().trim().min(20).max(300), deviceName: z.string().trim().max(80).optional().nullable() });
@@ -203,9 +277,9 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
       fs.promises.readFile(waiterSessionV8Script, 'utf8'),
       fs.promises.readFile(waiterRuntimeV7Script, 'utf8')
     ]);
-    const patchedRuntime = waiterRuntimeV13(runtime);
+    const patchedRuntime = waiterRuntimeV14(runtime);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Runtime', 'v11-no-rebound-v13-order-review-sync');
+    res.set('X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate');
     res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
@@ -214,7 +288,7 @@ router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
   try {
     const html = waiterPwaV11(await fs.promises.readFile(waiterPwaV7Html, 'utf8'));
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-PWA', 'v11-no-rebound-persistent-v13-order-review-sync');
+    res.set('X-VantixGC-Waiter-PWA', 'v14-review-hard-gate-persistent');
     res.type('text/html').send(html);
   } catch (error) { next(error); }
 });
@@ -224,4 +298,4 @@ router.get('/app/centro-de-control/waiter-icon.svg', (_req, res) => { res.set('C
 router.get('/app/centro-de-control/waiter-icon-192.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/png').sendFile(icon192File); });
 router.get('/app/centro-de-control/waiter-icon-512.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/png').sendFile(icon512File); });
 
-module.exports = { restaurantWaiterDevicePublicRouter: router, waiterRuntimeV11, waiterRuntimeV13, waiterPwaV11 };
+module.exports = { restaurantWaiterDevicePublicRouter: router, waiterRuntimeV11, waiterRuntimeV13, waiterRuntimeV14, waiterPwaV11 };
