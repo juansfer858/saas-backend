@@ -46,8 +46,8 @@ assert.match(publicRoutes, /\/app\/centro-de-control\/mesero/);
 assert.match(publicRoutes, /restaurant-waiter-reactive-v9\.js/);
 assert.match(publicRoutes, /restaurant-waiter-service-flex-v9/);
 assert.match(publicRoutes, /waiterRuntimeV10/);
-assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v10-flexible-persistent/);
-assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v10-flexible-persons/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v9-reactive-persistent-v10-flexible-persons/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v9-reactive-adaptive-v10-flexible-persons/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
 
@@ -71,7 +71,7 @@ assert.match(pair, /Vincular este dispositivo/);
 assert.match(pair, /localStorage\.setItem\(SESSION_KEY/);
 
 assert.match(pwa, /<title>VantixGC Mesero<\/title>/);
-assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v10/);
+assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8-v10/);
 assert.match(pwa, /Dispositivo vinculado · acceso guardado/);
 assert.match(pwa, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 assert.match(pwa, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
@@ -96,6 +96,7 @@ assert.doesNotMatch(runtime, /setInterval/);
 new Function(runtime);
 
 assert.match(reactive, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
+assert.match(reactive, /VANTIX_WAITER_REACTIVE_SERVICE_V9/);
 assert.match(reactive, /document\.addEventListener\('click',[\s\S]*true\)/);
 assert.match(reactive, /queueMicrotask\(\(\) => paintBilling\(desired\)\)/);
 assert.match(reactive, /queueMicrotask\(\(\) => paintGuestCount\(desired\)\)/);
@@ -111,8 +112,8 @@ assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v10/);
-assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v10/);
+assert.match(sw, /vantixgc-waiter-shell-v9-v10/);
+assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8-v10/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
 assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
@@ -131,5 +132,5 @@ console.log(JSON.stringify({
   serviceControlsSerialized:true,
   billingModeFlexibleWithConsumption:true,
   adaptiveButtons:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v10'
+  serviceWorkerCache:'vantixgc-waiter-shell-v9-v10'
 }));
