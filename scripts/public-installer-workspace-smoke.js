@@ -27,7 +27,7 @@ const genericCmd = installer.genericInstallerCmd('https://core.vantixgc.com');
 const claimPs = installer.claimInstallerPowerShell(claimToken, 'https://core.vantixgc.com');
 const claimCmd = installer.claimInstallerCmd(claimToken, 'https://core.vantixgc.com');
 
-assert.equal(installer.INSTALL_SOURCE_COMMIT, '0ce12ebdb8b2ecd92e102a6ef3abf01bfedee7a6');
+assert.equal(installer.INSTALL_SOURCE_COMMIT, 'df050fe31cf56b7aa01e757928ca8789b9d9fd0b');
 assert.equal(installer.NODE_VERSION, '22.23.2');
 assert.equal(installer.NODE_WIN_X64_SHA256, '1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97');
 

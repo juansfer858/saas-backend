@@ -1,6 +1,6 @@
 'use strict';
 
-const INSTALL_SOURCE_COMMIT = '0ce12ebdb8b2ecd92e102a6ef3abf01bfedee7a6';
+const INSTALL_SOURCE_COMMIT = 'df050fe31cf56b7aa01e757928ca8789b9d9fd0b';
 const NODE_VERSION = '22.23.2';
 const NODE_WIN_X64_SHA256 = '1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97';
 
