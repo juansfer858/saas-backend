@@ -17,6 +17,7 @@ const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
 const theme = read('src/web/restaurant-theme.js');
 const admin = read('src/web/restaurant-waiter-device-admin.js');
 const pair = read('src/web/restaurant-waiter-pair.html');
+const sessionBridge = read('src/web/restaurant-waiter-session-v8.js');
 const pwa = waiterPwaV11(read('src/web/restaurant-waiter-pwa-v7.html'));
 const runtime = waiterRuntimeV11(read('src/web/restaurant-waiter-runtime-v7.js'));
 const flexible = read('src/modules/restaurant/restaurant-waiter-service-flex-v9.js');
@@ -89,13 +90,25 @@ assert.doesNotMatch(runtime, /MutationObserver/);
 assert.doesNotMatch(runtime, /setInterval/);
 new Function(runtime);
 
+assert.match(sessionBridge, /VANTIX_WAITER_ORDER_REVIEW_V12/);
+assert.match(sessionBridge, /Pedido por confirmar/);
+assert.match(sessionBridge, /CONFIRMAR PEDIDO/);
+assert.match(sessionBridge, /Revisa antes de enviar/);
+assert.match(sessionBridge, /Nada se envía hasta pulsar/);
+assert.match(sessionBridge, /data-action=\"send-draft\"/);
+assert.match(sessionBridge, /#wvOrderToggle/);
+assert.match(sessionBridge, /POR CONFIRMAR/);
+assert.match(sessionBridge, /YA ENVIADO/);
+assert.doesNotMatch(sessionBridge, /MutationObserver/);
+new Function(sessionBridge);
+
 assert.match(flexible, /VANTIX_WAITER_FLEXIBLE_BILLING_V10/);
 assert.match(flexible, /seatNumber:\s*\{ gt: targetGuests \}/);
 assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v11/);
+assert.match(sw, /vantixgc-waiter-shell-v11-v12-review/);
 assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v11/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
@@ -104,14 +117,17 @@ assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
 console.log(JSON.stringify({
   ok:true,
   product:'VantixGC Mesero PWA',
-  version:'V11_NO_REBOUND',
-  runtime:'V11_SINGLE_STATE_OWNER',
+  version:'V12_ORDER_REVIEW',
+  runtime:'V11_SINGLE_STATE_OWNER_PLUS_V12_ORDER_REVIEW',
   deviceSession:'persistent-until-revoked',
   billingButtonsDoNotBounceBack:true,
   guestButtonsDoNotBounceBack:true,
   staleResponsesInvalidated:true,
   addPerson:true,
   removePerson:true,
+  orderReviewBeforeSend:true,
+  confirmOrderButton:true,
+  pendingAndSentSeparated:true,
   billingModeFlexibleWithConsumption:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v11'
+  serviceWorkerCache:'vantixgc-waiter-shell-v11-v12-review'
 }));
