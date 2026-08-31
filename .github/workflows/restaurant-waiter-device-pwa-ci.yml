@@ -44,9 +44,11 @@ jobs:
         run: npx prisma db push
       - name: Validate PWA adaptive static contract
         run: node scripts/restaurant-waiter-device-pwa-smoke.js
+      - name: Validate no-rebound service state contract
+        run: node scripts/restaurant-waiter-no-rebound-v11-smoke.js
       - name: Validate persistent session migration
         run: node scripts/restaurant-waiter-persistent-session-smoke.js
-      - name: Validate reactive billing and flexible service against PostgreSQL
+      - name: Validate flexible service against PostgreSQL
         run: node scripts/restaurant-waiter-reactive-v9-db-smoke.js
       - name: Validate fast serialized waiter interaction
         run: node scripts/restaurant-waiter-interaction-v6-smoke.js

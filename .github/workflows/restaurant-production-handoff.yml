@@ -32,10 +32,10 @@ jobs:
           test -f src/modules/restaurant/restaurant-menu-ocr-cleanup.service.js
           test -f src/web/restaurant-waiter-pwa-v7.html
           test -f src/web/restaurant-waiter-runtime-v7.js
-          test -f src/web/restaurant-waiter-reactive-v9.js
           test -f src/modules/restaurant/restaurant-waiter-service-flex-v9.js
           test -f src/web/restaurant-waiter-sw.js
           test -f scripts/restaurant-waiter-reactive-v9-db-smoke.js
+          test -f scripts/restaurant-waiter-no-rebound-v11-smoke.js
           test ! -f railpack.json
           grep -q "app.get('/healthz'" server.js
           grep -q "app.get('/readyz'" server.js
@@ -56,19 +56,18 @@ jobs:
           grep -q "assignedWaiterId: null" src/modules/restaurant/restaurant-zones.service.js
           grep -q "VANTIX_WAITER_DEDICATED_RUNTIME_V7" src/web/restaurant-waiter-runtime-v7.js
           grep -q "DEDICATED_PARTIAL_DOM_OPTIMISTIC" src/web/restaurant-waiter-runtime-v7.js
-          grep -q "VANTIX_WAITER_REACTIVE_SERVICE_V9" src/web/restaurant-waiter-reactive-v9.js
-          grep -q "paintBilling(desired)" src/web/restaurant-waiter-reactive-v9.js
-          grep -q "VANTIX_WAITER_FLEXIBLE_BILLING_V9" src/modules/restaurant/restaurant-waiter-service-flex-v9.js
-          grep -q "targetMode === 'INDIVIDUAL' ? 1 : null" src/modules/restaurant/restaurant-waiter-service-flex-v9.js
-          grep -q "vantixgc-waiter-shell-v9" src/web/restaurant-waiter-sw.js
-          grep -q "restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8" src/web/restaurant-waiter-sw.js
-          grep -q "restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8" src/web/restaurant-waiter-pwa-v7.html
+          grep -q "VANTIX_WAITER_FLEXIBLE_BILLING_V10" src/modules/restaurant/restaurant-waiter-service-flex-v9.js
+          grep -q "seatNumber: { gt: targetGuests }" src/modules/restaurant/restaurant-waiter-service-flex-v9.js
+          grep -q "waiterRuntimeV11" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "VANTIX_WAITER_NO_REBOUND_V11" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "function applyServiceLocally" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "v11-no-rebound-persistent" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "v11-no-rebound" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          ! grep -q "waiterReactiveV9Script" src/modules/restaurant/restaurant-waiter-device.public.routes.js
+          grep -q "vantixgc-waiter-shell-v11" src/web/restaurant-waiter-sw.js
+          grep -q "restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11" src/web/restaurant-waiter-sw.js
           grep -q "Dispositivo vinculado · acceso guardado" src/web/restaurant-waiter-pwa-v7.html
           grep -q "grid-template-columns:repeat(4,minmax(0,1fr))" src/web/restaurant-waiter-pwa-v7.html
-          grep -q "X-VantixGC-Waiter-PWA', 'v9-reactive-persistent" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "X-VantixGC-Waiter-Runtime', 'v9-reactive-adaptive" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "restaurant-waiter-reactive-v9.js" src/modules/restaurant/restaurant-waiter-device.public.routes.js
-          grep -q "restaurant-waiter-service-flex-v9" src/modules/restaurant/restaurant-waiter-device.public.routes.js
           grep -q "permanent: true" src/modules/restaurant/restaurant-waiter-device.service.js
           grep -q "DEVICE_PERSISTENT_UNTIL" src/modules/restaurant/restaurant-waiter-device.service.js
           grep -q "if (!permanent) options.expiresIn" src/utils/jwt.js
@@ -181,34 +180,37 @@ jobs:
           grep -q 'pdfjs-dist@3.11.174' /tmp/restaurant-menu-import-ui.js
           echo "PRODUCTION_RESTAURANT_BROWSER_OCR_V4_READY"
 
-      - name: Verify waiter tablet PWA V9 in production
+      - name: Verify waiter tablet PWA V11 in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 20 -o /tmp/waiter-sw.js https://core.vantixgc.com/app/centro-de-control/sw.js
-          grep -q 'vantixgc-waiter-shell-v9' /tmp/waiter-sw.js
-          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8' /tmp/waiter-sw.js
-          curl -fsSL --max-time 20 -D /tmp/waiter-runtime.headers -o /tmp/waiter-runtime.js 'https://core.vantixgc.com/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8'
-          grep -qi 'x-vantixgc-waiter-runtime: v9-reactive-adaptive' /tmp/waiter-runtime.headers
-          grep -q 'VANTIX_WAITER_REACTIVE_SERVICE_V9' /tmp/waiter-runtime.js
-          grep -q 'paintBilling(desired)' /tmp/waiter-runtime.js
+          grep -q 'vantixgc-waiter-shell-v11' /tmp/waiter-sw.js
+          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11' /tmp/waiter-sw.js
+          curl -fsSL --max-time 20 -D /tmp/waiter-runtime.headers -o /tmp/waiter-runtime.js 'https://core.vantixgc.com/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11'
+          grep -qi 'x-vantixgc-waiter-runtime: v11-no-rebound' /tmp/waiter-runtime.headers
+          grep -q 'VANTIX_WAITER_NO_REBOUND_V11' /tmp/waiter-runtime.js
+          grep -q 'function applyServiceLocally' /tmp/waiter-runtime.js
+          grep -q 'const mutationEpoch = ++S.detailsEpoch' /tmp/waiter-runtime.js
+          grep -q 'data-action="remove-person"' /tmp/waiter-runtime.js
           grep -q 'VANTIX_WAITER_DEDICATED_RUNTIME_V7' /tmp/waiter-runtime.js
           grep -q 'DEDICATED_PARTIAL_DOM_OPTIMISTIC' /tmp/waiter-runtime.js
           grep -q 'queueQtySync' /tmp/waiter-runtime.js
           grep -q 'detailsEpoch' /tmp/waiter-runtime.js
+          ! grep -q 'VANTIX_WAITER_REACTIVE_SERVICE_V10' /tmp/waiter-runtime.js
           ! grep -q 'setInterval' /tmp/waiter-runtime.js
           curl -fsSL --max-time 20 -D /tmp/waiter-pwa.headers -o /tmp/waiter-pwa.html 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1'
-          grep -qi 'x-vantixgc-waiter-pwa: v9-reactive-persistent' /tmp/waiter-pwa.headers
+          grep -qi 'x-vantixgc-waiter-pwa: v11-no-rebound-persistent' /tmp/waiter-pwa.headers
           grep -q '<title>VantixGC Mesero</title>' /tmp/waiter-pwa.html
-          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8' /tmp/waiter-pwa.html
+          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11' /tmp/waiter-pwa.html
           grep -q 'Dispositivo vinculado · acceso guardado' /tmp/waiter-pwa.html
           grep -q 'grid-template-columns:repeat(4,minmax(0,1fr))' /tmp/waiter-pwa.html
           grep -q 'id="wvApp"' /tmp/waiter-pwa.html
           grep -q 'id="wvMessage"' /tmp/waiter-pwa.html
           ! grep -q 'restaurant-ui.js' /tmp/waiter-pwa.html
           ! grep -q 'MutationObserver' /tmp/waiter-pwa.html
-          echo "PRODUCTION_RESTAURANT_WAITER_PWA_V9_READY"
+          echo "PRODUCTION_RESTAURANT_WAITER_PWA_V11_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
