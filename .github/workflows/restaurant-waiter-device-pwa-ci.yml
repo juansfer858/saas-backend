@@ -44,6 +44,8 @@ jobs:
         run: npx prisma db push
       - name: Validate PWA adaptive static contract
         run: node scripts/restaurant-waiter-device-pwa-smoke.js
+      - name: Validate waiter draft service contract
+        run: node scripts/restaurant-waiter-draft-service-contract-smoke.js
       - name: Validate no-rebound service state contract
         run: node scripts/restaurant-waiter-no-rebound-v11-smoke.js
       - name: Validate persistent session migration
