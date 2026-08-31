@@ -16,7 +16,7 @@ assert.match(runtime, /function applyServiceLocally/);
 assert.match(runtime, /const mutationEpoch = \+\+S\.detailsEpoch/);
 assert.match(runtime, /if \(S\.detailsEpoch !== mutationEpoch/);
 assert.match(runtime, /renderServiceBar\(\);\n\s*renderMenuGrid\(\);\n\s*renderOrder\(\);/);
-assert.match(runtime, /const result = await mutate\(`\/api\/v1\/restaurante\/sesiones\/\$\{sessionId\}\/servicio`/);
+assert.match(runtime, /const result = await api\(`\/api\/v1\/restaurante\/sesiones\/\$\{sessionId\}\/servicio`/);
 assert.match(runtime, /applyServiceLocally\(result\.service/);
 assert.match(runtime, /scheduleDetailRefresh\(\);/);
 assert.doesNotMatch(runtime, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
