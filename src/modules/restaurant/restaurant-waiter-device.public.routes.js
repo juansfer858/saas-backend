@@ -205,7 +205,7 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
     ]);
     const patchedRuntime = waiterRuntimeV13(runtime);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Runtime', 'v13-order-review-sync');
+    res.set('X-VantixGC-Waiter-Runtime', 'v11-no-rebound-v13-order-review-sync');
     res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
@@ -214,7 +214,7 @@ router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
   try {
     const html = waiterPwaV11(await fs.promises.readFile(waiterPwaV7Html, 'utf8'));
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-PWA', 'v13-order-review-sync-persistent');
+    res.set('X-VantixGC-Waiter-PWA', 'v11-no-rebound-persistent-v13-order-review-sync');
     res.type('text/html').send(html);
   } catch (error) { next(error); }
 });
