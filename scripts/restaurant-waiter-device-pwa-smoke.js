@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { waiterRuntimeV11, waiterPwaV11 } = require('../src/modules/restaurant/restaurant-waiter-device.public.routes');
+const { waiterRuntimeV11, waiterRuntimeV13, waiterPwaV11 } = require('../src/modules/restaurant/restaurant-waiter-device.public.routes');
 
 function read(relative) { return fs.readFileSync(path.join(__dirname, '..', relative), 'utf8'); }
 
@@ -19,7 +19,8 @@ const admin = read('src/web/restaurant-waiter-device-admin.js');
 const pair = read('src/web/restaurant-waiter-pair.html');
 const sessionBridge = read('src/web/restaurant-waiter-session-v8.js');
 const pwa = waiterPwaV11(read('src/web/restaurant-waiter-pwa-v7.html'));
-const runtime = waiterRuntimeV11(read('src/web/restaurant-waiter-runtime-v7.js'));
+const runtimeV11 = waiterRuntimeV11(read('src/web/restaurant-waiter-runtime-v7.js'));
+const runtime = waiterRuntimeV13(read('src/web/restaurant-waiter-runtime-v7.js'));
 const flexible = read('src/modules/restaurant/restaurant-waiter-service-flex-v9.js');
 const manifest = JSON.parse(read('src/web/restaurant-waiter-manifest.webmanifest'));
 const sw = read('src/web/restaurant-waiter-sw.js');
@@ -39,8 +40,9 @@ assert.match(publicRoutes, /\/api\/public\/restaurante\/mesero-dispositivo\/vinc
 assert.match(publicRoutes, /\/app\/centro-de-control\/mesero/);
 assert.match(publicRoutes, /restaurant-waiter-service-flex-v9/);
 assert.match(publicRoutes, /waiterRuntimeV11/);
-assert.match(publicRoutes, /v11-no-rebound-persistent/);
-assert.match(publicRoutes, /v11-no-rebound/);
+assert.match(publicRoutes, /waiterRuntimeV13/);
+assert.match(publicRoutes, /v13-order-review-sync/);
+assert.match(publicRoutes, /v13-order-review-sync-persistent/);
 assert.doesNotMatch(publicRoutes, /waiterReactiveV9Script/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
@@ -73,6 +75,8 @@ assert.match(pwa, /id="wvMessage"/);
 assert.doesNotMatch(pwa, /restaurant-ui\.js/);
 assert.doesNotMatch(pwa, /MutationObserver/);
 
+assert.match(runtimeV11, /VANTIX_WAITER_NO_REBOUND_V11/);
+assert.match(runtime, /VANTIX_WAITER_ORDER_REVIEW_SYNC_V13/);
 assert.match(runtime, /VANTIX_WAITER_NO_REBOUND_V11/);
 assert.match(runtime, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
 assert.match(runtime, /DEDICATED_PARTIAL_DOM_OPTIMISTIC/);
@@ -82,6 +86,11 @@ assert.match(runtime, /data-action="remove-person"/);
 assert.match(runtime, /Quitar última persona/);
 assert.match(runtime, /flexibleGuestMerge:true/);
 assert.match(runtime, /singleStateOwner:true/);
+assert.match(runtime, /orderReviewSync:true/);
+assert.match(runtime, /REVISANDO PEDIDO/);
+assert.match(runtime, /await flushQtyJobs\(\)/);
+assert.match(runtime, /refreshSelectedDetails\(\{ quiet:true, force:true \}\)/);
+assert.match(runtime, /vantix:waiter-order-review-ready/);
 assert.match(runtime, /qtyDesired:new Map/);
 assert.match(runtime, /queueQtySync/);
 assert.match(runtime, /detailsEpoch/);
@@ -91,6 +100,7 @@ assert.doesNotMatch(runtime, /setInterval/);
 new Function(runtime);
 
 assert.match(sessionBridge, /VANTIX_WAITER_ORDER_REVIEW_V12/);
+assert.match(sessionBridge, /VANTIX_WAITER_ORDER_REVIEW_SYNC_V13/);
 assert.match(sessionBridge, /Pedido por confirmar/);
 assert.match(sessionBridge, /CONFIRMAR PEDIDO/);
 assert.match(sessionBridge, /Revisa antes de enviar/);
@@ -99,6 +109,8 @@ assert.match(sessionBridge, /data-action=\"send-draft\"/);
 assert.match(sessionBridge, /#wvOrderToggle/);
 assert.match(sessionBridge, /POR CONFIRMAR/);
 assert.match(sessionBridge, /YA ENVIADO/);
+assert.match(sessionBridge, /vantix:waiter-order-review-ready/);
+assert.match(sessionBridge, /syncedBeforeReview:true/);
 assert.doesNotMatch(sessionBridge, /MutationObserver/);
 new Function(sessionBridge);
 
@@ -108,7 +120,7 @@ assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v11-v12-review/);
+assert.match(sw, /vantixgc-waiter-shell-v11-v12-review-v13-sync/);
 assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v11/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
@@ -117,8 +129,8 @@ assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
 console.log(JSON.stringify({
   ok:true,
   product:'VantixGC Mesero PWA',
-  version:'V12_ORDER_REVIEW',
-  runtime:'V11_SINGLE_STATE_OWNER_PLUS_V12_ORDER_REVIEW',
+  version:'V13_ORDER_REVIEW_SYNC',
+  runtime:'V11_SINGLE_STATE_OWNER_PLUS_V13_ORDER_REVIEW_SYNC',
   deviceSession:'persistent-until-revoked',
   billingButtonsDoNotBounceBack:true,
   guestButtonsDoNotBounceBack:true,
@@ -126,8 +138,9 @@ console.log(JSON.stringify({
   addPerson:true,
   removePerson:true,
   orderReviewBeforeSend:true,
+  orderSynchronizedBeforeReview:true,
   confirmOrderButton:true,
   pendingAndSentSeparated:true,
   billingModeFlexibleWithConsumption:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v11-v12-review'
+  serviceWorkerCache:'vantixgc-waiter-shell-v11-v12-review-v13-sync'
 }));
