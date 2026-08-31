@@ -32,7 +32,7 @@ assert.match(runtime, /hardReviewGate:true/);
 assert.match(runtime, /data-action="confirm-send-draft"/);
 assert.doesNotMatch(runtime, /data-action="send-draft"/);
 assert.match(pwa, /waiter-runtime-v14/);
-assert.match(sw, /vantixgc-waiter-shell-v15-tablet-review-entry/);
+assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry/);
 assert.match(sw, /waiter-runtime-v14/);
 assert.match(bridge, /VANTIX_WAITER_TABLET_REVIEW_ENTRY_V15/);
 assert.match(bridge, /REVISAR PEDIDO/);
