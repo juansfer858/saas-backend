@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { waiterRuntimeV10, waiterPwaV10 } = require('../src/modules/restaurant/restaurant-waiter-device.public.routes');
 
 function read(relative) { return fs.readFileSync(path.join(__dirname, '..', relative), 'utf8'); }
 
@@ -16,8 +17,10 @@ const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
 const theme = read('src/web/restaurant-theme.js');
 const admin = read('src/web/restaurant-waiter-device-admin.js');
 const pair = read('src/web/restaurant-waiter-pair.html');
-const pwa = read('src/web/restaurant-waiter-pwa-v7.html');
-const runtime = read('src/web/restaurant-waiter-runtime-v7.js');
+const pwaBase = read('src/web/restaurant-waiter-pwa-v7.html');
+const pwa = waiterPwaV10(pwaBase);
+const runtimeBase = read('src/web/restaurant-waiter-runtime-v7.js');
+const runtime = waiterRuntimeV10(runtimeBase);
 const reactive = read('src/web/restaurant-waiter-reactive-v9.js');
 const flexible = read('src/modules/restaurant/restaurant-waiter-service-flex-v9.js');
 const manifest = JSON.parse(read('src/web/restaurant-waiter-manifest.webmanifest'));
@@ -42,8 +45,9 @@ assert.match(publicRoutes, /\/api\/public\/restaurante\/mesero-dispositivo\/vinc
 assert.match(publicRoutes, /\/app\/centro-de-control\/mesero/);
 assert.match(publicRoutes, /restaurant-waiter-reactive-v9\.js/);
 assert.match(publicRoutes, /restaurant-waiter-service-flex-v9/);
-assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v9-reactive-persistent/);
-assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v9-reactive-adaptive/);
+assert.match(publicRoutes, /waiterRuntimeV10/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-PWA', 'v10-flexible-persistent/);
+assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v10-flexible-persons/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
 
@@ -67,7 +71,7 @@ assert.match(pair, /Vincular este dispositivo/);
 assert.match(pair, /localStorage\.setItem\(SESSION_KEY/);
 
 assert.match(pwa, /<title>VantixGC Mesero<\/title>/);
-assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8/);
+assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v10/);
 assert.match(pwa, /Dispositivo vinculado · acceso guardado/);
 assert.match(pwa, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 assert.match(pwa, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
@@ -80,6 +84,10 @@ assert.doesNotMatch(pwa, /MutationObserver/);
 
 assert.match(runtime, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
 assert.match(runtime, /DEDICATED_PARTIAL_DOM_OPTIMISTIC/);
+assert.match(runtime, /data-action="remove-person"/);
+assert.match(runtime, /Quitar última persona/);
+assert.match(runtime, /Persona \$\{current\} eliminada/);
+assert.match(runtime, /flexibleGuestMerge:true/);
 assert.match(runtime, /qtyDesired:new Map/);
 assert.match(runtime, /queueQtySync/);
 assert.match(runtime, /detailsEpoch/);
@@ -87,19 +95,24 @@ assert.doesNotMatch(runtime, /MutationObserver/);
 assert.doesNotMatch(runtime, /setInterval/);
 new Function(runtime);
 
-assert.match(reactive, /VANTIX_WAITER_REACTIVE_SERVICE_V9/);
+assert.match(reactive, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
 assert.match(reactive, /document\.addEventListener\('click',[\s\S]*true\)/);
-assert.match(reactive, /paintBilling\(desired\)/);
+assert.match(reactive, /queueMicrotask\(\(\) => paintBilling\(desired\)\)/);
+assert.match(reactive, /queueMicrotask\(\(\) => paintGuestCount\(desired\)\)/);
+assert.match(reactive, /remove-person/);
+assert.match(reactive, /repeat\(4,minmax\(0,1fr\)\)/);
 assert.match(reactive, /pointerEvents = locked/);
 assert.match(reactive, /aria-pressed/);
 new Function(reactive);
 
-assert.match(flexible, /VANTIX_WAITER_FLEXIBLE_BILLING_V9/);
+assert.match(flexible, /VANTIX_WAITER_FLEXIBLE_BILLING_V10/);
+assert.match(flexible, /seatNumber:\s*\{ gt: targetGuests \}/);
+assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v9/);
-assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8/);
+assert.match(sw, /vantixgc-waiter-shell-v10/);
+assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v10/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
 assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
@@ -107,12 +120,16 @@ assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
 console.log(JSON.stringify({
   ok:true,
   product:'VantixGC Mesero PWA',
-  version:'V9_REACTIVE_PERSISTENT',
-  runtime:'V7_DEDICATED_PLUS_V9_REACTIVE',
+  version:'V10_FLEXIBLE_PERSONS',
+  runtime:'V7_DEDICATED_PLUS_V10_REACTIVE',
   deviceSession:'persistent-until-revoked',
   visualBillingReactionImmediate:true,
+  visualGuestCountReactionImmediate:true,
+  addPerson:true,
+  removePerson:true,
+  removedPersonConsumptionMerge:true,
   serviceControlsSerialized:true,
   billingModeFlexibleWithConsumption:true,
   adaptiveButtons:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v9'
+  serviceWorkerCache:'vantixgc-waiter-shell-v10'
 }));
