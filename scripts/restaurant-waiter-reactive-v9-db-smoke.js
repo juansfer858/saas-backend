@@ -8,28 +8,32 @@ const { ensureRestaurantDemoTenant } = require('./ensure-restaurant-demo-tenant'
 const restaurant = require('../src/modules/restaurant/restaurant.service');
 const identity = require('../src/modules/restaurant/restaurant-identity.service');
 const flex = require('../src/modules/restaurant/restaurant-waiter-service-flex-v9');
-const { waiterRuntimeV11 } = require('../src/modules/restaurant/restaurant-waiter-device.public.routes');
+const { waiterRuntimeV14 } = require('../src/modules/restaurant/restaurant-waiter-device.public.routes');
 
 function read(relative) { return fs.readFileSync(path.join(__dirname, '..', relative), 'utf8'); }
 
 async function main() {
   assert.equal(flex.MARKER, 'VANTIX_WAITER_FLEXIBLE_BILLING_V10');
   const publicRoutes = read('src/modules/restaurant/restaurant-waiter-device.public.routes.js');
-  const runtime = waiterRuntimeV11(read('src/web/restaurant-waiter-runtime-v7.js'));
+  const runtime = waiterRuntimeV14(read('src/web/restaurant-waiter-runtime-v7.js'));
   const sw = read('src/web/restaurant-waiter-sw.js');
 
   assert.match(runtime, /VANTIX_WAITER_NO_REBOUND_V11/);
+  assert.match(runtime, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
   assert.match(runtime, /function applyServiceLocally/);
   assert.match(runtime, /const mutationEpoch = \+\+S\.detailsEpoch/);
   assert.match(runtime, /S\.mutationCount \|\| S\.qtyJobs\.size/);
   assert.match(runtime, /data-action="remove-person"/);
   assert.match(runtime, /singleStateOwner:true/);
+  assert.match(runtime, /hardReviewGate:true/);
+  assert.match(runtime, /data-action="confirm-send-draft"/);
+  assert.doesNotMatch(runtime, /data-action="send-draft"/);
   assert.doesNotMatch(runtime, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
-  assert.match(publicRoutes, /waiterRuntimeV11/);
-  assert.match(publicRoutes, /v11-no-rebound/);
+  assert.match(publicRoutes, /waiterRuntimeV14/);
+  assert.match(publicRoutes, /v14-review-hard-gate/);
   assert.doesNotMatch(publicRoutes, /waiterReactiveV9Script/);
-  assert.match(sw, /vantixgc-waiter-shell-v11/);
-  assert.match(sw, /waiter-runtime-v11/);
+  assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate/);
+  assert.match(sw, /waiter-runtime-v14/);
   new Function(runtime);
 
   const demo = await ensureRestaurantDemoTenant();
@@ -72,13 +76,14 @@ async function main() {
 
   console.log(JSON.stringify({
     ok:true,
-    waiter:'V11_NO_REBOUND',
+    waiter:'V11_NO_REBOUND_WITH_V14_HARD_GATE',
     backendAckMatchesSelection:true,
     jointToIndividual:true,
     addPerson:true,
     removePerson:true,
     removedSeatConsumptionMerged:true,
-    individualToJoint:true
+    individualToJoint:true,
+    hardReviewGate:true
   }));
 }
 
