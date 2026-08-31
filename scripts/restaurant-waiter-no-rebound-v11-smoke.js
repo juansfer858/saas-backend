@@ -11,6 +11,7 @@ const runtimeV11 = waiterRuntimeV11(base);
 const runtime = waiterRuntimeV14(base);
 const pwa = waiterPwaV11(read('src/web/restaurant-waiter-pwa-v7.html'));
 const sw = read('src/web/restaurant-waiter-sw.js');
+const bridge = read('src/web/restaurant-waiter-session-v8.js');
 
 assert.match(runtimeV11, /VANTIX_WAITER_NO_REBOUND_V11/);
 assert.match(runtime, /VANTIX_WAITER_NO_REBOUND_V11/);
@@ -31,12 +32,14 @@ assert.match(runtime, /hardReviewGate:true/);
 assert.match(runtime, /data-action="confirm-send-draft"/);
 assert.doesNotMatch(runtime, /data-action="send-draft"/);
 assert.match(pwa, /waiter-runtime-v14/);
-assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate/);
+assert.match(sw, /vantixgc-waiter-shell-v15-tablet-review-entry/);
 assert.match(sw, /waiter-runtime-v14/);
+assert.match(bridge, /VANTIX_WAITER_TABLET_REVIEW_ENTRY_V15/);
+assert.match(bridge, /REVISAR PEDIDO/);
 
 console.log(JSON.stringify({
   ok:true,
-  waiter:'V11_NO_REBOUND_WITH_V14_HARD_GATE',
+  waiter:'V11_NO_REBOUND_WITH_V14_HARD_GATE_PLUS_V15_TABLET_REVIEW_ENTRY',
   singleStateOwner:true,
   staleDetailResponsesInvalidated:true,
   serviceAckAppliedWithoutFullReload:true,
@@ -44,5 +47,6 @@ console.log(JSON.stringify({
   guestButtonsDoNotBounceBack:true,
   removePerson:true,
   hardReviewGate:true,
+  tabletReviewEntry:true,
   directKitchenSendFromReviewImpossible:true
 }));
