@@ -48,7 +48,8 @@
 (() => {
   'use strict';
   const MARKER = 'VANTIX_WAITER_ORDER_REVIEW_V12';
-  const RETRIES_MS = [0, 220, 650, 1300, 2200];
+  const SYNC_MARKER = 'VANTIX_WAITER_ORDER_REVIEW_SYNC_V13';
+  const RETRIES_MS = [0, 180, 450, 900, 1800, 3200];
   let timers = [];
 
   function clearReviewTimers() {
@@ -134,6 +135,8 @@
     scheduleReview();
   }, false);
 
+  window.addEventListener('vantix:waiter-order-review-ready', scheduleReview);
+
   document.addEventListener('click', (event) => {
     const confirm = event.target?.closest?.('[data-action="send-draft"]');
     if (!confirm) return;
@@ -151,5 +154,5 @@
   `;
   document.head.appendChild(style);
 
-  window.VantixGCWaiterOrderReviewV12 = Object.freeze({ marker:MARKER, confirmBeforeSend:true, passiveEnhancement:true });
+  window.VantixGCWaiterOrderReviewV12 = Object.freeze({ marker:MARKER, syncMarker:SYNC_MARKER, confirmBeforeSend:true, syncedBeforeReview:true, passiveEnhancement:true });
 })();

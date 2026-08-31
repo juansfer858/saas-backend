@@ -148,6 +148,41 @@ function waiterRuntimeV11(runtime) {
     .replace("pollDomDiff:true", "pollDomDiff:true, removePerson:true, flexibleGuestMerge:true, noRebound:true, singleStateOwner:true");
 }
 
+function waiterRuntimeV13(runtime) {
+  const v11 = waiterRuntimeV11(runtime);
+  const toggleNeedle = "document.addEventListener('click', (event) => { if (event.target?.id === 'wvOrderToggle') { touch(); openOrder(); } });";
+  const toggleReplacement = `document.addEventListener('click', async (event) => {
+    if (event.target?.id !== 'wvOrderToggle') return;
+    touch();
+    const sessionId = selectedSessionId();
+    const toggle = event.target;
+    openOrder();
+    toggle.disabled = true;
+    toggle.textContent = 'REVISANDO PEDIDO…';
+    document.documentElement.dataset.waiterOrderSync = '1';
+    try {
+      if (S.detailRefreshTimer) { clearTimeout(S.detailRefreshTimer); S.detailRefreshTimer = null; }
+      await flushQtyJobs();
+      if (!sessionId || selectedSessionId() !== sessionId) return;
+      await refreshSelectedDetails({ quiet:true, force:true });
+      if (selectedSessionId() !== sessionId) return;
+      renderOrder();
+      window.dispatchEvent(new CustomEvent('vantix:waiter-order-review-ready', { detail:{ sessionId } }));
+    } catch (error) {
+      message(error.message || 'No fue posible actualizar el pedido.', true);
+    } finally {
+      toggle.disabled = false;
+      document.documentElement.dataset.waiterOrderSync = '0';
+      if (selectedSessionId() === sessionId) renderOrder();
+    }
+  });`;
+  if (!v11.includes(toggleNeedle)) throw new Error('No fue posible aplicar el contrato Mesero V13 sobre VER PEDIDO');
+  return `/* VANTIX_WAITER_ORDER_REVIEW_SYNC_V13 */\n${v11}`
+    .replace(toggleNeedle, toggleReplacement)
+    .replace("version:'11.0.0'", "version:'13.0.0'")
+    .replace('singleStateOwner:true', 'singleStateOwner:true, orderReviewSync:true');
+}
+
 function waiterPwaV11(html) {
   return html.replace('restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8', 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11');
 }
@@ -168,9 +203,9 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
       fs.promises.readFile(waiterSessionV8Script, 'utf8'),
       fs.promises.readFile(waiterRuntimeV7Script, 'utf8')
     ]);
-    const patchedRuntime = waiterRuntimeV11(runtime);
+    const patchedRuntime = waiterRuntimeV13(runtime);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Runtime', 'v11-no-rebound');
+    res.set('X-VantixGC-Waiter-Runtime', 'v11-no-rebound-v13-order-review-sync');
     res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
@@ -179,7 +214,7 @@ router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
   try {
     const html = waiterPwaV11(await fs.promises.readFile(waiterPwaV7Html, 'utf8'));
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-PWA', 'v11-no-rebound-persistent');
+    res.set('X-VantixGC-Waiter-PWA', 'v11-no-rebound-persistent-v13-order-review-sync');
     res.type('text/html').send(html);
   } catch (error) { next(error); }
 });
@@ -189,4 +224,4 @@ router.get('/app/centro-de-control/waiter-icon.svg', (_req, res) => { res.set('C
 router.get('/app/centro-de-control/waiter-icon-192.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/png').sendFile(icon192File); });
 router.get('/app/centro-de-control/waiter-icon-512.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/png').sendFile(icon512File); });
 
-module.exports = { restaurantWaiterDevicePublicRouter: router, waiterRuntimeV11, waiterPwaV11 };
+module.exports = { restaurantWaiterDevicePublicRouter: router, waiterRuntimeV11, waiterRuntimeV13, waiterPwaV11 };
