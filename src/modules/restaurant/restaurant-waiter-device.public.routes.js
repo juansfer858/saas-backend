@@ -44,7 +44,7 @@ function waiterRuntimeV10(runtime) {
 }
 
 function waiterPwaV10(html) {
-  return html.replace('restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8', 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v10');
+  return html.replace('restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8', 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8-v10');
 }
 
 const claimSchema = z.object({ token: z.string().trim().min(20).max(300), deviceName: z.string().trim().max(80).optional().nullable() });
@@ -66,7 +66,7 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
     ]);
     const patchedRuntime = waiterRuntimeV10(runtime);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Runtime', 'v10-flexible-persons');
+    res.set('X-VantixGC-Waiter-Runtime', 'v9-reactive-adaptive-v10-flexible-persons');
     res.type('application/javascript').send(`${sessionBridge}\n;${reactive}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
@@ -75,7 +75,7 @@ router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
   try {
     const html = waiterPwaV10(await fs.promises.readFile(waiterPwaV7Html, 'utf8'));
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-PWA', 'v10-flexible-persistent');
+    res.set('X-VantixGC-Waiter-PWA', 'v9-reactive-persistent-v10-flexible-persons');
     res.type('text/html').send(html);
   } catch (error) { next(error); }
 });
