@@ -142,7 +142,7 @@ assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v15-tablet-review-entry/);
+assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry/);
 assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
@@ -167,5 +167,5 @@ console.log(JSON.stringify({
   confirmOrderButton:true,
   pendingAndSentSeparated:true,
   billingModeFlexibleWithConsumption:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v15-tablet-review-entry'
+  serviceWorkerCache:'vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry'
 }));
