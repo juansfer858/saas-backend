@@ -115,6 +115,11 @@ new Function(runtime);
 assert.match(sessionBridge, /VANTIX_WAITER_ORDER_REVIEW_V12/);
 assert.match(sessionBridge, /VANTIX_WAITER_ORDER_REVIEW_SYNC_V13/);
 assert.match(sessionBridge, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
+assert.match(sessionBridge, /VANTIX_WAITER_TABLET_REVIEW_ENTRY_V15/);
+assert.match(sessionBridge, /data-wv-review-entry/);
+assert.match(sessionBridge, /REVISAR PEDIDO/);
+assert.match(sessionBridge, /ensureReviewEntryButton/);
+assert.match(sessionBridge, /toggle\.click\(\)/);
 assert.match(sessionBridge, /Pedido por confirmar/);
 assert.match(sessionBridge, /CONFIRMAR PEDIDO/);
 assert.match(sessionBridge, /Revisa antes de enviar/);
@@ -126,6 +131,7 @@ assert.match(sessionBridge, /POR CONFIRMAR/);
 assert.match(sessionBridge, /YA ENVIADO/);
 assert.match(sessionBridge, /vantix:waiter-order-review-ready/);
 assert.match(sessionBridge, /syncedBeforeReview:true/);
+assert.match(sessionBridge, /tabletReviewEntry:true/);
 assert.match(sessionBridge, /noDirectKitchenSend:true/);
 assert.doesNotMatch(sessionBridge, /MutationObserver/);
 new Function(sessionBridge);
@@ -136,7 +142,7 @@ assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate/);
+assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry/);
 assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
@@ -145,8 +151,8 @@ assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
 console.log(JSON.stringify({
   ok:true,
   product:'VantixGC Mesero PWA',
-  version:'V14_REVIEW_HARD_GATE',
-  runtime:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE',
+  version:'V15_TABLET_REVIEW_ENTRY',
+  runtime:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE_PLUS_V15_TABLET_REVIEW_ENTRY',
   deviceSession:'persistent-until-revoked',
   billingButtonsDoNotBounceBack:true,
   guestButtonsDoNotBounceBack:true,
@@ -156,9 +162,10 @@ console.log(JSON.stringify({
   orderReviewBeforeSend:true,
   orderSynchronizedBeforeReview:true,
   hardReviewGate:true,
+  tabletReviewEntry:true,
   directKitchenSendImpossibleFromReviewButton:true,
   confirmOrderButton:true,
   pendingAndSentSeparated:true,
   billingModeFlexibleWithConsumption:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v14-review-hard-gate'
+  serviceWorkerCache:'vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry'
 }));
