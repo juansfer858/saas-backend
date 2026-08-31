@@ -14,26 +14,30 @@ function read(relative) { return fs.readFileSync(path.join(__dirname, '..', rela
 
 async function main() {
   assert.equal(flex.MARKER, 'VANTIX_WAITER_FLEXIBLE_BILLING_V10');
+  assert.equal(flex.LEGACY_MARKER, 'VANTIX_WAITER_FLEXIBLE_BILLING_V9');
   const reactive = read('src/web/restaurant-waiter-reactive-v9.js');
   const publicRoutes = read('src/modules/restaurant/restaurant-waiter-device.public.routes.js');
   const runtimeBase = read('src/web/restaurant-waiter-runtime-v7.js');
   const runtime = waiterRuntimeV10(runtimeBase);
   const sw = read('src/web/restaurant-waiter-sw.js');
   assert.match(reactive, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
+  assert.match(reactive, /VANTIX_WAITER_REACTIVE_SERVICE_V9/);
   assert.match(reactive, /queueMicrotask\(\(\) => paintBilling\(desired\)\)/);
+  assert.match(reactive, /queueMicrotask\(\(\) => paintGuestCount\(desired\)\)/);
   assert.match(reactive, /remove-person/);
   assert.match(reactive, /repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(reactive, /pointerEvents = locked/);
   assert.match(reactive, /\/servicio\$/);
   assert.match(publicRoutes, /waiterRuntimeV10/);
-  assert.match(publicRoutes, /v10-flexible-persons/);
-  assert.match(publicRoutes, /v10-flexible-persistent/);
+  assert.match(publicRoutes, /v9-reactive-adaptive-v10-flexible-persons/);
+  assert.match(publicRoutes, /v9-reactive-persistent-v10-flexible-persons/);
   assert.match(publicRoutes, /restaurant-waiter-service-flex-v9/);
   assert.match(runtime, /data-action="remove-person"/);
+  assert.match(runtime, /Quitar última persona/);
   assert.match(runtime, /Persona \$\{current\} eliminada/);
   new Function(runtime);
-  assert.match(sw, /vantixgc-waiter-shell-v10/);
-  assert.match(sw, /waiter-runtime-v10/);
+  assert.match(sw, /vantixgc-waiter-shell-v9-v10/);
+  assert.match(sw, /waiter-runtime-v8-v10/);
 
   const demo = await ensureRestaurantDemoTenant();
   const waiter = await prisma.user.findUnique({ where: { id: demo.users.MESERO } });
