@@ -77,33 +77,36 @@ async function main() {
   assert.equal(payload.rol, 'MESERO');
   assert.equal(payload.deviceId, pairing.deviceId);
   assert.equal(payload.authType, 'WAITER_DEVICE');
-  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'exp'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'exp'), false, 'el token del dispositivo no debe vencer por fecha');
 
   const activeRow = await prisma.trackingLink.findUnique({ where:{ id:pairing.deviceId } });
   assert.equal(activeRow.currentStatus, 'ACTIVE');
   assert.equal(activeRow.active, true);
-  assert.ok(activeRow.expiresAt.getUTCFullYear() >= 9999);
+  assert.ok(activeRow.expiresAt.getUTCFullYear() >= 9999, 'la columna legacy expiresAt debe quedar como centinela permanente');
 
   await withHttpServer(async (baseUrl) => {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwaHtml = await pwaResponse.text();
-    assert.equal(pwaResponse.status, 200);
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v9-reactive-persistent');
-    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v8/);
+    assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v10-flexible-persistent');
+    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v10/);
     assert.match(pwaHtml, /Dispositivo vinculado · acceso guardado/);
     assert.match(pwaHtml, /id="wvApp"/);
+    assert.match(pwaHtml, /id="wvMessage"/);
     assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
     assert.doesNotMatch(pwaHtml, /MutationObserver/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8`, { cache:'no-store' });
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v10`, { cache:'no-store' });
     const runtimeJs = await runtimeResponse.text();
-    assert.equal(runtimeResponse.status, 200);
-    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v9-reactive-adaptive');
-    assert.match(runtimeJs, /VantixGCWaiterSessionV8/);
-    assert.match(runtimeJs, /VANTIX_WAITER_REACTIVE_SERVICE_V9/);
+    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V10 debe cargar');
+    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v10-flexible-persons');
+    assert.match(runtimeJs, /VANTIX_WAITER_REACTIVE_SERVICE_V10/);
+    assert.match(runtimeJs, /data-action="remove-person"/);
+    assert.match(runtimeJs, /Quitar última persona/);
+    assert.match(runtimeJs, /queueMicrotask\(\(\) => paintGuestCount\(desired\)\)/);
     assert.match(runtimeJs, /VANTIX_WAITER_DEDICATED_RUNTIME_V7/);
-    assert.match(runtimeJs, /paintBilling\(desired\)/);
     assert.match(runtimeJs, /queueQtySync/);
+    assert.match(runtimeJs, /detailsEpoch/);
     assert.doesNotMatch(runtimeJs, /setInterval/);
 
     const context = await getJson(baseUrl, '/api/v1/restaurante/ui-context', claimed.session);
@@ -161,11 +164,17 @@ async function main() {
     tenant:seeded.subdomain,
     deviceId:pairing.deviceId,
     waiter:waiter.nombre,
+    oneTimePairing:true,
     permanentDeviceAccess:true,
-    waiterPwa:'V9_REACTIVE_PERSISTENT',
-    runtime:'V7_DEDICATED_PLUS_V9_REACTIVE',
+    jwtExpiry:false,
+    serverRevocationImmediate:true,
+    waiterPwa:'V10_FLEXIBLE_PERSISTENT',
+    runtime:'V10_FLEXIBLE_PERSONS',
+    removePerson:true,
     auditActions:actions
   }));
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => prisma.$disconnect());
+main()
+  .catch((error) => { console.error(error); process.exitCode = 1; })
+  .finally(async () => prisma.$disconnect());
