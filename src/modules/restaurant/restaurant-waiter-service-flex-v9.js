@@ -5,6 +5,7 @@ const { AppError } = require('../../utils/app-error');
 const identity = require('./restaurant-identity.service');
 
 const MARKER = 'VANTIX_WAITER_FLEXIBLE_BILLING_V10';
+const LEGACY_MARKER = 'VANTIX_WAITER_FLEXIBLE_BILLING_V9';
 
 async function updateTableServiceSetupFlexible(tenantId, user, sessionId, input) {
   const updated = await prisma.$transaction(async (tx) => {
@@ -30,8 +31,6 @@ async function updateTableServiceSetupFlexible(tenantId, user, sessionId, input)
         data: { seatNumber: targetMode === 'INDIVIDUAL' ? 1 : null }
       });
     } else if (targetMode === 'INDIVIDUAL' && targetGuests < currentGuests && orderIds.length) {
-      // Al eliminar personas nunca se pierden consumos: cualquier ítem de una persona
-      // que desaparece se fusiona en la última persona que queda visible.
       await tx.restaurantOrderItem.updateMany({
         where: {
           tenantId,
@@ -54,4 +53,4 @@ async function updateTableServiceSetupFlexible(tenantId, user, sessionId, input)
 
 identity.updateTableServiceSetup = updateTableServiceSetupFlexible;
 
-module.exports = { MARKER, updateTableServiceSetupFlexible };
+module.exports = { MARKER, LEGACY_MARKER, updateTableServiceSetupFlexible };
