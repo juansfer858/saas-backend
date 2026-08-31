@@ -46,6 +46,8 @@ jobs:
         run: node scripts/restaurant-waiter-device-pwa-smoke.js
       - name: Validate persistent session migration
         run: node scripts/restaurant-waiter-persistent-session-smoke.js
+      - name: Validate reactive billing and flexible service against PostgreSQL
+        run: node scripts/restaurant-waiter-reactive-v9-db-smoke.js
       - name: Validate fast serialized waiter interaction
         run: node scripts/restaurant-waiter-interaction-v6-smoke.js
       - name: Validate shared-floor security contract
