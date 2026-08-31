@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const { restaurantSelfServicePublicRouter } = require('../self-service/restaurant-self-service.routes');
+const windowsInstaller = require('./windows-installer.service');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
@@ -13,6 +14,14 @@ const restaurantOnboardingPath = path.join(webRoot, 'restaurant-onboarding.html'
 const restaurantPublicThemePath = path.join(webRoot, 'restaurant-public-theme.css');
 
 router.use('/api/public/restaurantes', restaurantSelfServicePublicRouter);
+
+function publicBaseUrl(req) {
+  const configured = String(process.env.CORE_PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
+  if (configured) return configured;
+  const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const protocol = forwarded || req.protocol || 'https';
+  return `${protocol}://${req.get('host')}`;
+}
 
 async function sendRestaurantPublicHtml(filePath, res, next) {
   try {
@@ -41,6 +50,17 @@ router.get('/app/onboarding', (_req, res, next) => sendRestaurantPublicHtml(rest
 router.get('/instalar', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
   res.type('html').sendFile(landingPath);
+});
+
+router.get('/instalar/windows.cmd', (req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Content-Disposition', 'attachment; filename="INSTALAR_VANTIXGC_RESTAURANTES.cmd"');
+  res.type('text/plain').send(windowsInstaller.genericInstallerCmd(publicBaseUrl(req)));
+});
+
+router.get('/instalar/windows.ps1', (req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.type('text/plain').send(windowsInstaller.genericInstallerPowerShell(publicBaseUrl(req)));
 });
 
 router.get('/instalar-restaurantes', (_req, res) => res.redirect(302, '/restaurantes'));
