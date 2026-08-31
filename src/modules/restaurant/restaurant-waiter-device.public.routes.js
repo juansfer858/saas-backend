@@ -28,6 +28,25 @@ function parse(schema, value) {
   return result.data;
 }
 
+function waiterRuntimeV10(runtime) {
+  const controlsNeedle = '<button type="button" class="wv-btn" data-action="add-person">+ Persona</button></div>';
+  const controlsReplacement = '<button type="button" class="wv-btn" data-action="remove-person" aria-label="Quitar última persona">− Persona</button><button type="button" class="wv-btn" data-action="add-person">+ Persona</button></div>';
+  const actionNeedle = "if (action === 'add-person') return updateService({ guestCount:guestCount() + 1 }, `Persona ${guestCount() + 1} agregada.`);";
+  const actionReplacement = "if (action === 'remove-person') { const current = guestCount(); if (current <= 1) return message('La mesa debe conservar al menos una persona.', true); const next = current - 1; if (S.seat > next) S.seat = next; return updateService({ guestCount:next }, `Persona ${current} eliminada. Si tenía productos, pasan a Persona ${next}.`); }\n    if (action === 'add-person') return updateService({ guestCount:guestCount() + 1 }, `Persona ${guestCount() + 1} agregada.`);";
+  if (!runtime.includes(controlsNeedle) || !runtime.includes(actionNeedle)) {
+    throw new Error('No fue posible aplicar el contrato Mesero V10 sobre el runtime base');
+  }
+  return runtime
+    .replace(controlsNeedle, controlsReplacement)
+    .replace(actionNeedle, actionReplacement)
+    .replace("version:'7.1.0'", "version:'10.0.0'")
+    .replace("pollDomDiff:true", "pollDomDiff:true, removePerson:true, flexibleGuestMerge:true");
+}
+
+function waiterPwaV10(html) {
+  return html.replace('restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8', 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v8-v10');
+}
+
 const claimSchema = z.object({ token: z.string().trim().min(20).max(300), deviceName: z.string().trim().max(80).optional().nullable() });
 
 router.get('/api/public/restaurante/mesero-dispositivo/vinculo', async (req, res, next) => {
@@ -45,17 +64,25 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
       fs.promises.readFile(waiterReactiveV9Script, 'utf8'),
       fs.promises.readFile(waiterRuntimeV7Script, 'utf8')
     ]);
+    const patchedRuntime = waiterRuntimeV10(runtime);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Runtime', 'v9-reactive-adaptive');
-    res.type('application/javascript').send(`${sessionBridge}\n;${reactive}\n;${runtime}`);
+    res.set('X-VantixGC-Waiter-Runtime', 'v9-reactive-adaptive-v10-flexible-persons');
+    res.type('application/javascript').send(`${sessionBridge}\n;${reactive}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
 router.get('/app/centro-de-control/conectar', (_req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(pairHtml); });
-router.get('/app/centro-de-control/mesero', (_req, res) => { res.set('Cache-Control', 'no-store'); res.set('X-VantixGC-Waiter-PWA', 'v9-reactive-persistent'); res.sendFile(waiterPwaV7Html); });
+router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
+  try {
+    const html = waiterPwaV10(await fs.promises.readFile(waiterPwaV7Html, 'utf8'));
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Waiter-PWA', 'v9-reactive-persistent-v10-flexible-persons');
+    res.type('text/html').send(html);
+  } catch (error) { next(error); }
+});
 router.get('/app/centro-de-control/manifest.webmanifest', (_req, res) => { res.set('Cache-Control', 'no-cache'); res.type('application/manifest+json').sendFile(manifestFile); });
 router.get('/app/centro-de-control/sw.js', (_req, res) => { res.set('Cache-Control', 'no-cache'); res.set('Service-Worker-Allowed', '/app/centro-de-control'); res.type('application/javascript').sendFile(swFile); });
 router.get('/app/centro-de-control/waiter-icon.svg', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/svg+xml').sendFile(iconFile); });
 router.get('/app/centro-de-control/waiter-icon-192.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/png').sendFile(icon192File); });
 router.get('/app/centro-de-control/waiter-icon-512.png', (_req, res) => { res.set('Cache-Control', 'public, max-age=86400'); res.type('image/png').sendFile(icon512File); });
 
-module.exports = { restaurantWaiterDevicePublicRouter: router };
+module.exports = { restaurantWaiterDevicePublicRouter: router, waiterRuntimeV10, waiterPwaV10 };

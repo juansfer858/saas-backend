@@ -1,7 +1,8 @@
 (() => {
   'use strict';
 
-  const MARKER = 'VANTIX_WAITER_REACTIVE_SERVICE_V9';
+  const MARKER = 'VANTIX_WAITER_REACTIVE_SERVICE_V10';
+  const LEGACY_MARKER = 'VANTIX_WAITER_REACTIVE_SERVICE_V9';
   const nativeFetch = window.fetch.bind(window);
   let pendingBilling = null;
   let pendingGuests = null;
@@ -10,6 +11,7 @@
   const serviceBar = () => document.querySelector('#wvServiceBar');
   const billingButtons = () => [...document.querySelectorAll('#wvServiceBar [data-billing]')];
   const addPersonButton = () => document.querySelector('#wvServiceBar [data-action="add-person"]');
+  const removePersonButton = () => document.querySelector('#wvServiceBar [data-action="remove-person"]');
 
   function selectedBillingFromDom() {
     return billingButtons().find((button) => button.classList.contains('primary'))?.dataset.billing || null;
@@ -29,19 +31,29 @@
   }
 
   function readGuestCount() {
+    const seats = helperNode()?.querySelectorAll?.('[data-seat]');
+    if (seats?.length) return seats.length;
     const match = String(helperNode()?.textContent || '').match(/(\d+)\s+persona/i);
     return match ? Number(match[1]) : null;
   }
 
   function paintGuestCount(count) {
     const row = helperNode();
-    if (!row || !Number.isFinite(Number(count))) return;
-    if (selectedBillingFromDom() === 'INDIVIDUAL') return;
-    row.innerHTML = `<span class="wv-v9-guest-summary">${Number(count)} persona(s) · cuenta conjunta</span>`;
+    const numeric = Number(count);
+    if (!row || !Number.isFinite(numeric) || numeric < 1) return;
+    if (selectedBillingFromDom() === 'INDIVIDUAL') {
+      const currentActive = Number(row.querySelector('.wv-seat.active')?.dataset.seat || 1);
+      const selected = Math.min(Math.max(currentActive, 1), numeric);
+      row.innerHTML = Array.from({ length:numeric }, (_, index) => index + 1)
+        .map((seat) => `<button type="button" class="wv-btn wv-seat ${seat === selected ? 'active' : ''}" data-seat="${seat}">Persona ${seat}</button>`)
+        .join('');
+      return;
+    }
+    row.innerHTML = `<span class="wv-v10-guest-summary">${numeric} persona(s) · cuenta conjunta</span>`;
   }
 
   function lockServiceControls(locked) {
-    for (const button of [...billingButtons(), addPersonButton()].filter(Boolean)) {
+    for (const button of [...billingButtons(), addPersonButton(), removePersonButton()].filter(Boolean)) {
       button.style.pointerEvents = locked ? 'none' : '';
       button.setAttribute('aria-busy', locked ? 'true' : 'false');
       button.classList.toggle('wv-service-saving', locked);
@@ -76,18 +88,21 @@
       const desired = button.dataset.billing;
       if (previous === desired) return;
       pendingBilling = { previous, desired };
-      paintBilling(desired);
       lockServiceControls(true);
+      queueMicrotask(() => paintBilling(desired));
       fallbackRelease();
       return;
     }
 
-    if (button.dataset.action === 'add-person') {
+    if (button.dataset.action === 'add-person' || button.dataset.action === 'remove-person') {
       const previous = readGuestCount();
       if (!Number.isFinite(previous)) return;
-      pendingGuests = { previous, desired: previous + 1 };
-      paintGuestCount(previous + 1);
+      const delta = button.dataset.action === 'add-person' ? 1 : -1;
+      const desired = Math.max(1, previous + delta);
+      if (desired === previous) return;
+      pendingGuests = { previous, desired };
       lockServiceControls(true);
+      queueMicrotask(() => paintGuestCount(desired));
       fallbackRelease();
     }
   }, true);
@@ -121,9 +136,11 @@
     #wvServiceBar .wv-btn:active{transform:scale(.985)}
     #wvServiceBar .wv-btn.primary{box-shadow:0 0 0 2px rgba(22,132,84,.13)}
     #wvServiceBar .wv-service-saving{cursor:progress}
-    .wv-v9-guest-summary{font-size:12px;font-weight:800}
+    #wvServiceBar .wv-servicebar-row:first-child{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .wv-v10-guest-summary{font-size:12px;font-weight:800}
+    @media(max-width:430px){#wvServiceBar .wv-servicebar-row:first-child{grid-template-columns:repeat(2,minmax(0,1fr))}}
   `;
   document.head.appendChild(style);
 
-  window.VantixGCWaiterReactiveV9 = Object.freeze({ marker:MARKER, version:'9.0.0' });
+  window.VantixGCWaiterReactiveV10 = Object.freeze({ marker:MARKER, legacyMarker:LEGACY_MARKER, version:'10.0.0', microtaskPaint:true, removePerson:true });
 })();
