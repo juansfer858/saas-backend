@@ -7,7 +7,7 @@ const ADAPTERS = Object.freeze({
     code: 'RESTAURANT',
     adapter: 'restaurant',
     localFirst: true,
-    entry: path.join(__dirname, '..', 'agent', 'workspace-entry.js'),
+    entry: path.join(__dirname, '..', 'agent', 'restaurant-entry-v2.js'),
     operationPrefixes: Object.freeze(['RESTAURANT_']),
     bootstrapEndpoint: '/edge/api/v1/restaurant/bootstrap',
     syncEndpoint: '/edge/api/v1/sync/restaurant-operations',
