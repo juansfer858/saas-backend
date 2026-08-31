@@ -24,7 +24,6 @@ const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaura
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
 const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaurant-employee-work.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
-require('../modules/restaurant/restaurant-draft-fix');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
 installRestaurantRbac();
