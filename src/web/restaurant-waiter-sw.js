@@ -1,13 +1,13 @@
 'use strict';
 
-const CACHE = 'vantixgc-waiter-shell-v11-v12-review-v13-sync';
+const CACHE = 'vantixgc-waiter-shell-v14-review-hard-gate';
 const START = '/app/centro-de-control/mesero?view=mesero&pwa=1';
 const SHELL = [
   START,
   '/app/restaurant-theme.css?v=la-riel-v1',
   '/restaurantes/theme-v1.css',
   '/app/restaurant-theme.js?v=panel-font-v1',
-  '/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v11'
+  '/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14'
 ];
 
 self.addEventListener('install', (event) => {
