@@ -1,0 +1,29 @@
+name: Restaurant Edge Offline Waiter V2 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  restaurant-edge-offline-waiter-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate offline waiter runtime syntax
+        run: |
+          node --check edge/agent/offline-waiter-hard-gate.js
+          node --check edge/agent/restaurant-entry-v2.js
+          node --check edge/workspace/public/offline-waiter-v2.js
+          node --check src/modules/edge/edge-restaurant-sync.service.js
+          node --check scripts/edge-restaurant-offline-waiter-v2-smoke.js
+      - name: Prove real local SQLite waiter hard gate with Core unavailable
+        run: node scripts/edge-restaurant-offline-waiter-v2-smoke.js
