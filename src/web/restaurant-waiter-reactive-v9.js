@@ -2,6 +2,7 @@
   'use strict';
 
   const MARKER = 'VANTIX_WAITER_REACTIVE_SERVICE_V10';
+  const LEGACY_MARKER = 'VANTIX_WAITER_REACTIVE_SERVICE_V9';
   const nativeFetch = window.fetch.bind(window);
   let pendingBilling = null;
   let pendingGuests = null;
@@ -78,9 +79,6 @@
     }, 8000);
   }
 
-  // Importante: el pintado se difiere a microtask. Así el runtime base alcanza a leer
-  // el estado anterior y enviar exactamente el valor correcto al backend, pero el usuario
-  // sigue viendo la respuesta visual antes del viaje de red.
   document.addEventListener('click', (event) => {
     const button = event.target.closest?.('#wvServiceBar button');
     if (!button) return;
@@ -144,5 +142,5 @@
   `;
   document.head.appendChild(style);
 
-  window.VantixGCWaiterReactiveV10 = Object.freeze({ marker:MARKER, version:'10.0.0', microtaskPaint:true, removePerson:true });
+  window.VantixGCWaiterReactiveV10 = Object.freeze({ marker:MARKER, legacyMarker:LEGACY_MARKER, version:'10.0.0', microtaskPaint:true, removePerson:true });
 })();
