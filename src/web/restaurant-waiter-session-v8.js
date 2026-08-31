@@ -151,5 +151,5 @@
   `;
   document.head.appendChild(style);
 
-  window.VantixGCWaiterOrderReviewV12 = Object.freeze({ marker:MARKER, confirmBeforeSend:true, noMutationObserver:true });
+  window.VantixGCWaiterOrderReviewV12 = Object.freeze({ marker:MARKER, confirmBeforeSend:true, passiveEnhancement:true });
 })();
