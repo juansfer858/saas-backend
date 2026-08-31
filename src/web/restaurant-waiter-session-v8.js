@@ -49,6 +49,7 @@
   'use strict';
   const MARKER = 'VANTIX_WAITER_ORDER_REVIEW_V12';
   const SYNC_MARKER = 'VANTIX_WAITER_ORDER_REVIEW_SYNC_V13';
+  const HARD_GATE_MARKER = 'VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14';
   const RETRIES_MS = [0, 180, 450, 900, 1800, 3200];
   let timers = [];
 
@@ -72,7 +73,7 @@
     if (!root) return false;
     const header = root.querySelector('.wv-order-head small');
     const list = root.querySelector('.wv-order-list');
-    const action = root.querySelector('[data-action="send-draft"]');
+    const action = root.querySelector('[data-action="confirm-send-draft"]');
     const pending = pendingRows(root);
     const sent = sentRows(root);
     const oldNote = root.querySelector('[data-wv-order-review-note]');
@@ -83,13 +84,15 @@
     oldSentLabel?.remove();
 
     if (pending.length) {
-      root.dataset.orderReview = 'confirm';
-      if (header) header.textContent = 'Pedido por confirmar';
+      root.dataset.orderReview = action ? 'confirm' : 'syncing';
+      if (header) header.textContent = action ? 'Pedido por confirmar' : 'Revisando pedido';
 
       const note = document.createElement('div');
       note.dataset.wvOrderReviewNote = 'true';
       note.className = 'wv-order-review-note';
-      note.innerHTML = '<b>Revisa antes de enviar</b><span>Confirma productos, cantidades, persona y notas. Nada se envía hasta pulsar “Confirmar pedido”.</span>';
+      note.innerHTML = action
+        ? '<b>Revisa antes de enviar</b><span>Confirma productos, cantidades, persona y notas. Nada se envía hasta pulsar “Confirmar pedido”.</span>'
+        : '<b>Preparando revisión</b><span>Estamos sincronizando las últimas cantidades. Todavía no se puede enviar a cocina.</span>';
       root.querySelector('.wv-order-head')?.insertAdjacentElement('afterend', note);
 
       if (list) {
@@ -138,7 +141,7 @@
   window.addEventListener('vantix:waiter-order-review-ready', scheduleReview);
 
   document.addEventListener('click', (event) => {
-    const confirm = event.target?.closest?.('[data-action="send-draft"]');
+    const confirm = event.target?.closest?.('[data-action="confirm-send-draft"]');
     if (!confirm) return;
     confirm.textContent = 'CONFIRMANDO…';
     confirm.setAttribute('aria-busy', 'true');
@@ -150,9 +153,17 @@
     .wv-order-review-note b{font-size:13px}.wv-order-review-note span{font-size:11px}
     .wv-order-section-label{margin:9px 0 5px;font-size:10px;font-weight:950;letter-spacing:.06em;color:#64748b}
     .wv-order-section-label.pending{color:#166534}.wv-order-section-label.sent{margin-top:14px}
-    #wvOrder[data-order-review="confirm"] [data-action="send-draft"]{min-height:60px;font-size:15px;box-shadow:0 9px 20px rgba(22,132,84,.18)}
+    #wvOrder[data-order-review="confirm"] [data-action="confirm-send-draft"]{min-height:60px;font-size:15px;box-shadow:0 9px 20px rgba(22,132,84,.18)}
   `;
   document.head.appendChild(style);
 
-  window.VantixGCWaiterOrderReviewV12 = Object.freeze({ marker:MARKER, syncMarker:SYNC_MARKER, confirmBeforeSend:true, syncedBeforeReview:true, passiveEnhancement:true });
+  window.VantixGCWaiterOrderReviewV12 = Object.freeze({
+    marker:MARKER,
+    syncMarker:SYNC_MARKER,
+    hardGateMarker:HARD_GATE_MARKER,
+    confirmBeforeSend:true,
+    syncedBeforeReview:true,
+    noDirectKitchenSend:true,
+    passiveEnhancement:true
+  });
 })();
