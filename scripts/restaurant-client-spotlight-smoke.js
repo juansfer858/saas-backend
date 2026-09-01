@@ -15,6 +15,7 @@ function source(relative) {
 async function main() {
   const center = source('src/web/restaurant-control-center.js');
   const qrUi = source('src/web/restaurant-qr-ui.js');
+  const qrHtml = source('src/web/restaurant-qr.html');
   const routes = source('src/modules/restaurant/restaurant.routes.js');
   const themeSource = source('src/modules/restaurant/restaurant-theme.service.js');
 
@@ -25,6 +26,13 @@ async function main() {
   assert.match(qrUi, /data-client-spotlight/);
   assert.match(qrUi, /AGREGAR AL PEDIDO/);
   assert.match(qrUi, /data-spotlight-add/);
+  assert.match(qrUi, /qrv3-menu-row/);
+  assert.match(qrUi, /qrv3-menu-list/);
+  assert.doesNotMatch(qrUi, /qrv3-media-symbol/);
+  assert.doesNotMatch(qrUi, /const SYMBOLS/);
+  assert.match(qrHtml, /qrv3-menu-list/);
+  assert.match(qrHtml, /restaurant-qr-ui\.js\?v=menu-list-v4/);
+  assert.doesNotMatch(qrHtml, /qrv3-media-symbol/);
   assert.match(routes, /clientSpotlight/);
   assert.match(themeSource, /RESTAURANT_CLIENT_SPOTLIGHT/);
 
@@ -91,6 +99,8 @@ async function main() {
     product: product.nombre,
     price: String(product.precio1),
     publicQrUsesSameMenuItem: true,
+    compactListMenu: true,
+    clientMenuUsesNoDecorativeProductSymbols: true,
     themePreservesSpotlight: true,
     audit: true
   }));
