@@ -3,6 +3,7 @@
 const express = require('express');
 const { AppError } = require('../../utils/app-error');
 const calls = require('./restaurant-waiter-call.service');
+const accountRequests = require('./restaurant-account-request.service');
 const waiterDevices = require('./restaurant-waiter-device.service');
 
 const router = express.Router();
@@ -15,6 +16,14 @@ async function assertWaiterDeviceRequest(req) {
     throw new AppError(403, 'Este canal sólo está disponible en un dispositivo Mesero vinculado', 'RESTAURANT_WAITER_CALL_DEVICE_REQUIRED');
   }
   await waiterDevices.assertActiveDevice(req.deviceId, req.tenantId, req.userId);
+}
+
+async function waiterAlertSnapshot(tenantId, waiterUserId) {
+  const [callSnapshot, accountSnapshot] = await Promise.all([
+    calls.waiterCallsSnapshot(tenantId, waiterUserId),
+    accountRequests.waiterRequestsSnapshot(tenantId, waiterUserId)
+  ]);
+  return { ...callSnapshot, accountRequests:accountSnapshot };
 }
 
 function sseWrite(res, eventName, payload) {
@@ -44,14 +53,14 @@ async function pollWatcher(watcher) {
   try {
     const waiterIds = [...new Set([...watcher.subscribers.values()].map((row) => row.waiterUserId))];
     for (const waiterId of waiterIds) {
-      byWaiter.set(waiterId, await calls.waiterCallsSnapshot(watcher.tenantId, waiterId));
+      byWaiter.set(waiterId, await waiterAlertSnapshot(watcher.tenantId, waiterId));
     }
     for (const [res, subscriber] of [...watcher.subscribers.entries()]) {
       if (res.writableEnded || res.destroyed) {
         watcher.subscribers.delete(res);
         continue;
       }
-      const snapshot = byWaiter.get(subscriber.waiterUserId) || { calls:[] };
+      const snapshot = byWaiter.get(subscriber.waiterUserId) || { calls:[], accountRequests:[] };
       const encoded = JSON.stringify(snapshot);
       if (encoded !== subscriber.lastPayload) {
         subscriber.lastPayload = encoded;
@@ -61,7 +70,7 @@ async function pollWatcher(watcher) {
       }
     }
   } catch {
-    for (const [res] of watcher.subscribers) sseWrite(res, 'call-error', { message:'Llamados temporalmente no disponibles' });
+    for (const [res] of watcher.subscribers) sseWrite(res, 'call-error', { message:'Alertas de mesa temporalmente no disponibles' });
   }
 
   if (!watcher.subscribers.size) {
@@ -97,14 +106,12 @@ function kick(tenantId) {
 // These routes are already behind the Core tenant resolver + auth middleware. The
 // device assertion below is the authoritative security boundary: only a live,
 // explicitly linked WAITER_DEVICE token belonging to an active MESERO can read or
-// attend calls. Do not add a second tenant-RBAC gate here; restaurant role grants can
-// be repaired lazily and must never prevent an already-authorized tablet from hearing
-// a table call.
+// attend alerts. Do not add a second tenant-RBAC gate here.
 router.get('/llamadas-mesero', async (req, res, next) => {
   try {
     await assertWaiterDeviceRequest(req);
     res.set('Cache-Control', 'no-store');
-    res.json({ ok:true, data:await calls.waiterCallsSnapshot(req.tenantId, req.userId) });
+    res.json({ ok:true, data:await waiterAlertSnapshot(req.tenantId, req.userId) });
   } catch (error) { next(error); }
 });
 
@@ -135,4 +142,4 @@ router.post('/llamadas-mesero/:id/atender', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-module.exports = { restaurantWaiterCallRouter:router };
+module.exports = { restaurantWaiterCallRouter:router, waiterAlertSnapshot };

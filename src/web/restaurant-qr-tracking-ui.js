@@ -8,6 +8,9 @@
     orders: [],
     sessionId: null,
     seatNumber: null,
+    table: null,
+    account: { state:'OPEN', requested:false },
+    accountSubmitting: false,
     streamAbort: null,
     reconnectTimer: null,
     stopped: false,
@@ -36,6 +39,17 @@
       CANCELADO: { label:'CANCELADO', detail:'Este pedido fue cancelado.', tone:'cancelled' }
     };
     return map[state] || { label:'PEDIDO RECIBIDO', detail:'Estamos actualizando el estado.', tone:'received' };
+  }
+
+  function accountStatus(state) {
+    const map = {
+      OPEN: { label:'PEDIR LA CUENTA', detail:'Solicita la cuenta cuando hayas terminado.', tone:'open' },
+      REQUESTED: { label:'CUENTA SOLICITADA', detail:'El mesero ya fue avisado.', tone:'requested' },
+      PREPARING: { label:'PREPARANDO TU CUENTA', detail:'El mesero está preparando la cuenta.', tone:'preparing' },
+      IN_CASH: { label:'CUENTA EN CAJA', detail:'La cuenta fue enviada a Caja.', tone:'cash' },
+      CLOSED: { label:'CUENTA FINALIZADA', detail:'La visita ya terminó.', tone:'closed' }
+    };
+    return map[state] || map.OPEN;
   }
 
   function commandStatus(state) {
@@ -79,14 +93,29 @@
       .qrv-track-home{padding:30px 18px;text-align:center;border:1px solid #dfd1be;border-radius:20px;background:#fffdf8}.qrv-track-home-mark{display:grid;place-items:center;width:72px;height:72px;margin:0 auto 14px;border-radius:50%;background:#fff0e5;color:#d95b15;font-size:31px;font-weight:900}.qrv-track-home.ready .qrv-track-home-mark{background:#e5f2eb;color:#2f6e58}.qrv-track-home.delivered .qrv-track-home-mark{background:#e9f0ed;color:#375348}
       .qrv-track-home h2{margin:0;font-size:29px}.qrv-track-home p{max-width:500px;margin:9px auto;color:#6f655b;line-height:1.45}.qrv-track-home strong{display:block;margin-top:13px;font-size:20px}.qrv-track-home-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;max-width:520px;margin:20px auto 0}.qrv-track-home-actions button{min-height:54px;border-radius:14px;font-weight:900}.qrv-track-home-open{border:0;background:#181614;color:#fff}.qrv-track-home-more{border:1px solid #dccdb9;background:#fff;color:#201c18}
       .qrv-track-empty{padding:24px;text-align:center;color:#6f655b}
+      .qrv-account-wrap{margin:10px 14px 0}.qrv-account-card{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:58px;padding:10px 12px;border:1px solid #dfd1be;border-radius:14px;background:#fffdf8}.qrv-account-copy{min-width:0}.qrv-account-copy b{display:block;font-size:13px}.qrv-account-copy span{display:block;margin-top:3px;color:#6f655b;font-size:11px}.qrv-account-button{min-width:150px;min-height:42px;padding:0 13px;border:0;border-radius:12px;background:#181614;color:#fff;font-weight:900}.qrv-account-card.requested{border-color:#f3c39f;background:#fff5ec}.qrv-account-card.preparing{border-color:#b7decf;background:#f0fdf7}.qrv-account-card.cash{border-color:#b9cfc7;background:#f1f7f4}.qrv-account-card.closed{opacity:.72}
+      body.qrv-account-locked #categoryWrap,body.qrv-account-locked #cartBar{display:none!important}body.qrv-account-locked #app{pointer-events:none;opacity:.58}
       @media(min-width:1100px){.qrv-track-button{right:calc((100vw - 1080px)/2 + 12px)}}
-      @media(max-width:560px){.qrv-track-button{left:12px;right:auto;bottom:78px;max-width:calc(100% - 24px);min-height:44px;padding:0 13px;font-size:12px}.qrv-track-home-actions{grid-template-columns:1fr}}
+      @media(max-width:560px){.qrv-track-button{left:12px;right:auto;bottom:78px;max-width:calc(100% - 24px);min-height:44px;padding:0 13px;font-size:12px}.qrv-track-home-actions{grid-template-columns:1fr}.qrv-account-card{align-items:stretch;flex-direction:column}.qrv-account-button{width:100%}}
     `;
     document.head.appendChild(style);
   }
 
+  function ensureAccountUi() {
+    let wrap = document.getElementById('restaurantAccountRequestWrap');
+    if (wrap) return wrap;
+    const anchor = document.getElementById('accountStrip');
+    if (!anchor) return null;
+    wrap = document.createElement('div');
+    wrap.id = 'restaurantAccountRequestWrap';
+    wrap.className = 'qrv-account-wrap';
+    anchor.insertAdjacentElement('afterend', wrap);
+    return wrap;
+  }
+
   function ensureUi() {
     ensureStyles();
+    ensureAccountUi();
     if (!document.getElementById('restaurantOrderTrackingButton')) {
       const button = document.createElement('button');
       button.id = 'restaurantOrderTrackingButton';
@@ -111,6 +140,49 @@
       modal.querySelector('[data-close-tracking]').addEventListener('click', closeTrackingPanel);
       modal.addEventListener('click', (event) => { if (event.target === modal) closeTrackingPanel(); });
       document.body.appendChild(modal);
+    }
+  }
+
+  function renderAccountAction() {
+    ensureUi();
+    const wrap = ensureAccountUi();
+    if (!wrap) return;
+    if (!S.sessionId) {
+      wrap.innerHTML = '';
+      document.body.classList.remove('qrv-account-locked');
+      return;
+    }
+    const status = accountStatus(S.account?.state || 'OPEN');
+    const locked = status.tone !== 'open';
+    document.body.classList.toggle('qrv-account-locked', locked && status.tone !== 'closed');
+    if (status.tone === 'open') {
+      wrap.innerHTML = `<section class="qrv-account-card"><div class="qrv-account-copy"><b>¿Terminaste?</b><span>Pide la cuenta sin esperar a encontrar al mesero.</span></div><button id="restaurantRequestAccountButton" class="qrv-account-button" type="button" ${S.accountSubmitting ? 'disabled' : ''}>${S.accountSubmitting ? 'SOLICITANDO…' : 'PEDIR LA CUENTA'}</button></section>`;
+      wrap.querySelector('#restaurantRequestAccountButton')?.addEventListener('click', requestAccount);
+      return;
+    }
+    wrap.innerHTML = `<section class="qrv-account-card ${esc(status.tone)}"><div class="qrv-account-copy"><b>${esc(status.label)}</b><span>${esc(status.detail)}</span></div></section>`;
+  }
+
+  async function requestAccount() {
+    if (S.accountSubmitting || (S.account?.state && S.account.state !== 'OPEN')) return;
+    const tableName = S.table?.code || S.table?.name || '';
+    if (!confirm(`¿Solicitar la cuenta${tableName ? ` de ${tableName}` : ''}?`)) return;
+    S.accountSubmitting = true;
+    renderAccountAction();
+    try {
+      const response = await delegatedFetch(`${qrApiPrefix}/pedir-cuenta`, {
+        method:'POST', cache:'no-store', headers:{ 'Content-Type':'application/json', Accept:'application/json' }, body:'{}'
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || body?.message || 'No fue posible solicitar la cuenta');
+      S.account = body?.data || { state:'REQUESTED', requested:true };
+      renderAccountAction();
+      refreshTracking().catch(() => {});
+    } catch (error) {
+      alert(error.message || 'No fue posible solicitar la cuenta');
+    } finally {
+      S.accountSubmitting = false;
+      renderAccountAction();
     }
   }
 
@@ -187,8 +259,11 @@
   function applySnapshot(snapshot, options = {}) {
     S.sessionId = snapshot?.sessionId || null;
     S.seatNumber = snapshot?.seatNumber || null;
+    S.table = snapshot?.table || S.table;
+    S.account = snapshot?.account || { state:'OPEN', requested:false };
     S.orders = Array.isArray(snapshot?.orders) ? snapshot.orders : [];
     renderButton();
+    renderAccountAction();
     if (document.getElementById('restaurantOrderTrackingPanel')?.hidden === false) renderTrackingPanel();
     if (options.autoShow || document.querySelector('#app .qrv-track-home')) renderTrackingHome();
   }
@@ -199,7 +274,7 @@
     try {
       const response = await delegatedFetch(`${qrApiPrefix}/mis-pedidos`, { cache:'no-store', headers:{ Accept:'application/json' } });
       if (!response.ok) {
-        if ([401, 409].includes(response.status)) applySnapshot({ orders:[] });
+        if ([401, 409].includes(response.status)) applySnapshot({ orders:[], account:{ state:'CLOSED' } });
         return;
       }
       const body = await response.json().catch(() => ({}));
@@ -222,7 +297,7 @@
       try { applySnapshot(JSON.parse(data.join('\n'))); } catch {}
     }
     if (eventName === 'visit-ended') {
-      applySnapshot({ orders:[] });
+      applySnapshot({ orders:[], account:{ state:'CLOSED' } });
       stopStream();
     }
   }
@@ -284,11 +359,22 @@
     if (response.ok && requestMethod(input, init) === 'POST' && url.includes(`${qrApiPrefix}/pedidos`)) {
       setTimeout(() => refreshTracking({ autoShow:true }).catch(() => {}), 0);
     }
+    if (response.ok && requestMethod(input, init) === 'POST' && url.includes(`${qrApiPrefix}/pedir-cuenta`)) {
+      setTimeout(() => refreshTracking().catch(() => {}), 0);
+    }
     return response;
   };
 
   window.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeTrackingPanel(); });
   window.addEventListener('pagehide', () => { S.stopped = true; stopStream(); }, { once:true });
+
+  window.VantixGCQrAccountRequestV1 = Object.freeze({
+    version:'1.0.0',
+    requestAccount:true,
+    accountTracking:true,
+    idempotent:true,
+    sameVisitAuthorization:true
+  });
 
   const boot = () => {
     ensureUi();

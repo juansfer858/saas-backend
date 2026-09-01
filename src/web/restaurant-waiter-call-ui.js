@@ -5,6 +5,7 @@
   const FOREGROUND_SAFETY_SYNC_MS = 5000;
   const state = {
     calls: [],
+    accountRequests: [],
     streamAbort: null,
     reconnectTimer: null,
     fallbackTimer: null,
@@ -44,7 +45,8 @@
     style.textContent = `
       .wv-call-stack{position:fixed;z-index:170;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:grid;gap:8px;width:min(560px,calc(100% - 16px));pointer-events:none}
       .wv-call-card{pointer-events:auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:14px;border:2px solid #ef6f24;border-radius:18px;background:#fffaf3;color:#17212b;box-shadow:0 18px 42px rgba(15,23,42,.28);animation:wvCallPulse 1.15s ease-in-out infinite alternate}
-      .wv-call-card.general{border-color:#b91c1c;background:#fff6f5}.wv-call-copy{min-width:0}.wv-call-kicker{display:block;margin-bottom:3px;color:#b8430b;font-size:10px;font-weight:950;letter-spacing:.09em}.wv-call-card.general .wv-call-kicker{color:#991b1b}
+      .wv-call-card.general{border-color:#b91c1c;background:#fff6f5}.wv-call-card.account{border-color:#168454;background:#f0fdf4}.wv-call-card.account.general{border-color:#0f766e;background:#ecfdf5}
+      .wv-call-copy{min-width:0}.wv-call-kicker{display:block;margin-bottom:3px;color:#b8430b;font-size:10px;font-weight:950;letter-spacing:.09em}.wv-call-card.general .wv-call-kicker{color:#991b1b}.wv-call-card.account .wv-call-kicker{color:#166534}.wv-call-card.account.general .wv-call-kicker{color:#0f766e}
       .wv-call-copy b{display:block;font-size:20px;line-height:1.05}.wv-call-copy span{display:block;margin-top:4px;color:#64748b;font-size:12px;font-weight:750}.wv-call-action{min-width:112px;min-height:52px;padding:0 14px;border:0;border-radius:13px;background:#168454;color:#fff;font-weight:950}.wv-call-action:disabled{opacity:.55}
       @keyframes wvCallPulse{from{box-shadow:0 14px 34px rgba(15,23,42,.20)}to{box-shadow:0 20px 48px rgba(239,111,36,.34)}}
       @media(max-width:430px){.wv-call-card{grid-template-columns:1fr}.wv-call-action{width:100%}.wv-call-copy b{font-size:18px}}
@@ -60,30 +62,44 @@
     root.id = 'restaurantWaiterCallStack';
     root.className = 'wv-call-stack';
     root.setAttribute('aria-live', 'assertive');
-    root.setAttribute('aria-label', 'Llamados de mesas');
+    root.setAttribute('aria-label', 'Llamados y solicitudes de cuenta');
     document.body.appendChild(root);
     return root;
   }
 
-  function callTitle(call) {
-    return call.table?.code || call.table?.name || 'Mesa';
+  function tableTitle(item) {
+    return item.table?.code || item.table?.name || 'Mesa';
   }
 
   function render() {
     const root = ensureRoot();
-    root.innerHTML = state.calls.map((call) => {
+    const callCards = state.calls.map((call) => {
       const general = call.priority === 'GENERAL' || call.escalated;
       const person = Number(call.seatNumber || 0) > 0 ? ` · Persona ${Number(call.seatNumber)}` : '';
       return `<section class="wv-call-card ${general ? 'general' : ''}" data-waiter-call="${esc(call.id)}">
         <div class="wv-call-copy">
           <small class="wv-call-kicker">${general ? 'LLAMADO GENERAL · NECESITA ATENCIÓN' : 'TU MESA TE ESTÁ LLAMANDO'}</small>
-          <b>${esc(callTitle(call))}</b>
+          <b>${esc(tableTitle(call))}</b>
           <span>El cliente solicitó un mesero${esc(person)}.</span>
         </div>
         <button type="button" class="wv-call-action" data-attend-call="${esc(call.id)}" data-table-id="${esc(call.table?.id || '')}">ATENDER</button>
       </section>`;
     }).join('');
-    root.querySelectorAll('[data-attend-call]').forEach((button) => button.addEventListener('click', () => attend(button)));
+    const accountCards = state.accountRequests.map((request) => {
+      const general = request.priority === 'GENERAL' || request.escalated;
+      const person = Number(request.seatNumber || 0) > 0 ? `Persona ${Number(request.seatNumber)} solicitó la cuenta.` : 'La mesa solicitó la cuenta.';
+      return `<section class="wv-call-card account ${general ? 'general' : ''}" data-account-request="${esc(request.id)}">
+        <div class="wv-call-copy">
+          <small class="wv-call-kicker">${general ? 'SOLICITUD DE CUENTA · LLAMADO GENERAL' : 'TU MESA SOLICITA LA CUENTA'}</small>
+          <b>${esc(tableTitle(request))} SOLICITA LA CUENTA</b>
+          <span>${esc(person)}</span>
+        </div>
+        <button type="button" class="wv-call-action" data-attend-account="${esc(request.id)}" data-table-id="${esc(request.table?.id || '')}">ATENDER</button>
+      </section>`;
+    }).join('');
+    root.innerHTML = `${accountCards}${callCards}`;
+    root.querySelectorAll('[data-attend-call]').forEach((button) => button.addEventListener('click', () => attendCall(button)));
+    root.querySelectorAll('[data-attend-account]').forEach((button) => button.addEventListener('click', () => attendAccount(button)));
     updateRinging();
   }
 
@@ -119,15 +135,19 @@
     try { navigator.vibrate?.([320, 120, 320]); } catch {}
   }
 
+  function hasAlerts() {
+    return state.calls.length > 0 || state.accountRequests.length > 0;
+  }
+
   function ringTick() {
     state.ringTimer = null;
-    if (!state.calls.length || state.paused || document.visibilityState === 'hidden') return;
+    if (!hasAlerts() || state.paused || document.visibilityState === 'hidden') return;
     beep();
     state.ringTimer = setTimeout(ringTick, 4200);
   }
 
   function updateRinging() {
-    if (!state.calls.length || state.paused || document.visibilityState === 'hidden') {
+    if (!hasAlerts() || state.paused || document.visibilityState === 'hidden') {
       if (state.ringTimer) clearTimeout(state.ringTimer);
       state.ringTimer = null;
       try { navigator.vibrate?.(0); } catch {}
@@ -137,7 +157,8 @@
   }
 
   function applySnapshot(snapshot) {
-    state.calls = Array.isArray(snapshot?.calls) ? snapshot.calls : [];
+    if (Array.isArray(snapshot?.calls)) state.calls = snapshot.calls;
+    if (Array.isArray(snapshot?.accountRequests)) state.accountRequests = snapshot.accountRequests;
     setChannelState('connected');
     render();
   }
@@ -158,19 +179,24 @@
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error?.message || body?.message || `HTTP ${response.status}`);
       if (seq !== state.snapshotSeq) return false;
-      applySnapshot(body?.data || { calls:[] });
+      applySnapshot(body?.data || { calls:[], accountRequests:[] });
       return true;
     } catch (error) {
       if (seq === state.snapshotSeq) setChannelState('disconnected');
       if (!silent) {
         const message = document.getElementById('wvMessage');
-        if (message) message.innerHTML = `<div class="wv-msg err">${esc(error.message || 'No fue posible conectar los llamados de mesa')}</div>`;
+        if (message) message.innerHTML = `<div class="wv-msg err">${esc(error.message || 'No fue posible conectar las alertas de mesa')}</div>`;
       }
       return false;
     }
   }
 
-  async function attend(button) {
+  function selectTable(tableId) {
+    const tableButton = tableId ? document.querySelector(`#wvTables .wv-table[data-table="${CSS.escape(tableId)}"]`) : null;
+    tableButton?.click();
+  }
+
+  async function attendCall(button) {
     const callId = button?.dataset.attendCall;
     const tableId = button?.dataset.tableId || '';
     const headers = authHeaders({ 'Content-Type':'application/json', Accept:'application/json' });
@@ -179,23 +205,46 @@
     button.textContent = 'ATENDIENDO…';
     try {
       const response = await fetch(`/api/public/restaurante/mesero-dispositivo/llamadas/${encodeURIComponent(callId)}/atender`, {
-        method:'POST',
-        cache:'no-store',
-        headers,
-        body:'{}'
+        method:'POST', cache:'no-store', headers, body:'{}'
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error?.message || body?.message || 'No fue posible atender el llamado');
       state.calls = state.calls.filter((call) => call.id !== callId);
       render();
-      const tableButton = tableId ? document.querySelector(`#wvTables .wv-table[data-table="${CSS.escape(tableId)}"]`) : null;
-      tableButton?.click();
+      selectTable(tableId);
       fetchSnapshot({ silent:true }).catch(() => {});
     } catch (error) {
       button.disabled = false;
       button.textContent = 'ATENDER';
       const message = document.getElementById('wvMessage');
       if (message) message.innerHTML = `<div class="wv-msg err">${esc(error.message || 'No fue posible atender el llamado')}</div>`;
+    }
+  }
+
+  async function attendAccount(button) {
+    const requestId = button?.dataset.attendAccount;
+    const tableId = button?.dataset.tableId || '';
+    const headers = authHeaders({ 'Content-Type':'application/json', Accept:'application/json' });
+    if (!requestId || !headers) return;
+    button.disabled = true;
+    button.textContent = 'PREPARANDO…';
+    try {
+      const response = await fetch(`/api/public/restaurante/mesero-dispositivo/solicitudes-cuenta/${encodeURIComponent(requestId)}/atender`, {
+        method:'POST', cache:'no-store', headers, body:'{}'
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || body?.message || 'No fue posible preparar la cuenta');
+      state.accountRequests = state.accountRequests.filter((request) => request.id !== requestId);
+      render();
+      selectTable(tableId);
+      const message = document.getElementById('wvMessage');
+      if (message) message.innerHTML = '<div class="wv-msg">Cuenta en preparación. Cuando corresponda, envíala a Caja.</div>';
+      fetchSnapshot({ silent:true }).catch(() => {});
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'ATENDER';
+      const message = document.getElementById('wvMessage');
+      if (message) message.innerHTML = `<div class="wv-msg err">${esc(error.message || 'No fue posible preparar la cuenta')}</div>`;
     }
   }
 
@@ -216,10 +265,7 @@
     const headers = authHeaders({ Accept:'text/event-stream' });
     if (!headers) throw new Error('Sesión de mesero no disponible');
     const response = await fetch('/api/v1/restaurante/llamadas-mesero/stream', {
-      method:'GET',
-      cache:'no-store',
-      headers,
-      signal:controller.signal
+      method:'GET', cache:'no-store', headers, signal:controller.signal
     });
     if (!response.ok || !response.body) throw new Error('Canal de llamados no disponible');
     setChannelState('connected');
@@ -319,10 +365,12 @@
     else resumeChannel();
   });
 
-  window.VantixGCWaiterCallV4 = Object.freeze({
-    version:'4.0.0',
+  window.VantixGCWaiterCallV5 = Object.freeze({
+    version:'5.0.0',
     directDeviceSnapshot:true,
     directDeviceAttend:true,
+    accountRequestAlerts:true,
+    accountRequestPrimaryThenAll:true,
     ssePrimary:true,
     foregroundSafetySnapshotMs:FOREGROUND_SAFETY_SYNC_MS,
     separateScript:true,

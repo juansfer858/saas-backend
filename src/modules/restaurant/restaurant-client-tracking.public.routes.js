@@ -3,6 +3,7 @@
 const express = require('express');
 const { prisma } = require('../../config/prisma');
 const visitPayments = require('./restaurant-visit-payments.service');
+const accountRequests = require('./restaurant-account-request.service');
 
 const router = express.Router();
 const WATCH_INTERVAL_MS = 1800;
@@ -48,6 +49,7 @@ async function loadSessionState(tenantId, sessionId) {
   return prisma.restaurantTableSession.findFirst({
     where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
     include: {
+      table: { select: { id:true, code:true, name:true } },
       qrVisitDevices: {
         where: { revokedAt: null },
         select: { id: true, seatNumber: true }
@@ -69,6 +71,8 @@ function snapshotFromSession(session, deviceId) {
     sessionId: session.id,
     seatNumber: device.seatNumber,
     guestCount: session.guestCount,
+    table: session.table || null,
+    account: accountRequests.statusFromSession(session),
     orders
   };
 }
@@ -77,7 +81,14 @@ async function trackingSnapshot(qrToken, rawToken) {
   const verified = await visitPayments.verifyVisit(qrToken, rawToken);
   const session = await loadSessionState(verified.table.tenantId, verified.session.id);
   const snapshot = snapshotFromSession(session, verified.device.id);
-  if (!snapshot) return { sessionId: verified.session.id, seatNumber: verified.device.seatNumber, guestCount: verified.session.guestCount, orders: [] };
+  if (!snapshot) return {
+    sessionId: verified.session.id,
+    seatNumber: verified.device.seatNumber,
+    guestCount: verified.session.guestCount,
+    table: { id:verified.table.id, code:verified.table.code, name:verified.table.name },
+    account: accountRequests.statusFromSession(verified.session),
+    orders: []
+  };
   return snapshot;
 }
 
@@ -167,6 +178,13 @@ function subscribe(verified, res) {
   }
   return () => removeSubscriber(watcher, res);
 }
+
+router.post('/api/public/restaurante/qr/:token/pedir-cuenta', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok:true, data:await accountRequests.createRequest(req.params.token, visitToken(req)) });
+  } catch (error) { next(error); }
+});
 
 router.get('/api/public/restaurante/qr/:token/mis-pedidos', async (req, res, next) => {
   try {

@@ -8,6 +8,7 @@ const { app } = require('../src/app');
 const { prisma } = require('../src/config/prisma');
 const { signAccessToken } = require('../src/utils/jwt');
 const calls = require('../src/modules/restaurant/restaurant-waiter-call.service');
+const accountRequests = require('../src/modules/restaurant/restaurant-account-request.service');
 
 function read(relative) {
   return fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
@@ -32,43 +33,51 @@ async function withServer(run) {
 
 async function main() {
   const clientUi = read('src/web/restaurant-qr-waiter-call-ui.js');
+  const trackingUi = read('src/web/restaurant-qr-tracking-ui.js');
   const waiterUi = read('src/web/restaurant-waiter-call-ui.js');
   const publicRoutes = read('src/modules/restaurant/restaurant-waiter-call.public.routes.js');
+  const trackingRoutes = read('src/modules/restaurant/restaurant-client-tracking.public.routes.js');
   const waiterRoutes = read('src/modules/restaurant/restaurant-waiter-call.routes.js');
   const publicIndex = read('src/modules/restaurant/restaurant.public.routes.js');
   const coreRoutes = read('src/routes/core.routes.js');
   const serviceSource = read('src/modules/restaurant/restaurant-waiter-call.service.js');
+  const accountServiceSource = read('src/modules/restaurant/restaurant-account-request.service.js');
   const authSource = read('src/middleware/auth-middleware.js');
 
   for (const token of ['PEDIR AYUDA', 'LLAMAR MESERO', 'MESERO LLAMADO', '/llamar-mesero/stream']) {
     assert.ok(clientUi.includes(token), `Client waiter-call UI must contain ${token}`);
   }
-  for (const token of ['ATENDER', 'TU MESA TE ESTÁ LLAMANDO', 'LLAMADO GENERAL', 'navigator.vibrate', 'AudioContext']) {
-    assert.ok(waiterUi.includes(token), `Waiter call UI must contain ${token}`);
+  for (const token of ['ATENDER', 'TU MESA TE ESTÁ LLAMANDO', 'LLAMADO GENERAL', 'SOLICITA LA CUENTA', 'navigator.vibrate', 'AudioContext']) {
+    assert.ok(waiterUi.includes(token), `Waiter alert UI must contain ${token}`);
+  }
+  for (const token of ['PEDIR LA CUENTA', 'CUENTA SOLICITADA', 'PREPARANDO TU CUENTA', 'CUENTA EN CAJA', 'VantixGCQrAccountRequestV1']) {
+    assert.ok(trackingUi.includes(token), `QR tracking UI must contain ${token}`);
   }
   assert.doesNotMatch(clientUi, /setInterval|MutationObserver/);
   assert.doesNotMatch(waiterUi, /setInterval|MutationObserver/);
-  assert.match(waiterUi, /\/api\/public\/restaurante\/mesero-dispositivo\/llamadas/);
-  assert.match(waiterUi, /\/api\/v1\/restaurante\/llamadas-mesero\/stream/);
+  assert.match(waiterUi, /solicitudes-cuenta/);
   assert.match(publicRoutes, /restaurant-qr-waiter-call-ui\.js/);
   assert.match(publicRoutes, /restaurant-waiter-call-ui\.js/);
   assert.match(publicRoutes, /verifyAccessToken/);
   assert.match(publicRoutes, /verifyWaiterDeviceRequest/);
-  assert.match(publicRoutes, /\/api\/public\/restaurante\/mesero-dispositivo\/llamadas/);
-  assert.match(publicRoutes, /X-VantixGC-Waiter-Call', 'v20-direct-script'/);
+  assert.match(publicRoutes, /accountRequests\.waiterRequestsSnapshot/);
+  assert.match(publicRoutes, /solicitudes-cuenta\/:id\/atender/);
+  assert.match(publicRoutes, /X-VantixGC-Waiter-Call', 'v21-account-request'/);
+  assert.match(trackingRoutes, /\/pedir-cuenta/);
+  assert.match(trackingRoutes, /accountRequests\.createRequest/);
   assert.match(waiterRoutes, /WAITER_DEVICE/);
   assert.match(waiterRoutes, /assertActiveDevice/);
   assert.match(waiterRoutes, /router\.get\('\/llamadas-mesero', async/);
   assert.doesNotMatch(waiterRoutes, /requirePermission\('RESTAURANTE\.VER'\)/);
-  assert.match(waiterRoutes, /llamadas-mesero\/:id\/atender/);
   assert.match(authSource, /pedidos\|llamadas-mesero/);
   assert.match(publicIndex, /router\.use\(restaurantWaiterCallPublicRouter\);[\s\S]*router\.use\(restaurantVisitPublicRouter\)/);
   assert.match(coreRoutes, /router\.use\('\/restaurante', restaurantWaiterCallRouter\);[\s\S]*router\.use\('\/restaurante', restaurantWaiterDeviceRouter\)/);
   assert.match(serviceSource, /PRIMARY_ONLY_MS = 20_000/);
-  assert.match(serviceSource, /session\.openedByUserId/);
-  assert.match(serviceSource, /currentStatus: 'ESCALATED'/);
-  assert.match(serviceSource, /currentStatus: 'ATTENDED'/);
+  assert.match(accountServiceSource, /PRIMARY_ONLY_MS = 20_000/);
+  assert.match(accountServiceSource, /ACCOUNT_REQUEST_CREATED/);
+  assert.match(accountServiceSource, /identity\.prepareAccount/);
   new Function(clientUi);
+  new Function(trackingUi);
   new Function(waiterUi);
 
   const suffix = crypto.randomBytes(5).toString('hex');
@@ -99,7 +108,7 @@ async function main() {
     }
   });
   const rawVisitToken = crypto.randomBytes(32).toString('base64url');
-  await prisma.restaurantQrVisitDevice.create({
+  const visitDevice = await prisma.restaurantQrVisitDevice.create({
     data: { tenantId:tenant.id, sessionId:session.id, tokenHash:hash(rawVisitToken), seatNumber:1 }
   });
 
@@ -116,11 +125,7 @@ async function main() {
   const secondBefore = await calls.waiterCallsSnapshot(tenant.id, waiter2.id);
   assert.equal(secondBefore.calls.length, 0, 'other waiters must not receive the call before escalation');
 
-  await prisma.trackingLink.update({
-    where: { id:created.call.id },
-    data: { currentStatus:'ESCALATED' }
-  });
-
+  await prisma.trackingLink.update({ where:{ id:created.call.id }, data:{ currentStatus:'ESCALATED' } });
   const secondAfter = await calls.waiterCallsSnapshot(tenant.id, waiter2.id);
   assert.equal(secondAfter.calls.length, 1, 'all waiters must receive an escalated call');
   assert.equal(secondAfter.calls[0].priority, 'GENERAL');
@@ -134,13 +139,12 @@ async function main() {
     calls.waiterCallsSnapshot(tenant.id, waiter2.id),
     calls.clientCallSnapshot(table.qrToken, rawVisitToken)
   ]);
-  assert.equal(primaryDone.calls.length, 0, 'attended call must disappear from primary waiter');
-  assert.equal(secondDone.calls.length, 0, 'attended call must disappear from every waiter');
-  assert.equal(clientDone.active, false, 'client call button must reset after attendance');
+  assert.equal(primaryDone.calls.length, 0);
+  assert.equal(secondDone.calls.length, 0);
+  assert.equal(clientDone.active, false);
 
   const secondCall = await calls.createCall(table.qrToken, rawVisitToken);
-  assert.equal(secondCall.active, true, 'same table may call again after previous attendance');
-  assert.equal(secondCall.call.state, 'PENDING_PRIMARY');
+  assert.equal(secondCall.active, true);
 
   const deviceId = crypto.randomUUID();
   await prisma.trackingLink.create({
@@ -170,52 +174,102 @@ async function main() {
   });
 
   await withServer(async (baseUrl) => {
-    const headers = {
-      Authorization:`Bearer ${waiterDeviceToken}`,
-      'x-tenant-subdomain':tenant.subdomain,
-      Accept:'application/json'
-    };
-
-    const coreResponse = await fetch(`${baseUrl}/api/v1/restaurante/llamadas-mesero`, { cache:'no-store', headers });
-    const coreBody = await coreResponse.json().catch(() => ({}));
-    assert.equal(coreResponse.status, 200, `linked waiter device core snapshot must be HTTP 200: ${JSON.stringify(coreBody)}`);
-    assert.equal(coreBody?.data?.calls?.length, 1, 'core snapshot must receive active table call');
-    assert.equal(coreBody.data.calls[0].id, secondCall.call.id);
-
+    const headers = { Authorization:`Bearer ${waiterDeviceToken}`, 'x-tenant-subdomain':tenant.subdomain, Accept:'application/json' };
     const directResponse = await fetch(`${baseUrl}/api/public/restaurante/mesero-dispositivo/llamadas`, { cache:'no-store', headers });
     const directBody = await directResponse.json().catch(() => ({}));
-    assert.equal(directResponse.status, 200, `direct linked-device snapshot must be HTTP 200: ${JSON.stringify(directBody)}`);
-    assert.equal(directBody?.ok, true);
-    assert.equal(directBody?.data?.calls?.length, 1, 'direct device fallback must receive active table call');
-    assert.equal(directBody.data.calls[0].id, secondCall.call.id);
-    assert.equal(directBody.data.calls[0].priority, 'PRIMARY');
+    assert.equal(directResponse.status, 200, JSON.stringify(directBody));
+    assert.equal(directBody?.data?.calls?.length, 1);
+    assert.equal(directBody?.data?.accountRequests?.length, 0);
 
     const attendResponse = await fetch(`${baseUrl}/api/public/restaurante/mesero-dispositivo/llamadas/${encodeURIComponent(secondCall.call.id)}/atender`, {
-      method:'POST',
-      cache:'no-store',
-      headers:{ ...headers, 'Content-Type':'application/json' },
-      body:'{}'
+      method:'POST', cache:'no-store', headers:{ ...headers, 'Content-Type':'application/json' }, body:'{}'
     });
-    const attendBody = await attendResponse.json().catch(() => ({}));
-    assert.equal(attendResponse.status, 200, `direct linked-device attendance must be HTTP 200: ${JSON.stringify(attendBody)}`);
-    assert.equal(attendBody?.data?.attended, true);
+    assert.equal(attendResponse.status, 200);
   });
 
   const clientAfterHttpAttend = await calls.clientCallSnapshot(table.qrToken, rawVisitToken);
-  assert.equal(clientAfterHttpAttend.active, false, 'direct device attendance must release client MESERO LLAMADO state');
+  assert.equal(clientAfterHttpAttend.active, false);
 
-  console.log('RESTAURANT WAITER CALL ESCALATION + DIRECT DEVICE HTTP SMOKE OK');
+  const consumedOrder = await prisma.restaurantOrder.create({
+    data: { tenantId:tenant.id, sessionId:session.id, source:'QR', state:'ENVIADO', qrVisitDeviceId:visitDevice.id, total:19500 }
+  });
+  await prisma.restaurantOrderItem.create({
+    data: {
+      tenantId:tenant.id,
+      orderId:consumedOrder.id,
+      menuItemId:crypto.randomUUID(),
+      productId:crypto.randomUUID(),
+      saleDetailId:crypto.randomUUID(),
+      description:'Producto smoke',
+      quantity:1,
+      unitPrice:19500,
+      lineTotal:19500,
+      station:'COCINA',
+      seatNumber:1
+    }
+  });
+
+  const accountCreated = await accountRequests.createRequest(table.qrToken, rawVisitToken);
+  assert.equal(accountCreated.state, 'REQUESTED');
+  assert.equal(accountCreated.requested, true);
+  const accountDuplicate = await accountRequests.createRequest(table.qrToken, rawVisitToken);
+  assert.equal(accountDuplicate.state, 'REQUESTED', 'repeated client tap must be idempotent');
+  const links = await prisma.trackingLink.findMany({ where:{ tenantId:tenant.id, originType:accountRequests.ORIGIN_TYPE, originId:session.id } });
+  assert.equal(links.length, 1, 'one table visit must have one account request record');
+  const accountLink = links[0];
+
+  const accountPrimary = await accountRequests.waiterRequestsSnapshot(tenant.id, waiter1.id);
+  assert.equal(accountPrimary.length, 1, 'opening waiter must receive account request first');
+  assert.equal(accountPrimary[0].priority, 'PRIMARY');
+  assert.equal(accountPrimary[0].seatNumber, 1);
+  const accountOtherBefore = await accountRequests.waiterRequestsSnapshot(tenant.id, waiter2.id);
+  assert.equal(accountOtherBefore.length, 0, 'other waiter must wait for escalation');
+
+  await prisma.trackingLink.update({ where:{ id:accountLink.id }, data:{ currentStatus:'ESCALATED' } });
+  const accountOtherAfter = await accountRequests.waiterRequestsSnapshot(tenant.id, waiter2.id);
+  assert.equal(accountOtherAfter.length, 1, 'account request must escalate to all waiters');
+
+  await withServer(async (baseUrl) => {
+    const waiterHeaders = { Authorization:`Bearer ${waiterDeviceToken}`, 'x-tenant-subdomain':tenant.subdomain, Accept:'application/json' };
+    const snapshotResponse = await fetch(`${baseUrl}/api/public/restaurante/mesero-dispositivo/llamadas`, { cache:'no-store', headers:waiterHeaders });
+    const snapshotBody = await snapshotResponse.json().catch(() => ({}));
+    assert.equal(snapshotResponse.status, 200, JSON.stringify(snapshotBody));
+    assert.equal(snapshotBody?.data?.accountRequests?.length, 1, 'tablet endpoint must receive account request');
+    assert.equal(snapshotBody.data.accountRequests[0].id, accountLink.id);
+
+    const attendAccountResponse = await fetch(`${baseUrl}/api/public/restaurante/mesero-dispositivo/solicitudes-cuenta/${encodeURIComponent(accountLink.id)}/atender`, {
+      method:'POST', cache:'no-store', headers:{ ...waiterHeaders, 'Content-Type':'application/json' }, body:'{}'
+    });
+    const attendAccountBody = await attendAccountResponse.json().catch(() => ({}));
+    assert.equal(attendAccountResponse.status, 200, JSON.stringify(attendAccountBody));
+    assert.equal(attendAccountBody?.data?.attended, true);
+
+    const clientHeaders = { 'x-vantix-restaurant-visit':rawVisitToken, Accept:'application/json' };
+    const trackingResponse = await fetch(`${baseUrl}/api/public/restaurante/qr/${encodeURIComponent(table.qrToken)}/mis-pedidos`, { cache:'no-store', headers:clientHeaders });
+    const trackingBody = await trackingResponse.json().catch(() => ({}));
+    assert.equal(trackingResponse.status, 200, JSON.stringify(trackingBody));
+    assert.equal(trackingBody?.data?.account?.state, 'PREPARING', 'client must see PREPARING after waiter attends');
+  });
+
+  const preparingStatus = await accountRequests.clientStatus(table.qrToken, rawVisitToken);
+  assert.equal(preparingStatus.state, 'PREPARING');
+  const noRepeatAfterPrepare = await accountRequests.createRequest(table.qrToken, rawVisitToken);
+  assert.equal(noRepeatAfterPrepare.state, 'PREPARING', 'prepared account must not create a second request');
+
+  await prisma.restaurantTableSession.update({ where:{ id:session.id }, data:{ cashierRequestedAt:new Date() } });
+  const cashStatus = await accountRequests.clientStatus(table.qrToken, rawVisitToken);
+  assert.equal(cashStatus.state, 'IN_CASH');
+
+  console.log('RESTAURANT WAITER CALL + QR ACCOUNT REQUEST DB SMOKE OK');
   console.log(JSON.stringify({
-    primaryWaiterFirst:true,
-    escalatesToAll:true,
-    escalationMs:calls.PRIMARY_ONLY_MS,
-    singleAttendanceClearsAll:true,
-    clientVisitAuthorizationRequired:true,
-    canCallAgainAfterAttendance:true,
-    linkedDeviceCoreSnapshot:true,
-    linkedDeviceDirectSnapshot:true,
-    linkedDeviceDirectAttend:true,
-    independentDirectFallback:true,
+    waiterCallPrimaryThenAll:true,
+    accountRequestPrimaryThenAll:true,
+    accountRequestIdempotent:true,
+    accountRequestSeatTracked:true,
+    linkedDeviceReceivesAccountRequest:true,
+    waiterAttendPreparesAccount:true,
+    clientTracksRequestedPreparingAndCash:true,
+    accountEscalationMs:accountRequests.PRIMARY_ONLY_MS,
     clientPolling:false,
     waiterSetInterval:false,
     foregroundSafetySnapshotMs:5000

@@ -8,6 +8,7 @@ const { AppError } = require('../../utils/app-error');
 const { verifyAccessToken } = require('../../utils/jwt');
 const visitPayments = require('./restaurant-visit-payments.service');
 const calls = require('./restaurant-waiter-call.service');
+const accountRequests = require('./restaurant-account-request.service');
 const waiterDevices = require('./restaurant-waiter-device.service');
 const { waiterRuntimeV14 } = require('./restaurant-waiter-device.public.routes');
 
@@ -176,14 +177,18 @@ router.get('/api/public/restaurante/qr/:token/llamar-mesero/stream', async (req,
   } catch (error) { next(error); }
 });
 
-// Direct linked-device fallback. This intentionally lives on the public router so it does
-// not depend on the generic Core middleware chain. It still performs the complete security
-// proof itself: signed JWT, tenant match, MESERO role and active linked device.
+// Canal directo de dispositivo Mesero: valida JWT, tenant, rol y vínculo activo sin
+// depender de la cadena RBAC general. Además de llamados normales entrega solicitudes
+// de cuenta, que usan el mismo patrón: primero el mesero que abrió la mesa y luego todos.
 router.get('/api/public/restaurante/mesero-dispositivo/llamadas', async (req, res, next) => {
   try {
     const actor = await verifyWaiterDeviceRequest(req);
+    const [callSnapshot, accountSnapshot] = await Promise.all([
+      calls.waiterCallsSnapshot(actor.tenantId, actor.userId),
+      accountRequests.waiterRequestsSnapshot(actor.tenantId, actor.userId)
+    ]);
     res.set('Cache-Control', 'no-store');
-    res.json({ ok:true, data:await calls.waiterCallsSnapshot(actor.tenantId, actor.userId) });
+    res.json({ ok:true, data:{ ...callSnapshot, accountRequests:accountSnapshot } });
   } catch (error) { next(error); }
 });
 
@@ -192,6 +197,14 @@ router.post('/api/public/restaurante/mesero-dispositivo/llamadas/:id/atender', a
     const actor = await verifyWaiterDeviceRequest(req);
     res.set('Cache-Control', 'no-store');
     res.json({ ok:true, data:await calls.attendCall(actor.tenantId, actor.userId, req.params.id) });
+  } catch (error) { next(error); }
+});
+
+router.post('/api/public/restaurante/mesero-dispositivo/solicitudes-cuenta/:id/atender', async (req, res, next) => {
+  try {
+    const actor = await verifyWaiterDeviceRequest(req);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok:true, data:await accountRequests.attendRequest(actor.tenantId, actor.userId, req.params.id) });
   } catch (error) { next(error); }
 });
 
@@ -206,7 +219,7 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-waiter-call-ui.js'), 'utf8')
     ]);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-QR-Assist', 'waiter-call-v1');
+    res.set('X-VantixGC-QR-Assist', 'waiter-call-v1-account-request-v1');
     res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${visitUi}\n;${trackingUi}\n;${baseUi}\n;${callUi}`);
   } catch (error) { next(error); }
 });
@@ -215,7 +228,7 @@ router.get('/app/restaurant-waiter-call-ui.js', async (_req, res, next) => {
   try {
     const callUi = await fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-call-ui.js'), 'utf8');
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Call', 'v20-direct-script');
+    res.set('X-VantixGC-Waiter-Call', 'v21-account-request');
     res.type('application/javascript').send(callUi);
   } catch (error) { next(error); }
 });
@@ -229,7 +242,7 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
     const patchedRuntime = waiterRuntimeV14(runtime);
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate');
-    res.set('X-VantixGC-Waiter-Call', 'v20-direct-script');
+    res.set('X-VantixGC-Waiter-Call', 'v21-account-request');
     res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
