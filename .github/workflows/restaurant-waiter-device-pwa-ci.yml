@@ -66,3 +66,5 @@ jobs:
         run: node scripts/restaurant-waiter-call-pwa-refresh-smoke.js
       - name: Validate QR electronic payment and waiter confirmation
         run: node scripts/restaurant-electronic-payment-db-smoke.js
+      - name: Validate tenant realtime and Core Treasury visibility
+        run: node scripts/restaurant-tenant-realtime-v23-smoke.js
