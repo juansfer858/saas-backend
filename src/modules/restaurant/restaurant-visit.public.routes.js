@@ -46,13 +46,14 @@ const orderSchema = z.object({
 // layers at delivery time so the feature remains removable without forking base interfaces.
 router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   try {
-    const [mobileFit, visitUi, baseUi] = await Promise.all([
+    const [mobileFit, edgeFallback, visitUi, baseUi] = await Promise.all([
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-mobile-fit.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-edge-fallback-ui.js'), 'utf8'),
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'), 'utf8'),
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-ui.js'), 'utf8')
     ]);
     res.set('Cache-Control', 'no-store');
-    res.type('application/javascript').send(`${mobileFit}\n;${visitUi}\n;${baseUi}`);
+    res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${visitUi}\n;${baseUi}`);
   } catch (error) { next(error); }
 });
 
@@ -72,6 +73,11 @@ router.get('/app/restaurant-qr-mobile-fit.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-mobile-fit.js'));
 });
 
+router.get('/app/restaurant-qr-edge-fallback-ui.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-edge-fallback-ui.js'));
+});
+
 router.get('/app/restaurant-qr-visit-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'));
@@ -85,7 +91,19 @@ router.get('/app/restaurant-visit-payments-ui.js', (_req, res) => {
 router.get('/api/public/restaurante/qr/:token/visita', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
-    res.json({ ok: true, data: await visitPayments.describeVisit(req.params.token, visitToken(req)) });
+    const [visit, ingress] = await Promise.all([
+      visitPayments.describeVisit(req.params.token, visitToken(req)),
+      edgeIngress.qrOrderIngressStatus(req.params.token)
+    ]);
+    const localModeRequired = Boolean(ingress.managedByEdge && !ingress.available);
+    res.json({
+      ok: true,
+      data: {
+        ...visit,
+        localModeRequired,
+        localFallbackUrl: localModeRequired ? ingress.localFallbackUrl || null : null
+      }
+    });
   } catch (error) { next(error); }
 });
 
