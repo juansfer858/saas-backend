@@ -2,10 +2,12 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
+  const FOREGROUND_SAFETY_SYNC_MS = 5000;
   const state = {
     calls: [],
     streamAbort: null,
     reconnectTimer: null,
+    fallbackTimer: null,
     ringTimer: null,
     audioContext: null,
     paused: false,
@@ -258,11 +260,27 @@
       });
   }
 
+  function stopFallbackSync() {
+    if (state.fallbackTimer) clearTimeout(state.fallbackTimer);
+    state.fallbackTimer = null;
+  }
+
+  function scheduleFallbackSync() {
+    if (state.paused || state.fallbackTimer || document.visibilityState === 'hidden' || navigator.onLine === false) return;
+    state.fallbackTimer = setTimeout(async () => {
+      state.fallbackTimer = null;
+      if (state.paused || document.visibilityState === 'hidden') return;
+      await fetchSnapshot({ silent:true }).catch(() => false);
+      scheduleFallbackSync();
+    }, FOREGROUND_SAFETY_SYNC_MS);
+  }
+
   function stopStream() {
     state.streamAbort?.abort();
     state.streamAbort = null;
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
     state.reconnectTimer = null;
+    stopFallbackSync();
     if (state.ringTimer) clearTimeout(state.ringTimer);
     state.ringTimer = null;
     try { navigator.vibrate?.(0); } catch {}
@@ -279,6 +297,7 @@
     ensureRoot();
     fetchSnapshot({ silent:true }).catch(() => {});
     startStream();
+    scheduleFallbackSync();
     updateRinging();
   }
 
@@ -300,12 +319,14 @@
     else resumeChannel();
   });
 
-  window.VantixGCWaiterCallV2 = Object.freeze({
-    version:'2.0.1',
+  window.VantixGCWaiterCallV3 = Object.freeze({
+    version:'3.0.0',
     initialSnapshot:true,
     resumeSafe:true,
     reconnectSnapshot:true,
-    noPolling:true,
+    ssePrimary:true,
+    foregroundSafetySnapshotMs:FOREGROUND_SAFETY_SYNC_MS,
+    noSetInterval:true,
     domObserverFree:true
   });
 
