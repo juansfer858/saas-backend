@@ -1,11 +1,15 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const express = require('express');
 const { prisma } = require('../../config/prisma');
 const realtime = require('../realtime/tenant-realtime.service');
+const { patchTrackingRealtime } = require('./restaurant-tenant-realtime.public.routes');
 const { AppError } = require('../../utils/app-error');
 
 const router = express.Router();
+const webRoot = path.join(__dirname, '..', '..', 'web');
 
 function writeSse(res, eventName, payload) {
   if (res.writableEnded || res.destroyed) return false;
@@ -53,6 +57,40 @@ function matchesTablePresence(event, table, currentSessionId) {
   if (refs.sessionId && currentSessionId) return refs.sessionId === currentSessionId;
   return false;
 }
+
+function patchVisitPresenceRealtime(source) {
+  if (source.includes('VANTIX_QR_TABLE_PRESENCE_V24')) return source;
+  let patched = source.replace(
+    'localStorage.setItem(STORAGE_KEY, body.data.visitToken);',
+    `localStorage.setItem(STORAGE_KEY, body.data.visitToken);\n        window.dispatchEvent(new CustomEvent('vantix:restaurant-visit-authorized', { detail:{ seatNumber:body.data.seatNumber, guestCount:body.data.guestCount } }));`
+  );
+  const boot = "if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => refreshVisit().catch(() => {}), { once:true });";
+  if (patched.includes(boot)) {
+    patched = patched.replace(boot, `// VANTIX_QR_TABLE_PRESENCE_V24: el QR permanece escuchando aun cuando la mesa está cerrada.\n  window.addEventListener('vantix:restaurant-table-availability', () => { refreshVisit().catch(() => {}); });\n  window.VantixGCQrTablePresenceV24 = Object.freeze({ version:'24.0.0', automaticOpenClose:true, manualRefreshRequired:false });\n\n  ${boot}`);
+  }
+  return patched;
+}
+
+// The V24 composite owns only this exact asset before V23. All business logic remains in the
+// established V22/V23 source files; the only patch exposes visit refresh to the table-presence event.
+router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
+  try {
+    const [mobileFit, edgeFallback, visitUi, trackingUi, baseUi, callUi, paymentUi, realtimeUi] = await Promise.all([
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-mobile-fit.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-edge-fallback-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-tracking-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-waiter-call-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-electronic-payment-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-realtime-ui.js'), 'utf8')
+    ]);
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-QR-Payment', 'v22-electronic-confirmed-by-waiter');
+    res.set('X-VantixGC-QR-Realtime', 'v24-table-presence');
+    res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${patchVisitPresenceRealtime(visitUi)}\n;${patchTrackingRealtime(trackingUi)}\n;${baseUi}\n;${callUi}\n;${paymentUi}\n;${realtimeUi}`);
+  } catch (error) { next(error); }
+});
 
 router.get('/api/public/restaurante/qr/:token/visita/realtime', async (req, res, next) => {
   try {
@@ -135,5 +173,6 @@ router.get('/api/public/restaurante/qr/:token/visita/realtime', async (req, res,
 module.exports = {
   restaurantQrPresenceRealtimePublicRouter:router,
   presenceSnapshot,
-  matchesTablePresence
+  matchesTablePresence,
+  patchVisitPresenceRealtime
 };
