@@ -8,7 +8,9 @@
     reconnectTimer: null,
     ringTimer: null,
     audioContext: null,
-    stopped: false
+    paused: false,
+    booted: false,
+    snapshotSeq: 0
   };
 
   function readSession() {
@@ -27,6 +29,10 @@
       'x-tenant-subdomain':session.subdomain,
       ...extra
     };
+  }
+
+  function setChannelState(value) {
+    document.documentElement.dataset.waiterCallChannel = value;
   }
 
   function ensureStyles() {
@@ -113,13 +119,13 @@
 
   function ringTick() {
     state.ringTimer = null;
-    if (!state.calls.length || state.stopped) return;
+    if (!state.calls.length || state.paused || document.visibilityState === 'hidden') return;
     beep();
     state.ringTimer = setTimeout(ringTick, 4200);
   }
 
   function updateRinging() {
-    if (!state.calls.length) {
+    if (!state.calls.length || state.paused || document.visibilityState === 'hidden') {
       if (state.ringTimer) clearTimeout(state.ringTimer);
       state.ringTimer = null;
       try { navigator.vibrate?.(0); } catch {}
@@ -130,7 +136,36 @@
 
   function applySnapshot(snapshot) {
     state.calls = Array.isArray(snapshot?.calls) ? snapshot.calls : [];
+    setChannelState('connected');
     render();
+  }
+
+  async function fetchSnapshot({ silent = true } = {}) {
+    const seq = ++state.snapshotSeq;
+    const headers = authHeaders({ Accept:'application/json' });
+    if (!headers) {
+      setChannelState('waiting-session');
+      return false;
+    }
+    try {
+      const response = await fetch('/api/v1/restaurante/llamadas-mesero', {
+        method:'GET',
+        cache:'no-store',
+        headers
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || body?.message || `HTTP ${response.status}`);
+      if (seq !== state.snapshotSeq) return false;
+      applySnapshot(body?.data || { calls:[] });
+      return true;
+    } catch (error) {
+      if (seq === state.snapshotSeq) setChannelState('disconnected');
+      if (!silent) {
+        const message = document.getElementById('wvMessage');
+        if (message) message.innerHTML = `<div class="wv-msg err">${esc(error.message || 'No fue posible conectar los llamados de mesa')}</div>`;
+      }
+      return false;
+    }
   }
 
   async function attend(button) {
@@ -153,6 +188,7 @@
       render();
       const tableButton = tableId ? document.querySelector(`#wvTables .wv-table[data-table="${CSS.escape(tableId)}"]`) : null;
       tableButton?.click();
+      fetchSnapshot({ silent:true }).catch(() => {});
     } catch (error) {
       button.disabled = false;
       button.textContent = 'ATENDER';
@@ -184,6 +220,7 @@
       signal:controller.signal
     });
     if (!response.ok || !response.body) throw new Error('Canal de llamados no disponible');
+    setChannelState('connected');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -201,19 +238,20 @@
   }
 
   function scheduleReconnect() {
-    if (state.stopped || state.reconnectTimer) return;
+    if (state.paused || state.reconnectTimer || document.visibilityState === 'hidden') return;
     state.reconnectTimer = setTimeout(() => {
       state.reconnectTimer = null;
+      fetchSnapshot({ silent:true }).catch(() => {});
       startStream();
     }, 3000);
   }
 
   function startStream() {
-    if (state.stopped || state.streamAbort) return;
+    if (state.paused || state.streamAbort || document.visibilityState === 'hidden') return;
     const controller = new AbortController();
     state.streamAbort = controller;
     streamLoop(controller)
-      .catch(() => {})
+      .catch(() => { setChannelState('disconnected'); })
       .finally(() => {
         if (state.streamAbort === controller) state.streamAbort = null;
         if (!controller.signal.aborted) scheduleReconnect();
@@ -227,18 +265,49 @@
     state.reconnectTimer = null;
     if (state.ringTimer) clearTimeout(state.ringTimer);
     state.ringTimer = null;
+    try { navigator.vibrate?.(0); } catch {}
+  }
+
+  function pauseChannel() {
+    state.paused = true;
+    setChannelState('paused');
+    stopStream();
+  }
+
+  function resumeChannel() {
+    state.paused = false;
+    ensureRoot();
+    fetchSnapshot({ silent:true }).catch(() => {});
+    startStream();
+    updateRinging();
   }
 
   function boot() {
-    ensureRoot();
-    startStream();
+    if (state.booted) return;
+    state.booted = true;
+    resumeChannel();
   }
 
   window.addEventListener('pointerdown', warmAudio, { once:true, passive:true });
-  window.addEventListener('pagehide', () => {
-    state.stopped = true;
-    stopStream();
-  }, { once:true });
+  window.addEventListener('pagehide', pauseChannel);
+  window.addEventListener('pageshow', resumeChannel);
+  window.addEventListener('online', resumeChannel);
+  window.addEventListener('focus', () => {
+    if (document.visibilityState !== 'hidden') resumeChannel();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') pauseChannel();
+    else resumeChannel();
+  });
+
+  window.VantixGCWaiterCallV2 = Object.freeze({
+    version:'2.0.0',
+    initialSnapshot:true,
+    resumeSafe:true,
+    reconnectSnapshot:true,
+    noPolling:true,
+    noMutationObserver:true
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
