@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE = 'vantixgc-waiter-shell-v16-autopedido-code';
+const CACHE = 'vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code';
 const START = '/app/centro-de-control/mesero?view=mesero&pwa=1';
 const SHELL = [
   START,
