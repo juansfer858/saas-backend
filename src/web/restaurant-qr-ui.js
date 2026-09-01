@@ -11,7 +11,8 @@
     { id:'BEBIDAS', label:'BEBIDAS' },
     { id:'POSTRES', label:'POSTRES' }
   ];
-  const S = { ctx:null, cart:new Map(), filter:'FEATURED', phone:'', consent:false, sending:false };
+  const CLIENT_REVIEW_MODE = 'SYSTEM_ONLY_NO_WHATSAPP_V5';
+  const S = { ctx:null, cart:new Map(), filter:'FEATURED', sending:false };
 
   async function req(path, opts = {}) {
     const response = await fetch(path, {
@@ -206,16 +207,10 @@
     body.innerHTML = `${lines || '<div class="qrv3-empty"><strong>Tu pedido está vacío.</strong><span>Agrega un producto para continuar.</span></div>'}
       <div class="qrv3-order-total"><span>Total a enviar</span><strong>${money(total())}</strong></div>
       <div class="qrv3-form">
-        <label>WhatsApp opcional
-          <input id="phone" class="qrv3-phone" inputmode="tel" autocomplete="tel" value="${esc(S.phone)}" placeholder="Ej. +57 300 123 4567">
-        </label>
-        <label class="qrv3-consent"><input id="consent" type="checkbox" ${S.consent ? 'checked' : ''}><span>Acepto recibir avisos transaccionales de este pedido por WhatsApp.</span></label>
         <button id="confirm" class="qrv3-send" type="button" ${!S.cart.size || S.sending ? 'disabled' : ''}>${S.sending ? 'ENVIANDO…' : 'ENVIAR PEDIDO A COCINA'}</button>
       </div>`;
     $$('[data-order-plus]').forEach((button) => button.addEventListener('click', () => setQuantity(button.dataset.orderPlus, 1)));
     $$('[data-order-minus]').forEach((button) => button.addEventListener('click', () => setQuantity(button.dataset.orderMinus, -1)));
-    $('#phone')?.addEventListener('input', (event) => { S.phone = event.target.value; });
-    $('#consent')?.addEventListener('change', (event) => { S.consent = event.target.checked; });
     $('#confirm')?.addEventListener('click', send);
   }
 
@@ -256,18 +251,11 @@
 
   async function send() {
     if (!S.cart.size || S.sending) return;
-    const phone = String(S.phone || '').trim();
-    if (phone && !S.consent) {
-      alert('Marca la autorización de WhatsApp o deja el número vacío para continuar.');
-      return;
-    }
     S.sending = true;
     renderOrderPanel();
     const payload = {
       items:[...S.cart.entries()].map(([menuItemId, quantity]) => ({ menuItemId, quantity })),
       confirmedTotal:total(),
-      customerPhoneE164:phone || null,
-      consentWhatsApp:Boolean(phone && S.consent),
       externalRequestId:`QR-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
     };
     try {
@@ -311,4 +299,6 @@
     $('#accountStrip').innerHTML = '<b>No pudimos abrir este QR</b><span>ERROR</span>';
     $('#app').innerHTML = `<div class="qrv3-closed"><div class="qrv3-closed-icon">!</div><h2>No fue posible cargar la mesa</h2><p>${esc(error.message)}</p></div>`;
   });
+
+  void CLIENT_REVIEW_MODE;
 })();
