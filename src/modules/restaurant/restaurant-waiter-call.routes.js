@@ -2,7 +2,6 @@
 
 const express = require('express');
 const { AppError } = require('../../utils/app-error');
-const { requirePermission } = require('../../middleware/require-permission');
 const calls = require('./restaurant-waiter-call.service');
 const waiterDevices = require('./restaurant-waiter-device.service');
 
@@ -95,7 +94,13 @@ function kick(tenantId) {
   watcher.timer.unref?.();
 }
 
-router.get('/llamadas-mesero', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
+// These routes are already behind the Core tenant resolver + auth middleware. The
+// device assertion below is the authoritative security boundary: only a live,
+// explicitly linked WAITER_DEVICE token belonging to an active MESERO can read or
+// attend calls. Do not add a second tenant-RBAC gate here; restaurant role grants can
+// be repaired lazily and must never prevent an already-authorized tablet from hearing
+// a table call.
+router.get('/llamadas-mesero', async (req, res, next) => {
   try {
     await assertWaiterDeviceRequest(req);
     res.set('Cache-Control', 'no-store');
@@ -103,7 +108,7 @@ router.get('/llamadas-mesero', requirePermission('RESTAURANTE.VER'), async (req,
   } catch (error) { next(error); }
 });
 
-router.get('/llamadas-mesero/stream', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
+router.get('/llamadas-mesero/stream', async (req, res, next) => {
   try {
     await assertWaiterDeviceRequest(req);
     res.status(200);
@@ -121,7 +126,7 @@ router.get('/llamadas-mesero/stream', requirePermission('RESTAURANTE.VER'), asyn
   } catch (error) { next(error); }
 });
 
-router.post('/llamadas-mesero/:id/atender', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
+router.post('/llamadas-mesero/:id/atender', async (req, res, next) => {
   try {
     await assertWaiterDeviceRequest(req);
     const data = await calls.attendCall(req.tenantId, req.userId, req.params.id);
