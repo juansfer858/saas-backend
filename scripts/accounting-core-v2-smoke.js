@@ -163,7 +163,8 @@ async function main() {
   const posted = await accounting.postDraftJournal(tenant.id, user.id, draft.id);
   assert.match(posted.numeroComprobante, /^XX-202608-000001$/);
   const reversal = await accounting.reverseJournal(tenant.id, user.id, posted.id, 'Prueba de reversión');
-  assert.match(reversal.numeroComprobante, /^RV-202608-\d{6}$/);
+  const reversalPeriod = new Date().toISOString().slice(0, 7).replace('-', '');
+  assert.match(reversal.numeroComprobante, new RegExp(`^RV-${reversalPeriod}-\\d{6}$`));
   const originalAfter = await prisma.asientoContable.findUnique({ where: { id: posted.id } });
   assert.equal(originalAfter.estado, 'ANULADO');
   const journalDetail = await accounting.getJournal(tenant.id, posted.id);
