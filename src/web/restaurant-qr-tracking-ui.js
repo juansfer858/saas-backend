@@ -190,7 +190,7 @@
     S.orders = Array.isArray(snapshot?.orders) ? snapshot.orders : [];
     renderButton();
     if (document.getElementById('restaurantOrderTrackingPanel')?.hidden === false) renderTrackingPanel();
-    if (options.autoShow) renderTrackingHome();
+    if (options.autoShow || document.querySelector('#app .qrv-track-home')) renderTrackingHome();
   }
 
   async function refreshTracking(options = {}) {
