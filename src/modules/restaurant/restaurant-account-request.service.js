@@ -35,6 +35,20 @@ async function activeWaiter(tenantId, userId, client = prisma) {
 async function resolvePrimaryWaiter(verified, client = prisma) {
   const openedBy = await activeWaiter(verified.table.tenantId, verified.session.openedByUserId, client);
   if (openedBy) return openedBy;
+
+  const firstWaiterOrder = await client.restaurantOrder.findFirst({
+    where: {
+      tenantId:verified.table.tenantId,
+      sessionId:verified.session.id,
+      source:'MESERO',
+      createdByUserId:{ not:null }
+    },
+    select:{ createdByUserId:true },
+    orderBy:{ creadoEn:'asc' }
+  });
+  const firstOrderWaiter = await activeWaiter(verified.table.tenantId, firstWaiterOrder?.createdByUserId, client);
+  if (firstOrderWaiter) return firstOrderWaiter;
+
   return activeWaiter(verified.table.tenantId, verified.table.assignedWaiterId, client);
 }
 
@@ -66,59 +80,62 @@ async function ensureEscalated(row, now = new Date()) {
 }
 
 async function ensureConsumption(tenantId, sessionId, client = prisma) {
-  const order = await client.restaurantOrder.findFirst({
+  const orders = await client.restaurantOrder.findMany({
     where: { tenantId, sessionId, state:{ not:'CANCELADO' } },
     select: { id:true }
   });
-  if (!order) throw new AppError(409, 'Aún no hay consumos para pedir la cuenta', 'RESTAURANT_ACCOUNT_REQUEST_EMPTY');
+  if (!orders.length) throw new AppError(409, 'Aún no hay consumos para pedir la cuenta', 'RESTAURANT_ACCOUNT_REQUEST_EMPTY');
   const item = await client.restaurantOrderItem.findFirst({
-    where: { tenantId, orderId:order.id },
+    where: { tenantId, orderId:{ in:orders.map((row) => row.id) } },
     select: { id:true }
   });
   if (!item) throw new AppError(409, 'Aún no hay consumos para pedir la cuenta', 'RESTAURANT_ACCOUNT_REQUEST_EMPTY');
 }
 
-async function currentLink(tenantId, sessionId) {
-  return prisma.trackingLink.findFirst({
-    where: {
-      tenantId,
-      originType:ORIGIN_TYPE,
-      originId:sessionId,
-      active:true,
-      currentStatus:{ in:['PENDING_PRIMARY','ESCALATED'] },
-      expiresAt:{ gt:new Date() }
-    }
-  });
-}
-
 async function createRequest(qrToken, rawVisitToken) {
   const verified = await visitPayments.verifyVisit(qrToken, rawVisitToken);
   const existingStatus = statusFromSession(verified.session);
-  if (existingStatus.state !== 'OPEN') return { ...existingStatus, table:{ id:verified.table.id, code:verified.table.code, name:verified.table.name } };
+  if (existingStatus.state !== 'OPEN') {
+    return { ...existingStatus, table:{ id:verified.table.id, code:verified.table.code, name:verified.table.name } };
+  }
 
   await ensureConsumption(verified.table.tenantId, verified.session.id);
   const primary = await resolvePrimaryWaiter(verified);
   const now = new Date();
   const escalatesAt = new Date(now.getTime() + (primary ? PRIMARY_ONLY_MS : 0));
 
-  await prisma.$transaction(async (tx) => {
-    const session = await tx.restaurantTableSession.findFirst({
+  const result = await prisma.$transaction(async (tx) => {
+    const live = await tx.restaurantTableSession.findFirst({
       where: { id:verified.session.id, tenantId:verified.table.tenantId, state:{ in:['ABIERTA','CUENTA_PEDIDA'] } }
     });
-    if (!session) throw new AppError(409, 'La mesa ya no tiene una visita activa', 'RESTAURANT_QR_TABLE_NOT_OPEN');
-    if (!session.accountRequestedAt && !session.accountPreparedAt && !session.cashierRequestedAt) {
-      await tx.restaurantTableSession.update({
-        where: { id:session.id },
-        data: { state:'CUENTA_PEDIDA', accountRequestedAt:now }
-      });
-      await tx.restaurantTable.update({ where:{ id:verified.table.id }, data:{ state:'CUENTA_PEDIDA' } });
+    if (!live) throw new AppError(409, 'La mesa ya no tiene una visita activa', 'RESTAURANT_QR_TABLE_NOT_OPEN');
+    const liveStatus = statusFromSession(live);
+    if (liveStatus.state !== 'OPEN') return { created:false, session:live };
+
+    // La solicitud del cliente sólo marca intención. La mesa permanece ABIERTA/OCUPADA
+    // hasta que el mesero prepare y envíe la cuenta a Caja. Esto evita confundir
+    // "cuenta solicitada" con "cuenta ya enviada a Caja" en la PWA del Mesero.
+    const changed = await tx.restaurantTableSession.updateMany({
+      where: {
+        id:live.id,
+        tenantId:verified.table.tenantId,
+        state:'ABIERTA',
+        accountRequestedAt:null,
+        accountPreparedAt:null,
+        cashierRequestedAt:null
+      },
+      data: { accountRequestedAt:now }
+    });
+    if (changed.count !== 1) {
+      const concurrent = await tx.restaurantTableSession.findUnique({ where:{ id:live.id } });
+      return { created:false, session:concurrent || live };
     }
 
     const raw = crypto.randomBytes(32).toString('base64url');
     const event = {
       type:'ACCOUNT_REQUEST_CREATED',
       at:now.toISOString(),
-      sessionId:session.id,
+      sessionId:live.id,
       tableId:verified.table.id,
       tableCode:verified.table.code,
       tableName:verified.table.name,
@@ -128,14 +145,14 @@ async function createRequest(qrToken, rawVisitToken) {
       escalatesAt:escalatesAt.toISOString()
     };
     await tx.trackingLink.upsert({
-      where: { tenantId_originType_originId:{ tenantId:verified.table.tenantId, originType:ORIGIN_TYPE, originId:session.id } },
+      where: { tenantId_originType_originId:{ tenantId:verified.table.tenantId, originType:ORIGIN_TYPE, originId:live.id } },
       create: {
         tenantId:verified.table.tenantId,
         tokenHash:crypto.createHash('sha256').update(raw).digest('hex'),
-        tokenCiphertext:`ACCOUNT_REQUEST:${session.id}`,
+        tokenCiphertext:`ACCOUNT_REQUEST:${live.id}`,
         tokenHint:raw.slice(-6),
         originType:ORIGIN_TYPE,
-        originId:session.id,
+        originId:live.id,
         publicReference:primary?.id || 'ALL',
         currentStatus:primary ? 'PENDING_PRIMARY' : 'ESCALATED',
         timeline:[event],
@@ -155,10 +172,12 @@ async function createRequest(qrToken, rawVisitToken) {
         lastNotificationAt:now
       }
     });
+    const updated = await tx.restaurantTableSession.findUnique({ where:{ id:live.id } });
+    return { created:true, session:updated || { ...live, accountRequestedAt:now } };
   });
 
   return {
-    state:'REQUESTED', requested:true, requestedAt:now, preparedAt:null, cashierRequestedAt:null,
+    ...statusFromSession(result.session),
     table:{ id:verified.table.id, code:verified.table.code, name:verified.table.name }
   };
 }
@@ -199,7 +218,8 @@ async function waiterRequestsSnapshot(tenantId, waiterUserId) {
       where:{ id:{ in:stale.map((row) => row.id) }, active:true },
       data:{ active:false, currentStatus:'CLOSED', completedAt:now }
     }).catch(() => {});
-    rows = rows.filter((row) => !stale.some((staleRow) => staleRow.id === row.id));
+    const staleIds = new Set(stale.map((row) => row.id));
+    rows = rows.filter((row) => !staleIds.has(row.id));
   }
 
   const normalized = [];
@@ -242,6 +262,13 @@ async function attendRequest(tenantId, waiterUserId, requestId) {
     include:{ table:true }
   });
   if (!session) throw new AppError(409, 'La mesa ya no tiene una visita activa', 'RESTAURANT_ACCOUNT_REQUEST_TABLE_CLOSED');
+  if (!session.accountRequestedAt && !session.accountPreparedAt && !session.cashierRequestedAt) {
+    await prisma.trackingLink.updateMany({
+      where:{ id:row.id, tenantId, active:true },
+      data:{ active:false, currentStatus:'CLOSED', completedAt:new Date() }
+    }).catch(() => {});
+    return { attended:true, alreadyAttended:true, requestId:row.id, requestExpired:true };
+  }
   if (!session.accountPreparedAt) {
     await identity.prepareAccount(tenantId, { ...waiter, rol:SHARED_WAITER_ROLE }, session.tableId);
   }
