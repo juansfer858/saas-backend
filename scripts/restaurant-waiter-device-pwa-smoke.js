@@ -23,6 +23,8 @@ const runtimeV11 = waiterRuntimeV11(read('src/web/restaurant-waiter-runtime-v7.j
 const runtimeV13 = waiterRuntimeV13(read('src/web/restaurant-waiter-runtime-v7.js'));
 const runtime = waiterRuntimeV14(read('src/web/restaurant-waiter-runtime-v7.js'));
 const flexible = read('src/modules/restaurant/restaurant-waiter-service-flex-v9.js');
+const visitRoutes = read('src/modules/restaurant/restaurant-visit-payments.routes.js');
+const visitService = read('src/modules/restaurant/restaurant-visit-payments.service.js');
 const manifest = JSON.parse(read('src/web/restaurant-waiter-manifest.webmanifest'));
 const sw = read('src/web/restaurant-waiter-sw.js');
 const restaurantService = read('src/modules/restaurant/restaurant.service.js');
@@ -48,6 +50,12 @@ assert.match(publicRoutes, /v14-review-hard-gate-persistent/);
 assert.doesNotMatch(publicRoutes, /waiterReactiveV9Script/);
 assert.match(coreRoutes, /restaurantWaiterDeviceRouter/);
 assert.match(publicRoot, /restaurantWaiterDevicePublicRouter/);
+
+assert.match(visitRoutes, /\/mesas\/:id\/qr-visita/);
+assert.match(visitRoutes, /\/mesas\/:id\/qr-visita\/regenerar/);
+assert.match(visitService, /function visitCode\(session\)/);
+assert.match(visitService, /async function staffVisitStatus/);
+assert.match(visitService, /visitCode:\s*visitCode\(session\)/);
 
 assert.match(jwt, /permanent\s*=\s*false/);
 assert.match(jwt, /if \(!permanent\) options\.expiresIn/);
@@ -133,7 +141,19 @@ assert.match(sessionBridge, /vantix:waiter-order-review-ready/);
 assert.match(sessionBridge, /syncedBeforeReview:true/);
 assert.match(sessionBridge, /tabletReviewEntry:true/);
 assert.match(sessionBridge, /noDirectKitchenSend:true/);
-assert.doesNotMatch(sessionBridge, /MutationObserver/);
+
+assert.match(sessionBridge, /VANTIX_WAITER_AUTOPEDIDO_CODE_V16/);
+assert.match(sessionBridge, /CÓDIGO PARA ACTIVAR AUTOPEDIDO/);
+assert.match(sessionBridge, /\/qr-visita/);
+assert.match(sessionBridge, /data-wv-autopedido-code/);
+assert.match(sessionBridge, /data-wv-autopedido-rotate/);
+assert.match(sessionBridge, /CAMBIAR CÓDIGO/);
+assert.match(sessionBridge, /visitCodeVisible:true/);
+assert.match(sessionBridge, /noPolling:true/);
+assert.match(sessionBridge, /noMutationObserver:true/);
+assert.doesNotMatch(sessionBridge, /new\s+MutationObserver|MutationObserver\s*\(/);
+assert.doesNotMatch(sessionBridge, /setInterval/);
+assert.doesNotMatch(sessionBridge, /restaurant-ui\.js/);
 new Function(sessionBridge);
 
 assert.match(flexible, /VANTIX_WAITER_FLEXIBLE_BILLING_V10/);
@@ -142,7 +162,7 @@ assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry/);
+assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code/);
 assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
@@ -151,8 +171,8 @@ assert.doesNotMatch(sw, /POST|PUT|PATCH|DELETE/);
 console.log(JSON.stringify({
   ok:true,
   product:'VantixGC Mesero PWA',
-  version:'V15_TABLET_REVIEW_ENTRY',
-  runtime:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE_PLUS_V15_TABLET_REVIEW_ENTRY',
+  version:'V16_AUTOPEDIDO_CODE',
+  runtime:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE_PLUS_V15_TABLET_REVIEW_ENTRY_PLUS_V16_AUTOPEDIDO_CODE',
   deviceSession:'persistent-until-revoked',
   billingButtonsDoNotBounceBack:true,
   guestButtonsDoNotBounceBack:true,
@@ -163,9 +183,11 @@ console.log(JSON.stringify({
   orderSynchronizedBeforeReview:true,
   hardReviewGate:true,
   tabletReviewEntry:true,
+  autopedidoVisitCodeVisible:true,
+  autopedidoVisitCodeRotatable:true,
   directKitchenSendImpossibleFromReviewButton:true,
   confirmOrderButton:true,
   pendingAndSentSeparated:true,
   billingModeFlexibleWithConsumption:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry'
+  serviceWorkerCache:'vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code'
 }));

@@ -225,3 +225,174 @@
     passiveEnhancement:true
   });
 })();
+
+(() => {
+  'use strict';
+  const MARKER = 'VANTIX_WAITER_AUTOPEDIDO_CODE_V16';
+  const SESSION_KEY = 'vantixgc_core_session_v1';
+  const RETRIES_MS = [0, 120, 320, 700, 1300, 2200];
+  let timers = [];
+  let requestSeq = 0;
+
+  function readSession() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+  }
+
+  function activeTableId() {
+    return document.querySelector('#wvTables .wv-table.active[data-table]')?.dataset.table || null;
+  }
+
+  function clearTimers() {
+    for (const timer of timers) clearTimeout(timer);
+    timers = [];
+  }
+
+  function removeCard() {
+    document.querySelector('[data-wv-autopedido-code]')?.remove();
+  }
+
+  function ensureCard(tableId) {
+    const serviceBar = document.querySelector('#wvServiceBar');
+    if (!serviceBar || activeTableId() !== tableId) return null;
+    let card = document.querySelector('[data-wv-autopedido-code]');
+    if (card && card.dataset.tableId !== tableId) {
+      card.remove();
+      card = null;
+    }
+    if (!card) {
+      card = document.createElement('section');
+      card.className = 'wv-card wv-autopedido-card';
+      card.dataset.wvAutopedidoCode = 'true';
+      card.dataset.tableId = tableId;
+      serviceBar.insertAdjacentElement('afterend', card);
+    }
+    return card;
+  }
+
+  function renderLoading(tableId) {
+    const card = ensureCard(tableId);
+    if (!card) return false;
+    card.dataset.loaded = '0';
+    card.innerHTML = '<div><small>AUTOPEDIDO QR</small><b>Consultando código…</b><span>Este código autoriza los teléfonos de la mesa actual.</span></div>';
+    return true;
+  }
+
+  function renderStatus(tableId, status) {
+    const card = ensureCard(tableId);
+    if (!card) return false;
+    card.dataset.loaded = '1';
+    if (!status?.open) {
+      card.innerHTML = '<div><small>AUTOPEDIDO QR</small><b>Mesa cerrada</b><span>El código aparecerá cuando abras la mesa.</span></div>';
+      return true;
+    }
+    card.innerHTML = `<div class="wv-autopedido-copy"><small>CÓDIGO PARA ACTIVAR AUTOPEDIDO</small><strong>${String(status.visitCode || '').replace(/[^0-9]/g, '').slice(0,4)}</strong><span>Dile estos 4 números a las personas de ${String(status.table?.name || 'la mesa').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]))}. ${Number(status.activeDevices || 0)} teléfono(s) autorizado(s).</span></div><button type="button" class="wv-btn wv-autopedido-rotate" data-wv-autopedido-rotate>CAMBIAR CÓDIGO</button>`;
+    return true;
+  }
+
+  function renderError(tableId, text) {
+    const card = ensureCard(tableId);
+    if (!card) return false;
+    card.dataset.loaded = '1';
+    const safe = String(text || 'No fue posible consultar el código.').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
+    card.innerHTML = `<div><small>AUTOPEDIDO QR</small><b>Código no disponible</b><span>${safe}</span></div>`;
+    return true;
+  }
+
+  async function refreshCode(force = false) {
+    const tableId = activeTableId();
+    const serviceBar = document.querySelector('#wvServiceBar');
+    if (!tableId || !serviceBar) {
+      removeCard();
+      return false;
+    }
+    const existing = document.querySelector('[data-wv-autopedido-code]');
+    if (!force && existing?.dataset.tableId === tableId && existing.dataset.loaded === '1') return true;
+
+    const session = readSession();
+    if (!session?.token || !session?.subdomain) return false;
+    const seq = ++requestSeq;
+    renderLoading(tableId);
+    try {
+      const response = await fetch(`/api/v1/restaurante/mesas/${encodeURIComponent(tableId)}/qr-visita`, {
+        cache:'no-store',
+        headers:{ Authorization:`Bearer ${session.token}`, 'x-tenant-subdomain':session.subdomain }
+      });
+      let body = {};
+      try { body = await response.json(); } catch {}
+      if (seq !== requestSeq || activeTableId() !== tableId) return false;
+      if (!response.ok) throw new Error(body?.error?.message || body?.message || `HTTP ${response.status}`);
+      return renderStatus(tableId, body?.data || {});
+    } catch (error) {
+      if (seq === requestSeq && activeTableId() === tableId) renderError(tableId, error.message);
+      return false;
+    }
+  }
+
+  function scheduleCode(forceFirst = false) {
+    clearTimers();
+    timers = RETRIES_MS.map((delay, index) => setTimeout(() => {
+      refreshCode(index === 0 && forceFirst).catch(() => {});
+    }, delay));
+  }
+
+  async function rotateCode(button) {
+    const tableId = button?.closest?.('[data-wv-autopedido-code]')?.dataset.tableId || activeTableId();
+    const session = readSession();
+    if (!tableId || !session?.token || !session?.subdomain) return;
+    if (!confirm('¿Cambiar el código de autopedido? Los teléfonos autorizados tendrán que ingresar el nuevo código.')) return;
+    button.disabled = true;
+    button.textContent = 'CAMBIANDO…';
+    try {
+      const response = await fetch(`/api/v1/restaurante/mesas/${encodeURIComponent(tableId)}/qr-visita/regenerar`, {
+        method:'POST',
+        cache:'no-store',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session.token}`, 'x-tenant-subdomain':session.subdomain },
+        body:'{}'
+      });
+      let body = {};
+      try { body = await response.json(); } catch {}
+      if (!response.ok) throw new Error(body?.error?.message || body?.message || `HTTP ${response.status}`);
+      const current = document.querySelector('[data-wv-autopedido-code]');
+      if (current?.dataset.tableId === tableId) {
+        current.dataset.loaded = '0';
+        current.innerHTML = `<div class="wv-autopedido-copy"><small>CÓDIGO PARA ACTIVAR AUTOPEDIDO</small><strong>${String(body?.data?.visitCode || '').replace(/[^0-9]/g, '').slice(0,4)}</strong><span>Código cambiado · 0 teléfonos autorizados.</span></div><button type="button" class="wv-btn wv-autopedido-rotate" data-wv-autopedido-rotate>CAMBIAR CÓDIGO</button>`;
+        current.dataset.loaded = '1';
+      }
+    } catch (error) {
+      renderError(tableId, error.message);
+    } finally {
+      const liveButton = document.querySelector('[data-wv-autopedido-rotate]');
+      if (liveButton) { liveButton.disabled = false; liveButton.textContent = 'CAMBIAR CÓDIGO'; }
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    const rotate = event.target?.closest?.('[data-wv-autopedido-rotate]');
+    if (rotate) {
+      event.preventDefault();
+      rotateCode(rotate).catch(() => {});
+      return;
+    }
+    if (event.target?.closest?.('.wv-table[data-table], [data-action="open-table"]')) scheduleCode(true);
+  }, false);
+
+  document.addEventListener('change', (event) => {
+    if (event.target?.id === 'wvZone') scheduleCode(true);
+  }, false);
+
+  window.addEventListener('online', () => scheduleCode(true));
+  window.addEventListener('pageshow', () => scheduleCode(false));
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .wv-autopedido-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px;border-color:#b8d7c7;background:#eef8f2;color:#173f31}
+    .wv-autopedido-card small{display:block;font-size:10px;font-weight:950;letter-spacing:.08em;color:#166534}.wv-autopedido-card b{display:block;margin-top:3px;font-size:14px}.wv-autopedido-card span{display:block;margin-top:3px;font-size:11px;line-height:1.35;color:#47675a}
+    .wv-autopedido-copy strong{display:block;margin-top:2px;font-size:clamp(30px,7vw,42px);line-height:1;letter-spacing:.18em;font-variant-numeric:tabular-nums;color:#0f1a2b}
+    .wv-autopedido-rotate{min-height:50px!important;white-space:nowrap!important}
+    @media(max-width:520px){.wv-autopedido-card{grid-template-columns:1fr}.wv-autopedido-rotate{width:100%}}
+  `;
+  document.head.appendChild(style);
+
+  scheduleCode(true);
+  window.VantixGCWaiterAutopedidoCodeV16 = Object.freeze({ marker:MARKER, visitCodeVisible:true, noPolling:true, noMutationObserver:true });
+})();
