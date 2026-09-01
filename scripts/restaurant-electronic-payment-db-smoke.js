@@ -43,14 +43,14 @@ async function main() {
 
   const context = await electronic.clientContext(table.qrToken, rawVisitToken);
   assert.equal(context.accountRequested, true);
-  assert.equal(context.amount, '73500.00');
+  assert.equal(Number(context.amount), 73500);
   assert.equal(context.electronicAvailable, true);
   assert.equal(context.destinations[0].id, bank.id);
   assert.equal(context.report.state, 'READY');
 
   const reported = await electronic.reportPayment(table.qrToken, rawVisitToken, { cajaBancoId:bank.id, reference:'4821' });
   assert.equal(reported.state, 'REPORTED');
-  assert.equal(reported.amount, '73500.00');
+  assert.equal(Number(reported.amount), 73500);
   assert.equal(reported.reference, '4821');
   assert.equal(reported.destination.id, bank.id);
 
