@@ -3,6 +3,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const restaurant = require('../restaurant/restaurant.service');
 const identity = require('../restaurant/restaurant-identity.service');
+const visitPayments = require('../restaurant/restaurant-visit-payments.service');
 
 const TYPES = new Set([
   'RESTAURANT_TABLE_OPEN',
@@ -59,12 +60,15 @@ async function buildRestaurantBootstrap(agent) {
       seats: table.seats,
       state: table.state,
       assignedWaiterId: table.assignedWaiterId,
+      qrToken: table.qrToken,
       activeSession: table.sessions[0] ? {
         id: table.sessions[0].id,
         state: table.sessions[0].state,
         saleId: table.sessions[0].saleId,
         guestCount: table.sessions[0].guestCount,
-        billingMode: table.sessions[0].billingMode || 'CONJUNTA'
+        billingMode: table.sessions[0].billingMode || 'CONJUNTA',
+        visitCode: visitPayments.visitCode(table.sessions[0]),
+        acceptsQrOrders: table.sessions[0].state === 'ABIERTA' && !table.sessions[0].splitMetadata
       } : null
     })),
     menu: menu.map((row) => ({
@@ -220,6 +224,17 @@ async function applyOrderSeats(tenantId, orderId, requestItems, billingMode, gue
   }
 }
 
+async function preserveQrOrigin(tenantId, orderId) {
+  await prisma.restaurantOrder.update({ where: { id: orderId }, data: { source: 'QR', createdByUserId: null } });
+  const commands = await prisma.restaurantCommand.findMany({ where: { tenantId, orderId }, select: { id: true, simulationRecord: true } });
+  for (const command of commands) {
+    const record = command.simulationRecord && typeof command.simulationRecord === 'object' && !Array.isArray(command.simulationRecord)
+      ? command.simulationRecord
+      : {};
+    await prisma.restaurantCommand.update({ where: { id: command.id }, data: { simulationRecord: { ...record, source: 'QR', offlineEdge: true } } });
+  }
+}
+
 async function execute(agent, operation) {
   const payload = operation.payload || {};
   const user = actor(agent);
@@ -243,6 +258,7 @@ async function execute(agent, operation) {
         externalRequestId: `EDGE-${agent.id}-${operation.id}`
       });
       await applyOrderSeats(tenantId, result.id, payload.items || [], service?.billingMode || 'CONJUNTA', service?.guestCount || 1);
+      if (String(payload.orderSource || '').toUpperCase() === 'QR') await preserveQrOrigin(tenantId, result.id);
       return restaurant.getOrder ? restaurant.getOrder(tenantId, result.id) : result;
     }
     case 'RESTAURANT_COMMAND_STATUS': {
