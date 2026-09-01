@@ -42,16 +42,21 @@ jobs:
         run: npm run build
       - name: Sync isolated PostgreSQL
         run: npx prisma db push
-      - name: Validate offline waiter runtime syntax
+      - name: Validate offline waiter and QR runtime syntax
         run: |
+          node --check edge/agent/offline-qr-self-order.js
           node --check edge/agent/offline-waiter-hard-gate.js
           node --check edge/agent/restaurant-entry-v2.js
           node --check edge/workspace/public/offline-waiter-v2.js
+          node --check src/web/restaurant-qr-edge-fallback-ui.js
           node --check src/modules/edge/edge-restaurant-sync.service.js
           node --check src/modules/edge/edge-restaurant-ingress.service.js
+          node --check scripts/edge-restaurant-offline-qr-v1-smoke.js
           node --check scripts/edge-restaurant-offline-waiter-v2-smoke.js
           node --check scripts/edge-restaurant-offline-reconnect-db-smoke.js
           node --check scripts/restaurant-qr-edge-offline-guard-smoke.js
+      - name: Prove customer QR works on Edge LAN with Core unavailable
+        run: node scripts/edge-restaurant-offline-qr-v1-smoke.js
       - name: Prove real local SQLite waiter hard gate with Core unavailable
         run: node scripts/edge-restaurant-offline-waiter-v2-smoke.js
       - name: Prove PostgreSQL reconnect preserves persons and idempotency

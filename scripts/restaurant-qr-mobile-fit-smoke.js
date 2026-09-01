@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const html = fs.readFileSync('src/web/restaurant-qr.html', 'utf8');
 const mobile = fs.readFileSync('src/web/restaurant-qr-mobile-fit.js', 'utf8');
+const edgeFallback = fs.readFileSync('src/web/restaurant-qr-edge-fallback-ui.js', 'utf8');
 const visit = fs.readFileSync('src/web/restaurant-qr-visit-ui.js', 'utf8');
 const routes = fs.readFileSync('src/modules/restaurant/restaurant-visit.public.routes.js', 'utf8');
 
@@ -21,7 +22,11 @@ assert.match(mobile, /restaurantVisitCode/, 'mobile guard must detect visit code
 assert.match(mobile, /input\.blur\(\)/, 'mobile guard must avoid forced keyboard on first QR paint');
 assert.match(visit, /input\?\.focus\(\{ preventScroll:true \}\)/, 'test must cover current visit overlay autofocus behavior');
 
-assert.match(routes, /const \[mobileFit, visitUi, baseUi\] = await Promise\.all/, 'QR compositor must load mobile guard with visit and base engines');
-assert.match(routes, /send\(`\$\{mobileFit\}\\n;\$\{visitUi\}\\n;\$\{baseUi\}`\)/, 'combined QR asset must execute mobile fit before visit and base UI');
+assert.match(edgeFallback, /CONTINUAR EN RED LOCAL/, 'Edge fallback must expose an explicit LAN continuation instead of a silent redirect');
+assert.match(edgeFallback, /url\.protocol !== 'http:'/, 'LAN fallback must reject non-local protocol shapes before navigation');
+assert.doesNotMatch(edgeFallback, /setInterval|MutationObserver/, 'Edge fallback must not add polling or DOM observers');
+
+assert.match(routes, /const \[mobileFit, edgeFallback, visitUi, baseUi\] = await Promise\.all/, 'QR compositor must load mobile guard, Edge fallback, visit and base engines');
+assert.match(routes, /send\(`\$\{mobileFit\}\\n;\$\{edgeFallback\}\\n;\$\{visitUi\}\\n;\$\{baseUi\}`\)/, 'combined QR asset must execute mobile fit first, then Edge fallback, visit and base UI');
 
 console.log('RESTAURANT QR MOBILE FIT SMOKE OK');
