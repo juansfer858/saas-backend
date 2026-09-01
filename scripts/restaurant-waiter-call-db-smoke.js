@@ -35,7 +35,8 @@ async function main() {
   assert.match(publicRoutes, /restaurant-qr-waiter-call-ui\.js/);
   assert.match(publicRoutes, /restaurant-waiter-call-ui\.js/);
   assert.match(publicRoutes, /waiterRuntimeV14/);
-  assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate-v17-waiter-call'/);
+  assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate'/);
+  assert.match(publicRoutes, /X-VantixGC-Waiter-Call', 'v1-escalation'/);
   assert.match(waiterRoutes, /WAITER_DEVICE/);
   assert.match(waiterRoutes, /assertActiveDevice/);
   assert.match(waiterRoutes, /llamadas-mesero\/:id\/atender/);
