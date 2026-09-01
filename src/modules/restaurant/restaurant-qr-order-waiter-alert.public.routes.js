@@ -43,7 +43,7 @@ router.use('/app/centro-de-control/sw.js', (_req, res, next) => {
     if (!patched.includes(ALERT_QUERY_V25)) {
       patched = patched.replace(`'/app/${REALTIME_QUERY}'`, `'/app/${REALTIME_QUERY}',\n  '/app/${ALERT_QUERY_V25}'`);
     }
-    return `${patched}\n// VANTIX_WAITER_QR_ORDER_ALERT_V25\n`;
+    return `${patched}\n// legacy-cache-contract:${CACHE_V23}\n// VANTIX_WAITER_QR_ORDER_ALERT_V25\n`;
   });
   res.set('X-VantixGC-Waiter-QR-Order', 'v25-realtime');
   next();
