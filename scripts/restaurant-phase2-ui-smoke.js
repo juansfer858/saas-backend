@@ -127,10 +127,13 @@ for (const token of [
   'ELIGE UN PRODUCTO',
   'ENVIAR PEDIDO A COCINA',
   'AGREGAR OTRO PEDIDO',
-  'consentWhatsApp',
+  'SYSTEM_ONLY_NO_WHATSAPP_V5',
   '/api/public/restaurante/qr/',
   'No necesitas avisarle al mesero'
 ]) assert.ok(customerUi.includes(token), `Restaurant QR customer behavior must contain ${token}`);
+assert.ok(!customerUi.includes('WhatsApp opcional'), 'QR customer review must not ask for WhatsApp');
+assert.ok(!customerUi.includes('consentWhatsApp'), 'QR customer review must not require WhatsApp consent');
+assert.ok(!customerUi.includes('customerPhoneE164'), 'QR customer review must not collect a phone number');
 assert.ok(!customerUi.includes('qrv3-media-symbol'), 'QR customer menu must not depend on decorative product drawings');
 assert.ok(!customerUi.includes('location.origin'), 'QR customer UI must never derive its public identity from browser origin');
 
@@ -183,6 +186,7 @@ console.log(JSON.stringify({
   qrDirectOrderUi: true,
   qrFourProfileUx: true,
   qrTraditionalListUi: true,
+  qrSystemOnlyReview: true,
   qrPersistentCart: true,
   qrHelpFlow: true,
   cashShiftUi: true,
