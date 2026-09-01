@@ -48,9 +48,13 @@ jobs:
           node --check edge/agent/restaurant-entry-v2.js
           node --check edge/workspace/public/offline-waiter-v2.js
           node --check src/modules/edge/edge-restaurant-sync.service.js
+          node --check src/modules/edge/edge-restaurant-ingress.service.js
           node --check scripts/edge-restaurant-offline-waiter-v2-smoke.js
           node --check scripts/edge-restaurant-offline-reconnect-db-smoke.js
+          node --check scripts/restaurant-qr-edge-offline-guard-smoke.js
       - name: Prove real local SQLite waiter hard gate with Core unavailable
         run: node scripts/edge-restaurant-offline-waiter-v2-smoke.js
       - name: Prove PostgreSQL reconnect preserves persons and idempotency
         run: node scripts/edge-restaurant-offline-reconnect-db-smoke.js
+      - name: Prove QR self-order fails closed when Edge is offline
+        run: node scripts/restaurant-qr-edge-offline-guard-smoke.js
