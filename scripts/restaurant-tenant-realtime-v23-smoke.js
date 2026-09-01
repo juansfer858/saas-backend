@@ -25,6 +25,33 @@ async function withServer(run) {
   }
 }
 
+async function readSseEvent(reader, expectedName, timeoutMs = 2500) {
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const remaining = Math.max(1, deadline - Date.now());
+    const part = await Promise.race([
+      reader.read(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`SSE timeout waiting ${expectedName}`)), remaining))
+    ]);
+    if (part.done) throw new Error(`SSE ended before ${expectedName}`);
+    buffer += decoder.decode(part.value, { stream:true }).replace(/\r\n/g, '\n');
+    let boundary;
+    while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      if (!block || block.startsWith(':') || block.startsWith('retry:')) continue;
+      const lines = block.split('\n');
+      const eventName = (lines.find((line) => line.startsWith('event:')) || 'event: message').slice(6).trim();
+      const data = lines.filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('\n');
+      if (eventName !== expectedName || !data) continue;
+      return JSON.parse(data);
+    }
+  }
+  throw new Error(`SSE timeout waiting ${expectedName}`);
+}
+
 async function main() {
   const coreRoutes = read('src/routes/core.routes.js');
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
@@ -33,12 +60,13 @@ async function main() {
   const coreUi = read('src/web/core-realtime-panel-ui.js');
   const qrRealtime = read('src/web/restaurant-qr-realtime-ui.js');
   const realtimePublic = read('src/modules/restaurant/restaurant-tenant-realtime.public.routes.js');
+  const presencePublic = read('src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js');
 
   assert.match(coreRoutes, /tenantRealtimeMutationMiddleware/);
   assert.match(coreRoutes, /router\.use\('\/realtime', tenantRealtimeRouter\)/);
   assert.match(publicRoot, /restaurantPublicRealtimePublisher/);
-  assert.match(publicRoot, /restaurantTenantRealtimePublicRouter/);
-  assert.match(publicRoot, /router\.use\(restaurantPublicRealtimePublisher\);[\s\S]*router\.use\(restaurantTenantRealtimePublicRouter\);[\s\S]*router\.use\(restaurantElectronicPaymentPublicRouter\)/);
+  assert.match(publicRoot, /restaurantQrPresenceRealtimePublicRouter/);
+  assert.match(publicRoot, /router\.use\(restaurantPublicRealtimePublisher\);[\s\S]*router\.use\(restaurantQrPresenceRealtimePublicRouter\);[\s\S]*router\.use\(restaurantTenantRealtimePublicRouter\);[\s\S]*router\.use\(restaurantElectronicPaymentPublicRouter\)/);
   assert.match(panelLoader, /vantix-tenant-realtime\.js/);
   assert.match(panelLoader, /core-realtime-panel-ui\.js/);
   assert.match(tenantClient, /\/api\/v1\/realtime\/stream/);
@@ -46,11 +74,18 @@ async function main() {
   assert.match(coreUi, /\/app\/tesoreria/);
   assert.match(coreUi, /topics\.has\('treasury'\)/);
   assert.match(qrRealtime, /restaurant-visit-realtime/);
+  assert.match(qrRealtime, /visita\/realtime/);
+  assert.match(qrRealtime, /restaurant-table-availability/);
+  assert.match(qrRealtime, /tablePresenceBeforeAuthorization:true/);
+  assert.match(presencePublic, /VANTIX_QR_TABLE_PRESENCE_V24/);
+  assert.match(presencePublic, /automaticOpenClose:true/);
+  assert.match(presencePublic, /manualRefreshRequired:false/);
   assert.match(realtimePublic, /VANTIX_RESTAURANT_TENANT_REALTIME_V23/);
   assert.match(realtimePublic, /VANTIX_WAITER_TENANT_REALTIME_V23/);
   assert.doesNotMatch(tenantClient, /MutationObserver|setInterval/);
   assert.doesNotMatch(coreUi, /MutationObserver|setInterval/);
   assert.doesNotMatch(qrRealtime, /MutationObserver|setInterval/);
+  assert.doesNotMatch(presencePublic, /MutationObserver|setInterval/);
 
   const kdsTopics = topicsForPath('/api/v1/restaurante/comandas/abc/estado');
   assert.ok(kdsTopics.includes('restaurant.command'));
@@ -63,6 +98,10 @@ async function main() {
   const tenant = await prisma.tenant.create({ data:{ nombreEmpresa:`Realtime ${suffix}`, subdomain:`rt-${suffix}`, nicho:'RESTAURANTE' } });
   const otherTenant = await prisma.tenant.create({ data:{ nombreEmpresa:`Realtime other ${suffix}`, subdomain:`rt-other-${suffix}`, nicho:'RESTAURANTE' } });
   const bank = await prisma.cajaBanco.create({ data:{ tenantId:tenant.id, tipo:'BANCO', nombre:`Banco restaurante ${suffix}`, banco:'Banco QA', numeroCuenta:`${Date.now()}`, saldoActual:0, activo:true } });
+  const qrToken = crypto.randomUUID();
+  const table = await prisma.restaurantTable.create({
+    data:{ tenantId:tenant.id, code:`RT${suffix.slice(0,5)}`.toUpperCase(), name:'Mesa realtime QR', seats:4, qrToken, active:true, state:'LIBRE' }
+  });
 
   let otherTenantEvents = 0;
   const unsubscribeOther = realtime.subscribeTenant(otherTenant.id, () => { otherTenantEvents += 1; });
@@ -118,10 +157,57 @@ async function main() {
     const qrResponse = await fetch(`${baseUrl}/app/restaurant-qr-ui.js?v=menu-list-v4`, { cache:'no-store' });
     const qrUi = await qrResponse.text();
     assert.equal(qrResponse.status, 200);
-    assert.equal(qrResponse.headers.get('x-vantixgc-qr-realtime'), 'v23-tenant');
+    assert.equal(qrResponse.headers.get('x-vantixgc-qr-realtime'), 'v24-table-presence');
     assert.match(qrUi, /VANTIX_QR_TENANT_REALTIME_V23/);
+    assert.match(qrUi, /VANTIX_QR_TABLE_PRESENCE_V24/);
+    assert.match(qrUi, /vantix:restaurant-table-availability/);
     assert.match(qrUi, /VantixGCQrRealtimeV1/);
     assert.match(qrUi, /PAGO ELECTRÓNICO/);
+
+    const presenceController = new AbortController();
+    const presenceResponse = await fetch(`${baseUrl}/api/public/restaurante/qr/${encodeURIComponent(qrToken)}/visita/realtime`, {
+      cache:'no-store', headers:{ Accept:'text/event-stream' }, signal:presenceController.signal
+    });
+    assert.equal(presenceResponse.status, 200);
+    assert.equal(presenceResponse.headers.get('x-vantixgc-realtime'), 'restaurant-table-presence-v24');
+    const presenceReader = presenceResponse.body.getReader();
+    const initialPresence = await readSseEvent(presenceReader, 'ready');
+    assert.equal(initialPresence.open, false, 'customer may keep QR open while table is still closed');
+
+    const tableSession = await prisma.restaurantTableSession.create({
+      data:{
+        tenantId:tenant.id,
+        tableId:table.id,
+        saleId:crypto.randomUUID(),
+        openedByUserId:crypto.randomUUID(),
+        state:'ABIERTA',
+        guestCount:3,
+        billingMode:'CONJUNTA'
+      }
+    });
+    await prisma.restaurantTable.update({ where:{ id:table.id }, data:{ state:'OCUPADA' } });
+    realtime._deliverForTest(realtime._makeEventForTest(
+      tenant.id,
+      ['restaurant','restaurant.table'],
+      { tableId:table.id, sessionId:tableSession.id },
+      { source:'qa-open-table' }
+    ));
+    const openedPresence = await readSseEvent(presenceReader, 'availability');
+    assert.equal(openedPresence.open, true, 'waiter opening table must reach customer without refresh');
+    assert.equal(openedPresence.guestCount, 3);
+
+    await prisma.restaurantTableSession.update({ where:{ id:tableSession.id }, data:{ state:'CERRADA', closedAt:new Date() } });
+    await prisma.restaurantTable.update({ where:{ id:table.id }, data:{ state:'LIBRE' } });
+    realtime._deliverForTest(realtime._makeEventForTest(
+      tenant.id,
+      ['restaurant','restaurant.table','treasury'],
+      { tableId:table.id, sessionId:tableSession.id },
+      { source:'qa-close-table' }
+    ));
+    const closedPresence = await readSseEvent(presenceReader, 'availability');
+    assert.equal(closedPresence.open, false, 'closing table must also reach customer automatically');
+    presenceController.abort();
+    await presenceReader.cancel().catch(() => {});
 
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwa = await pwaResponse.text();
@@ -151,9 +237,11 @@ async function main() {
     assert.equal(coreClientResponse.headers.get('x-vantixgc-realtime'), 'tenant-v1');
   });
 
-  console.log('RESTAURANT TENANT REALTIME V23 + CORE TREASURY VISIBILITY SMOKE OK');
+  console.log('RESTAURANT TENANT REALTIME V23 + QR TABLE PRESENCE V24 + CORE TREASURY VISIBILITY SMOKE OK');
   console.log(JSON.stringify({
     clientRealtime:true,
+    qrSeesTableOpenWithoutRefresh:true,
+    qrSeesTableCloseWithoutRefresh:true,
     waiterRealtime:true,
     kitchenRealtime:true,
     cashRealtime:true,
