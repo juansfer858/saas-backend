@@ -52,32 +52,51 @@
       <header class="qrv3-hero">
         <div>
           <small class="qrv3-kicker">Autopedido por mesa · VantixGC</small>
-          <h1 id="restaurantName" class="qrv3-brand">Restaurante</h1>
+          <h1 class="qrv3-brand" data-restaurant-name>Restaurante</h1>
         </div>
-        <div class="qrv3-table"><span class="qrv3-table-icon">♨</span><div><small>Mesa</small><strong id="tableCode">—</strong></div></div>
-        <button id="helpButton" type="button" class="qrv3-help">¿Necesitas ayuda?</button>
+        <div class="qrv3-table" aria-label="Mesa actual">
+          <span class="qrv3-table-icon" aria-hidden="true">♨</span>
+          <div><small>Mesa</small><strong data-table-name>—</strong></div>
+        </div>
+        <button id="helpButton" class="qrv3-help" type="button">¿Necesitas ayuda?</button>
       </header>
-      <section id="accountStrip" class="qrv3-status" aria-live="polite"><b>Mesa activa · pedido directo a producción</b><span>Cuenta actual $ 0</span></section>
-      <nav id="categoryWrap" class="qrv3-nav-wrap" aria-label="Categorías"><div id="categoryBar" class="qrv3-nav"></div></nav>
-      <section id="app" class="qrv3-content"><div class="qrv3-empty"><strong>Cargando carta…</strong><span>Un momento.</span></div></section>
+
+      <section id="accountStrip" class="qrv3-status" aria-live="polite">
+        <b>Preparando tu mesa…</b><span>—</span>
+      </section>
+
+      <div id="categoryWrap" class="qrv3-nav-wrap" hidden>
+        <nav id="categoryNav" class="qrv3-nav" aria-label="Categorías del menú"></nav>
+      </div>
+
+      <section id="app" class="qrv3-content" aria-live="polite">
+        <div class="qrv3-empty"><strong>Cargando menú real…</strong><span>Un momento, por favor.</span></div>
+      </section>
     </div>
   </main>
 
-  <aside id="cartBar" class="qrv3-cartbar" hidden>
+  <aside id="cartBar" class="qrv3-cartbar" hidden aria-label="Resumen de tu pedido">
     <div id="cartCount" class="qrv3-cartcount">0</div>
-    <div class="qrv3-cartcopy"><b id="cartTitle">Tu pedido está vacío</b><span id="cartDetail">Agrega un producto con el botón +</span></div>
+    <div class="qrv3-cartcopy"><b id="cartLabel">Tu pedido está vacío</b><span>Agrega un producto con el botón +</span></div>
     <div id="cartTotal" class="qrv3-carttotal">$ 0</div>
-    <button id="reviewButton" class="qrv3-review" type="button">VER PEDIDO</button>
+    <button id="reviewButton" class="qrv3-review" type="button" disabled>VER PEDIDO</button>
   </aside>
 
-  <div id="helpPanel" class="qrv3-modal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div id="helpPanel" class="qrv3-modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
     <section class="qrv3-sheet">
-      <header class="qrv3-sheet-head"><h2 id="helpTitle">¿Necesitas ayuda?</h2><button type="button" data-close-help aria-label="Cerrar ayuda">×</button></header>
-      <div class="qrv3-sheet-body"><div class="qrv3-helpsteps"><div class="qrv3-helpstep"><span>1</span><div><b>Elige lo que deseas</b><small>Usa las categorías de arriba y agrega con +.</small></div></div><div class="qrv3-helpstep"><span>2</span><div><b>Revisa el pedido</b><small>Abre VER PEDIDO antes de enviarlo.</small></div></div><div class="qrv3-helpstep"><span>3</span><div><b>Envíalo a cocina</b><small>Solo se envía cuando confirmas el pedido.</small></div></div></div></div>
+      <header class="qrv3-sheet-head"><h2 id="helpTitle">Pedir es muy fácil</h2><button type="button" data-close-help aria-label="Cerrar ayuda">×</button></header>
+      <div class="qrv3-sheet-body">
+        <div class="qrv3-helpsteps">
+          <div class="qrv3-helpstep"><span>1</span><div><b>Elige lo que quieres</b><small>Puedes tocar una categoría para encontrarlo más rápido.</small></div></div>
+          <div class="qrv3-helpstep"><span>2</span><div><b>Toca el botón +</b><small>Cada toque agrega una unidad a tu pedido.</small></div></div>
+          <div class="qrv3-helpstep"><span>3</span><div><b>Revisa y envía</b><small>Abajo siempre verás el botón VER PEDIDO.</small></div></div>
+        </div>
+        <button class="qrv3-send" type="button" data-close-help>ENTENDIDO</button>
+      </div>
     </section>
   </div>
 
-  <div id="orderPanel" class="qrv3-modal" hidden role="dialog" aria-modal="true" aria-labelledby="orderTitle">
+  <div id="orderPanel" class="qrv3-modal" role="dialog" aria-modal="true" aria-labelledby="orderTitle" hidden>
     <section class="qrv3-sheet">
       <header class="qrv3-sheet-head"><h2 id="orderTitle">Revisa tu pedido</h2><button type="button" data-close-order aria-label="Cerrar pedido">×</button></header>
       <div id="orderPanelBody" class="qrv3-sheet-body"></div>
