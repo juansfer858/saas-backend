@@ -151,7 +151,7 @@ assert.match(sessionBridge, /CAMBIAR CÓDIGO/);
 assert.match(sessionBridge, /visitCodeVisible:true/);
 assert.match(sessionBridge, /noPolling:true/);
 assert.match(sessionBridge, /noMutationObserver:true/);
-assert.doesNotMatch(sessionBridge, /MutationObserver/);
+assert.doesNotMatch(sessionBridge, /new\s+MutationObserver|MutationObserver\s*\(/);
 assert.doesNotMatch(sessionBridge, /setInterval/);
 assert.doesNotMatch(sessionBridge, /restaurant-ui\.js/);
 new Function(sessionBridge);
@@ -162,7 +162,7 @@ assert.match(flexible, /data:\s*\{ seatNumber: targetGuests \}/);
 assert.match(flexible, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 assert.match(flexible, /identity\.updateTableServiceSetup = updateTableServiceSetupFlexible/);
 
-assert.match(sw, /vantixgc-waiter-shell-v16-autopedido-code/);
+assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code/);
 assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 assert.match(sw, /if \(url\.pathname\.startsWith\('\/api\/'\)\) return/);
 assert.match(sw, /request\.method !== 'GET'/);
@@ -189,5 +189,5 @@ console.log(JSON.stringify({
   confirmOrderButton:true,
   pendingAndSentSeparated:true,
   billingModeFlexibleWithConsumption:true,
-  serviceWorkerCache:'vantixgc-waiter-shell-v16-autopedido-code'
+  serviceWorkerCache:'vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code'
 }));
