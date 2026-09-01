@@ -27,16 +27,19 @@ async function main() {
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
   const callUi = read('src/web/restaurant-waiter-call-ui.js');
 
-  assert.match(refreshRoutes, /waiter-runtime-v18-waiter-call-resume/);
-  assert.match(refreshRoutes, /v16-autopedido-code-v18-waiter-call-resume/);
+  assert.match(refreshRoutes, /waiter-runtime-v19-waiter-call-device-channel/);
+  assert.match(refreshRoutes, /v16-autopedido-code-v19-waiter-call-device-channel/);
   assert.match(refreshRoutes, /\/app\/centro-de-control\/mesero/);
   assert.match(refreshRoutes, /\/app\/centro-de-control\/sw\.js/);
   assert.match(publicRoot, /restaurantWaiterCallRefreshPublicRouter/);
   assert.match(publicRoot, /router\.use\(restaurantWaiterCallRefreshPublicRouter\);[\s\S]*router\.use\(restaurantWaiterCallPublicRouter\)/);
 
-  assert.match(callUi, /VantixGCWaiterCallV2/);
+  assert.match(callUi, /VantixGCWaiterCallV3/);
   assert.match(callUi, /initialSnapshot:true/);
   assert.match(callUi, /resumeSafe:true/);
+  assert.match(callUi, /ssePrimary:true/);
+  assert.match(callUi, /FOREGROUND_SAFETY_SYNC_MS = 5000/);
+  assert.match(callUi, /foregroundSafetySnapshotMs:FOREGROUND_SAFETY_SYNC_MS/);
   assert.match(callUi, /fetchSnapshot/);
   assert.match(callUi, /window\.addEventListener\('pageshow', resumeChannel\)/);
   assert.match(callUi, /document\.addEventListener\('visibilitychange'/);
@@ -49,30 +52,31 @@ async function main() {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwa = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200);
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-call'), 'v18-resume-snapshot');
-    assert.match(pwa, /<script[^>]+restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v18-waiter-call-resume[^>]*><\/script>/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-call'), 'v19-device-channel');
+    assert.match(pwa, /<script[^>]+restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v19-waiter-call-device-channel[^>]*><\/script>/);
     assert.match(pwa, /legacy-runtime-contract:restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 
     const swResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
     const sw = await swResponse.text();
     assert.equal(swResponse.status, 200);
-    assert.equal(swResponse.headers.get('x-vantixgc-waiter-call'), 'v18-resume-snapshot');
-    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v18-waiter-call-resume/);
-    assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v18-waiter-call-resume/);
+    assert.equal(swResponse.headers.get('x-vantixgc-waiter-call'), 'v19-device-channel');
+    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v19-waiter-call-device-channel/);
+    assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v19-waiter-call-device-channel/);
     assert.match(sw, /legacy-runtime-contract:restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v18-waiter-call-resume`, { cache:'no-store' });
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v19-waiter-call-device-channel`, { cache:'no-store' });
     const runtime = await runtimeResponse.text();
     assert.equal(runtimeResponse.status, 200);
     assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-call'), 'v2-resume-snapshot');
     assert.match(runtime, /TU MESA TE ESTÁ LLAMANDO/);
     assert.match(runtime, /LLAMADO GENERAL · NECESITA ATENCIÓN/);
     assert.match(runtime, /\/llamadas-mesero\/stream/);
-    assert.match(runtime, /VantixGCWaiterCallV2/);
+    assert.match(runtime, /VantixGCWaiterCallV3/);
+    assert.match(runtime, /FOREGROUND_SAFETY_SYNC_MS/);
     assert.match(runtime, /fetchSnapshot/);
   });
 
-  console.log('RESTAURANT WAITER CALL PWA RESUME SMOKE OK');
+  console.log('RESTAURANT WAITER CALL PWA DEVICE CHANNEL SMOKE OK');
 }
 
 main().catch((error) => {
