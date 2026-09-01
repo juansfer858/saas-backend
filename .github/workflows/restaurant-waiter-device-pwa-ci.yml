@@ -68,3 +68,5 @@ jobs:
         run: node scripts/restaurant-electronic-payment-db-smoke.js
       - name: Validate tenant realtime and Core Treasury visibility
         run: node scripts/restaurant-tenant-realtime-v23-smoke.js
+      - name: Validate QR order realtime waiter alert
+        run: node scripts/restaurant-qr-order-waiter-alert-v25-smoke.js
