@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
 const { restaurantWaiterCallPublicRouter } = require('./restaurant-waiter-call.public.routes');
@@ -21,9 +22,9 @@ const router = express.Router();
 // restaurant-control-center.css · restaurant-control-center.js
 // /app/centro-de-control-preview · /api/public/restaurante/demo-readiness
 // /app/v2-preview/dashboard · /app/v2-preview/ventas
-// Electronic-payment V22 is first only for its exact QR/payment and waiter PWA override paths;
-// all other requests fall through to the established refresh/call/visit layers unchanged.
-// The refresh layer remains the compatibility owner of the installed waiter shell contract.
+// Tenant Realtime V23 owns only the shared stream/assets and the exact UI/PWA paths it
+// upgrades. V22/V21 and every legacy endpoint remain downstream as compatibility fallbacks.
+router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
