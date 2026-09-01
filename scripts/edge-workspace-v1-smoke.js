@@ -22,7 +22,8 @@ for (const file of ['edge/agent/workspace-entry.js','src/modules/edge/edge-works
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
 
-assert.equal(version.version, '2.1.0-workspace.1');
+assert.equal(version.version, '2.1.1-qr-offline.1');
+assert.equal(version.channel, 'PILOT');
 assert.match(schema, /model EdgeLocalAccessGrant/);
 assert.match(service, /createLocalAccessGrant/);
 assert.match(service, /consumeLocalAccessGrant/);
