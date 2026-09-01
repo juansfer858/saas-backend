@@ -1,15 +1,14 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { verifyAccessToken } = require('../../utils/jwt');
-const visitPayments = require('./restaurant-visit-payments.service');
 const electronic = require('./restaurant-electronic-payment.service');
 const waiterDevices = require('./restaurant-waiter-device.service');
-const { waiterPwaV11, waiterRuntimeV14 } = require('./restaurant-waiter-device.public.routes');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
@@ -18,14 +17,25 @@ const WAITER_WATCH_MS = 1200;
 const KEEPALIVE_TICKS = 20;
 const waiterWatchers = new Map();
 
-const WAITER_RUNTIME_QUERY_V22 = 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v22-electronic-payment';
-const WAITER_CALL_QUERY_V21 = 'restaurant-waiter-call-ui.js?v=waiter-call-v21-account-request';
-const WAITER_PAYMENT_QUERY_V22 = 'restaurant-waiter-electronic-payment-ui.js?v=waiter-electronic-v22';
-const WAITER_CACHE_V22 = 'vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v22-electronic-payment';
-const LEGACY_RUNTIME_REFERENCE = 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14';
-
 function visitToken(req) {
   return String(req.get('x-vantix-restaurant-visit') || '').trim();
+}
+
+function hashToken(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+function timelineArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; }
+    catch { return []; }
+  }
+  return [];
+}
+
+function reportMeta(row) {
+  return [...timelineArray(row?.timeline)].reverse().find((event) => event?.type === 'ELECTRONIC_PAYMENT_REPORTED') || null;
 }
 
 function bearerToken(req) {
@@ -54,6 +64,38 @@ async function verifyWaiterDeviceRequest(req) {
   return { tenantId:payload.tenantId, userId:payload.userId, deviceId:payload.deviceId, user };
 }
 
+async function verifyClientReportStream(req) {
+  const rawToken = visitToken(req);
+  if (!rawToken) throw new AppError(401, 'Autorización de visita requerida', 'RESTAURANT_ELECTRONIC_VISIT_REQUIRED');
+  const table = await prisma.restaurantTable.findUnique({
+    where:{ qrToken:req.params.token },
+    select:{ id:true, tenantId:true, active:true }
+  });
+  if (!table?.active) throw new AppError(404, 'QR de mesa no encontrado', 'RESTAURANT_QR_NOT_FOUND');
+  const row = await prisma.trackingLink.findFirst({
+    where:{ id:req.params.reportId, tenantId:table.tenantId, originType:electronic.ORIGIN_TYPE }
+  });
+  if (!row) throw new AppError(404, 'Reporte de pago no encontrado', 'RESTAURANT_ELECTRONIC_REPORT_NOT_FOUND');
+  const [session, device] = await Promise.all([
+    prisma.restaurantTableSession.findFirst({ where:{ id:row.originId, tenantId:table.tenantId, tableId:table.id }, select:{ id:true } }),
+    (() => {
+      const meta = reportMeta(row);
+      if (!meta?.qrVisitDeviceId) return Promise.resolve(null);
+      return prisma.restaurantQrVisitDevice.findFirst({
+        where:{
+          id:meta.qrVisitDeviceId,
+          tenantId:table.tenantId,
+          sessionId:row.originId,
+          tokenHash:hashToken(rawToken)
+        },
+        select:{ id:true }
+      });
+    })()
+  ]);
+  if (!session || !device) throw new AppError(401, 'Este reporte no pertenece a este teléfono', 'RESTAURANT_ELECTRONIC_REPORT_VISIT_MISMATCH');
+  return { tenantId:table.tenantId, row };
+}
+
 function sseWrite(res, eventName, payload) {
   if (res.writableEnded || res.destroyed) return false;
   if (eventName) res.write(`event: ${eventName}\n`);
@@ -79,13 +121,12 @@ router.post('/api/public/restaurante/qr/:token/pago-electronico/reportar', async
   } catch (error) { next(error); }
 });
 
+// El stream se autentica con el mismo token que reportó el pago, pero admite que el
+// dispositivo quede revocado DESPUÉS de confirmar el cobro. Así el cliente alcanza a
+// recibir `PAGO CONFIRMADO` aunque el cierre correcto de la mesa invalide el QR.
 router.get('/api/public/restaurante/qr/:token/pago-electronico/:reportId/stream', async (req, res, next) => {
   try {
-    const verified = await visitPayments.verifyVisit(req.params.token, visitToken(req));
-    const row = await prisma.trackingLink.findFirst({
-      where:{ id:req.params.reportId, tenantId:verified.table.tenantId, originType:electronic.ORIGIN_TYPE, originId:verified.session.id }
-    });
-    if (!row) throw new AppError(404, 'Reporte de pago no encontrado', 'RESTAURANT_ELECTRONIC_REPORT_NOT_FOUND');
+    const verified = await verifyClientReportStream(req);
     res.status(200);
     res.set({
       'Content-Type':'text/event-stream; charset=utf-8',
@@ -100,7 +141,7 @@ router.get('/api/public/restaurante/qr/:token/pago-electronico/:reportId/stream'
     const poll = async () => {
       if (stopped || res.writableEnded || res.destroyed) return;
       try {
-        const snapshot = await electronic.reportStatusById(verified.table.tenantId, req.params.reportId);
+        const snapshot = await electronic.reportStatusById(verified.tenantId, req.params.reportId);
         const encoded = JSON.stringify(snapshot);
         tick += 1;
         if (encoded !== last) {
@@ -185,8 +226,8 @@ router.get('/api/public/restaurante/mesero-dispositivo/pagos-electronicos/stream
   } catch (error) { next(error); }
 });
 
-// Asset compuesto del QR: conserva exactamente las capas vigentes y añade, al final,
-// la elección de medio de pago / reporte electrónico. Se monta antes del compositor V21.
+// Conserva el mismo asset público del QR y agrega sólo la capa de elección/confirmación
+// electrónica al compositor ya estable. El HTML sigue usando `menu-list-v4`.
 router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   try {
     const [mobileFit, edgeFallback, visitUi, trackingUi, baseUi, callUi, paymentUi] = await Promise.all([
@@ -199,6 +240,7 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-electronic-payment-ui.js'), 'utf8')
     ]);
     res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-QR-Assist', 'waiter-call-v1-account-request-v1');
     res.set('X-VantixGC-QR-Payment', 'v22-electronic-confirmed-by-waiter');
     res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${visitUi}\n;${trackingUi}\n;${baseUi}\n;${callUi}\n;${paymentUi}`);
   } catch (error) { next(error); }
@@ -207,56 +249,10 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
 router.get('/app/restaurant-waiter-electronic-payment-ui.js', async (_req, res, next) => {
   try {
     const ui = await fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-electronic-payment-ui.js'), 'utf8');
-    res.set('Cache-Control', 'no-store'); res.set('X-VantixGC-Waiter-Payment', 'v22-electronic');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Waiter-Payment', 'v22-electronic');
     res.type('application/javascript').send(ui);
   } catch (error) { next(error); }
 });
 
-router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
-  try {
-    const baseHtml = await fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-pwa-v7.html'), 'utf8');
-    const v14Html = waiterPwaV11(baseHtml);
-    const html = v14Html
-      .replace(LEGACY_RUNTIME_REFERENCE, WAITER_RUNTIME_QUERY_V22)
-      .replace('</body>', `<script src="/app/${WAITER_CALL_QUERY_V21}"></script><script src="/app/${WAITER_PAYMENT_QUERY_V22}"></script><!-- legacy-runtime-contract:${LEGACY_RUNTIME_REFERENCE} --></body>`);
-    res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-PWA', 'v22-electronic-payment');
-    res.set('X-VantixGC-Waiter-Payment', 'v22-electronic');
-    res.type('text/html').send(html);
-  } catch (error) { next(error); }
-});
-
-router.get('/app/centro-de-control/sw.js', async (_req, res, next) => {
-  try {
-    const baseSw = await fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-sw.js'), 'utf8');
-    const runtimePatched = baseSw
-      .replace('vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code', WAITER_CACHE_V22)
-      .replace(LEGACY_RUNTIME_REFERENCE, WAITER_RUNTIME_QUERY_V22);
-    const callInjected = runtimePatched.replace(
-      `'\/app\/${WAITER_RUNTIME_QUERY_V22}'`,
-      `'\/app\/${WAITER_RUNTIME_QUERY_V22}',\n  '\/app\/${WAITER_CALL_QUERY_V21}',\n  '\/app\/${WAITER_PAYMENT_QUERY_V22}'`
-    );
-    res.set('Cache-Control', 'no-cache'); res.set('Service-Worker-Allowed', '/app/centro-de-control');
-    res.set('X-VantixGC-Waiter-Payment', 'v22-electronic');
-    res.type('application/javascript').send(`${callInjected}\n// legacy-runtime-contract:${LEGACY_RUNTIME_REFERENCE}\n`);
-  } catch (error) { next(error); }
-});
-
-router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
-  try {
-    const [sessionBridge, runtime] = await Promise.all([
-      fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-session-v8.js'), 'utf8'),
-      fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-runtime-v7.js'), 'utf8')
-    ]);
-    const patchedRuntime = waiterRuntimeV14(runtime);
-    res.set('Cache-Control', 'no-store'); res.set('X-VantixGC-Waiter-Payment', 'v22-electronic');
-    res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}`);
-  } catch (error) { next(error); }
-});
-
-module.exports = {
-  restaurantElectronicPaymentPublicRouter:router,
-  WAITER_RUNTIME_QUERY_V22,
-  WAITER_PAYMENT_QUERY_V22,
-  WAITER_CACHE_V22
-};
+module.exports = { restaurantElectronicPaymentPublicRouter:router };
