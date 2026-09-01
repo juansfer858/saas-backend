@@ -29,7 +29,7 @@
 
   function orderStatus(state) {
     const map = {
-      ENVIADO: { label:'PEDIDO RECIBIDO', detail:'Ya llegó al restaurante.', tone:'received' },
+      ENVIADO: { label:'PEDIDO RECIBIDO', detail:'Tu pedido fue recibido. En breve comenzará la preparación.', tone:'received' },
       EN_PREPARACION: { label:'EN PREPARACIÓN', detail:'Cocina, Barra o Postres están trabajando en tu pedido.', tone:'preparing' },
       LISTO: { label:'LISTO PARA SERVIR', detail:'Tu pedido ya está listo para llevarlo a la mesa.', tone:'ready' },
       ENTREGADO: { label:'ENTREGADO', detail:'El pedido fue entregado en la mesa.', tone:'delivered' },
