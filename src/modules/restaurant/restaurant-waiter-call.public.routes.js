@@ -171,7 +171,8 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
     ]);
     const patchedRuntime = waiterRuntimeV14(runtime);
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate-v17-waiter-call');
+    res.set('X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate');
+    res.set('X-VantixGC-Waiter-Call', 'v1-escalation');
     res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}\n;${callUi}`);
   } catch (error) { next(error); }
 });
