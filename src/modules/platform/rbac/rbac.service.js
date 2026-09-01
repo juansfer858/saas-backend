@@ -50,12 +50,21 @@ async function ensureTenantRoles(tenantId, client = prisma) {
     });
     roles[code] = role;
     const desired = grants.includes('*') ? permissions : grants.map((x) => byCode.get(x)).filter(Boolean);
-    await client.rbacRolePermission.deleteMany({ where: { roleId: role.id } });
+    const desiredIds = desired.map((permission) => permission.id);
+
+    // Never remove valid grants before restoring them. effectivePermissions() can run
+    // concurrently for several API requests from the same PWA; the old delete-all then
+    // create-all sequence exposed a brief empty-role window and produced random 403s.
     if (desired.length) {
       await client.rbacRolePermission.createMany({
         data: desired.map((p) => ({ roleId: role.id, permissionId: p.id })),
         skipDuplicates: true
       });
+      await client.rbacRolePermission.deleteMany({
+        where: { roleId: role.id, permissionId: { notIn: desiredIds } }
+      });
+    } else {
+      await client.rbacRolePermission.deleteMany({ where: { roleId: role.id } });
     }
   }
   return roles;
