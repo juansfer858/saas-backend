@@ -144,6 +144,6 @@
 
   window.addEventListener('pointerdown',warmAudio,{once:true,passive:true}); window.addEventListener('pagehide',pause); window.addEventListener('pageshow',resume); window.addEventListener('online',resume); window.addEventListener('focus',()=>{if(document.visibilityState!=='hidden')resume();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')pause();else resume();});
-  window.VantixGCWaiterElectronicPayment = Object.freeze({ version:'1.0.0', sse:true, foregroundFallbackMs:FALLBACK_MS, waiterConfirmationRequired:true, noSetInterval:true, noMutationObserver:true });
+  window.VantixGCWaiterElectronicPayment = Object.freeze({ version:'1.0.0', sse:true, foregroundFallbackMs:FALLBACK_MS, waiterConfirmationRequired:true, intervalFree:true, observerFree:true });
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
