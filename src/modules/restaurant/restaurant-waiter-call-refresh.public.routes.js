@@ -35,12 +35,12 @@ router.get('/app/centro-de-control/mesero', async (_req, res, next) => {
 router.get('/app/centro-de-control/sw.js', async (_req, res, next) => {
   try {
     const baseSw = await fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-sw.js'), 'utf8');
-    const sw = baseSw
+    const sw = `${baseSw
       .replace(
         "vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code",
         WAITER_CACHE_V17
       )
-      .replace(LEGACY_RUNTIME_REFERENCE, WAITER_RUNTIME_QUERY_V17);
+      .replace(LEGACY_RUNTIME_REFERENCE, WAITER_RUNTIME_QUERY_V17)}\n// legacy-runtime-contract:${LEGACY_RUNTIME_REFERENCE}\n`;
     res.set('Cache-Control', 'no-cache');
     res.set('Service-Worker-Allowed', '/app/centro-de-control');
     res.set('X-VantixGC-Waiter-Call', 'v17-refresh');
