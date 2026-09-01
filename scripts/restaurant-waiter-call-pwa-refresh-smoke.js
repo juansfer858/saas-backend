@@ -25,13 +25,16 @@ async function withServer(run) {
 async function main() {
   const refreshRoutes = read('src/modules/restaurant/restaurant-waiter-call-refresh.public.routes.js');
   const realtimeRoutes = read('src/modules/restaurant/restaurant-tenant-realtime.public.routes.js');
+  const presenceRoutes = read('src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js');
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
   const callUi = read('src/web/restaurant-waiter-call-ui.js');
   const paymentUi = read('src/web/restaurant-waiter-electronic-payment-ui.js');
   const qrPaymentUi = read('src/web/restaurant-qr-electronic-payment-ui.js');
   const trackingUi = read('src/web/restaurant-qr-tracking-ui.js');
+  const qrRealtimeUi = read('src/web/restaurant-qr-realtime-ui.js');
 
-  // V22 stays in place as compatibility fallback; V23 owns the exact live shell paths first.
+  // V22 stays in place as compatibility fallback; V23 owns the live tenant shell and
+  // V24 owns only the pre-authorization permanent-QR table-presence bridge.
   assert.match(refreshRoutes, /waiter-runtime-v22-electronic-payment/);
   assert.match(refreshRoutes, /waiter-call-v21-account-request/);
   assert.match(refreshRoutes, /waiter-electronic-v22/);
@@ -41,8 +44,12 @@ async function main() {
   assert.match(realtimeRoutes, /VANTIX_RESTAURANT_TENANT_REALTIME_V23/);
   assert.match(realtimeRoutes, /\/app\/centro-de-control\/mesero/);
   assert.match(realtimeRoutes, /\/app\/centro-de-control\/sw\.js/);
+  assert.match(presenceRoutes, /restaurant-table-presence-v24/);
+  assert.match(presenceRoutes, /VANTIX_QR_TABLE_PRESENCE_V24/);
+  assert.match(presenceRoutes, /manualRefreshRequired:false/);
+  assert.match(publicRoot, /restaurantQrPresenceRealtimePublicRouter/);
   assert.match(publicRoot, /restaurantTenantRealtimePublicRouter/);
-  assert.match(publicRoot, /router\.use\(restaurantPublicRealtimePublisher\);[\s\S]*router\.use\(restaurantTenantRealtimePublicRouter\);[\s\S]*router\.use\(restaurantElectronicPaymentPublicRouter\);[\s\S]*router\.use\(restaurantWaiterCallRefreshPublicRouter\)/);
+  assert.match(publicRoot, /router\.use\(restaurantPublicRealtimePublisher\);[\s\S]*router\.use\(restaurantQrPresenceRealtimePublicRouter\);[\s\S]*router\.use\(restaurantTenantRealtimePublicRouter\);[\s\S]*router\.use\(restaurantElectronicPaymentPublicRouter\);[\s\S]*router\.use\(restaurantWaiterCallRefreshPublicRouter\)/);
 
   assert.match(callUi, /VantixGCWaiterCallV5/);
   assert.match(callUi, /accountRequestAlerts:true/);
@@ -73,6 +80,12 @@ async function main() {
   assert.match(qrPaymentUi, /PAGO ELECTRÓNICO CONFIRMADO/);
   assert.doesNotMatch(qrPaymentUi, /setInterval|MutationObserver/);
   new Function(qrPaymentUi);
+
+  assert.match(qrRealtimeUi, /visita\/realtime/);
+  assert.match(qrRealtimeUi, /tablePresenceBeforeAuthorization:true/);
+  assert.match(qrRealtimeUi, /automaticOpenClose:true/);
+  assert.doesNotMatch(qrRealtimeUi, /setInterval|MutationObserver/);
+  new Function(qrRealtimeUi);
 
   await withServer(async (baseUrl) => {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
@@ -123,14 +136,16 @@ async function main() {
     const qrScript = await qrResponse.text();
     assert.equal(qrResponse.status, 200);
     assert.equal(qrResponse.headers.get('x-vantixgc-qr-payment'), 'v22-electronic-confirmed-by-waiter');
-    assert.equal(qrResponse.headers.get('x-vantixgc-qr-realtime'), 'v23-tenant');
+    assert.equal(qrResponse.headers.get('x-vantixgc-qr-realtime'), 'v24-table-presence');
     assert.match(qrScript, /PEDIR LA CUENTA/);
     assert.match(qrScript, /¿Cómo vas a pagar\?/);
     assert.match(qrScript, /YA PAGUÉ · AVISAR AL MESERO/);
+    assert.match(qrScript, /VANTIX_QR_TABLE_PRESENCE_V24/);
+    assert.match(qrScript, /vantix:restaurant-table-availability/);
     assert.match(qrScript, /VantixGCQrRealtimeV1/);
   });
 
-  console.log('RESTAURANT WAITER CALL + ACCOUNT REQUEST + ELECTRONIC PAYMENT + TENANT REALTIME V23 SMOKE OK');
+  console.log('RESTAURANT WAITER CALL + ACCOUNT REQUEST + ELECTRONIC PAYMENT + TENANT REALTIME V23 + QR TABLE PRESENCE V24 SMOKE OK');
 }
 
 main().catch((error) => {
