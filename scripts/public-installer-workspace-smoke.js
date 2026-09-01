@@ -10,6 +10,7 @@ const installerSource = read('src/modules/public-installer/windows-installer.ser
 const routes = read('src/modules/public-installer/public-installer.routes.js');
 const selfServiceRoutes = read('src/modules/self-service/restaurant-self-service.routes.js');
 const landing = read('src/web/public-installer.html');
+const edgeVersion = JSON.parse(read('edge/version.json'));
 
 for (const file of [
   'src/modules/public-installer/windows-installer.service.js',
@@ -27,7 +28,9 @@ const genericCmd = installer.genericInstallerCmd('https://core.vantixgc.com');
 const claimPs = installer.claimInstallerPowerShell(claimToken, 'https://core.vantixgc.com');
 const claimCmd = installer.claimInstallerCmd(claimToken, 'https://core.vantixgc.com');
 
-assert.equal(installer.INSTALL_SOURCE_COMMIT, 'df050fe31cf56b7aa01e757928ca8789b9d9fd0b');
+assert.equal(installer.INSTALL_SOURCE_COMMIT, '07f057ec69c699fbb24859d49c1fabfa7eb9d7c9');
+assert.equal(edgeVersion.version, '2.1.1-qr-offline.1');
+assert.equal(edgeVersion.channel, 'PILOT');
 assert.equal(installer.NODE_VERSION, '22.23.2');
 assert.equal(installer.NODE_WIN_X64_SHA256, '1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97');
 
@@ -46,6 +49,7 @@ for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /http:\/\/127\.0\.0\.1:8788\/api\/status/);
   assert.match(ps, /installationId/);
   assert.match(ps, /provisioned/);
+  assert.match(ps, /07f057ec69c699fbb24859d49c1fabfa7eb9d7c9/);
 }
 
 assert.match(genericPs, /EDGE_AGENT_ID/);
@@ -74,4 +78,4 @@ assert.doesNotMatch(landing, /raw\.githubusercontent\.com\/juansfer858\/saas-bac
 assert.match(landing, /solicitará automáticamente permiso de Administrador/);
 
 assert.match(installerSource, /VantixGC-Restaurantes-Installer\/2\.2/);
-console.log('PUBLIC INSTALLER WINDOWS UAC LAN INTEGRITY CONTRACT OK');
+console.log('PUBLIC INSTALLER WINDOWS EDGE QR OFFLINE PILOT INTEGRITY CONTRACT OK');
