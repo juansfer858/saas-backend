@@ -176,6 +176,25 @@ function realtimeStatus() {
   };
 }
 
+async function shutdownForTest() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  emitter.removeAllListeners();
+  const currentListener = listener;
+  listener = null;
+  listenerStarting = null;
+  if (currentListener) {
+    currentListener.removeAllListeners('error');
+    currentListener.removeAllListeners('end');
+    try { await currentListener.end(); } catch {}
+  }
+  const currentPool = pool;
+  pool = null;
+  if (currentPool) {
+    try { await currentPool.end(); } catch {}
+  }
+}
+
 module.exports = {
   CHANNEL,
   VERSION,
@@ -184,5 +203,6 @@ module.exports = {
   subscribeTenant,
   realtimeStatus,
   _deliverForTest: deliver,
-  _makeEventForTest: makeEvent
+  _makeEventForTest: makeEvent,
+  _shutdownForTest: shutdownForTest
 };
