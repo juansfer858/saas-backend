@@ -64,3 +64,5 @@ jobs:
         run: node scripts/restaurant-waiter-call-db-smoke.js
       - name: Validate waiter-call PWA cache refresh
         run: node scripts/restaurant-waiter-call-pwa-refresh-smoke.js
+      - name: Validate QR electronic payment and waiter confirmation
+        run: node scripts/restaurant-electronic-payment-db-smoke.js
