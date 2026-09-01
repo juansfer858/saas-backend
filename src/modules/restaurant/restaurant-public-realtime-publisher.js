@@ -32,6 +32,13 @@ function captureResponse(res) {
   };
 }
 
+function publicResponseRefs(path, response) {
+  const refs = realtime.compactRefs(response || {});
+  const value = String(path || '').toLowerCase();
+  if (value.includes('/pedidos') && response && typeof response === 'object' && typeof response.id === 'string') refs.orderId ||= response.id;
+  return refs;
+}
+
 router.use('/api/public/restaurante/qr/:token', (req, res, next) => {
   if (!MUTATIONS.has(String(req.method || '').toUpperCase())) return next();
   captureResponse(res);
@@ -50,7 +57,7 @@ router.use('/api/public/restaurante/qr/:token', (req, res, next) => {
           orderBy:{ openedAt:'desc' },
           select:{ id:true }
         });
-        const refs = realtime.compactRefs(res.locals.tenantRealtimePublicResponse || {});
+        const refs = publicResponseRefs(path, res.locals.tenantRealtimePublicResponse || {});
         refs.tableId ||= table.id;
         if (active?.id) refs.sessionId ||= active.id;
         await realtime.publishTenantChange(table.tenantId, publicTopics(path), refs, { source:'restaurant-public-qr', method:req.method, path });
@@ -71,10 +78,10 @@ router.use('/api/public/restaurante/mesero-dispositivo', (req, res, next) => {
   const path = cleanPath(req);
   res.once('finish', () => {
     if (res.statusCode < 200 || res.statusCode >= 400 || !payload?.tenantId || payload.authType !== 'WAITER_DEVICE') return;
-    const refs = realtime.compactRefs(res.locals.tenantRealtimePublicResponse || {});
+    const refs = publicResponseRefs(path, res.locals.tenantRealtimePublicResponse || {});
     realtime.publishTenantChange(payload.tenantId, publicTopics(path), refs, { source:'restaurant-waiter-device', method:req.method, path }).catch(() => {});
   });
   next();
 });
 
-module.exports = { restaurantPublicRealtimePublisher:router, publicTopics };
+module.exports = { restaurantPublicRealtimePublisher:router, publicTopics, publicResponseRefs };
