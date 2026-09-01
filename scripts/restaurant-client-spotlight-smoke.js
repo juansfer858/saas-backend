@@ -28,6 +28,10 @@ async function main() {
   assert.match(qrUi, /data-spotlight-add/);
   assert.match(qrUi, /qrv3-menu-row/);
   assert.match(qrUi, /qrv3-menu-list/);
+  assert.match(qrUi, /SYSTEM_ONLY_NO_WHATSAPP_V5/);
+  assert.doesNotMatch(qrUi, /WhatsApp opcional/);
+  assert.doesNotMatch(qrUi, /consentWhatsApp/);
+  assert.doesNotMatch(qrUi, /customerPhoneE164/);
   assert.doesNotMatch(qrUi, /qrv3-media-symbol/);
   assert.doesNotMatch(qrUi, /const SYMBOLS/);
   assert.match(qrHtml, /qrv3-menu-list/);
@@ -101,6 +105,7 @@ async function main() {
     publicQrUsesSameMenuItem: true,
     compactListMenu: true,
     clientMenuUsesNoDecorativeProductSymbols: true,
+    clientReviewUsesSystemOnlyNoWhatsApp: true,
     themePreservesSpotlight: true,
     audit: true
   }));
