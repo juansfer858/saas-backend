@@ -3,6 +3,7 @@
 const express = require('express');
 const { restaurantPublicRealtimePublisher } = require('./restaurant-public-realtime-publisher');
 const { restaurantQrPresenceRealtimePublicRouter } = require('./restaurant-qr-presence-realtime.public.routes');
+const { restaurantQrOrderWaiterAlertPublicRouter } = require('./restaurant-qr-order-waiter-alert.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
@@ -24,11 +25,11 @@ const router = express.Router();
 // restaurant-control-center.css · restaurant-control-center.js
 // /app/centro-de-control-preview · /api/public/restaurante/demo-readiness
 // /app/v2-preview/dashboard · /app/v2-preview/ventas
-// Tenant Realtime V23 owns only the shared stream/assets and the exact UI/PWA paths it
-// upgrades. QR presence V24 stays alive even before authorization so a phone already on the
-// permanent table QR sees the waiter opening/closing that table without manual refresh.
+// Tenant Realtime V23 owns the shared stream. QR presence V24 keeps the customer connected
+// before authorization. V25 injects only the QR-order alert asset/cache into the waiter PWA.
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
+router.use(restaurantQrOrderWaiterAlertPublicRouter);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
