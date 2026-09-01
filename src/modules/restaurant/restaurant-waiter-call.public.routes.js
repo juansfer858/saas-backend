@@ -142,8 +142,6 @@ router.get('/api/public/restaurante/qr/:token/llamar-mesero/stream', async (req,
   } catch (error) { next(error); }
 });
 
-// This router is intentionally mounted before the existing visit compositor. It reproduces
-// the current approved QR bundle and appends only the two-button waiter-call enhancement.
 router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   try {
     const [mobileFit, edgeFallback, visitUi, trackingUi, baseUi, callUi] = await Promise.all([
@@ -160,8 +158,6 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// Same technique for the linked waiter PWA: preserve the V14 hard-gated runtime exactly,
-// then append the ringing SSE call surface. No existing waiter engine is forked.
 router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
   try {
     const [sessionBridge, runtime, callUi] = await Promise.all([
@@ -172,7 +168,7 @@ router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
     const patchedRuntime = waiterRuntimeV14(runtime);
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate');
-    res.set('X-VantixGC-Waiter-Call', 'v1-escalation');
+    res.set('X-VantixGC-Waiter-Call', 'v2-resume-snapshot');
     res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}\n;${callUi}`);
   } catch (error) { next(error); }
 });
