@@ -46,14 +46,15 @@ const orderSchema = z.object({
 // layers at delivery time so the feature remains removable without forking base interfaces.
 router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   try {
-    const [mobileFit, edgeFallback, visitUi, baseUi] = await Promise.all([
+    const [mobileFit, edgeFallback, visitUi, trackingUi, baseUi] = await Promise.all([
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-mobile-fit.js'), 'utf8'),
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-edge-fallback-ui.js'), 'utf8'),
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-qr-tracking-ui.js'), 'utf8'),
       fs.promises.readFile(path.join(webRoot, 'restaurant-qr-ui.js'), 'utf8')
     ]);
     res.set('Cache-Control', 'no-store');
-    res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${visitUi}\n;${baseUi}`);
+    res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${visitUi}\n;${trackingUi}\n;${baseUi}`);
   } catch (error) { next(error); }
 });
 
@@ -81,6 +82,11 @@ router.get('/app/restaurant-qr-edge-fallback-ui.js', (_req, res) => {
 router.get('/app/restaurant-qr-visit-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'));
+});
+
+router.get('/app/restaurant-qr-tracking-ui.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-tracking-ui.js'));
 });
 
 router.get('/app/restaurant-visit-payments-ui.js', (_req, res) => {

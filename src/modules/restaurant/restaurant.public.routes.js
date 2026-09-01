@@ -3,6 +3,7 @@
 const express = require('express');
 const { restaurantMenuImportPublicRouter } = require('./restaurant-menu-import.public.routes');
 const { restaurantVisitPublicRouter } = require('./restaurant-visit.public.routes');
+const { restaurantClientTrackingPublicRouter } = require('./restaurant-client-tracking.public.routes');
 const { restaurantWaiterDevicePublicRouter } = require('./restaurant-waiter-device.public.routes');
 const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public.routes');
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
@@ -19,6 +20,7 @@ const router = express.Router();
 // /app/v2-preview/dashboard · /app/v2-preview/ventas
 router.use(restaurantMenuImportPublicRouter);
 router.use(restaurantVisitPublicRouter);
+router.use(restaurantClientTrackingPublicRouter);
 router.use(restaurantWaiterDevicePublicRouter);
 router.use(restaurantDeliveryPublicRouter);
 router.use(restaurantEmployeesPublicRouter);

@@ -44,3 +44,5 @@ jobs:
         run: npx prisma db push
       - name: Validate published client spotlight end-to-end
         run: node scripts/restaurant-client-spotlight-smoke.js
+      - name: Validate live QR order tracking contract
+        run: node scripts/restaurant-client-tracking-smoke.js
