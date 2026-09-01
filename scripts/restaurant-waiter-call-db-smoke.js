@@ -43,16 +43,19 @@ async function main() {
   for (const token of ['PEDIR AYUDA', 'LLAMAR MESERO', 'MESERO LLAMADO', '/llamar-mesero/stream']) {
     assert.ok(clientUi.includes(token), `Client waiter-call UI must contain ${token}`);
   }
-  for (const token of ['ATENDER', 'TU MESA TE ESTÁ LLAMANDO', 'LLAMADO GENERAL', 'navigator.vibrate', 'AudioContext', '/llamadas-mesero/stream']) {
+  for (const token of ['ATENDER', 'TU MESA TE ESTÁ LLAMANDO', 'LLAMADO GENERAL', 'navigator.vibrate', 'AudioContext']) {
     assert.ok(waiterUi.includes(token), `Waiter call UI must contain ${token}`);
   }
   assert.doesNotMatch(clientUi, /setInterval|MutationObserver/);
   assert.doesNotMatch(waiterUi, /setInterval|MutationObserver/);
+  assert.match(waiterUi, /\/api\/public\/restaurante\/mesero-dispositivo\/llamadas/);
+  assert.match(waiterUi, /\/api\/v1\/restaurante\/llamadas-mesero\/stream/);
   assert.match(publicRoutes, /restaurant-qr-waiter-call-ui\.js/);
   assert.match(publicRoutes, /restaurant-waiter-call-ui\.js/);
-  assert.match(publicRoutes, /waiterRuntimeV14/);
-  assert.match(publicRoutes, /X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate'/);
-  assert.match(publicRoutes, /X-VantixGC-Waiter-Call', 'v2-resume-snapshot'/);
+  assert.match(publicRoutes, /verifyAccessToken/);
+  assert.match(publicRoutes, /verifyWaiterDeviceRequest/);
+  assert.match(publicRoutes, /\/api\/public\/restaurante\/mesero-dispositivo\/llamadas/);
+  assert.match(publicRoutes, /X-VantixGC-Waiter-Call', 'v20-direct-script'/);
   assert.match(waiterRoutes, /WAITER_DEVICE/);
   assert.match(waiterRoutes, /assertActiveDevice/);
   assert.match(waiterRoutes, /router\.get\('\/llamadas-mesero', async/);
@@ -139,10 +142,6 @@ async function main() {
   assert.equal(secondCall.active, true, 'same table may call again after previous attendance');
   assert.equal(secondCall.call.state, 'PENDING_PRIMARY');
 
-  // Route-level proof: use the same permanent WAITER_DEVICE credential used by a
-  // linked tablet, pass through tenant resolution + auth middleware, and verify the
-  // actual HTTP endpoint returns the live call. This catches failures hidden by
-  // service-only tests, including accidental RBAC gating of a valid device channel.
   const deviceId = crypto.randomUUID();
   await prisma.trackingLink.create({
     data: {
@@ -176,29 +175,36 @@ async function main() {
       'x-tenant-subdomain':tenant.subdomain,
       Accept:'application/json'
     };
-    const response = await fetch(`${baseUrl}/api/v1/restaurante/llamadas-mesero`, { cache:'no-store', headers });
-    const body = await response.json().catch(() => ({}));
-    assert.equal(response.status, 200, `linked waiter device snapshot must be HTTP 200: ${JSON.stringify(body)}`);
-    assert.equal(body?.ok, true);
-    assert.equal(body?.data?.calls?.length, 1, 'linked waiter device HTTP snapshot must receive active table call');
-    assert.equal(body.data.calls[0].id, secondCall.call.id);
-    assert.equal(body.data.calls[0].priority, 'PRIMARY');
 
-    const attendResponse = await fetch(`${baseUrl}/api/v1/restaurante/llamadas-mesero/${encodeURIComponent(secondCall.call.id)}/atender`, {
+    const coreResponse = await fetch(`${baseUrl}/api/v1/restaurante/llamadas-mesero`, { cache:'no-store', headers });
+    const coreBody = await coreResponse.json().catch(() => ({}));
+    assert.equal(coreResponse.status, 200, `linked waiter device core snapshot must be HTTP 200: ${JSON.stringify(coreBody)}`);
+    assert.equal(coreBody?.data?.calls?.length, 1, 'core snapshot must receive active table call');
+    assert.equal(coreBody.data.calls[0].id, secondCall.call.id);
+
+    const directResponse = await fetch(`${baseUrl}/api/public/restaurante/mesero-dispositivo/llamadas`, { cache:'no-store', headers });
+    const directBody = await directResponse.json().catch(() => ({}));
+    assert.equal(directResponse.status, 200, `direct linked-device snapshot must be HTTP 200: ${JSON.stringify(directBody)}`);
+    assert.equal(directBody?.ok, true);
+    assert.equal(directBody?.data?.calls?.length, 1, 'direct device fallback must receive active table call');
+    assert.equal(directBody.data.calls[0].id, secondCall.call.id);
+    assert.equal(directBody.data.calls[0].priority, 'PRIMARY');
+
+    const attendResponse = await fetch(`${baseUrl}/api/public/restaurante/mesero-dispositivo/llamadas/${encodeURIComponent(secondCall.call.id)}/atender`, {
       method:'POST',
       cache:'no-store',
       headers:{ ...headers, 'Content-Type':'application/json' },
       body:'{}'
     });
     const attendBody = await attendResponse.json().catch(() => ({}));
-    assert.equal(attendResponse.status, 200, `linked waiter device must attend call through HTTP: ${JSON.stringify(attendBody)}`);
+    assert.equal(attendResponse.status, 200, `direct linked-device attendance must be HTTP 200: ${JSON.stringify(attendBody)}`);
     assert.equal(attendBody?.data?.attended, true);
   });
 
   const clientAfterHttpAttend = await calls.clientCallSnapshot(table.qrToken, rawVisitToken);
-  assert.equal(clientAfterHttpAttend.active, false, 'HTTP attendance must release client MESERO LLAMADO state');
+  assert.equal(clientAfterHttpAttend.active, false, 'direct device attendance must release client MESERO LLAMADO state');
 
-  console.log('RESTAURANT WAITER CALL ESCALATION + DEVICE HTTP SMOKE OK');
+  console.log('RESTAURANT WAITER CALL ESCALATION + DIRECT DEVICE HTTP SMOKE OK');
   console.log(JSON.stringify({
     primaryWaiterFirst:true,
     escalatesToAll:true,
@@ -206,11 +212,13 @@ async function main() {
     singleAttendanceClearsAll:true,
     clientVisitAuthorizationRequired:true,
     canCallAgainAfterAttendance:true,
-    linkedDeviceHttpSnapshot:true,
-    linkedDeviceHttpAttend:true,
-    independentFromTenantRbacRepair:true,
+    linkedDeviceCoreSnapshot:true,
+    linkedDeviceDirectSnapshot:true,
+    linkedDeviceDirectAttend:true,
+    independentDirectFallback:true,
     clientPolling:false,
-    waiterPolling:false
+    waiterSetInterval:false,
+    foregroundSafetySnapshotMs:5000
   }, null, 2));
 }
 

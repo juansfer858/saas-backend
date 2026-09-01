@@ -4,8 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const { prisma } = require('../../config/prisma');
+const { AppError } = require('../../utils/app-error');
+const { verifyAccessToken } = require('../../utils/jwt');
 const visitPayments = require('./restaurant-visit-payments.service');
 const calls = require('./restaurant-waiter-call.service');
+const waiterDevices = require('./restaurant-waiter-device.service');
 const { waiterRuntimeV14 } = require('./restaurant-waiter-device.public.routes');
 
 const router = express.Router();
@@ -16,6 +19,37 @@ const clientWatchers = new Map();
 
 function visitToken(req) {
   return String(req.get('x-vantix-restaurant-visit') || '').trim();
+}
+
+function bearerToken(req) {
+  const header = String(req.get('authorization') || '');
+  return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+}
+
+async function verifyWaiterDeviceRequest(req) {
+  const raw = bearerToken(req);
+  if (!raw) throw new AppError(401, 'Autenticación de dispositivo requerida', 'RESTAURANT_WAITER_CALL_AUTH_REQUIRED');
+
+  let payload;
+  try { payload = verifyAccessToken(raw); }
+  catch { throw new AppError(401, 'Sesión de dispositivo no válida', 'RESTAURANT_WAITER_CALL_AUTH_INVALID'); }
+
+  if (!payload?.userId || !payload?.tenantId || payload.authType !== 'WAITER_DEVICE' || !payload.deviceId) {
+    throw new AppError(401, 'La sesión no corresponde a un dispositivo Mesero', 'RESTAURANT_WAITER_CALL_DEVICE_REQUIRED');
+  }
+
+  const subdomain = String(req.get('x-tenant-subdomain') || '').trim().toLowerCase();
+  if (!subdomain) throw new AppError(400, 'Falta el restaurante del dispositivo', 'TENANT_SUBDOMAIN_REQUIRED');
+
+  const [tenant, user] = await Promise.all([
+    prisma.tenant.findFirst({ where: { id:payload.tenantId, subdomain, activo:true }, select: { id:true, subdomain:true } }),
+    prisma.user.findFirst({ where: { id:payload.userId, tenantId:payload.tenantId, activo:true, rol:'MESERO' }, select: { id:true, nombre:true, rol:true } })
+  ]);
+  if (!tenant) throw new AppError(403, 'La sesión no pertenece a este restaurante', 'AUTH_TENANT_MISMATCH');
+  if (!user) throw new AppError(401, 'El mesero ya no está activo', 'RESTAURANT_WAITER_CALL_WAITER_INVALID');
+
+  await waiterDevices.assertActiveDevice(payload.deviceId, payload.tenantId, payload.userId);
+  return { tenantId:payload.tenantId, userId:payload.userId, deviceId:payload.deviceId, user };
 }
 
 function sseWrite(res, eventName, payload) {
@@ -142,6 +176,25 @@ router.get('/api/public/restaurante/qr/:token/llamar-mesero/stream', async (req,
   } catch (error) { next(error); }
 });
 
+// Direct linked-device fallback. This intentionally lives on the public router so it does
+// not depend on the generic Core middleware chain. It still performs the complete security
+// proof itself: signed JWT, tenant match, MESERO role and active linked device.
+router.get('/api/public/restaurante/mesero-dispositivo/llamadas', async (req, res, next) => {
+  try {
+    const actor = await verifyWaiterDeviceRequest(req);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok:true, data:await calls.waiterCallsSnapshot(actor.tenantId, actor.userId) });
+  } catch (error) { next(error); }
+});
+
+router.post('/api/public/restaurante/mesero-dispositivo/llamadas/:id/atender', async (req, res, next) => {
+  try {
+    const actor = await verifyWaiterDeviceRequest(req);
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok:true, data:await calls.attendCall(actor.tenantId, actor.userId, req.params.id) });
+  } catch (error) { next(error); }
+});
+
 router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   try {
     const [mobileFit, edgeFallback, visitUi, trackingUi, baseUi, callUi] = await Promise.all([
@@ -158,18 +211,26 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get('/app/restaurant-waiter-call-ui.js', async (_req, res, next) => {
+  try {
+    const callUi = await fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-call-ui.js'), 'utf8');
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Waiter-Call', 'v20-direct-script');
+    res.type('application/javascript').send(callUi);
+  } catch (error) { next(error); }
+});
+
 router.get('/app/restaurant-waiter-runtime-v7.js', async (_req, res, next) => {
   try {
-    const [sessionBridge, runtime, callUi] = await Promise.all([
+    const [sessionBridge, runtime] = await Promise.all([
       fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-session-v8.js'), 'utf8'),
-      fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-runtime-v7.js'), 'utf8'),
-      fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-call-ui.js'), 'utf8')
+      fs.promises.readFile(path.join(webRoot, 'restaurant-waiter-runtime-v7.js'), 'utf8')
     ]);
     const patchedRuntime = waiterRuntimeV14(runtime);
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Waiter-Runtime', 'v14-review-hard-gate');
-    res.set('X-VantixGC-Waiter-Call', 'v2-resume-snapshot');
-    res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}\n;${callUi}`);
+    res.set('X-VantixGC-Waiter-Call', 'v20-direct-script');
+    res.type('application/javascript').send(`${sessionBridge}\n;${patchedRuntime}`);
   } catch (error) { next(error); }
 });
 

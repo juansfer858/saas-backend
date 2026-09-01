@@ -150,7 +150,7 @@
       return false;
     }
     try {
-      const response = await fetch('/api/v1/restaurante/llamadas-mesero', {
+      const response = await fetch('/api/public/restaurante/mesero-dispositivo/llamadas', {
         method:'GET',
         cache:'no-store',
         headers
@@ -178,7 +178,7 @@
     button.disabled = true;
     button.textContent = 'ATENDIENDO…';
     try {
-      const response = await fetch(`/api/v1/restaurante/llamadas-mesero/${encodeURIComponent(callId)}/atender`, {
+      const response = await fetch(`/api/public/restaurante/mesero-dispositivo/llamadas/${encodeURIComponent(callId)}/atender`, {
         method:'POST',
         cache:'no-store',
         headers,
@@ -253,7 +253,7 @@
     const controller = new AbortController();
     state.streamAbort = controller;
     streamLoop(controller)
-      .catch(() => { setChannelState('disconnected'); })
+      .catch(() => { setChannelState('direct-fallback'); })
       .finally(() => {
         if (state.streamAbort === controller) state.streamAbort = null;
         if (!controller.signal.aborted) scheduleReconnect();
@@ -319,13 +319,13 @@
     else resumeChannel();
   });
 
-  window.VantixGCWaiterCallV3 = Object.freeze({
-    version:'3.0.0',
-    initialSnapshot:true,
-    resumeSafe:true,
-    reconnectSnapshot:true,
+  window.VantixGCWaiterCallV4 = Object.freeze({
+    version:'4.0.0',
+    directDeviceSnapshot:true,
+    directDeviceAttend:true,
     ssePrimary:true,
     foregroundSafetySnapshotMs:FOREGROUND_SAFETY_SYNC_MS,
+    separateScript:true,
     noSetInterval:true,
     domObserverFree:true
   });

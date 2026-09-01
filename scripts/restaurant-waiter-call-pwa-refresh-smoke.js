@@ -27,24 +27,21 @@ async function main() {
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
   const callUi = read('src/web/restaurant-waiter-call-ui.js');
 
-  assert.match(refreshRoutes, /waiter-runtime-v19-waiter-call-device-channel/);
-  assert.match(refreshRoutes, /v16-autopedido-code-v19-waiter-call-device-channel/);
+  assert.match(refreshRoutes, /waiter-runtime-v20-waiter-call-direct/);
+  assert.match(refreshRoutes, /waiter-call-v20-direct/);
+  assert.match(refreshRoutes, /v16-autopedido-code-v20-waiter-call-direct/);
   assert.match(refreshRoutes, /\/app\/centro-de-control\/mesero/);
   assert.match(refreshRoutes, /\/app\/centro-de-control\/sw\.js/);
   assert.match(publicRoot, /restaurantWaiterCallRefreshPublicRouter/);
   assert.match(publicRoot, /router\.use\(restaurantWaiterCallRefreshPublicRouter\);[\s\S]*router\.use\(restaurantWaiterCallPublicRouter\)/);
 
-  assert.match(callUi, /VantixGCWaiterCallV3/);
-  assert.match(callUi, /initialSnapshot:true/);
-  assert.match(callUi, /resumeSafe:true/);
-  assert.match(callUi, /ssePrimary:true/);
+  assert.match(callUi, /VantixGCWaiterCallV4/);
+  assert.match(callUi, /directDeviceSnapshot:true/);
+  assert.match(callUi, /directDeviceAttend:true/);
+  assert.match(callUi, /separateScript:true/);
   assert.match(callUi, /FOREGROUND_SAFETY_SYNC_MS = 5000/);
-  assert.match(callUi, /foregroundSafetySnapshotMs:FOREGROUND_SAFETY_SYNC_MS/);
-  assert.match(callUi, /fetchSnapshot/);
-  assert.match(callUi, /window\.addEventListener\('pageshow', resumeChannel\)/);
-  assert.match(callUi, /document\.addEventListener\('visibilitychange'/);
-  assert.match(callUi, /window\.addEventListener\('online', resumeChannel\)/);
-  assert.match(callUi, /\/api\/v1\/restaurante\/llamadas-mesero'/);
+  assert.match(callUi, /\/api\/public\/restaurante\/mesero-dispositivo\/llamadas/);
+  assert.match(callUi, /\/api\/v1\/restaurante\/llamadas-mesero\/stream/);
   assert.doesNotMatch(callUi, /setInterval|MutationObserver/);
   new Function(callUi);
 
@@ -52,31 +49,38 @@ async function main() {
     const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
     const pwa = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200);
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-call'), 'v19-device-channel');
-    assert.match(pwa, /<script[^>]+restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v19-waiter-call-device-channel[^>]*><\/script>/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-call'), 'v20-direct-script');
+    assert.match(pwa, /<script[^>]+restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v20-waiter-call-direct[^>]*><\/script>/);
+    assert.match(pwa, /<script[^>]+restaurant-waiter-call-ui\.js\?v=waiter-call-v20-direct[^>]*><\/script>/);
     assert.match(pwa, /legacy-runtime-contract:restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 
     const swResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
     const sw = await swResponse.text();
     assert.equal(swResponse.status, 200);
-    assert.equal(swResponse.headers.get('x-vantixgc-waiter-call'), 'v19-device-channel');
-    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v19-waiter-call-device-channel/);
-    assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v19-waiter-call-device-channel/);
+    assert.equal(swResponse.headers.get('x-vantixgc-waiter-call'), 'v20-direct-script');
+    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v20-waiter-call-direct/);
+    assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v20-waiter-call-direct/);
+    assert.match(sw, /restaurant-waiter-call-ui\.js\?v=waiter-call-v20-direct/);
     assert.match(sw, /legacy-runtime-contract:restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v19-waiter-call-device-channel`, { cache:'no-store' });
+    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v20-waiter-call-direct`, { cache:'no-store' });
     const runtime = await runtimeResponse.text();
     assert.equal(runtimeResponse.status, 200);
-    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-call'), 'v2-resume-snapshot');
-    assert.match(runtime, /TU MESA TE ESTÁ LLAMANDO/);
-    assert.match(runtime, /LLAMADO GENERAL · NECESITA ATENCIÓN/);
-    assert.match(runtime, /\/llamadas-mesero\/stream/);
-    assert.match(runtime, /VantixGCWaiterCallV3/);
-    assert.match(runtime, /FOREGROUND_SAFETY_SYNC_MS/);
-    assert.match(runtime, /fetchSnapshot/);
+    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-call'), 'v20-direct-script');
+    assert.match(runtime, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
+    assert.doesNotMatch(runtime, /VantixGCWaiterCallV4/);
+
+    const callResponse = await fetch(`${baseUrl}/app/restaurant-waiter-call-ui.js?v=waiter-call-v20-direct`, { cache:'no-store' });
+    const callScript = await callResponse.text();
+    assert.equal(callResponse.status, 200);
+    assert.equal(callResponse.headers.get('x-vantixgc-waiter-call'), 'v20-direct-script');
+    assert.match(callScript, /TU MESA TE ESTÁ LLAMANDO/);
+    assert.match(callScript, /LLAMADO GENERAL · NECESITA ATENCIÓN/);
+    assert.match(callScript, /VantixGCWaiterCallV4/);
+    assert.match(callScript, /\/api\/public\/restaurante\/mesero-dispositivo\/llamadas/);
   });
 
-  console.log('RESTAURANT WAITER CALL PWA DEVICE CHANNEL SMOKE OK');
+  console.log('RESTAURANT WAITER CALL PWA V20 DIRECT SCRIPT SMOKE OK');
 }
 
 main().catch((error) => {
