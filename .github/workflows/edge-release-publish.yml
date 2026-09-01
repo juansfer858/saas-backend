@@ -62,7 +62,6 @@ jobs:
           import zipfile
 
           root = pathlib.Path('.').resolve()
-          edge = root / 'edge'
           version = os.environ['EDGE_VERSION']
           out = root / f'vantixgc-edge-{version}.zip'
           files = subprocess.check_output(['git', 'ls-files', 'edge'], text=True).splitlines()
@@ -117,6 +116,7 @@ jobs:
           set -euo pipefail
           SHA="$(sha256sum "$EDGE_ASSET" | awk '{print $1}')"
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          export SHA256="$SHA"
           node - <<'NODE'
           const fs = require('node:fs');
           const payload = {
@@ -130,11 +130,6 @@ jobs:
           fs.writeFileSync('edge-release-manifest.json', JSON.stringify(payload, null, 2) + '\n');
           NODE
           cat edge-release-manifest.json
-        env:
-          EDGE_VERSION: ${{ steps.identity.outputs.version }}
-          EDGE_CHANNEL: ${{ steps.identity.outputs.channel }}
-          EDGE_ASSET: ${{ steps.identity.outputs.asset }}
-          SHA256: ${{ steps.manifest.outputs.sha256 }}
 
       - name: Upload PR validation artifact
         if: github.event_name == 'pull_request'
