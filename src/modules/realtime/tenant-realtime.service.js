@@ -22,7 +22,12 @@ function databaseUrl() {
 
 function getPool() {
   if (!databaseUrl()) return null;
-  if (!pool) pool = new Pool({ connectionString: databaseUrl(), max: 2, application_name: 'vantix-realtime-publisher' });
+  if (!pool) pool = new Pool({
+    connectionString: databaseUrl(),
+    max: 2,
+    allowExitOnIdle: true,
+    application_name: 'vantix-realtime-publisher'
+  });
   return pool;
 }
 
@@ -146,9 +151,9 @@ async function publishTenantChange(tenantId, topics, refs = {}, meta = {}) {
   if (!event.topics.length) return null;
 
   // Local delivery makes the originating process instantaneous. PostgreSQL NOTIFY
-  // distributes the same event to every other Core instance; duplicate IDs are ignored.
+  // distributes the event to other instances. A process that only publishes does not
+  // open a permanent LISTEN socket; listeners are created only when an SSE subscriber exists.
   deliver(event);
-  startListener().catch(() => {});
   const publisher = getPool();
   if (publisher) {
     const payload = JSON.stringify(event);
