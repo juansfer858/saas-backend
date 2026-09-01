@@ -20,6 +20,7 @@ const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
+const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant-waiter-call.routes');
 const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaurant-waiter-device.routes');
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
 const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaurant-employee-work.routes');
@@ -54,6 +55,7 @@ router.use('/notificaciones', notificationsRouter);
 // endpoint falls through unchanged to the proven base router.
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
+router.use('/restaurante', restaurantWaiterCallRouter);
 router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
