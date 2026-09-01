@@ -2,6 +2,7 @@ const express = require('express');
 const { extractTenantBySubdomain } = require('../middleware/extract-tenant-by-subdomain');
 const { authMiddleware } = require('../middleware/auth-middleware');
 const { enforceTenantPermissions } = require('../middleware/require-permission');
+const { tenantRealtimeRouter, tenantRealtimeMutationMiddleware } = require('../modules/realtime/tenant-realtime.routes');
 const { userRouter } = require('../modules/users/user.routes');
 const { thirdPartyRouter } = require('../modules/third-parties/third-party.routes');
 const { inventoryRouter } = require('../modules/inventory/inventory.routes');
@@ -34,6 +35,12 @@ const router = express.Router();
 router.use(extractTenantBySubdomain);
 router.use(authMiddleware);
 router.use(enforceTenantPermissions);
+
+// Un único bus por tenant enlaza Restaurante y Super Core. El middleware publica sólo
+// después de una respuesta mutante exitosa, por lo que los consumidores nunca recargan
+// antes de que la transacción haya terminado.
+router.use(tenantRealtimeMutationMiddleware);
+router.use('/realtime', tenantRealtimeRouter);
 
 router.use('/autoservicio', restaurantSelfServiceTenantRouter);
 router.use('/usuarios', userRouter);

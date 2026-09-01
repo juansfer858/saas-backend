@@ -31,7 +31,13 @@
 
   async function start() {
     try {
-      const core = await fetchRuntime('/api/v1/comercial/ui-runtime/panel-integration-extras-core.js');
+      const [realtime, realtimePanel, core] = await Promise.all([
+        fetchRuntime('/app/vantix-tenant-realtime.js?v=tenant-realtime-v1'),
+        fetchRuntime('/app/core-realtime-panel-ui.js?v=core-realtime-v1'),
+        fetchRuntime('/api/v1/comercial/ui-runtime/panel-integration-extras-core.js')
+      ]);
+      executeSource(realtime, 'vantix-tenant-realtime.js');
+      executeSource(realtimePanel, 'core-realtime-panel-ui.js');
       executeSource(core, 'panel-integration-extras-core.js');
     } catch (error) {
       console.error('SUPER_CORE_INTEGRATION_RUNTIME_ERROR', error);
