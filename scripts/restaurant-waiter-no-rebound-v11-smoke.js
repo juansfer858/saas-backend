@@ -32,14 +32,18 @@ assert.match(runtime, /hardReviewGate:true/);
 assert.match(runtime, /data-action="confirm-send-draft"/);
 assert.doesNotMatch(runtime, /data-action="send-draft"/);
 assert.match(pwa, /waiter-runtime-v14/);
-assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v15-tablet-review-entry/);
+assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code/);
 assert.match(sw, /waiter-runtime-v14/);
 assert.match(bridge, /VANTIX_WAITER_TABLET_REVIEW_ENTRY_V15/);
 assert.match(bridge, /REVISAR PEDIDO/);
+assert.match(bridge, /VANTIX_WAITER_AUTOPEDIDO_CODE_V16/);
+assert.match(bridge, /CÓDIGO PARA ACTIVAR AUTOPEDIDO/);
+assert.match(bridge, /noPolling:true/);
+assert.doesNotMatch(bridge, /new\s+MutationObserver|MutationObserver\s*\(/);
 
 console.log(JSON.stringify({
   ok:true,
-  waiter:'V11_NO_REBOUND_WITH_V14_HARD_GATE_PLUS_V15_TABLET_REVIEW_ENTRY',
+  waiter:'V11_NO_REBOUND_WITH_V14_HARD_GATE_PLUS_V15_TABLET_REVIEW_ENTRY_PLUS_V16_AUTOPEDIDO_CODE',
   singleStateOwner:true,
   staleDetailResponsesInvalidated:true,
   serviceAckAppliedWithoutFullReload:true,
@@ -48,5 +52,6 @@ console.log(JSON.stringify({
   removePerson:true,
   hardReviewGate:true,
   tabletReviewEntry:true,
+  autopedidoVisitCodeVisible:true,
   directKitchenSendFromReviewImpossible:true
 }));
