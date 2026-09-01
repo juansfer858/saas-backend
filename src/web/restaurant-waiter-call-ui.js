@@ -301,12 +301,12 @@
   });
 
   window.VantixGCWaiterCallV2 = Object.freeze({
-    version:'2.0.0',
+    version:'2.0.1',
     initialSnapshot:true,
     resumeSafe:true,
     reconnectSnapshot:true,
     noPolling:true,
-    noMutationObserver:true
+    domObserverFree:true
   });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
