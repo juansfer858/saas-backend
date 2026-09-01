@@ -6,7 +6,7 @@ const RESTAURANT_SHARED_WAITER_ROLE = 'MESERO_OPERATIVO_COMPARTIDO';
 
 function isRestaurantOperationalRequest(req) {
   const url = String(req.originalUrl || req.url || '').split('?')[0];
-  return /^\/api\/v1\/restaurante\/(?:zonas|mesas|menu|sesiones|pedidos)(?:\/|$)/.test(url);
+  return /^\/api\/v1\/restaurante\/(?:zonas|mesas|menu|sesiones|pedidos|llamadas-mesero)(?:\/|$)/.test(url);
 }
 
 function runtimeUserForRequest(req, user) {
