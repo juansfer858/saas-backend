@@ -62,3 +62,5 @@ jobs:
         run: node scripts/restaurant-waiter-table-pool-db-smoke.js
       - name: Validate QR waiter call routing and escalation
         run: node scripts/restaurant-waiter-call-db-smoke.js
+      - name: Validate waiter-call PWA cache refresh
+        run: node scripts/restaurant-waiter-call-pwa-refresh-smoke.js
