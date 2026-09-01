@@ -38,8 +38,8 @@ async function main() {
     const pwa = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200);
     assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-call'), 'v17-refresh');
-    assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v17-waiter-call/);
-    assert.doesNotMatch(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
+    assert.match(pwa, /<script[^>]+restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v17-waiter-call[^>]*><\/script>/);
+    assert.match(pwa, /legacy-runtime-contract:restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
 
     const swResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
     const sw = await swResponse.text();
