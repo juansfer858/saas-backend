@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
 const { restaurantWaiterCallPublicRouter } = require('./restaurant-waiter-call.public.routes');
 const { restaurantMenuImportPublicRouter } = require('./restaurant-menu-import.public.routes');
@@ -20,9 +21,10 @@ const router = express.Router();
 // restaurant-control-center.css · restaurant-control-center.js
 // /app/centro-de-control-preview · /api/public/restaurante/demo-readiness
 // /app/v2-preview/dashboard · /app/v2-preview/ventas
-// The refresh layer is first so installed waiter PWAs receive a new runtime URL/cache key;
-// the waiter-call layer then composes the existing QR/Waiter assets unchanged and appends
-// the removable assistance/ringing surface.
+// Electronic-payment V22 is first only for its exact QR/payment and waiter PWA override paths;
+// all other requests fall through to the established refresh/call/visit layers unchanged.
+// The refresh layer remains the compatibility owner of the installed waiter shell contract.
+router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
