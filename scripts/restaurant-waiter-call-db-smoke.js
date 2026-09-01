@@ -4,7 +4,9 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { app } = require('../src/app');
 const { prisma } = require('../src/config/prisma');
+const { signAccessToken } = require('../src/utils/jwt');
 const calls = require('../src/modules/restaurant/restaurant-waiter-call.service');
 
 function read(relative) {
@@ -15,6 +17,19 @@ function hash(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
+async function withServer(run) {
+  const server = await new Promise((resolve, reject) => {
+    const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+    instance.once('error', reject);
+  });
+  try {
+    const address = server.address();
+    await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
 async function main() {
   const clientUi = read('src/web/restaurant-qr-waiter-call-ui.js');
   const waiterUi = read('src/web/restaurant-waiter-call-ui.js');
@@ -23,6 +38,7 @@ async function main() {
   const publicIndex = read('src/modules/restaurant/restaurant.public.routes.js');
   const coreRoutes = read('src/routes/core.routes.js');
   const serviceSource = read('src/modules/restaurant/restaurant-waiter-call.service.js');
+  const authSource = read('src/middleware/auth-middleware.js');
 
   for (const token of ['PEDIR AYUDA', 'LLAMAR MESERO', 'MESERO LLAMADO', '/llamar-mesero/stream']) {
     assert.ok(clientUi.includes(token), `Client waiter-call UI must contain ${token}`);
@@ -39,7 +55,10 @@ async function main() {
   assert.match(publicRoutes, /X-VantixGC-Waiter-Call', 'v2-resume-snapshot'/);
   assert.match(waiterRoutes, /WAITER_DEVICE/);
   assert.match(waiterRoutes, /assertActiveDevice/);
+  assert.match(waiterRoutes, /router\.get\('\/llamadas-mesero', async/);
+  assert.doesNotMatch(waiterRoutes, /requirePermission\('RESTAURANTE\.VER'\)/);
   assert.match(waiterRoutes, /llamadas-mesero\/:id\/atender/);
+  assert.match(authSource, /pedidos\|llamadas-mesero/);
   assert.match(publicIndex, /router\.use\(restaurantWaiterCallPublicRouter\);[\s\S]*router\.use\(restaurantVisitPublicRouter\)/);
   assert.match(coreRoutes, /router\.use\('\/restaurante', restaurantWaiterCallRouter\);[\s\S]*router\.use\('\/restaurante', restaurantWaiterDeviceRouter\)/);
   assert.match(serviceSource, /PRIMARY_ONLY_MS = 20_000/);
@@ -120,7 +139,66 @@ async function main() {
   assert.equal(secondCall.active, true, 'same table may call again after previous attendance');
   assert.equal(secondCall.call.state, 'PENDING_PRIMARY');
 
-  console.log('RESTAURANT WAITER CALL ESCALATION DB SMOKE OK');
+  // Route-level proof: use the same permanent WAITER_DEVICE credential used by a
+  // linked tablet, pass through tenant resolution + auth middleware, and verify the
+  // actual HTTP endpoint returns the live call. This catches failures hidden by
+  // service-only tests, including accidental RBAC gating of a valid device channel.
+  const deviceId = crypto.randomUUID();
+  await prisma.trackingLink.create({
+    data: {
+      id:deviceId,
+      tenantId:tenant.id,
+      tokenHash:hash(crypto.randomBytes(32).toString('base64url')),
+      tokenCiphertext:'SMOKE_ACTIVE_WAITER_DEVICE',
+      tokenHint:'smoke1',
+      originType:'RESTAURANT_WAITER_DEVICE',
+      originId:crypto.randomUUID(),
+      publicReference:waiter1.id,
+      currentStatus:'ACTIVE',
+      timeline:[{ type:'DEVICE_PAIRED', at:new Date().toISOString(), waiterUserId:waiter1.id, deviceName:'Smoke tablet', persistent:true }],
+      expiresAt:new Date('9999-12-31T23:59:59.000Z'),
+      active:true,
+      lastNotificationAt:new Date()
+    }
+  });
+  const waiterDeviceToken = signAccessToken({
+    userId:waiter1.id,
+    tenantId:tenant.id,
+    rol:'MESERO',
+    deviceId,
+    authType:'WAITER_DEVICE',
+    permanent:true
+  });
+
+  await withServer(async (baseUrl) => {
+    const headers = {
+      Authorization:`Bearer ${waiterDeviceToken}`,
+      'x-tenant-subdomain':tenant.subdomain,
+      Accept:'application/json'
+    };
+    const response = await fetch(`${baseUrl}/api/v1/restaurante/llamadas-mesero`, { cache:'no-store', headers });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status, 200, `linked waiter device snapshot must be HTTP 200: ${JSON.stringify(body)}`);
+    assert.equal(body?.ok, true);
+    assert.equal(body?.data?.calls?.length, 1, 'linked waiter device HTTP snapshot must receive active table call');
+    assert.equal(body.data.calls[0].id, secondCall.call.id);
+    assert.equal(body.data.calls[0].priority, 'PRIMARY');
+
+    const attendResponse = await fetch(`${baseUrl}/api/v1/restaurante/llamadas-mesero/${encodeURIComponent(secondCall.call.id)}/atender`, {
+      method:'POST',
+      cache:'no-store',
+      headers:{ ...headers, 'Content-Type':'application/json' },
+      body:'{}'
+    });
+    const attendBody = await attendResponse.json().catch(() => ({}));
+    assert.equal(attendResponse.status, 200, `linked waiter device must attend call through HTTP: ${JSON.stringify(attendBody)}`);
+    assert.equal(attendBody?.data?.attended, true);
+  });
+
+  const clientAfterHttpAttend = await calls.clientCallSnapshot(table.qrToken, rawVisitToken);
+  assert.equal(clientAfterHttpAttend.active, false, 'HTTP attendance must release client MESERO LLAMADO state');
+
+  console.log('RESTAURANT WAITER CALL ESCALATION + DEVICE HTTP SMOKE OK');
   console.log(JSON.stringify({
     primaryWaiterFirst:true,
     escalatesToAll:true,
@@ -128,6 +206,9 @@ async function main() {
     singleAttendanceClearsAll:true,
     clientVisitAuthorizationRequired:true,
     canCallAgainAfterAttendance:true,
+    linkedDeviceHttpSnapshot:true,
+    linkedDeviceHttpAttend:true,
+    independentFromTenantRbacRepair:true,
     clientPolling:false,
     waiterPolling:false
   }, null, 2));
