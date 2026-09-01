@@ -108,8 +108,8 @@ assert.match(themeCss, /\.floor/);
 assert.match(themeCss, /\.command-ticket/);
 assert.match(themeCss, /\.receipt/);
 
-// QR V3 is intentionally one simple surface for four stress profiles: child, elderly,
-// busy guest and guest who should not need to infer hidden interactions.
+// QR V3 behavior remains intentionally simple for four stress profiles, while the
+// presentation is now a compact traditional list instead of graphic product cards.
 for (const token of [
   'id="helpButton"',
   'id="categoryNav"',
@@ -117,19 +117,21 @@ for (const token of [
   'id="reviewButton"',
   'id="helpPanel"',
   'Pedir es muy fácil',
-  'four-profiles-v3'
-]) assert.ok(customer.includes(token), `Restaurant QR V3 shell must contain ${token}`);
+  'menu-list-v4'
+]) assert.ok(customer.includes(token), `Restaurant QR customer shell must contain ${token}`);
 for (const token of [
   "label:'★ MÁS PEDIDOS'",
   'visibleProducts',
   'cartCount',
+  'qrv3-menu-list',
   'ELIGE UN PRODUCTO',
   'ENVIAR PEDIDO A COCINA',
   'AGREGAR OTRO PEDIDO',
   'consentWhatsApp',
   '/api/public/restaurante/qr/',
   'No necesitas avisarle al mesero'
-]) assert.ok(customerUi.includes(token), `Restaurant QR V3 behavior must contain ${token}`);
+]) assert.ok(customerUi.includes(token), `Restaurant QR customer behavior must contain ${token}`);
+assert.ok(!customerUi.includes('qrv3-media-symbol'), 'QR customer menu must not depend on decorative product drawings');
 assert.ok(!customerUi.includes('location.origin'), 'QR customer UI must never derive its public identity from browser origin');
 
 assert.match(service, /physicalPrinterFieldPass/);
@@ -165,7 +167,7 @@ new Function(operatorUi);
 new Function(customerUi);
 new Function(zonesService);
 
-console.log('RESTAURANT PHASE 2 + SALÓN/QR V3 + CAJA V2 + NOTICE DIALOG SMOKE OK');
+console.log('RESTAURANT PHASE 2 + SALÓN/QR LIST + CAJA V2 + NOTICE DIALOG SMOKE OK');
 console.log(JSON.stringify({
   visibleSimulatedStatus: true,
   dynamicProductionBlockedStatus: true,
@@ -180,6 +182,7 @@ console.log(JSON.stringify({
   simulatedPdfCommandUi: true,
   qrDirectOrderUi: true,
   qrFourProfileUx: true,
+  qrTraditionalListUi: true,
   qrPersistentCart: true,
   qrHelpFlow: true,
   cashShiftUi: true,
