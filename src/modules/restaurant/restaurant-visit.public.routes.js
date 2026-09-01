@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { z } = require('zod');
 const visitPayments = require('./restaurant-visit-payments.service');
+const edgeIngress = require('../edge/edge-restaurant-ingress.service');
 const notifications = require('../notifications/notifications.service');
 const { AppError } = require('../../utils/app-error');
 
@@ -109,6 +110,7 @@ router.patch('/api/public/restaurante/qr/:token/persona', async (req, res, next)
 router.post('/api/public/restaurante/qr/:token/pedidos', async (req, res, next) => {
   try {
     const input = parse(orderSchema, req.body || {});
+    await edgeIngress.assertQrOrderIngressAvailable(req.params.token);
     const order = await visitPayments.placeAuthorizedQrOrder(req.params.token, visitToken(req), input);
     if (input.consentWhatsApp && input.customerPhoneE164) {
       await notifications.grantConsent(order.tenantId, null, {
