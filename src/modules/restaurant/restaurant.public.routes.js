@@ -15,9 +15,15 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
-// Extension layers are ordered intentionally. Electronic-payment V22 owns only the
-// exact QR asset/PWA paths and payment-confirmation endpoints that it overrides; all
-// existing waiter-call, visit, menu and legacy surfaces fall through unchanged.
+// Isolated extension assets and security/visit routes are evaluated before the legacy public
+// Restaurant router. The delegated base router remains the owner of the established surfaces:
+// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
+// restaurant-control-center.css · restaurant-control-center.js
+// /app/centro-de-control-preview · /api/public/restaurante/demo-readiness
+// /app/v2-preview/dashboard · /app/v2-preview/ventas
+// Electronic-payment V22 is first only for its exact QR/payment and waiter PWA override paths;
+// all other requests fall through to the established refresh/call/visit layers unchanged.
+// The refresh layer remains the compatibility owner of the installed waiter shell contract.
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
