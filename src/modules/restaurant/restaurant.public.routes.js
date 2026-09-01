@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { restaurantWaiterCallPublicRouter } = require('./restaurant-waiter-call.public.routes');
 const { restaurantMenuImportPublicRouter } = require('./restaurant-menu-import.public.routes');
 const { restaurantVisitPublicRouter } = require('./restaurant-visit.public.routes');
 const { restaurantClientTrackingPublicRouter } = require('./restaurant-client-tracking.public.routes');
@@ -18,6 +19,9 @@ const router = express.Router();
 // restaurant-control-center.css · restaurant-control-center.js
 // /app/centro-de-control-preview · /api/public/restaurante/demo-readiness
 // /app/v2-preview/dashboard · /app/v2-preview/ventas
+// The waiter-call layer is first because it composes the existing QR/Waiter assets unchanged
+// and appends the removable assistance/ringing surface.
+router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
 router.use(restaurantVisitPublicRouter);
 router.use(restaurantClientTrackingPublicRouter);
