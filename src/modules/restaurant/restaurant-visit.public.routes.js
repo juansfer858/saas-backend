@@ -60,12 +60,13 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
 
 router.get('/app/restaurant-ui.js', async (_req, res, next) => {
   try {
-    const [baseUi, paymentsUi] = await Promise.all([
+    const [baseUi, paymentsUi, paymentMethodsUi] = await Promise.all([
       fs.promises.readFile(path.join(webRoot, 'restaurant-ui.js'), 'utf8'),
-      fs.promises.readFile(path.join(webRoot, 'restaurant-visit-payments-ui.js'), 'utf8')
+      fs.promises.readFile(path.join(webRoot, 'restaurant-visit-payments-ui.js'), 'utf8'),
+      fs.promises.readFile(path.join(webRoot, 'restaurant-payment-methods-ui.js'), 'utf8')
     ]);
     res.set('Cache-Control', 'no-store');
-    res.type('application/javascript').send(`${baseUi}\n;${paymentsUi}`);
+    res.type('application/javascript').send(`${baseUi}\n;${paymentsUi}\n;${paymentMethodsUi}`);
   } catch (error) { next(error); }
 });
 
@@ -92,6 +93,11 @@ router.get('/app/restaurant-qr-tracking-ui.js', (_req, res) => {
 router.get('/app/restaurant-visit-payments-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-visit-payments-ui.js'));
+});
+
+router.get('/app/restaurant-payment-methods-ui.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-payment-methods-ui.js'));
 });
 
 router.get('/api/public/restaurante/qr/:token/visita', async (req, res, next) => {
