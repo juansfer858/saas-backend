@@ -23,6 +23,13 @@ router.get('/ui-runtime/panel-printing-config.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(webRoot, 'panel-printing-config.js'));
 });
 
+// Configuración nativa del restaurante dentro del Centro de control.
+// No reutiliza /app/configuracion porque esa ruta pertenece a Parametrización Contable.
+router.get('/ui-runtime/restaurant-admin-config-ui.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-admin-config-ui.js'));
+});
+
 // Runtime de lectura para la interfaz Restaurante. Está bajo ui-runtime para que
 // un rol operativo pueda saber qué KDS/áreas creó el administrador sin adquirir
 // permisos de edición de Configuración.
