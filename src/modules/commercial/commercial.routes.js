@@ -24,10 +24,16 @@ router.get('/ui-runtime/panel-printing-config.js', (_req, res) => {
 });
 
 // Configuración nativa del restaurante dentro del Centro de control.
-// No reutiliza /app/configuracion porque esa ruta pertenece a Parametrización Contable.
+// Aquí quedan impresoras y opciones generales; la creación de KDS vive dentro de Ver KDS.
 router.get('/ui-runtime/restaurant-admin-config-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-admin-config-ui.js'));
+});
+
+// Gestión de estaciones propia de la superficie KDS.
+router.get('/ui-runtime/restaurant-kds-stations-admin.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-kds-stations-admin.js'));
 });
 
 // Runtime de lectura para la interfaz Restaurante. Está bajo ui-runtime para que
