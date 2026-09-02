@@ -16,10 +16,29 @@ const { restaurantWaiterDevicePublicRouter } = require('./restaurant-waiter-devi
 const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public.routes');
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
-const { restaurantCashCompactV30PublicRouter } = require('./restaurant-cash-compact-v30.public.routes');
+const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
 const router = express.Router();
+
+// V23 already owns the canonical /app/restaurant-ui.js response before V30 can reach its
+// fallback asset route. Wrap that response instead of replacing it, so Realtime remains intact
+// and the Caja compact presentation is appended exactly once to the final browser asset.
+function installCashCompactRuntime(req, res, next) {
+  if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
+  const originalSend = res.send.bind(res);
+  res.send = (body) => {
+    const isBuffer = Buffer.isBuffer(body);
+    const source = isBuffer ? body.toString('utf8') : (typeof body === 'string' ? body : null);
+    if (source && !source.includes('VANTIX_CASH_COMPACT_V30')) {
+      const patched = `${source}\n;${compactCashRuntime}\n`;
+      body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
+    }
+    res.set('X-VantixGC-Cash-Compact', 'v30-dialogs');
+    return originalSend(body);
+  };
+  return next();
+}
 
 // Isolated extension assets and security/visit routes are evaluated before the legacy public
 // Restaurant router. The delegated base router remains the owner of the established surfaces:
@@ -37,6 +56,7 @@ router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
 router.use(restaurantWaiterDevicePersistencePublicRouter);
+router.use(installCashCompactRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
@@ -51,4 +71,4 @@ router.use(restaurantEmployeeWorkPublicRouter);
 router.use(restaurantCashCompactV30PublicRouter);
 router.use(legacyRestaurantPublicRouter);
 
-module.exports = { restaurantPublicRouter: router };
+module.exports = { restaurantPublicRouter: router, installCashCompactRuntime };
