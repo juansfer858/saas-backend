@@ -1,5 +1,6 @@
 const { prisma } = require('../../../config/prisma');
 const { AppError } = require('../../../utils/app-error');
+const stationService = require('./printing-stations.service');
 
 const FORMAT_SPECS = {
   TERMICA_58: { widthMm: 58, heightMm: null, kind: 'ROLL', use: 'POS compacto' },
@@ -53,6 +54,14 @@ async function savePrinter(tenantId, input) {
   if (input.transport === 'LAN' && (!input.host || !input.port)) {
     throw new AppError(400, 'Una impresora LAN requiere host y puerto', 'PRINT_LAN_ENDPOINT_REQUIRED');
   }
+  if (String(input.role || '').startsWith(stationService.ROLE_PREFIX)) {
+    const stationId = stationService.stationIdFromRole(input.role);
+    const station = (await stationService.listStations(tenantId, { includeInactive: false })).find((row) => row.id === stationId);
+    if (!station) throw new AppError(400, 'La estación seleccionada no existe o está inactiva', 'PRINT_STATION_ROLE_INVALID');
+    if (!['IMPRESORA', 'AMBOS'].includes(station.mode)) {
+      throw new AppError(400, 'La estación seleccionada está configurada sólo como KDS', 'PRINT_STATION_KDS_ONLY');
+    }
+  }
   if (input.id) {
     const existing = await prisma.printerEndpoint.findFirst({ where: { id: input.id, tenantId } });
     if (!existing) throw new AppError(404, 'Impresora no encontrada', 'PRINT_PRINTER_NOT_FOUND');
@@ -81,12 +90,21 @@ async function listPrinters(tenantId) {
 }
 
 async function printersForRoles(tenantId, roles) {
-  const normalized = [...new Set((roles || []).map((x) => String(x).trim().toUpperCase()).filter(Boolean))];
-  if (!normalized.length) return [];
-  return prisma.printerEndpoint.findMany({
-    where: { tenantId, active: true, transport: 'LAN', role: { in: normalized } },
+  const routeInfo = await stationService.routeInfo(tenantId, roles);
+  if (!routeInfo.normalizedQueues.length) return [];
+  const printers = await prisma.printerEndpoint.findMany({
+    where: { tenantId, active: true, transport: 'LAN', role: { in: routeInfo.printerRoles } },
     orderBy: { name: 'asc' }
   });
+  return printers.map((printer) => {
+    const station = routeInfo.stationByRole.get(printer.role) || null;
+    return {
+      ...printer,
+      routeRole: station?.queue || String(printer.role).toUpperCase(),
+      stationId: station?.id || null,
+      stationName: station?.name || null
+    };
+  }).filter((printer) => routeInfo.normalizedQueues.includes(printer.routeRole));
 }
 
 async function buildDirectedJobs(tenantId, input) {
@@ -95,7 +113,7 @@ async function buildDirectedJobs(tenantId, input) {
   const printers = await printersForRoles(tenantId, roles);
   const byRole = new Map();
   for (const printer of printers) {
-    const key = String(printer.role).toUpperCase();
+    const key = String(printer.routeRole || printer.role).toUpperCase();
     if (!byRole.has(key)) byRole.set(key, []);
     byRole.get(key).push(printer);
   }
@@ -112,6 +130,8 @@ async function buildDirectedJobs(tenantId, input) {
     for (const printer of targets) {
       entries.push({
         stationRole: role,
+        stationId: printer.stationId || null,
+        stationName: printer.stationName || null,
         target: { id: printer.id, name: printer.name, host: printer.host, port: printer.port || 9100, format: printer.format || null },
         job: {
           title: input.title || 'COMANDA',
