@@ -7,6 +7,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'src', 'web', 'restaurant.html'), 'utf8');
 const publicTheme = fs.readFileSync(path.join(root, 'src', 'web', 'restaurant-public-theme.css'), 'utf8');
+const adminTheme = fs.readFileSync(path.join(root, 'src', 'web', 'restaurant-theme.js'), 'utf8');
 
 function between(source, start, end) {
   const a = source.indexOf(start);
@@ -64,6 +65,14 @@ assert.match(visualV29, /min-height:128px!important/);
 assert.match(visualV29, /min-height:132px!important/);
 assert.match(visualV29, /min-height:124px!important/);
 
+// Admin waiter header: never show the same selected table twice.
+// One table => keep the summary and hide the redundant table chip.
+// Multiple tables => keep the selectable strip and hide the duplicate summary.
+assert.match(adminTheme, /#view \.waiter-zone-row>\*\{min-width:0!important\}/);
+assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:only-child\) \.waiter-table-strip\{display:none!important\}/);
+assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:nth-child\(2\)\) \.waiter-table-summary\{display:none!important\}/);
+assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:only-child\)\)\{grid-template-columns:minmax\(132px,220px\) minmax\(150px,210px\)!important/);
+
 // V29 must be presentation only. Rotation cannot reload or know business endpoints.
 assert.doesNotMatch(visualV29, /fetch\s*\(/);
 assert.doesNotMatch(visualV29, /\/api\//);
@@ -93,5 +102,6 @@ console.log(JSON.stringify({
   palette: ['navy', 'orange', 'teal', 'white', 'light-blue-gray', 'gold-warning', 'red-alert'],
   rotationReloads: 0,
   statePreservedByCssReflow: true,
+  waiterHeaderDuplicateTable: false,
   businessApiCallsAdded: 0
 }));
