@@ -17,15 +17,12 @@ const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
-const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility.public.routes');
+const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
 const router = express.Router();
 
-// V23 already owns the canonical /app/restaurant-ui.js response before V30 can reach its
-// fallback asset route. Wrap that response instead of replacing it, so Realtime remains intact
-// and the Caja compact presentation is appended exactly once to the final browser asset.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -42,22 +39,6 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
-// Isolated extension assets and security/visit routes are evaluated before the legacy public
-// Restaurant router. The delegated base router remains the owner of the established surfaces:
-// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
-// restaurant-control-center.css · restaurant-control-center.js
-// /app/centro-de-control-preview · /api/public/restaurante/demo-readiness
-// /app/v2-preview/dashboard · /app/v2-preview/ventas
-// Tenant Realtime V23 owns the shared stream. QR presence V24 keeps the customer connected
-// before authorization. V25 injects only the QR-order alert asset/cache into the waiter PWA.
-// V26 protects the one-time linked Mesero device credential: temporary employee inactivity,
-// app close or connectivity loss never erases it; only explicit device revocation does.
-// V30 only repackages Caja history and shift close into compact dialogs; all existing
-// cashier inputs, listeners and business endpoints remain owned by the base Restaurant UI.
-// Control Center Resilience V1 guarantees that a stalled Restaurant API request cannot leave
-// the dashboard permanently frozen on “Cargando operación real…”.
-// Payment Methods Visibility V2 makes tenant-owned payment configuration visible from Caja
-// even when the shift is closed or there is no table selected for payment.
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
