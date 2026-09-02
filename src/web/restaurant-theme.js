@@ -49,6 +49,38 @@
     catch { return null; }
   }
 
+  function canManageRestaurantConfig() {
+    const role = String(readSession()?.user?.rol || '').toUpperCase();
+    return ['ADMIN','SUPER_ADMIN','ADMINISTRADOR'].includes(role);
+  }
+
+  function ensureRestaurantConfigAccess() {
+    if (!location.pathname.startsWith('/app/centro-de-control') || !canManageRestaurantConfig()) return;
+    const targetUrl = '/app/configuracion#restaurantStationsPanel';
+
+    const actions = document.querySelector('#ccDashboard .cc-actions');
+    if (actions && !actions.querySelector('[data-restaurant-config-action]')) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'cc-action';
+      button.dataset.restaurantConfigAction = 'true';
+      button.innerHTML = '⚙ <strong>Configuración</strong><small>Cocinas, KDS e impresoras</small>';
+      button.addEventListener('click', () => { location.href = targetUrl; });
+      actions.appendChild(button);
+    }
+
+    const railWrap = document.querySelector('.rail-wrap');
+    if (railWrap && !railWrap.querySelector('[data-restaurant-config-link]')) {
+      const link = document.createElement('a');
+      link.className = 'cc-classic-link';
+      link.dataset.restaurantConfigLink = 'true';
+      link.href = targetUrl;
+      link.textContent = '⚙ Configuración';
+      const back = railWrap.querySelector('.cc-classic-link');
+      railWrap.insertBefore(link, back || null);
+    }
+  }
+
   function setNodeVisible(node, visible) {
     if (!node) return;
     if (visible) {
@@ -70,6 +102,7 @@
   }
 
   function applyProductionStations() {
+    ensureRestaurantConfigAccess();
     if (!stationRuntime.loaded) return;
     const kdsStations = stationRuntime.rows.filter((station) => station.active !== false && ['KDS','AMBOS'].includes(String(station.mode || '').toUpperCase()));
     const hasKds = kdsStations.length > 0;
@@ -143,6 +176,7 @@
     root.dataset.restaurantTheme = theme?.preset || 'LA_RIEL_V1';
     root.dataset.restaurantTypography = 'SUPER_CORE_PANEL';
     ensurePanelAlignment();
+    ensureRestaurantConfigAccess();
     const name = theme?.restaurantName;
     if (name) {
       document.querySelectorAll('[data-restaurant-name]').forEach((node) => { node.textContent = name; });
