@@ -40,7 +40,8 @@ async function defaultMethods(tenantId, client = prisma) {
   const rows = [];
   if (cash) rows.push({ id: crypto.randomUUID(), name: 'Efectivo', kind: 'EFECTIVO', cajaBancoId: cash.id, active: true, sortOrder: 10 });
   banks.forEach((bank, index) => rows.push({ id: crypto.randomUUID(), name: bank.nombre, kind: 'TRANSFERENCIA', cajaBancoId: bank.id, active: true, sortOrder: 20 + index * 10 }));
-  rows.push({ id: crypto.randomUUID(), name: 'Crédito', kind: 'CREDITO', cajaBancoId: null, active: true, sortOrder: 900 });
+  // Crédito necesita tercero/cartera; se deja disponible para configurar, pero nunca activo por defecto.
+  rows.push({ id: crypto.randomUUID(), name: 'Crédito', kind: 'CREDITO', cajaBancoId: null, active: false, sortOrder: 900 });
   return rows;
 }
 
@@ -103,6 +104,7 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
   const methods = await listMethods(tenantId);
   const method = methods.find((row) => row.id === input.paymentMethodId && row.active);
   if (!method) throw new AppError(400, 'Seleccione un método de pago activo', 'RESTAURANT_PAYMENT_METHOD_REQUIRED');
+  if (method.kind === 'CREDITO') throw new AppError(409, 'El crédito requiere identificar al cliente y generar cartera. Actívalo desde el flujo de crédito cuando esté configurado.', 'RESTAURANT_CREDIT_CUSTOMER_REQUIRED');
   await validateAccount(tenantId, method.kind, method.cajaBancoId || null);
 
   const session = await prisma.restaurantTableSession.findFirst({
