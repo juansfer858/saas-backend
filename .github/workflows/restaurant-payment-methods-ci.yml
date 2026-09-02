@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - feature/restaurant-payment-methods-cash-report
+      - hotfix/restaurant-control-center-timeout
 
 jobs:
   validate:
@@ -48,3 +49,5 @@ jobs:
         run: npx prisma db push
       - name: Validate configurable payment methods and cash close report
         run: node scripts/restaurant-payment-methods-smoke.js
+      - name: Validate Centro de control resilience against stalled Restaurant API
+        run: node scripts/restaurant-control-center-resilience-smoke.js
