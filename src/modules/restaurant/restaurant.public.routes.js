@@ -17,6 +17,7 @@ const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
+const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
@@ -55,11 +56,14 @@ function installCashCompactRuntime(req, res, next) {
 // cashier inputs, listeners and business endpoints remain owned by the base Restaurant UI.
 // Control Center Resilience V1 guarantees that a stalled Restaurant API request cannot leave
 // the dashboard permanently frozen on “Cargando operación real…”.
+// Payment Methods Visibility V2 makes tenant-owned payment configuration visible from Caja
+// even when the shift is closed or there is no table selected for payment.
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
 router.use(restaurantWaiterDevicePersistencePublicRouter);
 router.use(installCashCompactRuntime);
+router.use(installPaymentMethodsVisibilityRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
