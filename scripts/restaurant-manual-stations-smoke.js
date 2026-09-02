@@ -11,17 +11,18 @@ async function main() {
   const theme = read('src/web/restaurant-theme.js');
   const routes = read('src/modules/platform/printing/printing.routes.js');
   const commercialRoutes = read('src/modules/commercial/commercial.routes.js');
+  const stationServiceSource = read('src/modules/platform/printing/printing-stations.service.js');
 
   for (const token of [
     'Áreas de preparación / KDS',
     'VantixGC no crea cocinas ni KDS por defecto',
     '+ Nueva estación',
     "callApi('/api/v1/impresion/estaciones')",
-    'Selecciona un destino…',
-    'STATION:'
+    'Selecciona un destino…'
   ]) assert.ok(panel.includes(token), `Panel manual de estaciones debe contener: ${token}`);
   assert.ok(!panel.includes('const ROLE_OPTIONS'), 'El panel no debe conservar destinos fijos Cocina/Barra');
   assert.ok(!panel.includes("current?.role || 'COCINA'"), 'Nueva impresora no puede preseleccionar Cocina');
+  assert.ok(stationServiceSource.includes("const ROLE_PREFIX = 'STATION:'"));
   assert.ok(theme.includes('restaurant-production-stations'));
   assert.ok(theme.includes('No hay estaciones KDS configuradas.'));
   assert.ok(theme.includes('[data-tab="kds"]'));
