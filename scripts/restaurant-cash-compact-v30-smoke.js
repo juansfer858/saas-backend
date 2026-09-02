@@ -32,7 +32,6 @@ assert.match(publicRouter, /function installCashCompactRuntime/);
 assert.match(publicRouter, /req\.path !== '\/app\/restaurant-ui\.js'/);
 assert.match(publicRouter, /const originalSend = res\.send\.bind\(res\)/);
 assert.match(publicRouter, /source\.includes\('VANTIX_CASH_COMPACT_V30'\)/);
-assert.match(publicRouter, /compactCashRuntime/);
 assert.match(publicRouter, /X-VantixGC-Cash-Compact/);
 assert.ok(
   publicRouter.indexOf('router.use(installCashCompactRuntime)') < publicRouter.indexOf('router.use(restaurantTenantRealtimePublicRouter)'),
@@ -56,6 +55,7 @@ assert.match(delivery, /v30-dialogs/);
 
 // Presentation contract: two compact launchers and two modal dialogs.
 assert.match(delivery, /VANTIX_CASH_COMPACT_V30/);
+assert.match(delivery, /version:'30\.1\.0'/);
 assert.match(delivery, /cash-compact-tools-v30/);
 assert.match(delivery, /cash-compact-dialog-v30/);
 assert.match(delivery, /cash-recent-list/);
@@ -65,8 +65,12 @@ assert.match(delivery, /Resumen del turno/);
 assert.match(delivery, /Historial del turno/);
 assert.match(delivery, /Arqueo y cierre de caja/);
 assert.match(delivery, /showModal/);
-assert.match(delivery, /MutationObserver/);
 assert.match(delivery, /queueMicrotask/);
+assert.match(delivery, /scheduleBurst/);
+assert.match(delivery, /vantix:tenant-realtime/);
+assert.match(delivery, /vantix:tenant-realtime-ready/);
+assert.match(delivery, /setTimeout/);
+assert.doesNotMatch(delivery, /MutationObserver|setInterval/, 'V30.1 debe respetar el contrato push-driven de V23');
 assert.match(delivery, /body\.appendChild\(panel\)/, 'Los paneles existentes deben moverse, no recrearse, para conservar listeners');
 assert.match(delivery, /clearDialogs/);
 
@@ -99,6 +103,7 @@ console.log(JSON.stringify({
   cashPrimaryWorkspace: ['Mesas por cobrar', 'Cobro rápido'],
   compactLaunchers: ['Últimos cobros', 'Resumen del turno'],
   realtimeCompositionPreserved: true,
+  pushDrivenPresentation: true,
   existingCloseShiftControlsPreserved: true,
   businessApiCallsAdded: 0
 }));
