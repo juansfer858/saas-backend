@@ -16,6 +16,7 @@ const { restaurantWaiterDevicePublicRouter } = require('./restaurant-waiter-devi
 const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public.routes');
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
+const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
@@ -52,6 +53,8 @@ function installCashCompactRuntime(req, res, next) {
 // app close or connectivity loss never erases it; only explicit device revocation does.
 // V30 only repackages Caja history and shift close into compact dialogs; all existing
 // cashier inputs, listeners and business endpoints remain owned by the base Restaurant UI.
+// Control Center Resilience V1 guarantees that a stalled Restaurant API request cannot leave
+// the dashboard permanently frozen on “Cargando operación real…”.
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
@@ -68,6 +71,7 @@ router.use(restaurantWaiterDevicePublicRouter);
 router.use(restaurantDeliveryPublicRouter);
 router.use(restaurantEmployeesPublicRouter);
 router.use(restaurantEmployeeWorkPublicRouter);
+router.use(restaurantControlCenterResiliencePublicRouter);
 router.use(restaurantCashCompactV30PublicRouter);
 router.use(legacyRestaurantPublicRouter);
 
