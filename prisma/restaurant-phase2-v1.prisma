@@ -76,6 +76,7 @@ model RestaurantConfig {
   simulatedFiscalDecisionEvidence           Json?
   allowSimulatedDocumentEquivalent          Boolean             @default(true)
   whatsappOrderReadyEnabled                 Boolean             @default(false)
+  paymentMethods                            Json?
   themePreset                               String              @default("LA_RIEL_V1")
   themeData                                 Json?
   displayName                               String?
@@ -158,6 +159,11 @@ model RestaurantTableSession {
   tipAmount           Decimal                @default(0) @db.Decimal(18, 2)
   splitMode           String?
   splitMetadata       Json?
+  paymentMethodId     String?
+  paymentMethodLabel  String?
+  paymentMethodKind   String?
+  paymentAccountId    String?
+  paymentReference    String?
   qrVisitNonce        String                 @default(uuid())
   qrVisitFailedAttempts Int                  @default(0)
   qrVisitLockedUntil  DateTime?
@@ -178,6 +184,7 @@ model RestaurantTableSession {
   @@index([tenantId, tableId, state])
   @@index([tenantId, billingMode, state])
   @@index([tenantId, cashShiftId, closedAt])
+  @@index([tenantId, paymentMethodKind, closedAt])
 }
 
 model RestaurantQrVisitDevice {
