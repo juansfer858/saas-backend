@@ -57,6 +57,17 @@
     return `${placeholder ? `<option value="">${h(placeholder)}</option>` : ''}${options.map(([value, label]) => `<option value="${h(value)}" ${value === selected ? 'selected' : ''}>${h(label)}</option>`).join('')}`;
   }
 
+  function activeKdsStations() {
+    return state.rows.filter((row) => row.active !== false && ['KDS', 'AMBOS'].includes(String(row.mode || '').toUpperCase()));
+  }
+
+  function stationNamesForQueue(queue) {
+    return activeKdsStations()
+      .filter((row) => String(row.queue || '').toUpperCase() === String(queue || '').toUpperCase())
+      .map((row) => String(row.name || '').trim())
+      .filter(Boolean);
+  }
+
   function ensureStyles() {
     if (document.querySelector('#restaurantKdsStationAdminStyles')) return;
     const style = document.createElement('style');
@@ -66,6 +77,8 @@
       .rkds-adminbar b{display:block;font-size:13px}.rkds-adminbar span{display:block;margin-top:2px;color:#65736d;font-size:11px}
       .rkds-admin-btn{min-height:40px;padding:0 13px;border:1px solid #cdd8d3;border-radius:11px;background:#fff;font-weight:850;cursor:pointer}
       .rkds-admin-btn.primary{background:#137a53;border-color:#137a53;color:#fff}
+      .rkds-config-notice{margin:0 0 12px;padding:14px 16px;border:1px dashed #f59e0b;border-radius:14px;background:#fffaf0;color:#5d4a21;font-size:12px;line-height:1.45}
+      .rkds-config-notice b{display:block;margin-bottom:3px;color:#7a4b00}
       .rkds-dialog{border:0;border-radius:18px;padding:0;width:min(760px,calc(100vw - 22px));box-shadow:0 28px 80px rgba(15,23,42,.32)}
       .rkds-dialog::backdrop{background:rgba(15,23,42,.46)}
       .rkds-dialog .rkds-shell{padding:20px;display:grid;gap:14px}
@@ -97,6 +110,42 @@
     } finally { state.loading = false; }
   }
 
+  function applyConfiguredLanes(view) {
+    if (!view) return;
+    const activeStations = activeKdsStations();
+
+    view.querySelectorAll('.kds-v2-lane[data-station]').forEach((lane) => {
+      const queue = String(lane.dataset.station || '').toUpperCase();
+      const names = stationNamesForQueue(queue);
+      if (!names.length) {
+        lane.style.setProperty('display', 'none', 'important');
+        lane.dataset.rkdsHidden = 'true';
+        return;
+      }
+      lane.style.removeProperty('display');
+      delete lane.dataset.rkdsHidden;
+      const heading = lane.querySelector('header h2');
+      if (heading) heading.textContent = names.join(' / ');
+      const emptyText = lane.querySelector('.kds-empty span');
+      if (emptyText) emptyText.textContent = `Los nuevos pedidos asignados a ${names.join(' / ')} aparecerán aquí automáticamente.`;
+    });
+
+    const shell = view.querySelector('.kds-v2');
+    const existing = view.querySelector('[data-rkds-config-notice]');
+    if (!activeStations.length && shell) {
+      if (!existing) {
+        const notice = document.createElement('div');
+        notice.className = 'rkds-config-notice';
+        notice.dataset.rkdsConfigNotice = 'true';
+        notice.innerHTML = '<b>No hay KDS creados para este restaurante.</b>Los carriles Cocina, Barra y Postres no se crean por defecto. Usa “Gestionar KDS / estaciones” para crear únicamente los que realmente existan.';
+        const lanes = shell.querySelector('.kds-v2-lanes');
+        if (lanes) lanes.before(notice); else shell.appendChild(notice);
+      }
+    } else {
+      existing?.remove();
+    }
+  }
+
   function scheduleEnhance() {
     if (state.scheduled) return;
     state.scheduled = true;
@@ -113,11 +162,13 @@
     const view = document.querySelector('#view');
     if (!view) return;
 
+    applyConfiguredLanes(view);
+
     if (!view.querySelector('[data-rkds-adminbar]')) {
       const bar = document.createElement('div');
       bar.className = 'rkds-adminbar';
       bar.dataset.rkdsAdminbar = 'true';
-      bar.innerHTML = `<div><b>Configuración del KDS</b><span>${state.rows.filter((row) => row.active !== false).length} estación(es) activa(s). Crea, edita o retira áreas de preparación desde aquí.</span></div><button type="button" class="rkds-admin-btn primary" data-rkds-manage>Gestionar KDS / estaciones</button>`;
+      bar.innerHTML = `<div><b>Administrar KDS</b><span>${activeKdsStations().length} KDS activo(s). Crea, edita o retira las áreas de preparación desde esta misma pantalla.</span></div><button type="button" class="rkds-admin-btn primary" data-rkds-manage>Gestionar KDS / estaciones</button>`;
       view.prepend(bar);
       bar.querySelector('[data-rkds-manage]')?.addEventListener('click', openManager);
     }
