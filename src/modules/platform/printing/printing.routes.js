@@ -1,6 +1,7 @@
 const express = require('express');
 const { z } = require('zod');
 const service = require('./printing.service');
+const stationService = require('./printing-stations.service');
 const { AppError } = require('../../../utils/app-error');
 const { requirePermission } = require('../../../middleware/require-permission');
 
@@ -27,12 +28,21 @@ const printerSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(2).max(100),
   transport: z.enum(['NAVEGADOR','LAN']),
-  role: z.string().trim().min(2).max(60).default('DOCUMENTOS'),
+  role: z.string().trim().min(2).max(80).default('DOCUMENTOS'),
   host: z.string().trim().max(200).optional().nullable(),
   port: z.coerce.number().int().min(1).max(65535).optional().nullable(),
   format: format.optional().nullable(),
   active: z.boolean().default(true)
 });
+
+const stationCreateSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  queue: z.enum(['COCINA','BARRA','POSTRES']),
+  mode: z.enum(['KDS','IMPRESORA','AMBOS']),
+  active: z.boolean().optional().default(true),
+  sortOrder: z.coerce.number().int().min(0).max(10000).optional().default(0)
+});
+const stationUpdateSchema = stationCreateSchema.partial().refine((v) => Object.keys(v).length > 0, { message: 'Debe enviar al menos un cambio' });
 
 const printLineSchema = z.union([
   z.string().max(500),
@@ -60,6 +70,24 @@ router.put('/configuracion', requirePermission('CONFIGURACION.EDITAR'), async (r
   try { res.json({ ok: true, data: await service.saveConfig(req.tenantId, req.userId, parse(configSchema, req.body)) }); }
   catch (error) { next(error); }
 });
+
+router.get('/estaciones', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await stationService.listStations(req.tenantId, { includeInactive: req.query.active !== 'true' }) }); }
+  catch (error) { next(error); }
+});
+router.post('/estaciones', requirePermission('CONFIGURACION.EDITAR'), async (req, res, next) => {
+  try { res.status(201).json({ ok: true, data: await stationService.createStation(req.tenantId, req.userId, parse(stationCreateSchema, req.body)) }); }
+  catch (error) { next(error); }
+});
+router.patch('/estaciones/:id', requirePermission('CONFIGURACION.EDITAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await stationService.updateStation(req.tenantId, req.userId, req.params.id, parse(stationUpdateSchema, req.body)) }); }
+  catch (error) { next(error); }
+});
+router.delete('/estaciones/:id', requirePermission('CONFIGURACION.EDITAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await stationService.removeStation(req.tenantId, req.userId, req.params.id) }); }
+  catch (error) { next(error); }
+});
+
 router.get('/impresoras', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listPrinters(req.tenantId) }); }
   catch (error) { next(error); }
