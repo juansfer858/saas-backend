@@ -3,6 +3,7 @@ const path = require('node:path');
 const controller = require('./commercial.controller');
 const purchaseController = require('./purchase.controller');
 const salesController = require('./sales.controller');
+const productionStations = require('../platform/printing/printing-stations.service');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '../../web');
@@ -20,6 +21,16 @@ router.get('/ui-runtime/panel-integration-extras-core.js', (_req, res) => {
 router.get('/ui-runtime/panel-printing-config.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'panel-printing-config.js'));
+});
+
+// Runtime de lectura para la interfaz Restaurante. Está bajo ui-runtime para que
+// un rol operativo pueda saber qué KDS/áreas creó el administrador sin adquirir
+// permisos de edición de Configuración.
+router.get('/ui-runtime/restaurant-production-stations', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, data: await productionStations.listStations(req.tenantId, { includeInactive: false }) });
+  } catch (error) { next(error); }
 });
 
 // API genérica de documentos comerciales.
