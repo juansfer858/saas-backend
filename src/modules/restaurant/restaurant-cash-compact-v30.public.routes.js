@@ -16,7 +16,7 @@ const compactCashRuntime = String.raw`
   'use strict';
   const MARKER='VANTIX_CASH_COMPACT_V30';
   if(window[MARKER]) return;
-  window[MARKER]=Object.freeze({version:'30.0.0',presentationOnly:true,dialogs:true});
+  window[MARKER]=Object.freeze({version:'30.1.0',presentationOnly:true,dialogs:true,eventDriven:true});
 
   const DIALOG_SELECTOR='dialog.cash-compact-dialog-v30';
 
@@ -103,6 +103,7 @@ const compactCashRuntime = String.raw`
   }
 
   let queued=false;
+  let burstToken=0;
   function schedule(){
     if(queued) return;
     queued=true;
@@ -112,10 +113,27 @@ const compactCashRuntime = String.raw`
     });
   }
 
-  const observer=new MutationObserver(schedule);
-  observer.observe(document.documentElement,{subtree:true,childList:true});
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule,{once:true});
-  else schedule();
+  // No polling and no DOM observer: a short finite burst follows actual UI/realtime events.
+  // This preserves V23's push-driven contract while still catching async Caja renders.
+  function scheduleBurst(){
+    const token=++burstToken;
+    [0,90,220,500,1000,1800,3200].forEach((delay)=>{
+      setTimeout(()=>{
+        if(token!==burstToken) return;
+        schedule();
+      },delay);
+    });
+  }
+
+  document.addEventListener('click',(event)=>{
+    const target=event.target.closest?.('[data-tab="caja"],[data-cc-tab="caja"],.cash-shell button,.cash-shell summary,.cash-compact-dialog-v30 button');
+    if(target) scheduleBurst();
+  },true);
+  window.addEventListener('vantix:tenant-realtime',scheduleBurst);
+  window.addEventListener('vantix:tenant-realtime-ready',scheduleBurst);
+  window.addEventListener('popstate',scheduleBurst);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',scheduleBurst,{once:true});
+  else scheduleBurst();
 })();
 `;
 
