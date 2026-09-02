@@ -12,6 +12,12 @@ async function readRestaurantSchemaState() {
   const rows = await prisma.$queryRawUnsafe(`
     SELECT
       to_regclass('public."RestaurantConfig"')::text AS "config",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantConfig'
+          AND column_name = 'paymentMethods'
+      ) AS "configPaymentMethods",
       to_regclass('public."RestaurantZone"')::text AS "zone",
       to_regclass('public."RestaurantTable"')::text AS "table",
       EXISTS (
@@ -47,6 +53,36 @@ async function readRestaurantSchemaState() {
           AND table_name = 'RestaurantTableSession'
           AND column_name = 'qrVisitNonce'
       ) AS "sessionQrVisitNonce",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'paymentMethodId'
+      ) AS "sessionPaymentMethodId",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'paymentMethodLabel'
+      ) AS "sessionPaymentMethodLabel",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'paymentMethodKind'
+      ) AS "sessionPaymentMethodKind",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'paymentAccountId'
+      ) AS "sessionPaymentAccountId",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantTableSession'
+          AND column_name = 'paymentReference'
+      ) AS "sessionPaymentReference",
       to_regclass('public."RestaurantQrVisitDevice"')::text AS "qrVisitDevice",
       to_regclass('public."RestaurantSessionPayment"')::text AS "sessionPayment",
       to_regclass('public."RestaurantOrder"')::text AS "order",
@@ -72,8 +108,10 @@ async function readRestaurantSchemaState() {
   `);
   const state = rows?.[0] || {};
   const required = [
-    'config', 'zone', 'table', 'tableZoneId', 'menuItem', 'session',
+    'config', 'configPaymentMethods', 'zone', 'table', 'tableZoneId', 'menuItem', 'session',
     'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
+    'sessionPaymentMethodId', 'sessionPaymentMethodLabel', 'sessionPaymentMethodKind',
+    'sessionPaymentAccountId', 'sessionPaymentReference',
     'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
     'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile'
