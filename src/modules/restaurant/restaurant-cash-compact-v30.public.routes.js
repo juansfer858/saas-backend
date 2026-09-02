@@ -73,7 +73,7 @@ const compactCashRuntime = String.raw`
 
     const lower=shell.querySelector('.cash-lower-grid');
     if(!lower) return;
-    const recent=lower.querySelector('.cash-recent-panel');
+    const recent=lower.querySelector('.cash-recent-list')?.closest('.cash-panel');
     const summary=lower.querySelector('.cash-close-panel');
     if(!recent || !summary) return;
 
