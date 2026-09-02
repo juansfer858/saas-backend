@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { restaurantPublicRealtimePublisher } = require('./restaurant-public-realtime-publisher');
 const { restaurantQrPresenceRealtimePublicRouter } = require('./restaurant-qr-presence-realtime.public.routes');
 const { restaurantQrOrderWaiterAlertPublicRouter } = require('./restaurant-qr-order-waiter-alert.public.routes');
@@ -44,6 +45,9 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
+// This root-mounted public router is evaluated before the generic /app HTML fallback.
+// Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
+router.use(coreAdminPwaPublicRouter);
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
