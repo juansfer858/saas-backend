@@ -41,6 +41,17 @@
       executeSource(realtimePanel, 'core-realtime-panel-ui.js');
       executeSource(core, 'panel-integration-extras-core.js');
       executeSource(printing, 'panel-printing-config.js');
+
+      // El Core hace su primer render antes de que la capa de impresoras/estaciones
+      // pueda extender viewConfig. Si estamos entrando directamente a Configuración,
+      // renderizamos una vez más para que la sección operativa sea visible de inmediato.
+      if (location.pathname === '/app/configuracion' && typeof window.render === 'function') {
+        await window.render();
+        requestAnimationFrame(() => {
+          const target = location.hash ? document.querySelector(location.hash) : null;
+          target?.scrollIntoView?.({ block: 'start' });
+        });
+      }
     } catch (error) {
       console.error('SUPER_CORE_INTEGRATION_RUNTIME_ERROR', error);
     }
