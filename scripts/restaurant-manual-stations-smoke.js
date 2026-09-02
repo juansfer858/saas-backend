@@ -19,40 +19,45 @@ async function main() {
   assert.ok(!panel.includes("current?.role || 'COCINA'"), 'Nueva impresora no puede preseleccionar Cocina');
   assert.ok(stationServiceSource.includes("const ROLE_PREFIX = 'STATION:'"));
 
+  // El gestor KDS se sirve desde una ruta autenticada. No puede cargarse con un
+  // <script src> normal porque ese request no transporta el Bearer del tenant.
   for (const token of [
-    'ensureRestaurantConfigAccess',
-    'data-restaurant-config-action',
-    'data-restaurant-config-link',
-    '/app/centro-de-control?view=config',
-    'Impresoras y opciones generales',
-    'restaurant-admin-config-ui.js?v=native-config-v2-printers',
-    'restaurant-kds-stations-admin.js?v=kds-stations-v1'
-  ]) assert.ok(theme.includes(token), `Centro de control debe contener: ${token}`);
-  assert.equal(theme.includes("const targetUrl = '/app/configuracion"), false, 'El acceso Restaurante no puede apuntar a Parametrización Contable');
+    'loadAuthenticatedControlAddon',
+    "'/api/v1/comercial/ui-runtime/restaurant-kds-stations-admin.js'",
+    'Authorization:`Bearer ${session.token}`',
+    "'x-tenant-subdomain':session.subdomain",
+    'RESTAURANT_KDS_ADMIN_RUNTIME_UNAVAILABLE'
+  ]) assert.ok(theme.includes(token), `Tema debe cargar KDS autenticado: ${token}`);
 
-  for (const token of [
-    "get('view') === 'config'",
-    'Impresoras del restaurante',
-    'Los KDS/estaciones se crean y retiran directamente desde Ver KDS.',
-    "api('/api/v1/impresion/estaciones')",
-    "api('/api/v1/impresion/impresoras')",
-    "api('/api/v1/impresion/configuracion')"
-  ]) assert.ok(nativeConfig.includes(token), `Configuración general debe contener: ${token}`);
-  assert.equal(nativeConfig.includes('data-rnc-station-new'), false, 'Configuración general no debe crear estaciones KDS');
-  assert.equal(nativeConfig.includes('function stationDialog'), false, 'Configuración general no debe editar estaciones KDS');
+  assert.equal(theme.includes('ensureRestaurantConfigAccess'), false, 'No debe existir acceso Configuración lateral roto');
+  assert.equal(theme.includes('data-restaurant-config-action'), false, 'No debe inyectar Configuración en dashboard');
+  assert.equal(theme.includes('data-restaurant-config-link'), false, 'No debe inyectar Configuración en lateral');
+  assert.equal(theme.includes('/app/centro-de-control?view=config'), false, 'No debe navegar al view=config inexistente');
+  assert.equal(theme.includes('restaurant-admin-config-ui.js?v='), false, 'No debe cargar Configuración general desde el KDS');
 
+  // La administración del nicho KDS vive dentro de Cocina / Barra.
   for (const token of [
+    'Administrar KDS',
     'Gestionar KDS / estaciones',
     '+ Crear primera estación',
     '+ Nueva estación',
+    'applyConfiguredLanes',
+    'activeKdsStations',
+    'stationNamesForQueue',
+    ".kds-v2-lane[data-station]",
+    "lane.style.setProperty('display', 'none', 'important')",
+    'No hay KDS creados para este restaurante.',
     "api('/api/v1/impresion/estaciones')",
     "method:'DELETE'",
-    'Configuración propia del restaurante',
-    'data-rkds-adminbar'
-  ]) assert.ok(kdsAdmin.includes(token), `Ver KDS debe administrar estaciones: ${token}`);
-  assert.ok(theme.includes('hasKds || canManage'), 'Administrador debe poder abrir KDS aun con cero estaciones');
-  assert.ok(theme.includes("querySelectorAll('[data-cc-order-kds]')"), 'Accesos operativos a pedidos sí deben depender de KDS existente');
+    'Configuración propia del restaurante'
+  ]) assert.ok(kdsAdmin.includes(token), `Ver KDS debe administrar estaciones realmente: ${token}`);
 
+  assert.ok(theme.includes('hasKds || canManage'), 'Administrador debe poder abrir KDS aun con cero estaciones');
+  assert.ok(theme.includes("querySelectorAll('[data-cc-order-kds]')"), 'Accesos operativos de pedidos deben depender de KDS existente');
+
+  // Configuración general puede seguir existiendo como runtime reutilizable, pero
+  // el Centro de control no la enlaza como si fuera un view nativo inexistente.
+  assert.ok(nativeConfig.includes('Impresoras del restaurante'));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-kds-stations-admin.js'"));
   assert.ok(theme.includes('restaurant-production-stations'));
@@ -60,6 +65,7 @@ async function main() {
   assert.ok(routes.includes("router.get('/estaciones'"));
   assert.ok(routes.includes("router.post('/estaciones'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-production-stations'"));
+
   new Function(panel);
   new Function(theme);
   new Function(nativeConfig);
@@ -135,17 +141,18 @@ async function main() {
   assert.equal(activeStations.length, 1);
   assert.equal(activeStations[0].id, kdsOnly.id);
 
-  console.log('RESTAURANT KDS-NATIVE STATIONS + PRINTER CONFIG SMOKE OK');
+  console.log('RESTAURANT KDS ADMIN VISIBLE + AUTHENTICATED RUNTIME SMOKE OK');
   console.log(JSON.stringify({
     zeroDefaultStations:true,
     manualCreate:true,
     kdsOnlyCannotOwnPrinter:true,
     printerRoutesThroughManualStation:true,
     inactiveStationStopsRouting:true,
+    authenticatedKdsRuntime:true,
+    brokenConfigShortcutRemoved:true,
+    lanesRequireManualStation:true,
     adminCanOpenEmptyKds:true,
-    kdsManagementLivesInKds:true,
-    printerConfigSeparated:true,
-    accountingConfigSeparated:true
+    kdsManagementLivesInKds:true
   }, null, 2));
 }
 
