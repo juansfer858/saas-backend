@@ -28,8 +28,9 @@ const genericPs = installer.genericInstallerPowerShell('https://core.vantixgc.co
 const genericCmd = installer.genericInstallerCmd('https://core.vantixgc.com');
 const claimPs = installer.claimInstallerPowerShell(claimToken, 'https://core.vantixgc.com');
 const claimCmd = installer.claimInstallerCmd(claimToken, 'https://core.vantixgc.com');
+const EDGE_V28_COMMIT = '97e3d958f5a787c9826d9bb74a1b0a2def12f1d0';
 
-assert.equal(installer.INSTALL_SOURCE_COMMIT, '07f057ec69c699fbb24859d49c1fabfa7eb9d7c9');
+assert.equal(installer.INSTALL_SOURCE_COMMIT, EDGE_V28_COMMIT);
 assert.equal(edgeVersion.version, '2.1.1-qr-offline.1');
 assert.equal(edgeVersion.channel, 'PILOT');
 assert.equal(installer.NODE_VERSION, '22.23.2');
@@ -50,7 +51,8 @@ for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /http:\/\/127\.0\.0\.1:8788\/api\/status/);
   assert.match(ps, /installationId/);
   assert.match(ps, /provisioned/);
-  assert.match(ps, /07f057ec69c699fbb24859d49c1fabfa7eb9d7c9/);
+  assert.match(ps, new RegExp(EDGE_V28_COMMIT));
+  assert.doesNotMatch(ps, /07f057ec69c699fbb24859d49c1fabfa7eb9d7c9/);
   assert.match(ps, /\$InstallParams = @\{/);
   assert.match(ps, /InstallDir = \$InstallDir/);
   assert.match(ps, /CoreBaseUrl = \$CoreBaseUrl/);
@@ -58,6 +60,10 @@ for (const ps of [genericPs, claimPs]) {
   assert.doesNotMatch(ps, /\$InstallArgs = @\(/);
   assert.doesNotMatch(ps, /& \$Installer @InstallArgs/);
   assert.match(ps, /\$InstallDir\s*=\s*'C:\\+ProgramData\\+VantixGC\\+Edge'/);
+  assert.match(ps, /estabilidad del servicio local/);
+  assert.match(ps, /\$StableChecks = 0/);
+  assert.match(ps, /\$StableChecks -lt 3/);
+  assert.match(ps, /no se mantuvo estable/);
 }
 
 assert.match(genericPs, /EDGE_AGENT_ID/);
@@ -88,4 +94,6 @@ assert.match(landing, /solicitará automáticamente permiso de Administrador/);
 
 assert.match(installerSource, /splatting posicional inseguro/);
 assert.match(installerSource, /ruta canónica de instalación/);
-console.log('PUBLIC INSTALLER WINDOWS V27 NAMED PARAMS CONTRACT OK');
+assert.match(installerSource, /Edge V28 corregido/);
+assert.match(installerSource, /validación V28 de estabilidad/);
+console.log('PUBLIC INSTALLER WINDOWS V28 NAMED PARAMS + STABLE EDGE CONTRACT OK');
