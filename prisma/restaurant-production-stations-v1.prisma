@@ -1,0 +1,27 @@
+enum RestaurantProductionQueue {
+  COCINA
+  BARRA
+  POSTRES
+}
+
+enum RestaurantProductionMode {
+  KDS
+  IMPRESORA
+  AMBOS
+}
+
+model RestaurantProductionStation {
+  id            String                   @id @default(uuid())
+  tenantId      String
+  name          String
+  queue         RestaurantProductionQueue
+  mode          RestaurantProductionMode
+  active        Boolean                  @default(true)
+  sortOrder     Int                      @default(0)
+  creadoEn      DateTime                 @default(now())
+  actualizadoEn DateTime                 @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active, sortOrder])
+  @@index([tenantId, queue, active])
+}
