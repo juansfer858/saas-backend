@@ -12,7 +12,8 @@ const css = fs.readFileSync(path.join(root, 'src', 'web', 'restaurant-control-ce
 
 // Base Caja remains the owner of the business workflow and the controls that close the shift.
 assert.match(ui, /cash-lower-grid/);
-assert.match(ui, /cash-recent-panel/);
+assert.match(ui, /cash-recent-list/);
+assert.match(ui, /cash-recent-row/);
 assert.match(ui, /cash-close-panel/);
 assert.match(ui, /physicalCount/);
 assert.match(ui, /closeShift/);
@@ -37,6 +38,8 @@ assert.match(delivery, /v30-dialogs/);
 assert.match(delivery, /VANTIX_CASH_COMPACT_V30/);
 assert.match(delivery, /cash-compact-tools-v30/);
 assert.match(delivery, /cash-compact-dialog-v30/);
+assert.match(delivery, /cash-recent-list/);
+assert.match(delivery, /closest\('\.cash-panel'\)/);
 assert.match(delivery, /Últimos cobros/);
 assert.match(delivery, /Resumen del turno/);
 assert.match(delivery, /Historial del turno/);
