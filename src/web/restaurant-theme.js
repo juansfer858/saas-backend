@@ -42,7 +42,8 @@
     appendControlAddon('/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1', 'restaurant-waiter-device-admin');
     appendControlAddon('/app/restaurant-employees-ui.js?v=employees-v1', 'restaurant-employees-ui');
     appendControlAddon('/app/restaurant-delivery-ui.js?v=delivery-v1', 'restaurant-delivery-ui');
-    appendControlAddon('/api/v1/comercial/ui-runtime/restaurant-admin-config-ui.js?v=native-config-v1', 'restaurant-admin-config-ui');
+    appendControlAddon('/api/v1/comercial/ui-runtime/restaurant-admin-config-ui.js?v=native-config-v2-printers', 'restaurant-admin-config-ui');
+    appendControlAddon('/api/v1/comercial/ui-runtime/restaurant-kds-stations-admin.js?v=kds-stations-v1', 'restaurant-kds-stations-admin');
   }
 
   function readSession() {
@@ -65,7 +66,7 @@
       button.type = 'button';
       button.className = 'cc-action';
       button.dataset.restaurantConfigAction = 'true';
-      button.innerHTML = '⚙ <strong>Configuración</strong><small>Cocinas, KDS e impresoras</small>';
+      button.innerHTML = '⚙ <strong>Configuración</strong><small>Impresoras y opciones generales</small>';
       button.addEventListener('click', () => { location.href = targetUrl; });
       actions.appendChild(button);
     }
@@ -107,8 +108,10 @@
     if (!stationRuntime.loaded) return;
     const kdsStations = stationRuntime.rows.filter((station) => station.active !== false && ['KDS','AMBOS'].includes(String(station.mode || '').toUpperCase()));
     const hasKds = kdsStations.length > 0;
+    const canManage = canManageRestaurantConfig();
 
-    document.querySelectorAll('[data-tab="kds"], [data-cc-tab="kds"], [data-cc-order-kds]').forEach((node) => setNodeVisible(node, hasKds));
+    document.querySelectorAll('[data-tab="kds"], [data-cc-tab="kds"]').forEach((node) => setNodeVisible(node, hasKds || canManage));
+    document.querySelectorAll('[data-cc-order-kds]').forEach((node) => setNodeVisible(node, hasKds));
 
     document.querySelectorAll('.kds-v2-lane[data-station]').forEach((lane) => {
       const queue = String(lane.dataset.station || '').toUpperCase();
@@ -130,7 +133,9 @@
       || Boolean(document.querySelector('[data-tab="kds"].active'));
     const view = document.querySelector('#view');
     if (!hasKds && currentKds && view && !view.querySelector('[data-no-kds-configured]')) {
-      view.innerHTML = '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b><br>El administrador debe crear la primera estación desde Centro de control → Configuración → Áreas de preparación / KDS.</div>';
+      view.innerHTML = canManage
+        ? '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b><br>Crea la primera directamente desde esta pantalla.</div>'
+        : '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b></div>';
     }
   }
 
