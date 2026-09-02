@@ -34,6 +34,7 @@ async function main() {
   assert.equal(theme.includes('data-restaurant-config-link'), false, 'No debe inyectar Configuración en lateral');
   assert.equal(theme.includes('/app/centro-de-control?view=config'), false, 'No debe navegar al view=config inexistente');
   assert.equal(theme.includes('restaurant-admin-config-ui.js?v='), false, 'No debe cargar Configuración general desde el KDS');
+  assert.equal(theme.includes('view.innerHTML'), false, 'La capa de estaciones no debe destruir el shell KDS durante polling');
 
   // La administración del nicho KDS vive dentro de Cocina / Barra.
   for (const token of [
@@ -61,7 +62,6 @@ async function main() {
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-kds-stations-admin.js'"));
   assert.ok(theme.includes('restaurant-production-stations'));
-  assert.ok(theme.includes('No hay estaciones KDS configuradas.'));
   assert.ok(routes.includes("router.get('/estaciones'"));
   assert.ok(routes.includes("router.post('/estaciones'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-production-stations'"));
@@ -151,6 +151,7 @@ async function main() {
     authenticatedKdsRuntime:true,
     brokenConfigShortcutRemoved:true,
     lanesRequireManualStation:true,
+    kdsShellPreservedDuringPolling:true,
     adminCanOpenEmptyKds:true,
     kdsManagementLivesInKds:true
   }, null, 2));
