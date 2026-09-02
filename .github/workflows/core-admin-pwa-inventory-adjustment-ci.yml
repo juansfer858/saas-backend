@@ -1,0 +1,82 @@
+name: Core Admin PWA + Inventory Adjustment CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - fix/admin-pwa-inventory-adjustment
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate admin PWA and inventory adjustment product library
+        run: node scripts/core-admin-pwa-inventory-adjustment-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA" >&2
+          exit 1
+
+      - name: Verify installable admin PWA assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/admin-sw.headers -o /tmp/admin-sw.js https://core.vantixgc.com/app/admin-sw.js
+          grep -qi '^service-worker-allowed: /app/' /tmp/admin-sw.headers
+          grep -qi '^x-vantixgc-admin-pwa: v1-network-only' /tmp/admin-sw.headers
+          grep -q 'VANTIXGC_ADMIN_PWA_V1' /tmp/admin-sw.js
+          grep -q 'noAuthenticatedApiCache:true' /tmp/admin-sw.js
+
+          curl -fsSL --max-time 15 -o /tmp/admin-manifest.json https://core.vantixgc.com/app/admin-manifest.webmanifest
+          grep -q '"name":"VantixGC Administración"' /tmp/admin-manifest.json
+          grep -q '"start_url":"/app/dashboard"' /tmp/admin-manifest.json
+          grep -q '"scope":"/app/"' /tmp/admin-manifest.json
+          grep -q '"display":"standalone"' /tmp/admin-manifest.json
+
+          icon_type=$(curl -fsSI --max-time 15 https://core.vantixgc.com/app/admin-icon.svg | tr -d '\r' | grep -i '^content-type:' || true)
+          echo "$icon_type" | grep -qi 'image/svg+xml'
+          echo "PRODUCTION_ADMIN_PWA_OK"
+
+      - name: Verify inventory adjustment product library runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -o /tmp/panel-extras.js https://core.vantixgc.com/app/panel-integration-extras.js
+          grep -q 'VantixGCInventoryAdjustmentLibraryV2' /tmp/panel-extras.js
+          grep -q 'remoteSearch: true' /tmp/panel-extras.js
+          grep -q 'Sin control de inventario' /tmp/panel-extras.js
+          grep -q 'inventario/productos?activo=true&limit=500' /tmp/panel-extras.js
+          grep -q 'admin-manifest.webmanifest' /tmp/panel-extras.js
+          grep -q "navigator.serviceWorker.register('/app/admin-sw.js'" /tmp/panel-extras.js
+          echo "PRODUCTION_INVENTORY_ADJUSTMENT_LIBRARY_OK"
