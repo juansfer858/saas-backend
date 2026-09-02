@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const { restaurantSelfServicePublicRouter } = require('../self-service/restaurant-self-service.routes');
-const windowsInstaller = require('./windows-installer.service');
+const windowsInstaller = require('./windows-installer-v27.service');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
