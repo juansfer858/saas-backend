@@ -1,0 +1,82 @@
+name: Restaurant Payment Methods Production Asset Verify
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-payment-methods-visibility*.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-payment-methods-visibility-smoke.js'
+      - '.github/workflows/restaurant-payment-methods-production-asset.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-payment-methods-visibility*.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-payment-methods-visibility-smoke.js'
+      - '.github/workflows/restaurant-payment-methods-production-asset.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-browser-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute Caja payment methods browser runtime smoke
+        run: node scripts/restaurant-payment-methods-visibility-smoke.js
+
+  verify-production-asset:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate-browser-runtime
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo 'PAYMENT_METHODS_PRODUCTION_EXACT_COMMIT_OK'
+                exit 0
+              fi
+            fi
+            echo "Waiting for exact production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA in time" >&2
+          exit 1
+
+      - name: Verify final restaurant-ui asset carries payment methods runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/app/restaurant-ui.js'
+          for attempt in $(seq 1 30); do
+            code=$(curl -sS --max-time 15 -D /tmp/restaurant-ui.headers -o /tmp/restaurant-ui.js -w '%{http_code}' "$URL" || true)
+            if [ "$code" = '200' ] \
+              && grep -Fq 'VANTIX_RESTAURANT_PAYMENT_METHODS_VISIBLE_V2' /tmp/restaurant-ui.js \
+              && grep -Fq 'contextRoleFirst:true' /tmp/restaurant-ui.js \
+              && grep -Fq '⚙ Métodos de pago' /tmp/restaurant-ui.js \
+              && grep -Fiq 'X-VantixGC-Payment-Methods-Visibility: v2-caja-header' /tmp/restaurant-ui.headers; then
+              echo 'PAYMENT_METHODS_PRODUCTION_ASSET_OK'
+              exit 0
+            fi
+            echo "Waiting for payment methods runtime asset... attempt=$attempt http=$code"
+            sleep 5
+          done
+          echo 'Production restaurant-ui.js does not expose the expected payment methods runtime' >&2
+          echo '--- headers ---' >&2
+          cat /tmp/restaurant-ui.headers >&2 || true
+          echo '--- marker scan ---' >&2
+          grep -nE 'VANTIX_RESTAURANT_PAYMENT_METHODS_VISIBLE_V2|contextRoleFirst|Métodos de pago' /tmp/restaurant-ui.js >&2 || true
+          exit 1
