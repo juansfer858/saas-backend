@@ -57,7 +57,7 @@ for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /& \$Installer @InstallParams/);
   assert.doesNotMatch(ps, /\$InstallArgs = @\(/);
   assert.doesNotMatch(ps, /& \$Installer @InstallArgs/);
-  assert.match(ps, /\$InstallDir = 'C:\\\\ProgramData\\\\VantixGC\\\\Edge'/);
+  assert.match(ps, /\$InstallDir\s*=\s*'C:\\+ProgramData\\+VantixGC\\+Edge'/);
 }
 
 assert.match(genericPs, /EDGE_AGENT_ID/);
