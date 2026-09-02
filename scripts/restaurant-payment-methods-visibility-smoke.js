@@ -14,11 +14,15 @@ new Function(paymentMethodsVisibilityBrowserRuntime);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /⚙ Métodos de pago/);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /cash-page-head/);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /independentOfSelectedTable:true/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /eventDriven:true/);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /\/api\/v1\/restaurante\/metodos-pago/);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /\/api\/v1\/tesoreria\/cajas-bancos/);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /\+ Crear cuenta \/ billetera para transferencias/);
 assert.match(paymentMethodsVisibilityBrowserRuntime, /session\.user\?\.rol\|\|\$\('#userRole'\)/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /vantix:tenant-realtime/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /scheduleBurst/);
 assert.doesNotMatch(paymentMethodsVisibilityBrowserRuntime, /\\`/);
+assert.doesNotMatch(paymentMethodsVisibilityBrowserRuntime, /setInterval|MutationObserver/);
 
 const publicRouter = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
 assert.match(publicRouter, /restaurant-payment-methods-visibility-browser\.public\.routes/);
@@ -34,6 +38,7 @@ console.log(JSON.stringify({
   visibleWithoutSelectedTable:true,
   visibleWithClosedShift:true,
   adminRoleLateRenderSupported:true,
+  eventDrivenNoPermanentDomWatch:true,
   methodCrud:true,
   bankWalletCreate:true,
   browserRuntimeSyntax:true
