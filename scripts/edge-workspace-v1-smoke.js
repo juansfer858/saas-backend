@@ -6,6 +6,8 @@ const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const workspace = read('edge/agent/workspace-entry.js');
+const workspaceV28 = read('edge/agent/workspace-entry-v28.js');
+const restaurantEntry = read('edge/agent/restaurant-entry-v2.js');
 const workspaceHtml = read('edge/workspace/public/index.html');
 const supervisor = read('edge/supervisor/supervisor.js');
 const installer = read('edge/supervisor/install-windows.ps1');
@@ -17,7 +19,7 @@ const panelEntry = read('src/web/panel-restaurant-entry.js');
 const app = read('src/app.js');
 const version = JSON.parse(read('edge/version.json'));
 
-for (const file of ['edge/agent/workspace-entry.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js','src/web/restaurant-control-center.js']) {
+for (const file of ['edge/agent/workspace-entry.js','edge/agent/workspace-entry-v28.js','edge/agent/restaurant-entry-v2.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js','src/web/restaurant-control-center.js']) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
@@ -37,6 +39,11 @@ assert.match(workspace, /RESTAURANT_CASH_OPEN/);
 assert.match(workspace, /RESTAURANT_CASH_CLOSE/);
 assert.match(workspace, /RESTAURANT_ACCOUNT_REQUEST/);
 assert.match(workspace, /require\('\.\/server'\)/);
+assert.match(workspaceV28, /return true;\\n}`/);
+assert.match(workspaceV28, /VANTIX_EDGE_WORKSPACE_V28_REDIRECT_PATCH/);
+assert.match(workspaceV28, /patched\._compile\(source, target\)/);
+assert.match(restaurantEntry, /require\('\.\/workspace-entry-v28'\)/);
+assert.doesNotMatch(restaurantEntry, /require\('\.\/workspace-entry'\);/);
 assert.match(workspaceHtml, /Centro de Control/);
 assert.match(workspaceHtml, /LOCAL \+ NUBE/);
 assert.match(workspaceHtml, /LOCAL · SIN INTERNET/);
@@ -44,6 +51,13 @@ assert.doesNotMatch(workspaceHtml, /emergencia/i);
 assert.match(supervisor, /workspace-entry\.js/);
 assert.match(installer, /VantixGC Restaurantes\.url/);
 assert.match(installer, /app\/centro-de-control/);
+
+// Regression V28: redirects handled by Workspace must return true so the base Edge listener
+// cannot write a second 404 response and crash with ERR_HTTP_HEADERS_SENT.
+assert.match(workspace, /if \(!readSession\(req\)\) return redirect\(res, '\/'\)/);
+assert.match(workspaceV28, /const originalRedirect/);
+assert.match(workspaceV28, /const fixedRedirect/);
+assert.match(workspaceV28, /res\.end\(\);\\n  return true;/);
 
 // Cloud vertical: Restaurant owns its UI and the write-capable Edge handoff.
 assert.match(restaurantHtml, /Trabajar en sede/);
@@ -64,4 +78,4 @@ assert.match(panelEntry, /CONTROL_CENTER_PATH/);
 assert.match(app, /core-nav-v7/);
 assert.doesNotMatch(app, /core-nav-v8-edge-workspace/);
 
-console.log('EDGE WORKSPACE V1 STATIC SMOKE OK');
+console.log('EDGE WORKSPACE V1 + V28 DOUBLE RESPONSE GUARD STATIC SMOKE OK');
