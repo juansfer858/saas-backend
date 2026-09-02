@@ -21,6 +21,14 @@
       .cash-due-row{min-height:70px!important}
       .cash-method{min-height:62px!important}
       .cash-selected-summary{padding-top:12px!important;padding-bottom:12px!important}
+      .salon-table{padding:9px!important;gap:4px!important;overflow:hidden!important}
+      .salon-table-state{min-height:20px!important;padding:2px 6px!important;font-size:8px!important}
+      .salon-table-name{font-size:17px!important;line-height:1.05!important}
+      .salon-table-main{gap:4px!important;line-height:1!important}
+      .salon-table-main strong{font-size:18px!important}
+      .salon-table-main span{font-size:10px!important}
+      .salon-table-actions{gap:4px!important;margin-top:auto!important;flex-wrap:nowrap!important}
+      .salon-table-actions .ri-btn{min-height:28px!important;height:28px!important;padding:4px 8px!important;font-size:10px!important;line-height:1!important;border-radius:8px!important;box-shadow:none!important}
       @media(max-width:1120px){.cash-workspace,.cash-lower-grid{grid-template-columns:1fr!important}.cash-shell{max-width:100%!important}}
     `;
     document.head.appendChild(style);
