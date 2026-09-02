@@ -27,7 +27,7 @@ function fixPowerShell(source) {
   if (!fixed.includes('$InstallParams = @{') || !fixed.includes('& $Installer @InstallParams')) {
     throw new Error('El instalador Windows no contiene el contrato V27 de parámetros nombrados.');
   }
-  if (!fixed.includes("$InstallDir = 'C:\\\\ProgramData\\\\VantixGC\\\\Edge'")) {
+  if (!/\$InstallDir\s*=\s*'C:\\+ProgramData\\+VantixGC\\+Edge'/.test(fixed)) {
     throw new Error('El instalador Windows perdió la ruta canónica de instalación.');
   }
 
