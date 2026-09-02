@@ -1,48 +1,12 @@
-const crypto = require('node:crypto');
 const { prisma } = require('../../../config/prisma');
 const { AppError } = require('../../../utils/app-error');
 
 const STATION_QUEUES = Object.freeze(['COCINA', 'BARRA', 'POSTRES']);
 const STATION_MODES = Object.freeze(['KDS', 'IMPRESORA', 'AMBOS']);
-const STORAGE_KEY = 'productionStations';
 const ROLE_PREFIX = 'STATION:';
 
 function normalizeName(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-}
-
-function normalizeStation(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const id = String(raw.id || '').trim();
-  const name = normalizeName(raw.name);
-  const queue = String(raw.queue || '').trim().toUpperCase();
-  const mode = String(raw.mode || '').trim().toUpperCase();
-  if (!id || !name || !STATION_QUEUES.includes(queue) || !STATION_MODES.includes(mode)) return null;
-  return {
-    id,
-    name,
-    queue,
-    mode,
-    active: raw.active !== false,
-    sortOrder: Number.isFinite(Number(raw.sortOrder)) ? Math.max(0, Math.trunc(Number(raw.sortOrder))) : 0,
-    createdAt: raw.createdAt || null,
-    updatedAt: raw.updatedAt || null
-  };
-}
-
-function storedData(config) {
-  return config?.themeData && typeof config.themeData === 'object' && !Array.isArray(config.themeData)
-    ? config.themeData
-    : {};
-}
-
-function storedStations(config) {
-  const rows = storedData(config)[STORAGE_KEY];
-  return (Array.isArray(rows) ? rows : []).map(normalizeStation).filter(Boolean);
-}
-
-async function getConfig(tenantId, client = prisma) {
-  return client.restaurantConfig.upsert({ where: { tenantId }, create: { tenantId }, update: {} });
 }
 
 function stationRole(id) {
@@ -54,32 +18,46 @@ function stationIdFromRole(role) {
   return value.startsWith(ROLE_PREFIX) ? value.slice(ROLE_PREFIX.length) : null;
 }
 
-async function persistStations(tenantId, userId, beforeConfig, stations, action, stationId) {
-  const nextThemeData = { ...storedData(beforeConfig), [STORAGE_KEY]: stations };
-  const updated = await prisma.restaurantConfig.update({ where: { tenantId }, data: { themeData: nextThemeData } });
-  if (userId) {
-    await prisma.auditoriaContable.create({
-      data: {
-        tenantId,
-        userId,
-        entidad: 'RESTAURANT_PRODUCTION_STATION',
-        entidadId: stationId || tenantId,
-        accion: action,
-        metadata: { stations }
-      }
-    });
+async function assertUniqueName(tenantId, name, exceptId = null, client = prisma) {
+  const normalized = normalizeName(name).toLocaleLowerCase('es');
+  const rows = await client.restaurantProductionStation.findMany({
+    where: { tenantId, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    select: { id: true, name: true }
+  });
+  if (rows.some((row) => normalizeName(row.name).toLocaleLowerCase('es') === normalized)) {
+    throw new AppError(409, 'Ya existe una estación con ese nombre', 'PRINT_STATION_DUPLICATE_NAME');
   }
-  return updated;
+}
+
+async function audit(client, tenantId, userId, station, action) {
+  if (!userId) return;
+  await client.auditoriaContable.create({
+    data: {
+      tenantId,
+      userId,
+      entidad: 'RESTAURANT_PRODUCTION_STATION',
+      entidadId: station.id,
+      accion: action,
+      metadata: {
+        id: station.id,
+        name: station.name,
+        queue: station.queue,
+        mode: station.mode,
+        active: station.active,
+        sortOrder: station.sortOrder
+      }
+    }
+  });
 }
 
 async function listStations(tenantId, options = {}) {
-  const config = await getConfig(tenantId);
   const includeInactive = options.includeInactive !== false;
-  const stations = storedStations(config)
-    .filter((station) => includeInactive || station.active)
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'es'));
-
+  const stations = await prisma.restaurantProductionStation.findMany({
+    where: { tenantId, ...(includeInactive ? {} : { active: true }) },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
+  });
   if (!stations.length) return [];
+
   const roles = stations.map((station) => stationRole(station.id));
   const printers = await prisma.printerEndpoint.findMany({
     where: { tenantId, role: { in: roles } },
@@ -90,60 +68,54 @@ async function listStations(tenantId, options = {}) {
     if (!byRole.has(printer.role)) byRole.set(printer.role, []);
     byRole.get(printer.role).push(printer);
   }
-  return stations.map((station) => ({ ...station, printerRole: stationRole(station.id), printers: byRole.get(stationRole(station.id)) || [] }));
-}
-
-function assertUniqueName(stations, name, exceptId = null) {
-  const key = normalizeName(name).toLocaleLowerCase('es');
-  if (stations.some((station) => station.id !== exceptId && station.active && station.name.toLocaleLowerCase('es') === key)) {
-    throw new AppError(409, 'Ya existe una estación activa con ese nombre', 'PRINT_STATION_DUPLICATE_NAME');
-  }
+  return stations.map((station) => ({
+    ...station,
+    printerRole: stationRole(station.id),
+    printers: byRole.get(stationRole(station.id)) || []
+  }));
 }
 
 async function createStation(tenantId, userId, input) {
-  const config = await getConfig(tenantId);
-  const stations = storedStations(config);
-  assertUniqueName(stations, input.name);
-  const now = new Date().toISOString();
-  const station = normalizeStation({
-    id: crypto.randomUUID(),
-    name: input.name,
-    queue: input.queue,
-    mode: input.mode,
-    active: input.active !== false,
-    sortOrder: input.sortOrder || 0,
-    createdAt: now,
-    updatedAt: now
+  const name = normalizeName(input.name);
+  if (!name) throw new AppError(400, 'Nombre de estación requerido', 'PRINT_STATION_NAME_REQUIRED');
+  return prisma.$transaction(async (tx) => {
+    await assertUniqueName(tenantId, name, null, tx);
+    const station = await tx.restaurantProductionStation.create({
+      data: {
+        tenantId,
+        name,
+        queue: input.queue,
+        mode: input.mode,
+        active: input.active !== false,
+        sortOrder: Number(input.sortOrder || 0)
+      }
+    });
+    await audit(tx, tenantId, userId, station, 'CREATE');
+    return { ...station, printerRole: stationRole(station.id), printers: [] };
   });
-  if (!station) throw new AppError(400, 'Estación de preparación inválida', 'PRINT_STATION_INVALID');
-  stations.push(station);
-  await persistStations(tenantId, userId, config, stations, 'CREATE', station.id);
-  return (await listStations(tenantId)).find((row) => row.id === station.id);
 }
 
 async function updateStation(tenantId, userId, id, input) {
-  const config = await getConfig(tenantId);
-  const stations = storedStations(config);
-  const index = stations.findIndex((station) => station.id === id);
-  if (index < 0) throw new AppError(404, 'Estación no encontrada', 'PRINT_STATION_NOT_FOUND');
-  const current = stations[index];
-  const name = Object.prototype.hasOwnProperty.call(input, 'name') ? input.name : current.name;
-  assertUniqueName(stations, name, id);
-  const next = normalizeStation({
-    ...current,
-    ...input,
-    id: current.id,
-    name,
-    queue: input.queue || current.queue,
-    mode: input.mode || current.mode,
-    active: Object.prototype.hasOwnProperty.call(input, 'active') ? input.active : current.active,
-    sortOrder: Object.prototype.hasOwnProperty.call(input, 'sortOrder') ? input.sortOrder : current.sortOrder,
-    updatedAt: new Date().toISOString()
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.restaurantProductionStation.findFirst({ where: { id, tenantId } });
+    if (!current) throw new AppError(404, 'Estación no encontrada', 'PRINT_STATION_NOT_FOUND');
+    const name = Object.prototype.hasOwnProperty.call(input, 'name') ? normalizeName(input.name) : current.name;
+    if (!name) throw new AppError(400, 'Nombre de estación requerido', 'PRINT_STATION_NAME_REQUIRED');
+    if (name !== current.name) await assertUniqueName(tenantId, name, id, tx);
+    const station = await tx.restaurantProductionStation.update({
+      where: { id: current.id },
+      data: {
+        ...(Object.prototype.hasOwnProperty.call(input, 'name') ? { name } : {}),
+        ...(Object.prototype.hasOwnProperty.call(input, 'queue') ? { queue: input.queue } : {}),
+        ...(Object.prototype.hasOwnProperty.call(input, 'mode') ? { mode: input.mode } : {}),
+        ...(Object.prototype.hasOwnProperty.call(input, 'active') ? { active: input.active } : {}),
+        ...(Object.prototype.hasOwnProperty.call(input, 'sortOrder') ? { sortOrder: Number(input.sortOrder) } : {})
+      }
+    });
+    await audit(tx, tenantId, userId, station, 'UPDATE');
+    const printers = await tx.printerEndpoint.findMany({ where: { tenantId, role: stationRole(id) }, orderBy: { name: 'asc' } });
+    return { ...station, printerRole: stationRole(station.id), printers };
   });
-  if (!next) throw new AppError(400, 'Estación de preparación inválida', 'PRINT_STATION_INVALID');
-  stations[index] = next;
-  await persistStations(tenantId, userId, config, stations, 'UPDATE', id);
-  return (await listStations(tenantId)).find((row) => row.id === id);
 }
 
 async function removeStation(tenantId, userId, id) {
