@@ -23,6 +23,11 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
+// Canonical Restaurant public surfaces remain owned by the established shell:
+// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
+// restaurant-control-center.css · restaurant-control-center.js
+// Payment Methods Visibility V2 only appends the tenant-owned payment configuration shortcut
+// to Caja; it does not replace or fork the operational Restaurant shell.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
