@@ -9,6 +9,7 @@ on:
       - feature/restaurant-payment-methods-cash-report
       - hotfix/restaurant-control-center-timeout
       - hotfix/restaurant-payment-schema-gate
+      - fix/restaurant-payment-methods-visible-in-cash
 
 jobs:
   validate:
@@ -54,3 +55,5 @@ jobs:
         run: node scripts/restaurant-control-center-resilience-smoke.js
       - name: Validate payment schema startup gate and self-heal
         run: node scripts/restaurant-payment-schema-gate-smoke.js
+      - name: Validate Caja payment methods visibility
+        run: node scripts/restaurant-payment-methods-visibility-smoke.js
