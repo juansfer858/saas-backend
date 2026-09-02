@@ -15,6 +15,13 @@ router.get('/ui-runtime/panel-integration-extras-core.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(webRoot, 'panel-integration-extras-core.js'));
 });
 
+// Capa operativa de impresoras para la Configuración normal del administrador.
+// Reutiliza el Printing Core existente y permanece desacoplada de DIAN.
+router.get('/ui-runtime/panel-printing-config.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(path.join(webRoot, 'panel-printing-config.js'));
+});
+
 // API genérica de documentos comerciales.
 router.get('/comprobantes', controller.listDocuments);
 router.post('/comprobantes', controller.createDocument);
