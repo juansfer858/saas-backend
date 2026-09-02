@@ -121,15 +121,6 @@
         }
       }
     });
-
-    const currentKds = new URLSearchParams(location.search).get('view') === 'kds'
-      || Boolean(document.querySelector('[data-tab="kds"].active'));
-    const view = document.querySelector('#view');
-    if (!hasKds && currentKds && view && !view.querySelector('[data-no-kds-configured]')) {
-      view.innerHTML = canManage
-        ? '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b><br>Crea la primera directamente desde esta pantalla.</div>'
-        : '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b></div>';
-    }
   }
 
   function scheduleProductionStationsApply() {
