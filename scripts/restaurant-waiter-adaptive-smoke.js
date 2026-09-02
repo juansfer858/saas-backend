@@ -71,7 +71,7 @@ assert.match(visualV29, /min-height:124px!important/);
 assert.match(adminTheme, /#view \.waiter-zone-row>\*\{min-width:0!important\}/);
 assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:only-child\) \.waiter-table-strip\{display:none!important\}/);
 assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:nth-child\(2\)\) \.waiter-table-summary\{display:none!important\}/);
-assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:only-child\)\)\{grid-template-columns:minmax\(132px,220px\) minmax\(150px,210px\)!important/);
+assert.match(adminTheme, /waiter-zone-row:has\(\.waiter-table-chip:only-child\)\{grid-template-columns:minmax\(132px,220px\) minmax\(150px,210px\)!important/);
 
 // V29 must be presentation only. Rotation cannot reload or know business endpoints.
 assert.doesNotMatch(visualV29, /fetch\s*\(/);
