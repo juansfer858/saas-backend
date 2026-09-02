@@ -5,8 +5,8 @@ const { spawnSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const installerModulePath = path.join(root, 'src/modules/public-installer/windows-installer.service.js');
-const installerSource = read('src/modules/public-installer/windows-installer.service.js');
+const installerModulePath = path.join(root, 'src/modules/public-installer/windows-installer-v27.service.js');
+const installerSource = read('src/modules/public-installer/windows-installer-v27.service.js');
 const routes = read('src/modules/public-installer/public-installer.routes.js');
 const selfServiceRoutes = read('src/modules/self-service/restaurant-self-service.routes.js');
 const landing = read('src/web/public-installer.html');
@@ -14,6 +14,7 @@ const edgeVersion = JSON.parse(read('edge/version.json'));
 
 for (const file of [
   'src/modules/public-installer/windows-installer.service.js',
+  'src/modules/public-installer/windows-installer-v27.service.js',
   'src/modules/public-installer/public-installer.routes.js',
   'src/modules/self-service/restaurant-self-service.routes.js'
 ]) {
@@ -50,12 +51,19 @@ for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /installationId/);
   assert.match(ps, /provisioned/);
   assert.match(ps, /07f057ec69c699fbb24859d49c1fabfa7eb9d7c9/);
+  assert.match(ps, /\$InstallParams = @\{/);
+  assert.match(ps, /InstallDir = \$InstallDir/);
+  assert.match(ps, /CoreBaseUrl = \$CoreBaseUrl/);
+  assert.match(ps, /& \$Installer @InstallParams/);
+  assert.doesNotMatch(ps, /\$InstallArgs = @\(/);
+  assert.doesNotMatch(ps, /& \$Installer @InstallArgs/);
+  assert.match(ps, /\$InstallDir\s*=\s*'C:\\+ProgramData\\+VantixGC\\+Edge'/);
 }
 
 assert.match(genericPs, /EDGE_AGENT_ID/);
 assert.match(genericPs, /EDGE_AGENT_KEY/);
-assert.doesNotMatch(genericPs, /-InstallClaimToken', \$ClaimToken/);
-assert.match(claimPs, /-InstallClaimToken/);
+assert.doesNotMatch(genericPs, /InstallClaimToken = \$ClaimToken/);
+assert.match(claimPs, /InstallClaimToken = \$ClaimToken/);
 assert.ok(claimPs.includes(claimToken));
 assert.doesNotMatch(claimPs, /Read-Host 'Pegue el EDGE_AGENT_ID/);
 
@@ -66,9 +74,10 @@ assert.match(claimCmd, /VANTIX_EXIT/);
 
 assert.match(routes, /\/instalar\/windows\.cmd/);
 assert.match(routes, /\/instalar\/windows\.ps1/);
+assert.match(routes, /windows-installer-v27\.service/);
 assert.match(routes, /genericInstallerCmd/);
 assert.match(routes, /genericInstallerPowerShell/);
-assert.match(selfServiceRoutes, /windows-installer\.service/);
+assert.match(selfServiceRoutes, /windows-installer-v27\.service/);
 assert.match(selfServiceRoutes, /claimInstallerCmd/);
 assert.match(selfServiceRoutes, /claimInstallerPowerShell/);
 assert.doesNotMatch(selfServiceRoutes, /service\.installerCmd/);
@@ -77,5 +86,6 @@ assert.match(landing, /href="\/instalar\/windows\.cmd"/);
 assert.doesNotMatch(landing, /raw\.githubusercontent\.com\/juansfer858\/saas-backend\/main\/public\/downloads/);
 assert.match(landing, /solicitará automáticamente permiso de Administrador/);
 
-assert.match(installerSource, /VantixGC-Restaurantes-Installer\/2\.2/);
-console.log('PUBLIC INSTALLER WINDOWS EDGE QR OFFLINE PILOT INTEGRITY CONTRACT OK');
+assert.match(installerSource, /splatting posicional inseguro/);
+assert.match(installerSource, /ruta canónica de instalación/);
+console.log('PUBLIC INSTALLER WINDOWS V27 NAMED PARAMS CONTRACT OK');

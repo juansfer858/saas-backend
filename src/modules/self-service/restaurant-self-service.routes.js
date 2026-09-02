@@ -5,7 +5,7 @@ const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const service = require('./restaurant-self-service.service');
 const installClarity = require('./restaurant-install-clarity.service');
-const windowsInstaller = require('../public-installer/windows-installer.service');
+const windowsInstaller = require('../public-installer/windows-installer-v27.service');
 
 const publicRouter = express.Router();
 const tenantRouter = express.Router();
