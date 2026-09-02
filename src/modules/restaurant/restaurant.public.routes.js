@@ -16,6 +16,7 @@ const { restaurantWaiterDevicePublicRouter } = require('./restaurant-waiter-devi
 const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public.routes');
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
+const { restaurantCashCompactV30PublicRouter } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
 const router = express.Router();
@@ -30,6 +31,8 @@ const router = express.Router();
 // before authorization. V25 injects only the QR-order alert asset/cache into the waiter PWA.
 // V26 protects the one-time linked Mesero device credential: temporary employee inactivity,
 // app close or connectivity loss never erases it; only explicit device revocation does.
+// V30 only repackages Caja history and shift close into compact dialogs; all existing
+// cashier inputs, listeners and business endpoints remain owned by the base Restaurant UI.
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
@@ -45,6 +48,7 @@ router.use(restaurantWaiterDevicePublicRouter);
 router.use(restaurantDeliveryPublicRouter);
 router.use(restaurantEmployeesPublicRouter);
 router.use(restaurantEmployeeWorkPublicRouter);
+router.use(restaurantCashCompactV30PublicRouter);
 router.use(legacyRestaurantPublicRouter);
 
 module.exports = { restaurantPublicRouter: router };
