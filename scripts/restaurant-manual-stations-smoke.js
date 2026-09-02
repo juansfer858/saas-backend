@@ -8,8 +8,8 @@ function read(path) { return fs.readFileSync(path, 'utf8'); }
 
 async function main() {
   const panel = read('src/web/panel-printing-config.js');
-  const panelLoader = read('src/web/panel-integration-extras.js');
   const theme = read('src/web/restaurant-theme.js');
+  const nativeConfig = read('src/web/restaurant-admin-config-ui.js');
   const routes = read('src/modules/platform/printing/printing.routes.js');
   const commercialRoutes = read('src/modules/commercial/commercial.routes.js');
   const stationServiceSource = read('src/modules/platform/printing/printing-stations.service.js');
@@ -25,18 +25,29 @@ async function main() {
   assert.ok(!panel.includes("current?.role || 'COCINA'"), 'Nueva impresora no puede preseleccionar Cocina');
   assert.ok(stationServiceSource.includes("const ROLE_PREFIX = 'STATION:'"));
 
-  // La configuración debe ser localizable desde el Centro de control y visible
-  // en la primera entrada directa a /app/configuracion.
+  // La configuración operativa del restaurante debe vivir dentro del Centro de control,
+  // nunca redirigir a Parametrización Contable (/app/configuracion).
   for (const token of [
     'ensureRestaurantConfigAccess',
     'data-restaurant-config-action',
     'data-restaurant-config-link',
-    '/app/configuracion#restaurantStationsPanel',
-    'Cocinas, KDS e impresoras'
-  ]) assert.ok(theme.includes(token), `Centro de control debe exponer Configuración: ${token}`);
-  assert.ok(panelLoader.includes("location.pathname === '/app/configuracion'"));
-  assert.ok(panelLoader.includes('await window.render()'));
-  assert.ok(panelLoader.includes("document.querySelector(location.hash)"));
+    '/app/centro-de-control?view=config',
+    'Cocinas, KDS e impresoras',
+    'restaurant-admin-config-ui.js?v=native-config-v1'
+  ]) assert.ok(theme.includes(token), `Centro de control debe exponer Configuración nativa: ${token}`);
+  assert.equal(theme.includes("const targetUrl = '/app/configuracion"), false, 'El acceso Restaurante no puede apuntar a Parametrización Contable');
+
+  for (const token of [
+    "const CONFIG_VIEW = 'config'",
+    'Configuración',
+    'Esta pantalla es independiente de Parametrización Contable.',
+    'Áreas de preparación / KDS',
+    'Impresoras del restaurante',
+    "api('/api/v1/impresion/estaciones')",
+    "api('/api/v1/impresion/impresoras')",
+    "api('/api/v1/impresion/configuracion')"
+  ]) assert.ok(nativeConfig.includes(token), `Configuración nativa debe contener: ${token}`);
+  assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"));
 
   assert.ok(theme.includes('restaurant-production-stations'));
   assert.ok(theme.includes('No hay estaciones KDS configuradas.'));
@@ -45,8 +56,8 @@ async function main() {
   assert.ok(routes.includes("router.post('/estaciones'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-production-stations'"));
   new Function(panel);
-  new Function(panelLoader);
   new Function(theme);
+  new Function(nativeConfig);
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -118,7 +129,7 @@ async function main() {
   assert.equal(activeStations.length, 1);
   assert.equal(activeStations[0].id, kdsOnly.id);
 
-  console.log('RESTAURANT MANUAL PRODUCTION STATIONS + VISIBLE CONFIG SMOKE OK');
+  console.log('RESTAURANT MANUAL STATIONS + NATIVE CONFIG ROUTE SMOKE OK');
   console.log(JSON.stringify({
     zeroDefaultStations:true,
     manualCreate:true,
@@ -126,8 +137,8 @@ async function main() {
     printerRoutesThroughManualStation:true,
     inactiveStationStopsRouting:true,
     kdsHiddenWithoutConfiguredStation:true,
-    restaurantConfigDiscoverable:true,
-    directConfigRenderFixed:true
+    nativeRestaurantConfig:true,
+    accountingConfigSeparated:true
   }, null, 2));
 }
 
