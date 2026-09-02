@@ -4,6 +4,7 @@ const express = require('express');
 const { restaurantPublicRealtimePublisher } = require('./restaurant-public-realtime-publisher');
 const { restaurantQrPresenceRealtimePublicRouter } = require('./restaurant-qr-presence-realtime.public.routes');
 const { restaurantQrOrderWaiterAlertPublicRouter } = require('./restaurant-qr-order-waiter-alert.public.routes');
+const { restaurantWaiterDevicePersistencePublicRouter } = require('./restaurant-waiter-device-persistence.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
@@ -27,9 +28,12 @@ const router = express.Router();
 // /app/v2-preview/dashboard · /app/v2-preview/ventas
 // Tenant Realtime V23 owns the shared stream. QR presence V24 keeps the customer connected
 // before authorization. V25 injects only the QR-order alert asset/cache into the waiter PWA.
+// V26 protects the one-time linked Mesero device credential: temporary employee inactivity,
+// app close or connectivity loss never erases it; only explicit device revocation does.
 router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
+router.use(restaurantWaiterDevicePersistencePublicRouter);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
