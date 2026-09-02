@@ -8,6 +8,7 @@ function read(path) { return fs.readFileSync(path, 'utf8'); }
 
 async function main() {
   const panel = read('src/web/panel-printing-config.js');
+  const panelLoader = read('src/web/panel-integration-extras.js');
   const theme = read('src/web/restaurant-theme.js');
   const routes = read('src/modules/platform/printing/printing.routes.js');
   const commercialRoutes = read('src/modules/commercial/commercial.routes.js');
@@ -23,6 +24,20 @@ async function main() {
   assert.ok(!panel.includes('const ROLE_OPTIONS'), 'El panel no debe conservar destinos fijos Cocina/Barra');
   assert.ok(!panel.includes("current?.role || 'COCINA'"), 'Nueva impresora no puede preseleccionar Cocina');
   assert.ok(stationServiceSource.includes("const ROLE_PREFIX = 'STATION:'"));
+
+  // La configuración debe ser localizable desde el Centro de control y visible
+  // en la primera entrada directa a /app/configuracion.
+  for (const token of [
+    'ensureRestaurantConfigAccess',
+    'data-restaurant-config-action',
+    'data-restaurant-config-link',
+    '/app/configuracion#restaurantStationsPanel',
+    'Cocinas, KDS e impresoras'
+  ]) assert.ok(theme.includes(token), `Centro de control debe exponer Configuración: ${token}`);
+  assert.ok(panelLoader.includes("location.pathname === '/app/configuracion'"));
+  assert.ok(panelLoader.includes('await window.render()'));
+  assert.ok(panelLoader.includes("document.querySelector(location.hash)"));
+
   assert.ok(theme.includes('restaurant-production-stations'));
   assert.ok(theme.includes('No hay estaciones KDS configuradas.'));
   assert.ok(theme.includes('[data-tab="kds"]'));
@@ -30,6 +45,7 @@ async function main() {
   assert.ok(routes.includes("router.post('/estaciones'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-production-stations'"));
   new Function(panel);
+  new Function(panelLoader);
   new Function(theme);
 
   const stamp = Date.now();
@@ -102,14 +118,16 @@ async function main() {
   assert.equal(activeStations.length, 1);
   assert.equal(activeStations[0].id, kdsOnly.id);
 
-  console.log('RESTAURANT MANUAL PRODUCTION STATIONS SMOKE OK');
+  console.log('RESTAURANT MANUAL PRODUCTION STATIONS + VISIBLE CONFIG SMOKE OK');
   console.log(JSON.stringify({
     zeroDefaultStations:true,
     manualCreate:true,
     kdsOnlyCannotOwnPrinter:true,
     printerRoutesThroughManualStation:true,
     inactiveStationStopsRouting:true,
-    kdsHiddenWithoutConfiguredStation:true
+    kdsHiddenWithoutConfiguredStation:true,
+    restaurantConfigDiscoverable:true,
+    directConfigRenderFixed:true
   }, null, 2));
 }
 
