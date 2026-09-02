@@ -19,8 +19,6 @@ async function main() {
   assert.ok(!panel.includes("current?.role || 'COCINA'"), 'Nueva impresora no puede preseleccionar Cocina');
   assert.ok(stationServiceSource.includes("const ROLE_PREFIX = 'STATION:'"));
 
-  // Configuración general permanece dentro del Centro de control y no reutiliza
-  // Parametrización Contable. KDS/estaciones NO se gestionan aquí.
   for (const token of [
     'ensureRestaurantConfigAccess',
     'data-restaurant-config-action',
@@ -43,7 +41,6 @@ async function main() {
   assert.equal(nativeConfig.includes('data-rnc-station-new'), false, 'Configuración general no debe crear estaciones KDS');
   assert.equal(nativeConfig.includes('function stationDialog'), false, 'Configuración general no debe editar estaciones KDS');
 
-  // La administración de estaciones pertenece a Ver KDS.
   for (const token of [
     'Gestionar KDS / estaciones',
     '+ Crear primera estación',
