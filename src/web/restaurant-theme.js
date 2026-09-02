@@ -29,6 +29,13 @@
       .salon-table-main span{font-size:10px!important}
       .salon-table-actions{gap:4px!important;margin-top:auto!important;flex-wrap:nowrap!important}
       .salon-table-actions .ri-btn{min-height:28px!important;height:28px!important;padding:4px 8px!important;font-size:10px!important;line-height:1!important;border-radius:8px!important;box-shadow:none!important}
+      #view .waiter-zone-row>*{min-width:0!important}
+      #view .waiter-zone-row:has(.waiter-table-chip:only-child) .waiter-table-strip{display:none!important}
+      #view .waiter-zone-row:has(.waiter-table-chip:only-child){grid-template-columns:minmax(132px,220px) minmax(150px,210px)!important;justify-content:start!important}
+      #view .waiter-zone-row:has(.waiter-table-chip:only-child) .waiter-table-summary{grid-column:auto!important}
+      #view .waiter-zone-row:has(.waiter-table-chip:nth-child(2)) .waiter-table-summary{display:none!important}
+      #view .waiter-zone-row:has(.waiter-table-chip:nth-child(2)){grid-template-columns:minmax(132px,220px) minmax(0,1fr)!important}
+      @media(max-width:780px){#view .waiter-zone-row:has(.waiter-table-chip:only-child),#view .waiter-zone-row:has(.waiter-table-chip:nth-child(2)){grid-template-columns:1fr!important}}
       @media(max-width:1120px){.cash-workspace,.cash-lower-grid{grid-template-columns:1fr!important}.cash-shell{max-width:100%!important}}
     `;
     document.head.appendChild(style);
