@@ -70,3 +70,5 @@ jobs:
         run: node scripts/restaurant-tenant-realtime-v23-smoke.js
       - name: Validate QR order realtime waiter alert
         run: node scripts/restaurant-qr-order-waiter-alert-v25-smoke.js
+      - name: Validate waiter device persistence through employee deactivate/reactivate
+        run: node scripts/restaurant-waiter-device-persistence-v26-smoke.js
