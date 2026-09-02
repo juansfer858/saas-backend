@@ -39,7 +39,7 @@ assert.match(workspace, /RESTAURANT_CASH_OPEN/);
 assert.match(workspace, /RESTAURANT_CASH_CLOSE/);
 assert.match(workspace, /RESTAURANT_ACCOUNT_REQUEST/);
 assert.match(workspace, /require\('\.\/server'\)/);
-assert.match(workspaceV28, /return true;\n}`/);
+assert.match(workspaceV28, /return true;\\n}`/);
 assert.match(workspaceV28, /VANTIX_EDGE_WORKSPACE_V28_REDIRECT_PATCH/);
 assert.match(workspaceV28, /patched\._compile\(source, target\)/);
 assert.match(restaurantEntry, /require\('\.\/workspace-entry-v28'\)/);
