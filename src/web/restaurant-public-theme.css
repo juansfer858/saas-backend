@@ -220,3 +220,203 @@ body.vr-public-theme .error {
   color: #fff !important;
   border-radius: 10px !important;
 }
+
+/* WAITER_ADAPTIVE_VISUAL_V29_START
+   Presentation-only layer. It reflows the existing Mesero DOM; it never reloads,
+   replaces or mutates business state. Portrait and landscape therefore preserve
+   selected zone, table, filters, draft quantities, realtime alerts and device session. */
+:root{
+  --waiter-v29-navy:#122b4a;
+  --waiter-v29-navy-2:#1c3d63;
+  --waiter-v29-orange:#ff6b2c;
+  --waiter-v29-orange-2:#ff824f;
+  --waiter-v29-teal:#10867f;
+  --waiter-v29-teal-2:#159990;
+  --waiter-v29-bg:#eef3f8;
+  --waiter-v29-panel:#ffffff;
+  --waiter-v29-line:#d7e1ec;
+  --waiter-v29-text:#0d1b34;
+  --waiter-v29-muted:#637997;
+  --waiter-v29-gold:#f0a93a;
+  --waiter-v29-red:#d45656;
+}
+
+#view .waiter-top-card,
+#view .waiter-service-bar,
+#view .waiter-catalog,
+#view .waiter-order-panel,
+#view #waiterHistory{
+  background:var(--waiter-v29-panel)!important;
+  color:var(--waiter-v29-text)!important;
+  border:1px solid var(--waiter-v29-line)!important;
+  border-radius:16px!important;
+  box-shadow:0 8px 24px rgba(13,27,52,.07)!important;
+}
+#view .waiter-title-row .ri-title,
+#view .waiter-service-bar h2,
+#view .waiter-catalog h2,
+#view .waiter-order-panel h2{color:var(--waiter-v29-navy)!important}
+#view .waiter-title-row .ri-eyebrow,
+#view .waiter-catalog .ri-eyebrow{color:var(--waiter-v29-orange)!important}
+#view .waiter-user-badge{
+  background:#eef7f7!important;
+  border-color:#bfe4e1!important;
+  color:var(--waiter-v29-teal)!important;
+}
+#view .waiter-table-strip{gap:7px!important;scrollbar-width:thin}
+#view .waiter-table-chip{
+  min-height:52px!important;
+  padding:7px 10px!important;
+  background:#fff!important;
+  border:1px solid var(--waiter-v29-line)!important;
+  color:var(--waiter-v29-navy)!important;
+  box-shadow:none!important;
+  border-radius:12px!important;
+}
+#view .waiter-table-chip.active,
+#view .waiter-table-chip[aria-pressed="true"]{
+  background:var(--waiter-v29-navy)!important;
+  border-color:var(--waiter-v29-navy)!important;
+  color:#fff!important;
+}
+#view .waiter-menu-tabs button{
+  min-height:44px!important;
+  border-radius:10px!important;
+  border-color:var(--waiter-v29-line)!important;
+  box-shadow:none!important;
+}
+#view .waiter-menu-tabs button.active,
+#view .waiter-menu-tabs button[aria-pressed="true"]{
+  background:var(--waiter-v29-teal)!important;
+  border-color:var(--waiter-v29-teal)!important;
+  color:#fff!important;
+}
+#view .waiter-mode-buttons .ri-btn,
+#view .waiter-person-tabs .ri-btn{
+  min-height:46px!important;
+  border-radius:10px!important;
+  box-shadow:none!important;
+}
+#view .waiter-mode-buttons .ri-btn.primary,
+#view .waiter-person-tabs .ri-btn.primary{
+  background:var(--waiter-v29-orange)!important;
+  border-color:var(--waiter-v29-orange)!important;
+  color:#fff!important;
+}
+#view .waiter-product-grid .menu-ticket{
+  min-height:136px!important;
+  padding:10px!important;
+  gap:4px!important;
+  border:1px solid var(--waiter-v29-line)!important;
+  border-radius:13px!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+#view .waiter-product-grid .menu-name{font-family:inherit!important;font-size:14px!important;line-height:1.18!important;color:var(--waiter-v29-navy)!important}
+#view .waiter-product-grid .menu-price{font-family:inherit!important;font-size:16px!important;color:var(--waiter-v29-orange)!important;margin:2px 0 5px!important}
+#view .waiter-product-grid .menu-station{font-family:inherit!important;color:var(--waiter-v29-teal)!important}
+#view .waiter-product-grid .qty-control{grid-template-columns:46px minmax(34px,1fr) 46px!important;gap:5px!important}
+#view .waiter-product-grid .qty-control .ri-btn,
+#view .waiter-product-grid .qty-number{
+  min-width:0!important;
+  min-height:46px!important;
+  border-radius:10px!important;
+  box-shadow:none!important;
+}
+#view .waiter-product-grid .qty-control .ri-btn{font-size:20px!important}
+#view .waiter-product-grid .qty-control .ri-btn.primary{
+  background:var(--waiter-v29-orange)!important;
+  border-color:var(--waiter-v29-orange)!important;
+  color:#fff!important;
+}
+#view .waiter-main-action{
+  min-height:50px!important;
+  border-radius:11px!important;
+  background:var(--waiter-v29-orange)!important;
+  border-color:var(--waiter-v29-orange)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+}
+#view .waiter-history-toggle,
+#view .waiter-order-close{color:var(--waiter-v29-navy)!important}
+#view .waiter-order-toggle{
+  background:var(--waiter-v29-orange)!important;
+  color:#fff!important;
+  border:0!important;
+  box-shadow:0 12px 28px rgba(255,107,44,.27)!important;
+}
+.waiter-order-backdrop{background:rgba(18,43,74,.40)!important}
+
+@media (min-width:960px) and (orientation:landscape){
+  .ri-main{padding:12px 14px 24px!important}
+  #view .waiter-top-card{padding:10px 12px!important;margin-bottom:8px!important}
+  #view .waiter-title-row .ri-title{font-size:21px!important}
+  #view .waiter-title-row p{display:none!important}
+  #view .waiter-zone-row{grid-template-columns:132px minmax(0,1fr) 150px!important;gap:7px!important;margin-top:7px!important}
+  #view .waiter-table-chip{min-width:102px!important;min-height:50px!important}
+  #view .waiter-service-bar{grid-template-columns:minmax(210px,.8fr) minmax(280px,1.2fr) 132px!important;gap:8px!important;padding:10px 12px!important;margin-bottom:8px!important}
+  #view .waiter-workspace{display:grid!important;grid-template-columns:minmax(0,1.68fr) minmax(300px,.72fr)!important;gap:9px!important;align-items:start!important}
+  #view .waiter-catalog,#view .waiter-order-panel{padding:11px!important}
+  #view .waiter-product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+  #view .waiter-product-grid .menu-ticket{min-height:128px!important}
+  #view .waiter-order-panel{position:sticky!important;top:8px!important;max-height:calc(100dvh - 16px)!important;transform:none!important;opacity:1!important;pointer-events:auto!important}
+  #view .waiter-order-scroll{overflow:auto!important;overscroll-behavior:contain!important}
+  #view .waiter-order-toggle,#view .waiter-order-close,.waiter-order-backdrop{display:none!important}
+}
+
+@media (min-width:700px) and (max-width:959px) and (orientation:portrait){
+  .ri-main{padding:10px 10px 88px!important}
+  #view .waiter-top-card{padding:10px!important;margin-bottom:7px!important}
+  #view .waiter-title-row{display:grid!important;grid-template-columns:1fr auto!important;gap:7px!important;align-items:center!important}
+  #view .waiter-title-row .ri-title{font-size:21px!important}
+  #view .waiter-title-row p{display:none!important}
+  #view .waiter-zone-row{grid-template-columns:128px minmax(0,1fr)!important;gap:7px!important;margin-top:7px!important}
+  #view .waiter-table-summary,#view .waiter-service-meta{display:none!important}
+  #view .waiter-service-bar{grid-template-columns:1fr!important;gap:7px!important;padding:9px!important;margin-bottom:7px!important}
+  #view .waiter-workspace{display:block!important}
+  #view .waiter-catalog{padding:9px!important}
+  #view .waiter-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+  #view .waiter-product-grid .menu-ticket{min-height:132px!important}
+  #view .waiter-order-panel{position:fixed!important;z-index:220!important;left:8px!important;right:8px!important;bottom:max(8px,env(safe-area-inset-bottom))!important;top:auto!important;max-height:min(78dvh,720px)!important;padding:13px!important;border-radius:20px!important;transform:translateY(calc(100% + 24px))!important;opacity:0!important;pointer-events:none!important;transition:transform .2s ease,opacity .16s ease!important}
+  html.waiter-order-open #view .waiter-order-panel{transform:translateY(0)!important;opacity:1!important;pointer-events:auto!important}
+  #view .waiter-order-toggle{display:flex!important;position:fixed!important;z-index:205!important;right:12px!important;bottom:max(12px,env(safe-area-inset-bottom))!important;min-height:54px!important;padding:0 16px!important;align-items:center!important;border-radius:15px!important;font-size:12px!important;font-weight:900!important}
+  #view .waiter-order-close{display:grid!important;place-items:center!important;min-width:44px!important;width:44px!important;height:44px!important;margin-left:auto!important;border-radius:12px!important;background:#fff!important;border:1px solid var(--waiter-v29-line)!important}
+  .waiter-order-backdrop{position:fixed!important;z-index:210!important;inset:0!important;border:0!important}
+  html.waiter-order-open .waiter-order-backdrop{display:block!important}
+}
+
+@media (min-width:700px) and (max-width:959px) and (orientation:landscape){
+  .ri-main{padding:9px 10px 18px!important}
+  #view .waiter-top-card{padding:9px 10px!important;margin-bottom:7px!important}
+  #view .waiter-title-row .ri-title{font-size:20px!important}
+  #view .waiter-title-row p{display:none!important}
+  #view .waiter-zone-row{grid-template-columns:120px minmax(0,1fr) 135px!important;gap:6px!important;margin-top:6px!important}
+  #view .waiter-service-bar{grid-template-columns:minmax(190px,.82fr) minmax(250px,1.18fr) 120px!important;gap:7px!important;padding:9px!important;margin-bottom:7px!important}
+  #view .waiter-workspace{display:grid!important;grid-template-columns:minmax(0,1.62fr) minmax(270px,.78fr)!important;gap:8px!important;align-items:start!important}
+  #view .waiter-catalog,#view .waiter-order-panel{padding:9px!important}
+  #view .waiter-product-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important}
+  #view .waiter-product-grid .menu-ticket{min-height:124px!important}
+  #view .waiter-order-panel{position:sticky!important;top:6px!important;max-height:calc(100dvh - 12px)!important;transform:none!important;opacity:1!important;pointer-events:auto!important}
+  #view .waiter-order-toggle,#view .waiter-order-close,.waiter-order-backdrop{display:none!important}
+}
+
+@media (max-width:699px){
+  .ri-main{padding:8px 8px 82px!important}
+  #view .waiter-top-card,#view .waiter-service-bar,#view .waiter-catalog{padding:8px!important}
+  #view .waiter-title-row .ri-title{font-size:20px!important}
+  #view .waiter-title-row p,#view .waiter-service-meta,#view .waiter-table-summary{display:none!important}
+  #view .waiter-zone-row{grid-template-columns:112px minmax(0,1fr)!important;gap:6px!important}
+  #view .waiter-table-chip{min-width:94px!important;min-height:48px!important}
+  #view .waiter-workspace{display:block!important}
+  #view .waiter-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+  #view .waiter-product-grid .menu-ticket{min-height:130px!important;padding:9px!important}
+  #view .waiter-product-grid .qty-control{grid-template-columns:44px minmax(32px,1fr) 44px!important}
+  #view .waiter-product-grid .qty-control .ri-btn,#view .waiter-product-grid .qty-number{min-height:44px!important}
+  #view .waiter-order-panel{position:fixed!important;z-index:220!important;left:5px!important;right:5px!important;bottom:max(5px,env(safe-area-inset-bottom))!important;top:auto!important;max-height:84dvh!important;padding:11px!important;border-radius:18px!important;transform:translateY(calc(100% + 20px))!important;opacity:0!important;pointer-events:none!important;transition:transform .2s ease,opacity .16s ease!important}
+  html.waiter-order-open #view .waiter-order-panel{transform:translateY(0)!important;opacity:1!important;pointer-events:auto!important}
+  #view .waiter-order-toggle{display:flex!important;position:fixed!important;z-index:205!important;right:9px!important;bottom:max(9px,env(safe-area-inset-bottom))!important;min-height:52px!important;padding:0 14px!important;align-items:center!important;border-radius:14px!important;font-size:12px!important;font-weight:900!important}
+  #view .waiter-order-close{display:grid!important;place-items:center!important;min-width:42px!important;width:42px!important;height:42px!important;margin-left:auto!important;border-radius:11px!important;background:#fff!important;border:1px solid var(--waiter-v29-line)!important}
+  .waiter-order-backdrop{position:fixed!important;z-index:210!important;inset:0!important;border:0!important}
+  html.waiter-order-open .waiter-order-backdrop{display:block!important}
+}
+/* WAITER_ADAPTIVE_VISUAL_V29_END */
