@@ -7,7 +7,7 @@ const paymentMethodsVisibilityRuntime = String.raw`
   'use strict';
   const MARKER='VANTIX_RESTAURANT_PAYMENT_METHODS_VISIBLE_V2';
   if(window[MARKER]) return;
-  window[MARKER]=Object.freeze({version:'2.0.0',location:'CAJA_HEADER',independentOfSelectedTable:true});
+  window[MARKER]=Object.freeze({version:'2.1.0',location:'CAJA_HEADER',independentOfSelectedTable:true,eventDriven:true});
 
   const SESSION_KEY='vantixgc_core_session_v1';
   let session=null;
@@ -16,7 +16,7 @@ const paymentMethodsVisibilityRuntime = String.raw`
 
   const $=(q,r=document)=>r.querySelector(q);
   const $$=(q,r=document)=>[...r.querySelectorAll(q)];
-  const esc=(v)=>String(v??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  const esc=(v)=>String(v??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[m]));
   const currentRole=()=>String(session.user?.rol||$('#userRole')?.textContent||'').trim().toUpperCase();
   const canManage=()=>['ADMIN','ADMINISTRADOR','SUPER_ADMIN'].includes(currentRole());
   let editingId=null;
@@ -156,12 +156,30 @@ const paymentMethodsVisibilityRuntime = String.raw`
     head.appendChild(button);
   }
 
-  document.addEventListener('click',(event)=>{if(event.target.closest?.('[data-rpmv-manage]')){event.preventDefault();openManager().catch((error)=>alert(error.message))}},true);
   let queued=false;
-  const schedule=()=>{if(queued)return;queued=true;queueMicrotask(()=>{queued=false;ensureShortcut()})};
-  const observer=new MutationObserver(schedule);
-  if(document.body)observer.observe(document.body,{childList:true,subtree:true,characterData:true});
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
+  let burstToken=0;
+  function schedule(){
+    if(queued)return;
+    queued=true;
+    queueMicrotask(()=>{queued=false;ensureShortcut()});
+  }
+  function scheduleBurst(){
+    const token=++burstToken;
+    [0,80,180,400,800,1400,2400,4000].forEach((delay)=>{
+      setTimeout(()=>{if(token!==burstToken)return;schedule()},delay);
+    });
+  }
+
+  document.addEventListener('click',(event)=>{
+    const manage=event.target.closest?.('[data-rpmv-manage]');
+    if(manage){event.preventDefault();openManager().catch((error)=>alert(error.message))}
+    const target=event.target.closest?.('[data-tab="caja"],[data-cc-tab="caja"],.cash-shell button,.cash-shell summary,[data-rpmv-manage]');
+    if(target)scheduleBurst();
+  },true);
+  window.addEventListener('vantix:tenant-realtime',scheduleBurst);
+  window.addEventListener('vantix:tenant-realtime-ready',scheduleBurst);
+  window.addEventListener('popstate',scheduleBurst);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scheduleBurst,{once:true});else scheduleBurst();
 })();
 `;
 
