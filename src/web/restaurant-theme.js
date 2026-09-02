@@ -35,6 +35,32 @@
     document.head.appendChild(script);
   }
 
+  function readSession() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
+    catch { return null; }
+  }
+
+  async function loadAuthenticatedControlAddon(path, dataKey) {
+    const marker = `data-${dataKey}`;
+    if (document.querySelector(`script[${marker}]`)) return;
+    const session = readSession();
+    if (!session?.token || !session?.subdomain) return;
+
+    const response = await fetch(path, {
+      cache:'no-store',
+      headers:{
+        Authorization:`Bearer ${session.token}`,
+        'x-tenant-subdomain':session.subdomain
+      }
+    });
+    if (!response.ok) throw new Error(`Runtime UI ${response.status}: ${path}`);
+    const source = await response.text();
+    const script = document.createElement('script');
+    script.setAttribute(marker, 'true');
+    script.textContent = `${source}\n//# sourceURL=${path}`;
+    document.head.appendChild(script);
+  }
+
   function loadControlCenterAddons() {
     const inControlCenterFamily = location.pathname.startsWith('/app/centro-de-control');
     if (!inControlCenterFamily || location.pathname !== '/app/centro-de-control') return;
@@ -42,45 +68,13 @@
     appendControlAddon('/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1', 'restaurant-waiter-device-admin');
     appendControlAddon('/app/restaurant-employees-ui.js?v=employees-v1', 'restaurant-employees-ui');
     appendControlAddon('/app/restaurant-delivery-ui.js?v=delivery-v1', 'restaurant-delivery-ui');
-    appendControlAddon('/api/v1/comercial/ui-runtime/restaurant-admin-config-ui.js?v=native-config-v2-printers', 'restaurant-admin-config-ui');
-    appendControlAddon('/api/v1/comercial/ui-runtime/restaurant-kds-stations-admin.js?v=kds-stations-v1', 'restaurant-kds-stations-admin');
+    loadAuthenticatedControlAddon('/api/v1/comercial/ui-runtime/restaurant-kds-stations-admin.js', 'restaurant-kds-stations-admin')
+      .catch((error) => console.warn('RESTAURANT_KDS_ADMIN_RUNTIME_UNAVAILABLE', error));
   }
 
-  function readSession() {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
-    catch { return null; }
-  }
-
-  function canManageRestaurantConfig() {
+  function canManageRestaurantKds() {
     const role = String(readSession()?.user?.rol || '').toUpperCase();
     return ['ADMIN','SUPER_ADMIN','ADMINISTRADOR'].includes(role);
-  }
-
-  function ensureRestaurantConfigAccess() {
-    if (!location.pathname.startsWith('/app/centro-de-control') || !canManageRestaurantConfig()) return;
-    const targetUrl = '/app/centro-de-control?view=config';
-
-    const actions = document.querySelector('#ccDashboard .cc-actions');
-    if (actions && !actions.querySelector('[data-restaurant-config-action]')) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'cc-action';
-      button.dataset.restaurantConfigAction = 'true';
-      button.innerHTML = '⚙ <strong>Configuración</strong><small>Impresoras y opciones generales</small>';
-      button.addEventListener('click', () => { location.href = targetUrl; });
-      actions.appendChild(button);
-    }
-
-    const railWrap = document.querySelector('.rail-wrap');
-    if (railWrap && !railWrap.querySelector('[data-restaurant-config-link]')) {
-      const link = document.createElement('a');
-      link.className = 'cc-classic-link';
-      link.dataset.restaurantConfigLink = 'true';
-      link.href = targetUrl;
-      link.textContent = '⚙ Configuración';
-      const back = railWrap.querySelector('.cc-classic-link');
-      railWrap.insertBefore(link, back || null);
-    }
   }
 
   function setNodeVisible(node, visible) {
@@ -104,11 +98,10 @@
   }
 
   function applyProductionStations() {
-    ensureRestaurantConfigAccess();
     if (!stationRuntime.loaded) return;
     const kdsStations = stationRuntime.rows.filter((station) => station.active !== false && ['KDS','AMBOS'].includes(String(station.mode || '').toUpperCase()));
     const hasKds = kdsStations.length > 0;
-    const canManage = canManageRestaurantConfig();
+    const canManage = canManageRestaurantKds();
 
     document.querySelectorAll('[data-tab="kds"], [data-cc-tab="kds"]').forEach((node) => setNodeVisible(node, hasKds || canManage));
     document.querySelectorAll('[data-cc-order-kds]').forEach((node) => setNodeVisible(node, hasKds));
@@ -182,7 +175,6 @@
     root.dataset.restaurantTheme = theme?.preset || 'LA_RIEL_V1';
     root.dataset.restaurantTypography = 'SUPER_CORE_PANEL';
     ensurePanelAlignment();
-    ensureRestaurantConfigAccess();
     const name = theme?.restaurantName;
     if (name) {
       document.querySelectorAll('[data-restaurant-name]').forEach((node) => { node.textContent = name; });
