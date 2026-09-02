@@ -4,23 +4,24 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {
   PAYMENT_METHODS_VISIBILITY_MARKER,
-  paymentMethodsVisibilityRuntime,
+  paymentMethodsVisibilityBrowserRuntime,
   installPaymentMethodsVisibilityRuntime
-} = require('../src/modules/restaurant/restaurant-payment-methods-visibility.public.routes');
+} = require('../src/modules/restaurant/restaurant-payment-methods-visibility-browser.public.routes');
 
 assert.equal(PAYMENT_METHODS_VISIBILITY_MARKER, 'VANTIX_RESTAURANT_PAYMENT_METHODS_VISIBLE_V2');
 assert.equal(typeof installPaymentMethodsVisibilityRuntime, 'function');
-new Function(paymentMethodsVisibilityRuntime);
-assert.match(paymentMethodsVisibilityRuntime, /⚙ Métodos de pago/);
-assert.match(paymentMethodsVisibilityRuntime, /cash-page-head/);
-assert.match(paymentMethodsVisibilityRuntime, /independentOfSelectedTable:true/);
-assert.match(paymentMethodsVisibilityRuntime, /\/api\/v1\/restaurante\/metodos-pago/);
-assert.match(paymentMethodsVisibilityRuntime, /\/api\/v1\/tesoreria\/cajas-bancos/);
-assert.match(paymentMethodsVisibilityRuntime, /\+ Crear cuenta \/ billetera para transferencias/);
-assert.match(paymentMethodsVisibilityRuntime, /session\.user\?\.rol\|\|\$\('#userRole'\)/);
+new Function(paymentMethodsVisibilityBrowserRuntime);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /⚙ Métodos de pago/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /cash-page-head/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /independentOfSelectedTable:true/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /\/api\/v1\/restaurante\/metodos-pago/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /\/api\/v1\/tesoreria\/cajas-bancos/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /\+ Crear cuenta \/ billetera para transferencias/);
+assert.match(paymentMethodsVisibilityBrowserRuntime, /session\.user\?\.rol\|\|\$\('#userRole'\)/);
+assert.doesNotMatch(paymentMethodsVisibilityBrowserRuntime, /\\`/);
 
 const publicRouter = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
-assert.match(publicRouter, /installPaymentMethodsVisibilityRuntime/);
+assert.match(publicRouter, /restaurant-payment-methods-visibility-browser\.public\.routes/);
 assert.match(publicRouter, /router\.use\(installPaymentMethodsVisibilityRuntime\)/);
 
 const baseUi = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
@@ -34,5 +35,6 @@ console.log(JSON.stringify({
   visibleWithClosedShift:true,
   adminRoleLateRenderSupported:true,
   methodCrud:true,
-  bankWalletCreate:true
+  bankWalletCreate:true,
+  browserRuntimeSyntax:true
 }, null, 2));
