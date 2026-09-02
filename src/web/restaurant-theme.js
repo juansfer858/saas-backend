@@ -42,6 +42,7 @@
     appendControlAddon('/app/restaurant-waiter-device-admin.js?v=waiter-pwa-v1', 'restaurant-waiter-device-admin');
     appendControlAddon('/app/restaurant-employees-ui.js?v=employees-v1', 'restaurant-employees-ui');
     appendControlAddon('/app/restaurant-delivery-ui.js?v=delivery-v1', 'restaurant-delivery-ui');
+    appendControlAddon('/api/v1/comercial/ui-runtime/restaurant-admin-config-ui.js?v=native-config-v1', 'restaurant-admin-config-ui');
   }
 
   function readSession() {
@@ -56,7 +57,7 @@
 
   function ensureRestaurantConfigAccess() {
     if (!location.pathname.startsWith('/app/centro-de-control') || !canManageRestaurantConfig()) return;
-    const targetUrl = '/app/configuracion#restaurantStationsPanel';
+    const targetUrl = '/app/centro-de-control?view=config';
 
     const actions = document.querySelector('#ccDashboard .cc-actions');
     if (actions && !actions.querySelector('[data-restaurant-config-action]')) {
@@ -129,7 +130,7 @@
       || Boolean(document.querySelector('[data-tab="kds"].active'));
     const view = document.querySelector('#view');
     if (!hasKds && currentKds && view && !view.querySelector('[data-no-kds-configured]')) {
-      view.innerHTML = '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b><br>El administrador debe crear la primera estación desde Configuración → Áreas de preparación / KDS.</div>';
+      view.innerHTML = '<div class="empty-ticket" data-no-kds-configured="true"><b>No hay estaciones KDS configuradas.</b><br>El administrador debe crear la primera estación desde Centro de control → Configuración → Áreas de preparación / KDS.</div>';
     }
   }
 
