@@ -10,54 +10,63 @@ async function main() {
   const panel = read('src/web/panel-printing-config.js');
   const theme = read('src/web/restaurant-theme.js');
   const nativeConfig = read('src/web/restaurant-admin-config-ui.js');
+  const kdsAdmin = read('src/web/restaurant-kds-stations-admin.js');
   const routes = read('src/modules/platform/printing/printing.routes.js');
   const commercialRoutes = read('src/modules/commercial/commercial.routes.js');
   const stationServiceSource = read('src/modules/platform/printing/printing-stations.service.js');
 
-  for (const token of [
-    'Áreas de preparación / KDS',
-    'VantixGC no crea cocinas ni KDS por defecto',
-    '+ Nueva estación',
-    "callApi('/api/v1/impresion/estaciones')",
-    'Selecciona un destino…'
-  ]) assert.ok(panel.includes(token), `Panel manual de estaciones debe contener: ${token}`);
   assert.ok(!panel.includes('const ROLE_OPTIONS'), 'El panel no debe conservar destinos fijos Cocina/Barra');
   assert.ok(!panel.includes("current?.role || 'COCINA'"), 'Nueva impresora no puede preseleccionar Cocina');
   assert.ok(stationServiceSource.includes("const ROLE_PREFIX = 'STATION:'"));
 
-  // La configuración operativa del restaurante debe vivir dentro del Centro de control,
-  // nunca redirigir a Parametrización Contable (/app/configuracion).
+  // Configuración general permanece dentro del Centro de control y no reutiliza
+  // Parametrización Contable. KDS/estaciones NO se gestionan aquí.
   for (const token of [
     'ensureRestaurantConfigAccess',
     'data-restaurant-config-action',
     'data-restaurant-config-link',
     '/app/centro-de-control?view=config',
-    'Cocinas, KDS e impresoras',
-    'restaurant-admin-config-ui.js?v=native-config-v1'
-  ]) assert.ok(theme.includes(token), `Centro de control debe exponer Configuración nativa: ${token}`);
+    'Impresoras y opciones generales',
+    'restaurant-admin-config-ui.js?v=native-config-v2-printers',
+    'restaurant-kds-stations-admin.js?v=kds-stations-v1'
+  ]) assert.ok(theme.includes(token), `Centro de control debe contener: ${token}`);
   assert.equal(theme.includes("const targetUrl = '/app/configuracion"), false, 'El acceso Restaurante no puede apuntar a Parametrización Contable');
 
   for (const token of [
-    "const CONFIG_VIEW = 'config'",
-    'Configuración',
-    'Esta pantalla es independiente de Parametrización Contable.',
-    'Áreas de preparación / KDS',
+    "get('view') === 'config'",
     'Impresoras del restaurante',
+    'Los KDS/estaciones se crean y retiran directamente desde Ver KDS.',
     "api('/api/v1/impresion/estaciones')",
     "api('/api/v1/impresion/impresoras')",
     "api('/api/v1/impresion/configuracion')"
-  ]) assert.ok(nativeConfig.includes(token), `Configuración nativa debe contener: ${token}`);
-  assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"));
+  ]) assert.ok(nativeConfig.includes(token), `Configuración general debe contener: ${token}`);
+  assert.equal(nativeConfig.includes('data-rnc-station-new'), false, 'Configuración general no debe crear estaciones KDS');
+  assert.equal(nativeConfig.includes('function stationDialog'), false, 'Configuración general no debe editar estaciones KDS');
 
+  // La administración de estaciones pertenece a Ver KDS.
+  for (const token of [
+    'Gestionar KDS / estaciones',
+    '+ Crear primera estación',
+    '+ Nueva estación',
+    "api('/api/v1/impresion/estaciones')",
+    "method:'DELETE'",
+    'Configuración propia del restaurante',
+    'data-rkds-adminbar'
+  ]) assert.ok(kdsAdmin.includes(token), `Ver KDS debe administrar estaciones: ${token}`);
+  assert.ok(theme.includes('hasKds || canManage'), 'Administrador debe poder abrir KDS aun con cero estaciones');
+  assert.ok(theme.includes("querySelectorAll('[data-cc-order-kds]')"), 'Accesos operativos a pedidos sí deben depender de KDS existente');
+
+  assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"));
+  assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-kds-stations-admin.js'"));
   assert.ok(theme.includes('restaurant-production-stations'));
   assert.ok(theme.includes('No hay estaciones KDS configuradas.'));
-  assert.ok(theme.includes('[data-tab="kds"]'));
   assert.ok(routes.includes("router.get('/estaciones'"));
   assert.ok(routes.includes("router.post('/estaciones'"));
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-production-stations'"));
   new Function(panel);
   new Function(theme);
   new Function(nativeConfig);
+  new Function(kdsAdmin);
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -129,15 +138,16 @@ async function main() {
   assert.equal(activeStations.length, 1);
   assert.equal(activeStations[0].id, kdsOnly.id);
 
-  console.log('RESTAURANT MANUAL STATIONS + NATIVE CONFIG ROUTE SMOKE OK');
+  console.log('RESTAURANT KDS-NATIVE STATIONS + PRINTER CONFIG SMOKE OK');
   console.log(JSON.stringify({
     zeroDefaultStations:true,
     manualCreate:true,
     kdsOnlyCannotOwnPrinter:true,
     printerRoutesThroughManualStation:true,
     inactiveStationStopsRouting:true,
-    kdsHiddenWithoutConfiguredStation:true,
-    nativeRestaurantConfig:true,
+    adminCanOpenEmptyKds:true,
+    kdsManagementLivesInKds:true,
+    printerConfigSeparated:true,
     accountingConfigSeparated:true
   }, null, 2));
 }
