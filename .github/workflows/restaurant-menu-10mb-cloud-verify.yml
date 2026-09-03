@@ -9,6 +9,8 @@ on:
       - 'src/modules/restaurant/restaurant-menu-import.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
       - 'src/web/restaurant-menu-import-ui.js'
+      - 'src/web/restaurant-menu-browser-ocr.js'
+      - 'src/web/restaurant-menu-browser-ocr-v4.js'
       - 'src/modules/edge/edge-restaurant-ingress.service.js'
       - 'scripts/restaurant-menu-import-smoke.js'
       - '.github/workflows/restaurant-menu-10mb-cloud-verify.yml'
@@ -20,6 +22,8 @@ on:
       - 'src/modules/restaurant/restaurant-menu-import.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
       - 'src/web/restaurant-menu-import-ui.js'
+      - 'src/web/restaurant-menu-browser-ocr.js'
+      - 'src/web/restaurant-menu-browser-ocr-v4.js'
       - 'src/modules/edge/edge-restaurant-ingress.service.js'
       - 'scripts/restaurant-menu-import-smoke.js'
       - '.github/workflows/restaurant-menu-10mb-cloud-verify.yml'
@@ -42,7 +46,7 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
-      - name: Validate 10 MB upload contract and Edge heartbeat gate
+      - name: Validate 10 MB end-to-end OCR contract and Edge heartbeat gate
         run: |
           node --check src/modules/restaurant/restaurant-menu-import.service.js
           node --check src/modules/restaurant/restaurant-menu-import.routes.js
@@ -114,18 +118,33 @@ jobs:
           curl -fsSL --max-time 15 -o /tmp/ocr.json https://core.vantixgc.com/api/public/restaurante/menu-ocr-readiness
           cat /tmp/ocr.json
           grep -q '"maxBytes":10485760' /tmp/ocr.json
-          grep -q '"uploadMode":"BINARY"' /tmp/ocr.json
-          grep -q '"browserUploadMarker":"VANTIX_MENU_OCR_UPLOAD_10MB_V5"' /tmp/ocr.json
+          grep -q '"browserMaxBytes":10485760' /tmp/ocr.json
+          grep -q '"uploadMode":"ADAPTIVE_BINARY_OR_BROWSER"' /tmp/ocr.json
+          grep -q '"browserUploadMarker":"VANTIX_MENU_OCR_END_TO_END_10MB_V7"' /tmp/ocr.json
+          grep -q '"browserLimitMarker":"VANTIX_MENU_OCR_BROWSER_10MB_V7"' /tmp/ocr.json
           echo "PRODUCTION_MENU_10MB_READINESS_OK"
 
-      - name: Verify served 10 MB browser uploader
+      - name: Verify served 10 MB OCR asset end to end
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/menu-ui.headers -o /tmp/menu-ui.js https://core.vantixgc.com/app/restaurant-menu-import-ui.js
-          grep -qi '^X-VantixGC-Menu-OCR-Upload: 10mb-binary-v5' /tmp/menu-ui.headers
-          grep -q 'VANTIX_MENU_OCR_UPLOAD_10MB_V5' /tmp/menu-ui.js
-          grep -q 'const MAX_BYTES = 10 \* 1024 \* 1024;' /tmp/menu-ui.js
+          grep -qi '^X-VantixGC-Menu-OCR-Upload: 10mb-adaptive-v7' /tmp/menu-ui.headers
+          grep -qi '^X-VantixGC-Menu-OCR-Browser-Limit: 10mb-v7' /tmp/menu-ui.headers
+          grep -q 'VANTIX_MENU_OCR_END_TO_END_10MB_V7' /tmp/menu-ui.js
+          grep -q 'VANTIX_BROWSER_OCR_V1' /tmp/menu-ui.js
+          grep -q 'VANTIX_BROWSER_OCR_PREPROCESS_V4' /tmp/menu-ui.js
+          grep -q "status.provider || '').toUpperCase() === 'BROWSER_OCR'" /tmp/menu-ui.js
           grep -q 'carta-importacion/analizar-binario' /tmp/menu-ui.js
           grep -q "Content-Type':'application/octet-stream" /tmp/menu-ui.js
-          echo "PRODUCTION_MENU_10MB_BROWSER_OK"
+          count=$(grep -Fc 'const MAX_BYTES = 10 * 1024 * 1024;' /tmp/menu-ui.js || true)
+          test "$count" -ge 3
+          if grep -Fq 'const MAX_BYTES = 5 * 1024 * 1024;' /tmp/menu-ui.js; then
+            echo 'Legacy 5 MB constant still served in production' >&2
+            exit 1
+          fi
+          if grep -Eq 'Máximo 5 MB|máximo de 5 MB' /tmp/menu-ui.js; then
+            echo 'Legacy 5 MB rejection text still served in production' >&2
+            exit 1
+          fi
+          echo "PRODUCTION_MENU_10MB_END_TO_END_OK"
