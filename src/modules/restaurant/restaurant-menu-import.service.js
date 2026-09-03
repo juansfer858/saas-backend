@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
-const MAX_FILE_BYTES = Math.min(Math.max(Number(process.env.RESTAURANT_MENU_OCR_MAX_BYTES) || 5 * 1024 * 1024, 512 * 1024), 6 * 1024 * 1024);
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
 const MENU_CATEGORIES = new Set(['ENTRADAS', 'FUERTES', 'BEBIDAS', 'POSTRES']);
 const STATIONS = new Set(['COCINA', 'BARRA', 'POSTRES']);
