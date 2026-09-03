@@ -1,14 +1,11 @@
 'use strict';
 
 const express = require('express');
-const fs = require('node:fs');
-const path = require('node:path');
 const sync = require('./restaurant-menu-surface-sync.service');
 
 sync.install();
 
 const router = express.Router();
-const qrUiPath = path.join(__dirname, '..', '..', 'web', 'restaurant-qr-ui.js');
 const MARKER = 'VANTIX_RESTAURANT_MENU_SURFACES_V10';
 
 function patchDesktopRuntime(source) {
@@ -69,29 +66,25 @@ function patchQrRuntime(source) {
 }
 
 function installMenuSurfaceSyncRuntime(req, res, next) {
-  if (req.method !== 'GET' || !['/app/restaurant-ui.js', '/app/restaurant-waiter-runtime-v7.js'].includes(req.path)) return next();
+  const paths = ['/app/restaurant-ui.js', '/app/restaurant-waiter-runtime-v7.js', '/app/restaurant-qr-ui.js'];
+  if (req.method !== 'GET' || !paths.includes(req.path)) return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     const isBuffer = Buffer.isBuffer(body);
     const source = isBuffer ? body.toString('utf8') : (typeof body === 'string' ? body : null);
     if (source) {
-      const patched = req.path === '/app/restaurant-ui.js' ? patchDesktopRuntime(source) : patchWaiterTabletRuntime(source);
+      let patched;
+      let surface;
+      if (req.path === '/app/restaurant-ui.js') { patched = patchDesktopRuntime(source); surface = 'desktop-v10'; }
+      else if (req.path === '/app/restaurant-waiter-runtime-v7.js') { patched = patchWaiterTabletRuntime(source); surface = 'tablet-v10'; }
+      else { patched = patchQrRuntime(source); surface = 'qr-v10'; }
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
-      res.set('X-VantixGC-Menu-Surface-Sync', req.path.includes('waiter') ? 'tablet-v10' : 'desktop-v10');
+      res.set('X-VantixGC-Menu-Surface-Sync', surface);
     }
     return originalSend(body);
   };
   return next();
 }
-
-router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
-  try {
-    const source = await fs.promises.readFile(qrUiPath, 'utf8');
-    res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Menu-Surface-Sync', 'qr-v10');
-    res.type('application/javascript').send(patchQrRuntime(source));
-  } catch (error) { next(error); }
-});
 
 router.get('/api/public/restaurante/menu-surface-readiness', (_req, res) => {
   res.set('Cache-Control', 'no-store');
