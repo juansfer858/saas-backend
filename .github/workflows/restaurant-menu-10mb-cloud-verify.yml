@@ -1,0 +1,131 @@
+name: Restaurant Menu 10MB + Cloud Verify
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-menu-import.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
+      - 'src/web/restaurant-menu-import-ui.js'
+      - 'src/modules/edge/edge-restaurant-ingress.service.js'
+      - 'scripts/restaurant-menu-import-smoke.js'
+      - '.github/workflows/restaurant-menu-10mb-cloud-verify.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-menu-import.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
+      - 'src/web/restaurant-menu-import-ui.js'
+      - 'src/modules/edge/edge-restaurant-ingress.service.js'
+      - 'scripts/restaurant-menu-import-smoke.js'
+      - '.github/workflows/restaurant-menu-10mb-cloud-verify.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://localhost:5432/unused
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate 10 MB upload contract and Edge heartbeat gate
+        run: |
+          node --check src/modules/restaurant/restaurant-menu-import.service.js
+          node --check src/modules/restaurant/restaurant-menu-import.routes.js
+          node --check src/modules/restaurant/restaurant-menu-import.public.routes.js
+          node scripts/restaurant-menu-import-smoke.js
+
+  probe-current-cloud:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe current Core cloud health
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_code=$(curl -sS --max-time 15 -o /tmp/health.json -w '%{http_code}' https://core.vantixgc.com/healthz || true)
+          ready_code=$(curl -sS --max-time 15 -o /tmp/ready.json -w '%{http_code}' https://core.vantixgc.com/readyz || true)
+          runtime_code=$(curl -sS --max-time 15 -o /tmp/runtime.json -w '%{http_code}' https://core.vantixgc.com/api/public/runtime-info || true)
+          echo "health=$health_code ready=$ready_code runtime=$runtime_code"
+          cat /tmp/health.json || true
+          cat /tmp/ready.json || true
+          cat /tmp/runtime.json || true
+          test "$health_code" = "200"
+          test "$ready_code" = "200"
+          test "$runtime_code" = "200"
+          grep -q '"status":"alive"' /tmp/health.json
+          grep -q '"status":"ready"' /tmp/ready.json
+          grep -q '"database":"OK"' /tmp/ready.json
+          grep -q '"phase":"READY"' /tmp/runtime.json
+          echo "CORE_CLOUD_CURRENTLY_READY_OK"
+
+  verify-production:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for exact production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA in time" >&2
+          exit 1
+
+      - name: Verify production cloud readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -o /tmp/health.json https://core.vantixgc.com/healthz
+          curl -fsSL --max-time 15 -o /tmp/ready.json https://core.vantixgc.com/readyz
+          grep -q '"status":"alive"' /tmp/health.json
+          grep -q '"status":"ready"' /tmp/ready.json
+          grep -q '"database":"OK"' /tmp/ready.json
+          echo "PRODUCTION_CLOUD_READY_OK"
+
+      - name: Verify 10 MB OCR readiness in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -o /tmp/ocr.json https://core.vantixgc.com/api/public/restaurante/menu-ocr-readiness
+          cat /tmp/ocr.json
+          grep -q '"maxBytes":10485760' /tmp/ocr.json
+          grep -q '"uploadMode":"BINARY"' /tmp/ocr.json
+          grep -q '"browserUploadMarker":"VANTIX_MENU_OCR_UPLOAD_10MB_V5"' /tmp/ocr.json
+          echo "PRODUCTION_MENU_10MB_READINESS_OK"
+
+      - name: Verify served 10 MB browser uploader
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/menu-ui.headers -o /tmp/menu-ui.js https://core.vantixgc.com/app/restaurant-menu-import-ui.js
+          grep -qi '^X-VantixGC-Menu-OCR-Upload: 10mb-binary-v5' /tmp/menu-ui.headers
+          grep -q 'VANTIX_MENU_OCR_UPLOAD_10MB_V5' /tmp/menu-ui.js
+          grep -q 'const MAX_BYTES = 10 \* 1024 \* 1024;' /tmp/menu-ui.js
+          grep -q 'carta-importacion/analizar-binario' /tmp/menu-ui.js
+          grep -q "Content-Type':'application/octet-stream" /tmp/menu-ui.js
+          echo "PRODUCTION_MENU_10MB_BROWSER_OK"
