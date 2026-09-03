@@ -42,20 +42,56 @@ function patchBrowserOcr10Mb(source) {
   return output;
 }
 
+function patchDynamicCommercialCategories(source) {
+  const input = String(source);
+  let output = input;
+
+  output = output.replace(
+    `    const normalized = key(value);\n    if (headings.has(normalized)) return headings.get(normalized);`,
+    `    const normalized = key(value);\n    if (headings.has(normalized)) return headings.get(normalized);\n    // VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8: un título visible de la carta manda sobre familias convencionales.\n    if (/^.{2,45}\\s+[-–—]\\s+.{2,45}$/.test(value) && !/\\$|\\d{3,}/.test(value)) return value;`
+  );
+
+  output = output.replace(
+    `      const family = familyCategory(name), op = operational(family || category, name), commercial = family || (category !== 'Otros' ? category : fallbackCategory(op));`,
+    `      const family = familyCategory(name);\n      const commercial = category !== 'Otros' ? category : (family || fallbackCategory(operational(category, name)));\n      const op = operational(commercial, name);`
+  );
+
+  output = output.replace(
+    `    const family = familyCategory(name);\n    const category = family || explicitCategory || categoryAtY(y, anchors) || 'Platos';`,
+    `    const family = familyCategory(name);\n    const category = explicitCategory || categoryAtY(y, anchors) || family || 'Otros';`
+  );
+
+  output = output.replace(
+    `      const category = family(name) || clean(item.category || 'Platos') || 'Platos';`,
+    `      const category = clean(item.category || '') || family(name) || 'Otros';`
+  );
+
+  if (output !== input && !output.includes('VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8')) {
+    output = `// VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8\n${output}`;
+  }
+  return output;
+}
+
 function buildMenuImportBrowserAsset() {
   const asset = [
     patchMenuImportUpload10Mb(fs.readFileSync(menuUiPath, 'utf8')),
-    fs.readFileSync(layoutOcrPath, 'utf8'),
+    patchDynamicCommercialCategories(fs.readFileSync(layoutOcrPath, 'utf8')),
     fs.readFileSync(strictOcrPath, 'utf8'),
-    patchBrowserOcr10Mb(fs.readFileSync(browserOcrPath, 'utf8')),
+    patchDynamicCommercialCategories(patchBrowserOcr10Mb(fs.readFileSync(browserOcrPath, 'utf8'))),
     patchBrowserOcr10Mb(fs.readFileSync(browserOcrV4Path, 'utf8')),
-    fs.readFileSync(qualityOcrPath, 'utf8'),
+    patchDynamicCommercialCategories(fs.readFileSync(qualityOcrPath, 'utf8')),
     fs.readFileSync(cleanupUiPath, 'utf8'),
     fs.readFileSync(editableUiPath, 'utf8'),
     fs.readFileSync(productEditUiPath, 'utf8')
   ].join('\n');
   if (/MAX_BYTES\s*=\s*5\s*\*\s*1024\s*\*\s*1024/.test(asset) || /Máximo 5 MB|máximo de 5 MB/.test(asset)) {
     throw new Error('RESTAURANT_MENU_OCR_FINAL_ASSET_5MB_LIMIT_STILL_PRESENT');
+  }
+  if (/commercial\s*=\s*family\s*\|\||category\s*=\s*family\(name\)\s*\|\|\s*clean\(item\.category|category\s*=\s*family\s*\|\|\s*explicitCategory/.test(asset)) {
+    throw new Error('RESTAURANT_MENU_OCR_DYNAMIC_CATEGORY_PRIORITY_REGRESSION');
+  }
+  if (!asset.includes('VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8')) {
+    throw new Error('RESTAURANT_MENU_OCR_DYNAMIC_CATEGORY_MARKER_MISSING');
   }
   return asset;
 }
@@ -65,6 +101,7 @@ router.get('/app/restaurant-menu-import-ui.js', (_req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Menu-OCR-Upload', '10mb-adaptive-v7');
     res.set('X-VantixGC-Menu-OCR-Browser-Limit', '10mb-v7');
+    res.set('X-VantixGC-Menu-OCR-Categories', 'detected-heading-v8');
     res.set('X-VantixGC-Menu-OCR-Product-Edit', 'persisted-v6');
     res.type('application/javascript').send(buildMenuImportBrowserAsset());
   } catch (error) { next(error); }
@@ -81,6 +118,8 @@ router.get('/api/public/restaurante/menu-ocr-readiness', (_req, res) => {
       maxBytes: status.maxBytes,
       browserMaxBytes: menuImport.MAX_FILE_BYTES,
       uploadMode: 'ADAPTIVE_BINARY_OR_BROWSER',
+      categoryMode: 'DETECTED_VISIBLE_HEADING',
+      categoryFallback: 'INFER_ONLY_WHEN_NO_VISIBLE_HEADING',
       browserFallback: true,
       browserMarker: 'VANTIX_BROWSER_OCR_V1',
       browserQualityMarker: 'VANTIX_BROWSER_OCR_MULTIPASS_V2',
@@ -92,6 +131,7 @@ router.get('/api/public/restaurante/menu-ocr-readiness', (_req, res) => {
       browserEditableMarker: 'VANTIX_MENU_OCR_EDITABLE_UI_V1',
       browserUploadMarker: 'VANTIX_MENU_OCR_END_TO_END_10MB_V7',
       browserLimitMarker: 'VANTIX_MENU_OCR_BROWSER_10MB_V7',
+      browserCategoryMarker: 'VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8',
       browserProductEditMarker: 'VANTIX_MENU_OCR_EDIT_V6',
       capabilities: {
         imageOcr: Boolean(status.capabilities?.imageOcr),
@@ -107,5 +147,6 @@ module.exports = {
   restaurantMenuImportPublicRouter: router,
   patchMenuImportUpload10Mb,
   patchBrowserOcr10Mb,
+  patchDynamicCommercialCategories,
   buildMenuImportBrowserAsset
 };
