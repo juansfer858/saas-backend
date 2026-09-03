@@ -11,6 +11,8 @@ on:
       - 'src/web/restaurant-menu-import-ui.js'
       - 'src/web/restaurant-menu-browser-ocr.js'
       - 'src/web/restaurant-menu-browser-ocr-v4.js'
+      - 'src/web/restaurant-menu-layout-parser-v3.js'
+      - 'src/web/restaurant-menu-ocr-quality-v2.js'
       - 'src/modules/edge/edge-restaurant-ingress.service.js'
       - 'scripts/restaurant-menu-import-smoke.js'
       - '.github/workflows/restaurant-menu-10mb-cloud-verify.yml'
@@ -24,6 +26,8 @@ on:
       - 'src/web/restaurant-menu-import-ui.js'
       - 'src/web/restaurant-menu-browser-ocr.js'
       - 'src/web/restaurant-menu-browser-ocr-v4.js'
+      - 'src/web/restaurant-menu-layout-parser-v3.js'
+      - 'src/web/restaurant-menu-ocr-quality-v2.js'
       - 'src/modules/edge/edge-restaurant-ingress.service.js'
       - 'scripts/restaurant-menu-import-smoke.js'
       - '.github/workflows/restaurant-menu-10mb-cloud-verify.yml'
@@ -46,7 +50,7 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
-      - name: Validate 10 MB end-to-end OCR contract and Edge heartbeat gate
+      - name: Validate 10 MB OCR and dynamic category contract
         run: |
           node --check src/modules/restaurant/restaurant-menu-import.service.js
           node --check src/modules/restaurant/restaurant-menu-import.routes.js
@@ -111,7 +115,7 @@ jobs:
           grep -q '"database":"OK"' /tmp/ready.json
           echo "PRODUCTION_CLOUD_READY_OK"
 
-      - name: Verify 10 MB OCR readiness in production
+      - name: Verify OCR readiness and category mode in production
         shell: bash
         run: |
           set -euo pipefail
@@ -120,18 +124,23 @@ jobs:
           grep -q '"maxBytes":10485760' /tmp/ocr.json
           grep -q '"browserMaxBytes":10485760' /tmp/ocr.json
           grep -q '"uploadMode":"ADAPTIVE_BINARY_OR_BROWSER"' /tmp/ocr.json
+          grep -q '"categoryMode":"DETECTED_VISIBLE_HEADING"' /tmp/ocr.json
+          grep -q '"categoryFallback":"INFER_ONLY_WHEN_NO_VISIBLE_HEADING"' /tmp/ocr.json
           grep -q '"browserUploadMarker":"VANTIX_MENU_OCR_END_TO_END_10MB_V7"' /tmp/ocr.json
           grep -q '"browserLimitMarker":"VANTIX_MENU_OCR_BROWSER_10MB_V7"' /tmp/ocr.json
-          echo "PRODUCTION_MENU_10MB_READINESS_OK"
+          grep -q '"browserCategoryMarker":"VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8"' /tmp/ocr.json
+          echo "PRODUCTION_MENU_DYNAMIC_CATEGORY_READINESS_OK"
 
-      - name: Verify served 10 MB OCR asset end to end
+      - name: Verify served OCR asset preserves detected categories
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/menu-ui.headers -o /tmp/menu-ui.js https://core.vantixgc.com/app/restaurant-menu-import-ui.js
           grep -qi '^X-VantixGC-Menu-OCR-Upload: 10mb-adaptive-v7' /tmp/menu-ui.headers
           grep -qi '^X-VantixGC-Menu-OCR-Browser-Limit: 10mb-v7' /tmp/menu-ui.headers
+          grep -qi '^X-VantixGC-Menu-OCR-Categories: detected-heading-v8' /tmp/menu-ui.headers
           grep -q 'VANTIX_MENU_OCR_END_TO_END_10MB_V7' /tmp/menu-ui.js
+          grep -q 'VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8' /tmp/menu-ui.js
           grep -q 'VANTIX_BROWSER_OCR_V1' /tmp/menu-ui.js
           grep -q 'VANTIX_BROWSER_OCR_PREPROCESS_V4' /tmp/menu-ui.js
           grep -q "status.provider || '').toUpperCase() === 'BROWSER_OCR'" /tmp/menu-ui.js
@@ -147,4 +156,8 @@ jobs:
             echo 'Legacy 5 MB rejection text still served in production' >&2
             exit 1
           fi
-          echo "PRODUCTION_MENU_10MB_END_TO_END_OK"
+          if grep -Eq 'commercial[[:space:]]*=[[:space:]]*family[[:space:]]*\|\||category[[:space:]]*=[[:space:]]*family\(name\)[[:space:]]*\|\|[[:space:]]*clean\(item\.category|category[[:space:]]*=[[:space:]]*family[[:space:]]*\|\|[[:space:]]*explicitCategory' /tmp/menu-ui.js; then
+            echo 'Inferred family still overrides detected visible category' >&2
+            exit 1
+          fi
+          echo "PRODUCTION_MENU_DYNAMIC_CATEGORIES_OK"
