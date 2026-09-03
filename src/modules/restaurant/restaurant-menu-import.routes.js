@@ -5,6 +5,7 @@ const { z } = require('zod');
 const service = require('./restaurant-menu-import.service');
 const localOcr = require('./restaurant-menu-local-ocr.service');
 const cleanup = require('./restaurant-menu-ocr-cleanup.service');
+const menuItemEdit = require('./restaurant-menu-item-edit.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 
@@ -68,6 +69,14 @@ const confirmSchema = z.object({
   items: z.array(itemSchema).min(1).max(300)
 });
 
+const editImportedItemSchema = z.object({
+  category: z.string().trim().min(1).max(80),
+  subcategory: z.string().trim().min(1).max(180),
+  price: z.coerce.number().positive().max(1000000000),
+  operationalCategory: z.enum(['ENTRADAS', 'FUERTES', 'BEBIDAS', 'POSTRES']),
+  station: z.enum(['COCINA', 'BARRA', 'POSTRES'])
+});
+
 router.get('/carta-importacion/status', requirePermission('RESTAURANTE.ADMINISTRAR'), async (_req, res, next) => {
   try {
     const status = resolvedOcrStatus();
@@ -86,6 +95,16 @@ router.get('/carta-importacion/status', requirePermission('RESTAURANTE.ADMINISTR
 
 router.get('/carta-importacion/lista', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listCarta(req.tenantId) }); } catch (error) { next(error); }
+});
+
+router.patch('/carta-importacion/items/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const input = parse(editImportedItemSchema, req.body || {});
+    res.json({
+      ok: true,
+      data: await menuItemEdit.updateImportedCartaItem(req.tenantId, req.userId, req.params.id, input)
+    });
+  } catch (error) { next(error); }
 });
 
 // Legacy JSON/base64 entrypoint remains available for compatibility. New browser uploads use

@@ -16,6 +16,7 @@ const browserOcrV4Path = path.join(webRoot, 'restaurant-menu-browser-ocr-v4.js')
 const qualityOcrPath = path.join(webRoot, 'restaurant-menu-ocr-quality-v2.js');
 const cleanupUiPath = path.join(webRoot, 'restaurant-menu-ocr-cleanup-ui.js');
 const editableUiPath = path.join(webRoot, 'restaurant-menu-ocr-editable-ui-v1.js');
+const productEditUiPath = path.join(webRoot, 'restaurant-menu-ocr-product-edit-v6.js');
 
 function patchMenuImportUpload10Mb(source) {
   if (source.includes('VANTIX_MENU_OCR_UPLOAD_10MB_V5')) return source;
@@ -34,6 +35,7 @@ router.get('/app/restaurant-menu-import-ui.js', (_req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Menu-OCR-Upload', '10mb-binary-v5');
+    res.set('X-VantixGC-Menu-OCR-Product-Edit', 'persisted-v6');
     res.type('application/javascript').send([
       patchMenuImportUpload10Mb(fs.readFileSync(menuUiPath, 'utf8')),
       fs.readFileSync(layoutOcrPath, 'utf8'),
@@ -42,7 +44,8 @@ router.get('/app/restaurant-menu-import-ui.js', (_req, res, next) => {
       fs.readFileSync(browserOcrV4Path, 'utf8'),
       fs.readFileSync(qualityOcrPath, 'utf8'),
       fs.readFileSync(cleanupUiPath, 'utf8'),
-      fs.readFileSync(editableUiPath, 'utf8')
+      fs.readFileSync(editableUiPath, 'utf8'),
+      fs.readFileSync(productEditUiPath, 'utf8')
     ].join('\n'));
   } catch (error) { next(error); }
 });
@@ -67,6 +70,7 @@ router.get('/api/public/restaurante/menu-ocr-readiness', (_req, res) => {
       browserCleanupMarker: 'VANTIX_MENU_OCR_CLEANUP_UI_V1',
       browserEditableMarker: 'VANTIX_MENU_OCR_EDITABLE_UI_V1',
       browserUploadMarker: 'VANTIX_MENU_OCR_UPLOAD_10MB_V5',
+      browserProductEditMarker: 'VANTIX_MENU_OCR_EDIT_V6',
       capabilities: {
         imageOcr: Boolean(status.capabilities?.imageOcr),
         pdfText: Boolean(status.capabilities?.pdfText),
