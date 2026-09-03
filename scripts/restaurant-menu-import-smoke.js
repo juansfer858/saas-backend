@@ -2,8 +2,11 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const vm = require('node:vm');
 
 const service = require('../src/modules/restaurant/restaurant-menu-import.service');
+const { patchMenuImportUpload10Mb } = require('../src/modules/restaurant/restaurant-menu-import.public.routes');
+const edgeIngress = require('../src/modules/edge/edge-restaurant-ingress.service');
 
 const rows = service.normalizeItems([
   { category:'Hamburguesas', subcategory:'Ranchera', price:25000, operationalCategory:'FUERTES', station:'COCINA', confidence:.94 },
@@ -49,5 +52,29 @@ assert.match(coreRoutes, /restaurantMenuImportRouter/);
 const status = service.providerStatus();
 assert.equal(typeof status.configured, 'boolean');
 assert.ok(['NONE','OPENAI','CUSTOM_HTTP'].includes(status.provider));
+assert.equal(service.MAX_FILE_BYTES, 10 * 1024 * 1024, 'menu OCR limit must be exactly 10 MiB');
+assert.equal(status.maxBytes, 10 * 1024 * 1024, 'provider status must publish the 10 MiB limit');
 
-console.log('RESTAURANT MENU OCR CONTRACT SMOKE OK');
+assert.match(routes, /carta-importacion\/analizar-binario/);
+assert.match(routes, /application\/octet-stream/);
+assert.match(routes, /limit: service\.MAX_FILE_BYTES/);
+assert.match(routes, /RESTAURANT_MENU_OCR_FILE_TOO_LARGE/);
+
+const servedUi = patchMenuImportUpload10Mb(ui);
+assert.match(servedUi, /VANTIX_MENU_OCR_UPLOAD_10MB_V5/);
+assert.match(servedUi, /const MAX_BYTES = 10 \* 1024 \* 1024;/);
+assert.match(servedUi, /carta-importacion\/analizar-binario/);
+assert.match(servedUi, /Content-Type':'application\/octet-stream/);
+assert.doesNotMatch(servedUi, /const dataBase64 = dataUrl\.split\(','\)\[1\]/, 'served uploader must not Base64-expand the HTTP request');
+assert.doesNotThrow(() => new vm.Script(servedUi), 'final browser OCR runtime must remain valid JavaScript');
+
+const now = Date.now();
+assert.equal(edgeIngress.EDGE_HEARTBEAT_ONLINE_MS, 90_000, 'Edge ingress online window is an explicit 90 seconds');
+assert.equal(edgeIngress.heartbeatOnline(new Date(now - 89_000), now), true, 'recent Edge heartbeat must remain cloud-available');
+assert.equal(edgeIngress.heartbeatOnline(new Date(now - 91_000), now), false, 'stale Edge heartbeat must force the guarded local fallback');
+
+console.log('RESTAURANT MENU OCR CONTRACT SMOKE OK', JSON.stringify({
+  maxBytes: service.MAX_FILE_BYTES,
+  uploadMode: 'BINARY',
+  edgeHeartbeatOnlineMs: edgeIngress.EDGE_HEARTBEAT_ONLINE_MS
+}));
