@@ -38,8 +38,6 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Generate Prisma client
-        run: npm run build
       - name: Validate 10 MB upload contract and Edge heartbeat gate
         run: |
           node --check src/modules/restaurant/restaurant-menu-import.service.js
