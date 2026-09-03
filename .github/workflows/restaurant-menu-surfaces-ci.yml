@@ -1,0 +1,117 @@
+name: Restaurant Menu Surfaces CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
+      - 'src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-ui.js'
+      - 'src/web/restaurant-waiter-runtime-v7.js'
+      - 'src/web/restaurant-qr-ui.js'
+      - 'scripts/restaurant-menu-surfaces-smoke.js'
+      - '.github/workflows/restaurant-menu-surfaces-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
+      - 'src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-ui.js'
+      - 'src/web/restaurant-waiter-runtime-v7.js'
+      - 'src/web/restaurant-qr-ui.js'
+      - 'scripts/restaurant-menu-surfaces-smoke.js'
+      - '.github/workflows/restaurant-menu-surfaces-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://localhost:5432/unused
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate shared menu surfaces and natural table order
+        run: |
+          node --check src/modules/restaurant/restaurant-menu-surface-sync.service.js
+          node --check src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js
+          node scripts/restaurant-menu-surfaces-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for exact production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA in time" >&2
+          exit 1
+
+      - name: Verify shared menu surface readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -o /tmp/readiness.json https://core.vantixgc.com/api/public/restaurante/menu-surface-readiness
+          cat /tmp/readiness.json
+          grep -q 'VANTIX_RESTAURANT_MENU_SURFACES_V10' /tmp/readiness.json
+          grep -q '"tableOrder":"NATURAL_NUMERIC"' /tmp/readiness.json
+          grep -q '"displayCategory":"PRODUCT_DESCRIPTION_CATEGORY"' /tmp/readiness.json
+          grep -q '"operationalCategoryPreserved":true' /tmp/readiness.json
+
+      - name: Verify desktop waiter dynamic categories
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/desktop.headers -o /tmp/desktop.js https://core.vantixgc.com/app/restaurant-ui.js
+          grep -qi '^X-VantixGC-Menu-Surface-Sync: desktop-v10' /tmp/desktop.headers
+          grep -q 'VANTIX_RESTAURANT_MENU_SURFACES_V10_DESKTOP' /tmp/desktop.js
+          grep -q 'waiterMenuCategories' /tmp/desktop.js
+          if grep -Fq "['ENTRADAS','FUERTES','BEBIDAS','POSTRES'].map((cat)" /tmp/desktop.js; then exit 1; fi
+
+      - name: Verify waiter tablet dynamic categories
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/tablet.headers -o /tmp/tablet.js 'https://core.vantixgc.com/app/restaurant-waiter-runtime-v7.js?v=menu-surfaces-v10'
+          grep -qi '^X-VantixGC-Menu-Surface-Sync: tablet-v10' /tmp/tablet.headers
+          grep -q 'VANTIX_RESTAURANT_MENU_SURFACES_V10_TABLET' /tmp/tablet.js
+          grep -q 'VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14' /tmp/tablet.js
+          grep -q 'function menuCategories()' /tmp/tablet.js
+          if grep -Fq "const CATEGORIES = ['ENTRADAS','FUERTES','BEBIDAS','POSTRES'];" /tmp/tablet.js; then exit 1; fi
+
+      - name: Verify client QR dynamic categories
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/qr.headers -o /tmp/qr.js https://core.vantixgc.com/app/restaurant-qr-ui.js
+          grep -qi '^X-VantixGC-Menu-Surface-Sync: qr-v10' /tmp/qr.headers
+          grep -q 'VANTIX_RESTAURANT_MENU_SURFACES_V10_QR' /tmp/qr.js
+          grep -q 'function categoryFilters()' /tmp/qr.js
+          if grep -Fq "{ id:'ENTRADAS', label:'ENTRADAS' }" /tmp/qr.js; then exit 1; fi
+          echo "PRODUCTION_MENU_SURFACES_SYNC_OK"
