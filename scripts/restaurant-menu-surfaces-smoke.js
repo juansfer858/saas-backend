@@ -13,6 +13,10 @@ const {
   patchWaiterTabletRuntime,
   patchQrRuntime
 } = require('../src/modules/restaurant/restaurant-menu-surface-sync.public.routes');
+const {
+  MARKER: QR_STABLE_MARKER,
+  patchQrCategoryStableRuntime
+} = require('../src/modules/restaurant/restaurant-qr-category-stable.public.routes');
 const { waiterRuntimeV14 } = require('../src/modules/restaurant/restaurant-waiter-device.public.routes');
 
 const tables = [
@@ -58,16 +62,21 @@ assert.match(tablet, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
 assert.doesNotThrow(() => new vm.Script(tablet), 'final tablet runtime must remain valid JavaScript');
 
 const qrSource = fs.readFileSync('src/web/restaurant-qr-ui.js', 'utf8');
-const qr = patchQrRuntime(qrSource);
+const qrDynamic = patchQrRuntime(qrSource);
+const qr = patchQrCategoryStableRuntime(qrDynamic);
 assert.match(qr, new RegExp(`${MARKER}_QR`));
+assert.match(qr, new RegExp(QR_STABLE_MARKER));
 assert.match(qr, /function categoryFilters\(\)/);
 assert.match(qr, /menuDisplayCategory\(item\) === S\.filter/);
 assert.doesNotMatch(qr, /\{ id:'ENTRADAS', label:'ENTRADAS' \}/);
+assert.doesNotMatch(qr, /window\.scrollTo\(\{ top:\s*0, behavior:\s*['"]smooth['"] \}\)/);
 assert.doesNotThrow(() => new vm.Script(qr), 'QR asset must remain valid JavaScript');
 
 console.log('RESTAURANT MENU SURFACES SMOKE OK', JSON.stringify({
   marker:MARKER,
+  qrStableMarker:QR_STABLE_MARKER,
   tableOrder:tables.map((row) => row.name),
   displayCategories:menu.map((row) => row.displayCategory),
+  qrCategoryViewportStable:true,
   surfaces:['DESKTOP_WAITER','WAITER_TABLET','CLIENT_QR']
 }));

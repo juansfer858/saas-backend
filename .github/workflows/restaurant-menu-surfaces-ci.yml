@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
       - 'src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js'
+      - 'src/modules/restaurant/restaurant-qr-category-stable.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/restaurant-ui.js'
       - 'src/web/restaurant-waiter-runtime-v7.js'
@@ -19,6 +20,7 @@ on:
     paths:
       - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
       - 'src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js'
+      - 'src/modules/restaurant/restaurant-qr-category-stable.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/restaurant-ui.js'
       - 'src/web/restaurant-waiter-runtime-v7.js'
@@ -48,6 +50,7 @@ jobs:
         run: |
           node --check src/modules/restaurant/restaurant-menu-surface-sync.service.js
           node --check src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js
+          node --check src/modules/restaurant/restaurant-qr-category-stable.public.routes.js
           node scripts/restaurant-menu-surfaces-smoke.js
 
   verify-production:
@@ -105,13 +108,16 @@ jobs:
           grep -q 'function menuCategories()' /tmp/tablet.js
           if grep -Fq "const CATEGORIES = ['ENTRADAS','FUERTES','BEBIDAS','POSTRES'];" /tmp/tablet.js; then exit 1; fi
 
-      - name: Verify client QR dynamic categories
+      - name: Verify client QR dynamic categories and stable viewport
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/qr.headers -o /tmp/qr.js https://core.vantixgc.com/app/restaurant-qr-ui.js
           grep -qi '^X-VantixGC-Menu-Surface-Sync: qr-v10' /tmp/qr.headers
+          grep -qi '^X-VantixGC-QR-Category-Stable: v1-no-scroll' /tmp/qr.headers
           grep -q 'VANTIX_RESTAURANT_MENU_SURFACES_V10_QR' /tmp/qr.js
+          grep -q 'VANTIX_RESTAURANT_QR_CATEGORY_STABLE_V1' /tmp/qr.js
           grep -q 'function categoryFilters()' /tmp/qr.js
           if grep -Fq "{ id:'ENTRADAS', label:'ENTRADAS' }" /tmp/qr.js; then exit 1; fi
+          if grep -Eq "window\.scrollTo\(\{ top:[[:space:]]*0, behavior:[[:space:]]*['\"]smooth['\"] \}\)" /tmp/qr.js; then exit 1; fi
           echo "PRODUCTION_MENU_SURFACES_SYNC_OK"

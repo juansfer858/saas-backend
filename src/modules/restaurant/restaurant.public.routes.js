@@ -7,6 +7,7 @@ const { restaurantQrPresenceRealtimePublicRouter } = require('./restaurant-qr-pr
 const { restaurantQrOrderWaiterAlertPublicRouter } = require('./restaurant-qr-order-waiter-alert.public.routes');
 const { restaurantWaiterDevicePersistencePublicRouter } = require('./restaurant-waiter-device-persistence.public.routes');
 const { restaurantMenuSurfaceSyncPublicRouter, installMenuSurfaceSyncRuntime } = require('./restaurant-menu-surface-sync.public.routes');
+const { installQrCategoryStableRuntime } = require('./restaurant-qr-category-stable.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
@@ -49,6 +50,7 @@ function installCashCompactRuntime(req, res, next) {
 // This root-mounted public router is evaluated before the generic /app HTML fallback.
 // Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
+router.use(installQrCategoryStableRuntime);
 router.use(restaurantMenuSurfaceSyncPublicRouter);
 router.use(installMenuSurfaceSyncRuntime);
 router.use(restaurantPublicRealtimePublisher);
