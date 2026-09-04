@@ -22,23 +22,33 @@ const command = {
 };
 
 const samePhysicalPrinterTwice = [
-  { id:'p-hot', name:'Cocina caliente', host:'192.168.1.50', port:9100, role:'KDS_STATION_HOT', routeRole:'COCINA', stationId:'hot', stationName:'Cocina caliente' },
-  { id:'p-cold', name:'Cocina fría', host:'192.168.1.50', port:9100, role:'KDS_STATION_COLD', routeRole:'COCINA', stationId:'cold', stationName:'Cocina fría' }
+  { id:'p-hot', name:'Cocina caliente', transport:'LAN', host:'192.168.1.50', port:9100, role:'KDS_STATION_HOT', routeRole:'COCINA', stationId:'hot', stationName:'Cocina caliente' },
+  { id:'p-cold', name:'Cocina fría', transport:'LAN', host:'192.168.1.50', port:9100, role:'KDS_STATION_COLD', routeRole:'COCINA', stationId:'cold', stationName:'Cocina fría' }
 ];
 const jobs = buildCommandPrintJobs([command], samePhysicalPrinterTwice);
 assert.equal(jobs.length, 1, 'same physical kitchen printer must receive one command only');
 assert.equal(jobs[0].station, 'COCINA');
 assert.equal(jobs[0].printer.host, '192.168.1.50');
+assert.equal(jobs[0].printer.transport, 'LAN');
 assert.equal(jobs[0].payload.lines.length, 2);
 assert.match(jobs[0].payload.lines[0].name, /Sin cebolla/);
 assert.match(jobs[0].payload.title, /Mesa 1/);
+
+const windowsJobs = buildCommandPrintJobs([command], [
+  { id:'p-usb-a', name:'USB Cocina A', transport:'WINDOWS', host:'POS-80 Cocina', role:'STATION:A', routeRole:'COCINA', stationId:'A' },
+  { id:'p-usb-b', name:'USB Cocina B', transport:'WINDOWS', host:'POS-80 Cocina', role:'STATION:B', routeRole:'COCINA', stationId:'B' }
+]);
+assert.equal(windowsJobs.length, 1, 'same Windows queue must receive one command only');
+assert.equal(windowsJobs[0].printer.transport, 'WINDOWS');
+assert.equal(windowsJobs[0].printer.queueName, 'POS-80 Cocina');
+assert.equal(windowsJobs[0].printer.port, null);
 
 const withBar = buildCommandPrintJobs([
   command,
   { ...command, id:'command-bar-1', station:'BARRA', items:[{ description:'Limonada', quantity:1 }] }
 ], [
   samePhysicalPrinterTwice[0],
-  { id:'p-bar', name:'Barra', host:'192.168.1.51', port:9100, role:'BARRA', routeRole:'BARRA' }
+  { id:'p-bar', name:'Barra', transport:'LAN', host:'192.168.1.51', port:9100, role:'BARRA', routeRole:'BARRA' }
 ]);
 assert.equal(withBar.length, 2, 'distinct queues/printers must produce distinct jobs');
 
@@ -54,8 +64,8 @@ const fakeStore = {
   enqueuePrintJob(job) { existing.add(String(job.id)); enqueued.push(job); return job.id; },
   recordEvent(type, details) { events.push({ type, details }); }
 };
-const firstQueue = enqueueSnapshotPrintJobs(fakeStore, { printJobs: jobs });
-const secondQueue = enqueueSnapshotPrintJobs(fakeStore, { printJobs: jobs });
+const firstQueue = enqueueSnapshotPrintJobs(fakeStore, { printJobs: windowsJobs });
+const secondQueue = enqueueSnapshotPrintJobs(fakeStore, { printJobs: windowsJobs });
 assert.deepEqual(firstQueue, { queued:1, existing:0, received:1 });
 assert.deepEqual(secondQueue, { queued:0, existing:1, received:1 });
 assert.equal(enqueued.length, 1, 'same command must never be printed twice from repeated bootstrap');
@@ -87,13 +97,14 @@ assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
 assert.match(lanDiscovery, /restaurant-print-bridge/);
 
 const edgeVersion = require('../edge/version.json');
-assert.equal(edgeVersion.version, '2.1.3-immediate-print.1');
+assert.equal(edgeVersion.version, '2.1.4-windows-usb-print.1');
 assert.equal(edgeVersion.channel, 'PILOT');
 
 console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   marker:MARKER,
   kitchenSinglePrinter:true,
   hotColdSameQueue:true,
+  windowsUsbQueue:true,
   idempotentBootstrapPrint:true,
   pendingNeverHidden:true,
   inlineImportantHideRescued:true,

@@ -27,7 +27,7 @@ const configSchema = z.object({
 const printerSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(2).max(100),
-  transport: z.enum(['NAVEGADOR','LAN']),
+  transport: z.enum(['NAVEGADOR','LAN','WINDOWS']),
   role: z.string().trim().min(2).max(80).default('DOCUMENTOS'),
   host: z.string().trim().max(200).optional().nullable(),
   port: z.coerce.number().int().min(1).max(65535).optional().nullable(),

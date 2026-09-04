@@ -8,7 +8,9 @@ const INSTALL_FLAG = Symbol.for('vantixgc.edge.restaurant.print.bridge.v1');
 const QUEUES = new Set(['COCINA', 'BARRA', 'POSTRES']);
 
 function endpointKey(printer) {
-  return `${String(printer?.host || '').trim().toLowerCase()}:${Number(printer?.port || 9100)}`;
+  const transport = String(printer?.transport || 'LAN').trim().toUpperCase();
+  const host = String(printer?.host || '').trim().toLowerCase();
+  return transport === 'WINDOWS' ? `WINDOWS:${host}` : `LAN:${host}:${Number(printer?.port || 9100)}`;
 }
 
 function stableJobId(commandId, printer) {
@@ -46,6 +48,7 @@ function buildCommandPrintJobs(commands, printers) {
       const targetKey = endpointKey(printer);
       if (seenTargets.has(targetKey)) continue;
       seenTargets.add(targetKey);
+      const transport = String(printer.transport || 'LAN').toUpperCase();
       jobs.push({
         id: stableJobId(command.id, printer),
         commandId: command.id,
@@ -55,8 +58,10 @@ function buildCommandPrintJobs(commands, printers) {
         printer: {
           id: printer.id || null,
           name: printer.name || 'Impresora',
+          transport,
           host: printer.host,
-          port: Number(printer.port || 9100),
+          port: transport === 'LAN' ? Number(printer.port || 9100) : null,
+          queueName: transport === 'WINDOWS' ? printer.host : null,
           format: printer.format || null
         },
         payload: {
@@ -74,24 +79,25 @@ function buildCommandPrintJobs(commands, printers) {
 
 async function printRoutingForBootstrap(agent, bootstrap) {
   const queues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
-  if (!queues.length) return { printJobs: [], printRouting: { version: 'V1', queues: [], printerCount: 0, jobCount: 0 } };
+  if (!queues.length) return { printJobs: [], printRouting: { version: 'V2', queues: [], printerCount: 0, jobCount: 0, transports: [] } };
   try {
     const printers = await printing.printersForRoles(agent.tenantId, queues);
     const printJobs = buildCommandPrintJobs(bootstrap.commands, printers);
     return {
       printJobs,
       printRouting: {
-        version: 'V1',
+        version: 'V2',
         queues,
         printerCount: new Set(printers.map(endpointKey)).size,
         jobCount: printJobs.length,
+        transports: [...new Set(printers.map((p) => String(p.transport || 'LAN').toUpperCase()))],
         localSpoolerRequired: true
       }
     };
   } catch (error) {
     return {
       printJobs: [],
-      printRouting: { version: 'V1', queues, printerCount: 0, jobCount: 0, localSpoolerRequired: true, error: String(error?.code || error?.message || 'PRINT_ROUTING_ERROR').slice(0, 160) }
+      printRouting: { version: 'V2', queues, printerCount: 0, jobCount: 0, transports: [], localSpoolerRequired: true, error: String(error?.code || error?.message || 'PRINT_ROUTING_ERROR').slice(0, 160) }
     };
   }
 }
@@ -112,6 +118,7 @@ install();
 
 module.exports = {
   INSTALL_FLAG,
+  endpointKey,
   buildCommandPrintJobs,
   printRoutingForBootstrap,
   stableJobId,

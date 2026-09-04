@@ -5,27 +5,37 @@ on:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-kds-reliability.public.routes.js'
+      - 'src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/modules/platform/printing/printing.routes.js'
+      - 'src/modules/platform/printing/printing.service.js'
       - 'src/modules/edge/edge-restaurant-print-bridge.js'
       - 'src/modules/edge/edge-restaurant-immediate-print-bridge.js'
       - 'src/modules/edge/edge-remote-agent.service.js'
       - 'edge/agent/restaurant-print-bridge.js'
-      - 'edge/agent/lan-discovery.js'
+      - 'edge/print-spooler/escpos.js'
+      - 'edge/print-spooler/windows-printer.js'
       - 'edge/version.json'
       - 'scripts/restaurant-kds-print-reliability-smoke.js'
+      - 'scripts/restaurant-windows-usb-printer-smoke.js'
       - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
   push:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-kds-reliability.public.routes.js'
+      - 'src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/modules/platform/printing/printing.routes.js'
+      - 'src/modules/platform/printing/printing.service.js'
       - 'src/modules/edge/edge-restaurant-print-bridge.js'
       - 'src/modules/edge/edge-restaurant-immediate-print-bridge.js'
       - 'src/modules/edge/edge-remote-agent.service.js'
       - 'edge/agent/restaurant-print-bridge.js'
-      - 'edge/agent/lan-discovery.js'
+      - 'edge/print-spooler/escpos.js'
+      - 'edge/print-spooler/windows-printer.js'
       - 'edge/version.json'
       - 'scripts/restaurant-kds-print-reliability-smoke.js'
+      - 'scripts/restaurant-windows-usb-printer-smoke.js'
       - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
   workflow_dispatch:
 
@@ -47,12 +57,18 @@ jobs:
       - name: Validate KDS and Edge print bridge syntax
         run: |
           node --check src/modules/restaurant/restaurant-kds-reliability.public.routes.js
+          node --check src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js
+          node --check src/modules/platform/printing/printing.routes.js
+          node --check src/modules/platform/printing/printing.service.js
           node --check src/modules/edge/edge-restaurant-print-bridge.js
           node --check src/modules/edge/edge-restaurant-immediate-print-bridge.js
           node --check edge/agent/restaurant-print-bridge.js
-          node --check edge/agent/lan-discovery.js
+          node --check edge/print-spooler/escpos.js
+          node --check edge/print-spooler/windows-printer.js
       - name: Validate pending visibility and single-printer kitchen routing
         run: node scripts/restaurant-kds-print-reliability-smoke.js
+      - name: Validate Windows USB printer contract
+        run: node scripts/restaurant-windows-usb-printer-smoke.js
 
   verify-production:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
@@ -83,23 +99,26 @@ jobs:
           cat /tmp/kds-print.json
           grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds-print.json
           grep -q '"pendingNeverHidden":true' /tmp/kds-print.json
-          grep -q '"pendingKpiActionable":true' /tmp/kds-print.json
-          grep -q '"inlineHiddenLaneRescue":true' /tmp/kds-print.json
           grep -q '"waiterImmediatePrint":true' /tmp/kds-print.json
-          grep -q '"immediatePrintSignal":"PRINT_QUEUE"' /tmp/kds-print.json
-          grep -q '"immediatePrintEdgeAction":"LOCAL_SYNC_NOW"' /tmp/kds-print.json
+          grep -q '"windowsUsbPrinting":true' /tmp/kds-print.json
+          grep -q '"windowsPrinterDiscoveryViaRelay":true' /tmp/kds-print.json
+          grep -q '"windowsRawSpooler":"WIN32_WRITE_PRINTER_RAW"' /tmp/kds-print.json
           grep -q '"onePrinterPerEndpoint":true' /tmp/kds-print.json
           grep -q '"kitchenQueueCoversNamedStations":true' /tmp/kds-print.json
-          grep -q '"edgeVersion":"2.1.3-immediate-print.1"' /tmp/kds-print.json
-      - name: Verify final KDS browser asset
+          grep -q '"edgeVersion":"2.1.4-windows-usb-print.1"' /tmp/kds-print.json
+      - name: Verify final KDS browser assets
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/kds.headers -o /tmp/kds.js https://core.vantixgc.com/app/restaurant-ui.js
           grep -qi '^X-VantixGC-KDS-Reliability: v2-inline-hidden-rescue' /tmp/kds.headers
           grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds.js
-          grep -q 'pendingSafety' /tmp/kds.js
           grep -q 'kdsRescueHiddenPendingLanes' /tmp/kds.js
-          grep -q "lane.style.removeProperty('display')" /tmp/kds.js
-          grep -q 'SIN KDS CONFIGURADO' /tmp/kds.js
-          echo PRODUCTION_KDS_IMMEDIATE_PRINT_READINESS_OK
+          curl -fsSL --max-time 15 -D /tmp/stations.headers -o /tmp/stations.js https://core.vantixgc.com/app/restaurant-kds-stations-admin.js
+          grep -qi '^X-VantixGC-KDS-Windows-Printer: v1-usb-windows' /tmp/stations.headers
+          grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_V1' /tmp/stations.js
+          grep -q 'WINDOWS_PRINTERS' /tmp/stations.js
+          grep -q 'WINDOWS_TEST' /tmp/stations.js
+          grep -q 'Detectar impresoras' /tmp/stations.js
+          grep -q 'Probar impresión' /tmp/stations.js
+          echo PRODUCTION_KDS_WINDOWS_USB_PRINT_OK

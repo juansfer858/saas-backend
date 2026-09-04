@@ -98,15 +98,18 @@ async function main() {
   assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
   assert.match(edgeBridge, /printJobExists/);
   assert.match(edgeBridge, /\/api\/sync-now/);
+  assert.match(edgeBridge, /WINDOWS_PRINTERS/);
+  assert.match(edgeBridge, /WINDOWS_TEST/);
 
   const version = require('../edge/version.json');
-  assert.equal(version.version, '2.1.3-immediate-print.1');
+  assert.equal(version.version, '2.1.4-windows-usb-print.1');
   assert.equal(version.channel, 'PILOT');
 
   console.log('RESTAURANT WAITER IMMEDIATE PRINT SMOKE OK', JSON.stringify({
     waiterSendCreatesRelay:true,
     relayAction:'PRINT_QUEUE',
     edgeForcesLocalSyncNow:true,
+    windowsUsbRelay:true,
     persistentPrintQueueRemainsIdempotent:true,
     fallbackPeriodicBootstrapPreserved:true,
     edgeVersion:version.version

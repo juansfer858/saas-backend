@@ -24,7 +24,7 @@ for (const file of ['edge/agent/workspace-entry.js','edge/agent/workspace-entry-
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
 
-assert.equal(version.version, '2.1.3-immediate-print.1');
+assert.equal(version.version, '2.1.4-windows-usb-print.1');
 assert.equal(version.channel, 'PILOT');
 assert.match(schema, /model EdgeLocalAccessGrant/);
 assert.match(service, /createLocalAccessGrant/);
@@ -52,14 +52,11 @@ assert.match(supervisor, /workspace-entry\.js/);
 assert.match(installer, /VantixGC Restaurantes\.url/);
 assert.match(installer, /app\/centro-de-control/);
 
-// Regression V28: redirects handled by Workspace must return true so the base Edge listener
-// cannot write a second 404 response and crash with ERR_HTTP_HEADERS_SENT.
 assert.match(workspace, /if \(!readSession\(req\)\) return redirect\(res, '\/'\)/);
 assert.match(workspaceV28, /const originalRedirect/);
 assert.match(workspaceV28, /const fixedRedirect/);
 assert.match(workspaceV28, /res\.end\(\);\\n  return true;/);
 
-// Cloud vertical: Restaurant owns its UI and the write-capable Edge handoff.
 assert.match(restaurantHtml, /Trabajar en sede/);
 assert.match(restaurantHtml, /local-access-grant/);
 assert.match(restaurantHtml, /restaurant-control-center\.css/);
@@ -71,7 +68,6 @@ assert.match(app, /app\.get\('\/app\/restaurant-theme\.css'/);
 assert.match(app, /app\.get\('\/app\/restaurant-ui\.js'/);
 assert.match(app, /app\.get\('\/app\/restaurant-control-center\.js'/);
 
-// Universal tenant shell stays read-only and vertical-agnostic except for discovery/navigation.
 assert.doesNotMatch(panelEntry, /local-access-grant/);
 assert.doesNotMatch(panelEntry, /method\s*:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i);
 assert.match(panelEntry, /CONTROL_CENTER_PATH/);
