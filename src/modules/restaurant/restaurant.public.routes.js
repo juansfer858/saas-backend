@@ -8,7 +8,7 @@ const { restaurantQrOrderWaiterAlertPublicRouter } = require('./restaurant-qr-or
 const { restaurantWaiterDevicePersistencePublicRouter } = require('./restaurant-waiter-device-persistence.public.routes');
 const { restaurantMenuSurfaceSyncPublicRouter, installMenuSurfaceSyncRuntime } = require('./restaurant-menu-surface-sync.public.routes');
 const { installQrCategoryStableRuntime } = require('./restaurant-qr-category-stable.public.routes');
-const { installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
+const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
@@ -44,6 +44,7 @@ function installCashCompactRuntime(req, res, next) {
 }
 
 router.use(coreAdminPwaPublicRouter);
+router.use(restaurantKdsReliabilityPublicRouter);
 router.use(installQrCategoryStableRuntime);
 router.use(installKdsReliabilityRuntime);
 router.use(restaurantMenuSurfaceSyncPublicRouter);
