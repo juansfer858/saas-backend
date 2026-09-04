@@ -3,7 +3,7 @@
 const express = require('express');
 const edgeVersion = require('../../../edge/version.json');
 
-const MARKER = 'VANTIX_RESTAURANT_KDS_RELIABILITY_V1';
+const MARKER = 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2';
 const router = express.Router();
 
 const runtimeTail = `
@@ -12,15 +12,45 @@ const runtimeTail = `
   if(document.documentElement.dataset.vantixKdsReliability===marker)return;
   document.documentElement.dataset.vantixKdsReliability=marker;
   const style=document.createElement('style');
-  style.id='vantix-kds-reliability-v1';
-  style.textContent='.kds-v2-lane[hidden]:has(.kds-command-card){display:block!important}.kds-kpi:first-child{cursor:pointer}.kds-kpi:first-child:focus{outline:2px solid currentColor;outline-offset:3px}';
+  style.id='vantix-kds-reliability-v2';
+  style.textContent='.kds-kpi:first-child{cursor:pointer}.kds-kpi:first-child:focus{outline:2px solid currentColor;outline-offset:3px}.kds-v2-lane[data-vantix-pending-rescued="true"] header:after{content:"SIN KDS CONFIGURADO";margin-left:auto;padding:3px 7px;border-radius:999px;background:#fff4e5;color:#9a4f00;font-size:9px;font-weight:900;letter-spacing:.04em}';
   document.head.appendChild(style);
+
+  const rescuePendingLanes=()=>{
+    document.querySelectorAll('.kds-v2-lane[data-station]').forEach((lane)=>{
+      const hasCommands=Boolean(lane.querySelector('.kds-command-card'));
+      if(!hasCommands){
+        delete lane.dataset.vantixPendingRescued;
+        return;
+      }
+      lane.style.removeProperty('display');
+      lane.removeAttribute('hidden');
+      delete lane.dataset.rkdsHidden;
+      lane.dataset.vantixPendingRescued='true';
+    });
+  };
+
+  let rescueScheduled=false;
+  const scheduleRescue=()=>{
+    if(rescueScheduled)return;
+    rescueScheduled=true;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      rescueScheduled=false;
+      rescuePendingLanes();
+    }));
+  };
+
+  const observer=new MutationObserver(scheduleRescue);
+  observer.observe(document.body,{childList:true,subtree:true});
+  scheduleRescue();
+
   document.addEventListener('click',(event)=>{
     const card=event.target?.closest?.('.kds-kpi');
     if(!card)return;
     const label=String(card.querySelector('small')?.textContent||'').trim().toLowerCase();
     if(label!=='pendientes')return;
     document.querySelector('[data-kds-filter="PENDIENTE"]')?.click();
+    scheduleRescue();
   });
 })();`;
 
@@ -42,7 +72,7 @@ function installKdsReliabilityRuntime(req, res, next) {
     if (source) {
       const patched = patchKdsRuntime(source);
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
-      res.set('X-VantixGC-KDS-Reliability', 'v1-visible-pending');
+      res.set('X-VantixGC-KDS-Reliability', 'v2-inline-hidden-rescue');
     }
     return originalSend(body);
   };
@@ -57,6 +87,7 @@ router.get('/api/public/restaurante/kds-print-readiness', (_req, res) => {
       marker: MARKER,
       pendingNeverHidden: true,
       pendingKpiActionable: true,
+      inlineHiddenLaneRescue: true,
       printDelivery: 'CORE_BOOTSTRAP_TO_EDGE_PERSISTENT_QUEUE',
       onePrinterPerEndpoint: true,
       kitchenQueueCoversNamedStations: true,
