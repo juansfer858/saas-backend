@@ -78,9 +78,10 @@ jobs:
           set -euo pipefail
           curl -fsSL --max-time 15 -o /tmp/kds-print.json https://core.vantixgc.com/api/public/restaurante/kds-print-readiness
           cat /tmp/kds-print.json
-          grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V1' /tmp/kds-print.json
+          grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds-print.json
           grep -q '"pendingNeverHidden":true' /tmp/kds-print.json
           grep -q '"pendingKpiActionable":true' /tmp/kds-print.json
+          grep -q '"inlineHiddenLaneRescue":true' /tmp/kds-print.json
           grep -q '"onePrinterPerEndpoint":true' /tmp/kds-print.json
           grep -q '"kitchenQueueCoversNamedStations":true' /tmp/kds-print.json
           grep -q '"edgeVersion":"2.1.2-kds-print.1"' /tmp/kds-print.json
@@ -89,8 +90,10 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/kds.headers -o /tmp/kds.js https://core.vantixgc.com/app/restaurant-ui.js
-          grep -qi '^X-VantixGC-KDS-Reliability: v1-visible-pending' /tmp/kds.headers
-          grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V1' /tmp/kds.js
+          grep -qi '^X-VantixGC-KDS-Reliability: v2-inline-hidden-rescue' /tmp/kds.headers
+          grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds.js
           grep -q 'pendingSafety' /tmp/kds.js
-          grep -q 'kds-v2-lane\[hidden\]:has(.kds-command-card)' /tmp/kds.js
-          echo PRODUCTION_KDS_PRINT_RELIABILITY_OK
+          grep -q 'rescuePendingLanes' /tmp/kds.js
+          grep -q "lane.style.removeProperty('display')" /tmp/kds.js
+          grep -q 'SIN KDS CONFIGURADO' /tmp/kds.js
+          echo PRODUCTION_KDS_INLINE_HIDDEN_RESCUE_OK

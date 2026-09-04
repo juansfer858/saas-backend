@@ -21,8 +21,6 @@ const command = {
   ]
 };
 
-// Dos estaciones nominales pueden apuntar a la misma impresora física.
-// Debe salir una sola comanda porque ambas resuelven la cola operativa COCINA.
 const samePhysicalPrinterTwice = [
   { id:'p-hot', name:'Cocina caliente', host:'192.168.1.50', port:9100, role:'KDS_STATION_HOT', routeRole:'COCINA', stationId:'hot', stationName:'Cocina caliente' },
   { id:'p-cold', name:'Cocina fría', host:'192.168.1.50', port:9100, role:'KDS_STATION_COLD', routeRole:'COCINA', stationId:'cold', stationName:'Cocina fría' }
@@ -44,7 +42,6 @@ const withBar = buildCommandPrintJobs([
 ]);
 assert.equal(withBar.length, 2, 'distinct queues/printers must produce distinct jobs');
 
-// La cola Edge debe ser idempotente aunque Core entregue el mismo bootstrap cada 15 s.
 const existing = new Set();
 const enqueued = [];
 const events = [];
@@ -66,15 +63,22 @@ assert.equal(events.length, 1);
 
 const baseUi = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
 const patchedUi = patchKdsRuntime(baseUi);
+assert.equal(MARKER, 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2');
 assert.match(patchedUi, new RegExp(MARKER));
 assert.match(patchedUi, /pendingSafety/);
-assert.match(patchedUi, /kds-v2-lane\[hidden\]:has\(\.kds-command-card\)/);
+assert.match(patchedUi, /function kdsRescueHiddenPendingLanes/);
+assert.match(patchedUi, /lane\.style\.removeProperty\('display'\)/);
+assert.match(patchedUi, /delete lane\.dataset\.rkdsHidden/);
+assert.match(patchedUi, /data-vantix-pending-rescued/);
+assert.match(patchedUi, /SIN KDS CONFIGURADO/);
+assert.match(patchedUi, /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => kdsRescueHiddenPendingLanes\(\)\)\)/);
+assert.doesNotMatch(patchedUi, /MutationObserver/);
 assert.match(patchedUi, /data-kds-filter="PENDIENTE"/);
 assert.doesNotThrow(() => new vm.Script(patchedUi), 'final KDS runtime must remain valid JavaScript');
 
 const stationAdmin = fs.readFileSync('src/web/restaurant-kds-stations-admin.js', 'utf8');
+assert.match(stationAdmin, /lane\.style\.setProperty\('display', 'none', 'important'\)/, 'regression fixture must keep the real inline hide used by station manager');
 assert.match(stationAdmin, /\['KDS', 'AMBOS'\]\.includes\(String\(row\.mode \|\| ''\)\.toUpperCase\(\)\)/, 'station manager still distinguishes screen and printer modes');
-assert.match(patchedUi, /display:block!important/, 'active command lane must be rescued even when station configuration hides it');
 
 const remoteAgent = fs.readFileSync('src/modules/edge/edge-remote-agent.service.js', 'utf8');
 const lanDiscovery = fs.readFileSync('edge/agent/lan-discovery.js', 'utf8');
@@ -85,12 +89,14 @@ const edgeVersion = require('../edge/version.json');
 assert.equal(edgeVersion.version, '2.1.2-kds-print.1');
 assert.equal(edgeVersion.channel, 'PILOT');
 
-console.log('RESTAURANT KDS PRINT RELIABILITY SMOKE OK', JSON.stringify({
+console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   marker:MARKER,
   kitchenSinglePrinter:true,
   hotColdSameQueue:true,
   idempotentBootstrapPrint:true,
   pendingNeverHidden:true,
+  inlineImportantHideRescued:true,
+  finiteDoubleAnimationFrameRescue:true,
   pendingKpiActionable:true,
   edgeVersion:edgeVersion.version
 }));
