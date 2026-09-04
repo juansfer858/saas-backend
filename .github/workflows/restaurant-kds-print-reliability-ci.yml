@@ -1,0 +1,96 @@
+name: Restaurant KDS Print Reliability CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-kds-reliability.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/modules/edge/edge-restaurant-print-bridge.js'
+      - 'src/modules/edge/edge-remote-agent.service.js'
+      - 'edge/agent/restaurant-print-bridge.js'
+      - 'edge/agent/lan-discovery.js'
+      - 'edge/version.json'
+      - 'scripts/restaurant-kds-print-reliability-smoke.js'
+      - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-kds-reliability.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/modules/edge/edge-restaurant-print-bridge.js'
+      - 'src/modules/edge/edge-remote-agent.service.js'
+      - 'edge/agent/restaurant-print-bridge.js'
+      - 'edge/agent/lan-discovery.js'
+      - 'edge/version.json'
+      - 'scripts/restaurant-kds-print-reliability-smoke.js'
+      - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://localhost:5432/unused
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate KDS and Edge print bridge syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-kds-reliability.public.routes.js
+          node --check src/modules/edge/edge-restaurant-print-bridge.js
+          node --check edge/agent/restaurant-print-bridge.js
+          node --check edge/agent/lan-discovery.js
+      - name: Validate pending visibility and single-printer kitchen routing
+        run: node scripts/restaurant-kds-print-reliability-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo PRODUCTION_EXACT_COMMIT_OK
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit $GITHUB_SHA attempt=$attempt"
+            sleep 10
+          done
+          exit 1
+      - name: Verify KDS and print readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -o /tmp/kds-print.json https://core.vantixgc.com/api/public/restaurante/kds-print-readiness
+          cat /tmp/kds-print.json
+          grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V1' /tmp/kds-print.json
+          grep -q '"pendingNeverHidden":true' /tmp/kds-print.json
+          grep -q '"pendingKpiActionable":true' /tmp/kds-print.json
+          grep -q '"onePrinterPerEndpoint":true' /tmp/kds-print.json
+          grep -q '"kitchenQueueCoversNamedStations":true' /tmp/kds-print.json
+          grep -q '"edgeVersion":"2.1.2-kds-print.1"' /tmp/kds-print.json
+      - name: Verify final KDS browser asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/kds.headers -o /tmp/kds.js https://core.vantixgc.com/app/restaurant-ui.js
+          grep -qi '^X-VantixGC-KDS-Reliability: v1-visible-pending' /tmp/kds.headers
+          grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V1' /tmp/kds.js
+          grep -q 'pendingSafety' /tmp/kds.js
+          grep -q 'kds-v2-lane\[hidden\]:has(.kds-command-card)' /tmp/kds.js
+          echo PRODUCTION_KDS_PRINT_RELIABILITY_OK

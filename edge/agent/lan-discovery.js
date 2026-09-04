@@ -1,3 +1,4 @@
+require('./restaurant-print-bridge');
 const dgram = require('node:dgram');
 const os = require('node:os');
 
