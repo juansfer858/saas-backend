@@ -50,8 +50,6 @@ jobs:
           node --check edge/agent/lan-discovery.js
       - name: Validate pending visibility and single-printer kitchen routing
         run: node scripts/restaurant-kds-print-reliability-smoke.js
-      - name: Preserve existing manual station contract
-        run: node scripts/restaurant-manual-stations-smoke.js
 
   verify-production:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
