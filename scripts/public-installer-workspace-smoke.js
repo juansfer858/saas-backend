@@ -31,7 +31,7 @@ const claimCmd = installer.claimInstallerCmd(claimToken, 'https://core.vantixgc.
 const EDGE_V28_COMMIT = '97e3d958f5a787c9826d9bb74a1b0a2def12f1d0';
 
 assert.equal(installer.INSTALL_SOURCE_COMMIT, EDGE_V28_COMMIT);
-assert.equal(edgeVersion.version, '2.1.3-immediate-print.1');
+assert.equal(edgeVersion.version, '2.1.4-windows-usb-print.1');
 assert.equal(edgeVersion.channel, 'PILOT');
 assert.equal(installer.NODE_VERSION, '22.23.2');
 assert.equal(installer.NODE_WIN_X64_SHA256, '1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97');
