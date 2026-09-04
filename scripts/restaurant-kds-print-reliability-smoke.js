@@ -83,10 +83,11 @@ assert.match(stationAdmin, /\['KDS', 'AMBOS'\]\.includes\(String\(row\.mode \|\|
 const remoteAgent = fs.readFileSync('src/modules/edge/edge-remote-agent.service.js', 'utf8');
 const lanDiscovery = fs.readFileSync('edge/agent/lan-discovery.js', 'utf8');
 assert.match(remoteAgent, /edge-restaurant-print-bridge/);
+assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
 assert.match(lanDiscovery, /restaurant-print-bridge/);
 
 const edgeVersion = require('../edge/version.json');
-assert.equal(edgeVersion.version, '2.1.2-kds-print.1');
+assert.equal(edgeVersion.version, '2.1.3-immediate-print.1');
 assert.equal(edgeVersion.channel, 'PILOT');
 
 console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
@@ -98,5 +99,6 @@ console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   inlineImportantHideRescued:true,
   finiteDoubleAnimationFrameRescue:true,
   pendingKpiActionable:true,
+  immediatePrintBridgeInstalled:true,
   edgeVersion:edgeVersion.version
 }));
