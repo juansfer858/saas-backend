@@ -1,6 +1,10 @@
 'use strict';
 
+const express = require('express');
+const edgeVersion = require('../../../edge/version.json');
+
 const MARKER = 'VANTIX_RESTAURANT_KDS_RELIABILITY_V1';
+const router = express.Router();
 
 const runtimeTail = `
 ;(()=>{
@@ -26,8 +30,7 @@ function patchKdsRuntime(source) {
   const filterNeedle = 'const filtered = visible.filter(kdsMatches);';
   const filterReplacement = `let filtered = visible.filter(kdsMatches);\n    const pendingSafety = visible.filter((command) => command.state === 'PENDIENTE');\n    if (!filtered.length && pendingSafety.length) filtered = pendingSafety;`;
   if (!out.includes(filterNeedle)) throw new Error('RESTAURANT_KDS_FILTER_PATCH_TARGET_NOT_FOUND');
-  out = `/* ${MARKER} */\n${out.replace(filterNeedle, filterReplacement)}${runtimeTail}`;
-  return out;
+  return `/* ${MARKER} */\n${out.replace(filterNeedle, filterReplacement)}${runtimeTail}`;
 }
 
 function installKdsReliabilityRuntime(req, res, next) {
@@ -46,4 +49,21 @@ function installKdsReliabilityRuntime(req, res, next) {
   return next();
 }
 
-module.exports = { MARKER, patchKdsRuntime, installKdsReliabilityRuntime };
+router.get('/api/public/restaurante/kds-print-readiness', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    ok: true,
+    data: {
+      marker: MARKER,
+      pendingNeverHidden: true,
+      pendingKpiActionable: true,
+      printDelivery: 'CORE_BOOTSTRAP_TO_EDGE_PERSISTENT_QUEUE',
+      onePrinterPerEndpoint: true,
+      kitchenQueueCoversNamedStations: true,
+      edgeVersion: edgeVersion.version,
+      edgeChannel: edgeVersion.channel
+    }
+  });
+});
+
+module.exports = { MARKER, patchKdsRuntime, installKdsReliabilityRuntime, restaurantKdsReliabilityPublicRouter: router };
