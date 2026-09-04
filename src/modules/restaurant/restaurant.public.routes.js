@@ -8,6 +8,7 @@ const { restaurantQrOrderWaiterAlertPublicRouter } = require('./restaurant-qr-or
 const { restaurantWaiterDevicePersistencePublicRouter } = require('./restaurant-waiter-device-persistence.public.routes');
 const { restaurantMenuSurfaceSyncPublicRouter, installMenuSurfaceSyncRuntime } = require('./restaurant-menu-surface-sync.public.routes');
 const { installQrCategoryStableRuntime } = require('./restaurant-qr-category-stable.public.routes');
+const { installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
@@ -26,11 +27,6 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
-// Canonical Restaurant public surfaces remain owned by the established shell:
-// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
-// restaurant-control-center.css · restaurant-control-center.js
-// Payment Methods Visibility V2 only appends the tenant-owned payment configuration shortcut
-// to Caja; it does not replace or fork the operational Restaurant shell.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -47,10 +43,9 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
-// This root-mounted public router is evaluated before the generic /app HTML fallback.
-// Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
 router.use(installQrCategoryStableRuntime);
+router.use(installKdsReliabilityRuntime);
 router.use(restaurantMenuSurfaceSyncPublicRouter);
 router.use(installMenuSurfaceSyncRuntime);
 router.use(restaurantPublicRealtimePublisher);
