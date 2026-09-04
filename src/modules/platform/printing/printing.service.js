@@ -54,6 +54,9 @@ async function savePrinter(tenantId, input) {
   if (input.transport === 'LAN' && (!input.host || !input.port)) {
     throw new AppError(400, 'Una impresora LAN requiere host y puerto', 'PRINT_LAN_ENDPOINT_REQUIRED');
   }
+  if (input.transport === 'WINDOWS' && !String(input.host || '').trim()) {
+    throw new AppError(400, 'Una impresora Windows requiere el nombre exacto de la cola instalada', 'PRINT_WINDOWS_QUEUE_REQUIRED');
+  }
   if (String(input.role || '').startsWith(stationService.ROLE_PREFIX)) {
     const stationId = stationService.stationIdFromRole(input.role);
     const station = (await stationService.listStations(tenantId, { includeInactive: false })).find((row) => row.id === stationId);
@@ -62,27 +65,21 @@ async function savePrinter(tenantId, input) {
       throw new AppError(400, 'La estación seleccionada está configurada sólo como KDS', 'PRINT_STATION_KDS_ONLY');
     }
   }
+  const data = {
+    name: input.name,
+    transport: input.transport,
+    role: input.role,
+    host: input.host || null,
+    port: input.transport === 'LAN' ? (input.port || null) : null,
+    format: input.format || null,
+    active: input.active !== false
+  };
   if (input.id) {
     const existing = await prisma.printerEndpoint.findFirst({ where: { id: input.id, tenantId } });
     if (!existing) throw new AppError(404, 'Impresora no encontrada', 'PRINT_PRINTER_NOT_FOUND');
-    return prisma.printerEndpoint.update({
-      where: { id: existing.id },
-      data: { name: input.name, transport: input.transport, role: input.role, host: input.host || null, port: input.port || null, format: input.format || null, active: input.active !== false }
-    });
+    return prisma.printerEndpoint.update({ where: { id: existing.id }, data });
   }
-  return prisma.printerEndpoint.create({
-    data: {
-      printConfigId: config.id,
-      tenantId,
-      name: input.name,
-      transport: input.transport,
-      role: input.role,
-      host: input.host || null,
-      port: input.port || null,
-      format: input.format || null,
-      active: input.active !== false
-    }
-  });
+  return prisma.printerEndpoint.create({ data: { printConfigId: config.id, tenantId, ...data } });
 }
 
 async function listPrinters(tenantId) {
@@ -93,7 +90,7 @@ async function printersForRoles(tenantId, roles) {
   const routeInfo = await stationService.routeInfo(tenantId, roles);
   if (!routeInfo.normalizedQueues.length) return [];
   const printers = await prisma.printerEndpoint.findMany({
-    where: { tenantId, active: true, transport: 'LAN', role: { in: routeInfo.printerRoles } },
+    where: { tenantId, active: true, transport: { in: ['LAN', 'WINDOWS'] }, role: { in: routeInfo.printerRoles } },
     orderBy: { name: 'asc' }
   });
   return printers.map((printer) => {
@@ -132,7 +129,15 @@ async function buildDirectedJobs(tenantId, input) {
         stationRole: role,
         stationId: printer.stationId || null,
         stationName: printer.stationName || null,
-        target: { id: printer.id, name: printer.name, host: printer.host, port: printer.port || 9100, format: printer.format || null },
+        target: {
+          id: printer.id,
+          name: printer.name,
+          transport: printer.transport,
+          host: printer.host,
+          port: printer.transport === 'LAN' ? (printer.port || 9100) : null,
+          queueName: printer.transport === 'WINDOWS' ? printer.host : null,
+          format: printer.format || null
+        },
         job: {
           title: input.title || 'COMANDA',
           lines: group.lines || [],
@@ -144,7 +149,7 @@ async function buildDirectedJobs(tenantId, input) {
     }
   }
   return {
-    spooler: { protocol: 'HTTP_LOCAL_TO_RAW_ESC_POS', defaultUrl: 'http://127.0.0.1:18787/print/batch', internetRequired: false },
+    spooler: { protocol: 'EDGE_RAW_ESC_POS', transports: ['LAN', 'WINDOWS'], internetRequired: false },
     entries,
     missingRoles
   };
