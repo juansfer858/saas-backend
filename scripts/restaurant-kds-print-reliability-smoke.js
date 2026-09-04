@@ -66,12 +66,13 @@ const patchedUi = patchKdsRuntime(baseUi);
 assert.equal(MARKER, 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2');
 assert.match(patchedUi, new RegExp(MARKER));
 assert.match(patchedUi, /pendingSafety/);
-assert.match(patchedUi, /rescuePendingLanes/);
+assert.match(patchedUi, /function kdsRescueHiddenPendingLanes/);
 assert.match(patchedUi, /lane\.style\.removeProperty\('display'\)/);
 assert.match(patchedUi, /delete lane\.dataset\.rkdsHidden/);
 assert.match(patchedUi, /data-vantix-pending-rescued/);
 assert.match(patchedUi, /SIN KDS CONFIGURADO/);
-assert.match(patchedUi, /MutationObserver\(scheduleRescue\)/);
+assert.match(patchedUi, /requestAnimationFrame\(\(\) => requestAnimationFrame\(\(\) => kdsRescueHiddenPendingLanes\(\)\)\)/);
+assert.doesNotMatch(patchedUi, /MutationObserver/);
 assert.match(patchedUi, /data-kds-filter="PENDIENTE"/);
 assert.doesNotThrow(() => new vm.Script(patchedUi), 'final KDS runtime must remain valid JavaScript');
 
@@ -95,6 +96,7 @@ console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   idempotentBootstrapPrint:true,
   pendingNeverHidden:true,
   inlineImportantHideRescued:true,
+  finiteDoubleAnimationFrameRescue:true,
   pendingKpiActionable:true,
   edgeVersion:edgeVersion.version
 }));
