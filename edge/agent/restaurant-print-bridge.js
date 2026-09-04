@@ -34,10 +34,10 @@ function enqueueSnapshotPrintJobs(store, payload) {
   return { queued, existing, received: jobs.length };
 }
 
-function installImmediateRelayTrigger() {
-  const currentFetch = globalThis.fetch;
-  if (typeof currentFetch !== 'function' || currentFetch[FETCH_FLAG]) return;
-  const baseFetch = currentFetch.bind(globalThis);
+function installImmediateRelayTrigger(target = globalThis) {
+  const currentFetch = target?.fetch;
+  if (typeof currentFetch !== 'function' || currentFetch[FETCH_FLAG]) return target;
+  const baseFetch = currentFetch.bind(target);
   const wrapped = async function vantixImmediatePrintFetch(input, options) {
     const response = await baseFetch(input, options);
     const url = String(typeof input === 'string' || input instanceof URL ? input : input?.url || '');
@@ -56,7 +56,8 @@ function installImmediateRelayTrigger() {
     return response;
   };
   Object.defineProperty(wrapped, FETCH_FLAG, { value: true });
-  globalThis.fetch = wrapped;
+  target.fetch = wrapped;
+  return target;
 }
 
 function install() {
