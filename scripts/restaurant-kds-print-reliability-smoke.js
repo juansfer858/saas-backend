@@ -69,11 +69,11 @@ const patchedUi = patchKdsRuntime(baseUi);
 assert.match(patchedUi, new RegExp(MARKER));
 assert.match(patchedUi, /pendingSafety/);
 assert.match(patchedUi, /kds-v2-lane\[hidden\]:has\(\.kds-command-card\)/);
-assert.match(patchedUi, /data-kds-filter=\\"PENDIENTE\\"/);
+assert.match(patchedUi, /data-kds-filter="PENDIENTE"/);
 assert.doesNotThrow(() => new vm.Script(patchedUi), 'final KDS runtime must remain valid JavaScript');
 
 const stationAdmin = fs.readFileSync('src/web/restaurant-kds-stations-admin.js', 'utf8');
-assert.match(stationAdmin, /mode === 'KDS' \|\| row\.mode === 'AMBOS'/, 'station manager still distinguishes screen and printer modes');
+assert.match(stationAdmin, /\['KDS', 'AMBOS'\]\.includes\(String\(row\.mode \|\| ''\)\.toUpperCase\(\)\)/, 'station manager still distinguishes screen and printer modes');
 assert.match(patchedUi, /display:block!important/, 'active command lane must be rescued even when station configuration hides it');
 
 const remoteAgent = fs.readFileSync('src/modules/edge/edge-remote-agent.service.js', 'utf8');
