@@ -1,4 +1,5 @@
 require('./edge-restaurant-print-bridge');
+require('./edge-restaurant-immediate-print-bridge');
 const {prisma}=require('../../config/prisma');
 async function pull(agent,limit=50){
   const orders=await prisma.edgeRemoteOrder.findMany({where:{edgeAgentId:agent.id,tenantId:agent.tenantId,state:'APPROVED',localOperationId:null},orderBy:{creadoEn:'asc'},take:Math.min(Math.max(Number(limit)||50,1),100)});
