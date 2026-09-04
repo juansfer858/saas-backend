@@ -93,7 +93,7 @@ jobs:
           grep -qi '^X-VantixGC-KDS-Reliability: v2-inline-hidden-rescue' /tmp/kds.headers
           grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds.js
           grep -q 'pendingSafety' /tmp/kds.js
-          grep -q 'rescuePendingLanes' /tmp/kds.js
+          grep -q 'kdsRescueHiddenPendingLanes' /tmp/kds.js
           grep -q "lane.style.removeProperty('display')" /tmp/kds.js
           grep -q 'SIN KDS CONFIGURADO' /tmp/kds.js
           echo PRODUCTION_KDS_INLINE_HIDDEN_RESCUE_OK
