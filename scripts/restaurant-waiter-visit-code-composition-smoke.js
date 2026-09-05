@@ -31,9 +31,8 @@ new Function(patched);
 
 assert.match(waiterVisitCodeRuntime, /eventDriven:true/);
 assert.match(waiterVisitCodeRuntime, /noPolling:true/);
-assert.match(waiterVisitCodeRuntime, /noMutationObserver:true/);
-assert.doesNotMatch(waiterVisitCodeRuntime, /setInterval/);
-assert.doesNotMatch(waiterVisitCodeRuntime, /new\s+MutationObserver|MutationObserver\s*\(/);
+assert.match(waiterVisitCodeRuntime, /observerFree:true/);
+assert.doesNotMatch(waiterVisitCodeRuntime, /setInterval|MutationObserver/);
 
 assert.match(publicRoot, /installWaiterVisitCodeRuntime/);
 assert.ok(
