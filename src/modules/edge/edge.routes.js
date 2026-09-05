@@ -3,6 +3,7 @@ const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const { edgeAuth } = require('./edge.auth');
 const { edgeRemotePublicRouter } = require('./edge-remote.public.routes');
+const { edgeReleaseProxyPublicRouter, proxyArtifactUrl } = require('./edge-release-proxy.public.routes');
 const service = require('./edge.service');
 const platform = require('./edge-platform.service');
 const restaurantSync = require('./edge-restaurant-sync.service');
@@ -183,8 +184,9 @@ tenantRouter.post('/alerts/:id/ack', async (req, res, next) => {
   try { res.json({ ok: true, data: await service.acknowledgeAlert(req.tenantId, req.userId, req.params.id) }); } catch (error) { next(error); }
 });
 
-// Customer token routes must be mounted before Edge device authentication.
+// Customer token and release artifact routes must be mounted before Edge device authentication.
 publicRouter.use('/remote', edgeRemotePublicRouter);
+publicRouter.use(edgeReleaseProxyPublicRouter);
 publicRouter.use(edgeAuth);
 publicRouter.get('/ping', (req, res) => res.json({ ok: true, connected: true, serverTime: new Date().toISOString(), edgeAgentId: req.edgeAgent.id, tenantId: req.edgeAgent.tenantId }));
 publicRouter.get('/vertical-manifest', async (req, res, next) => {
@@ -218,7 +220,14 @@ publicRouter.post('/heartbeat', async (req, res, next) => {
   try { res.json({ ok: true, data: await platform.heartbeat(req.edgeAgent, parse(heartbeatSchema, req.body)) }); } catch (error) { next(error); }
 });
 publicRouter.get('/update/manifest', async (req, res, next) => {
-  try { res.json({ ok: true, data: await platform.updateManifest(req.edgeAgent) }); } catch (error) { next(error); }
+  try {
+    const data = await platform.updateManifest(req.edgeAgent);
+    if (data?.updateAvailable && data.deployment?.id && data.release?.sha256) {
+      data.release.artifactUrl = proxyArtifactUrl(req, data.deployment.id, data.release.sha256);
+      data.release.delivery = 'CORE_PROXY_V1';
+    }
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
 });
 publicRouter.post('/update/report', async (req, res, next) => {
   try { res.json({ ok: true, data: await platform.reportDeployment(req.edgeAgent, parse(deploymentReportSchema, req.body)) }); } catch (error) { next(error); }

@@ -11,6 +11,8 @@ const platformUi = read('src/web/platform-edge-rollout.js');
 const platformPublic = read('src/modules/platform/saas/platform-edge-rollout.public.routes.js');
 const platformRoutes = read('src/modules/platform/saas/platform.routes.js');
 const platformService = read('src/modules/platform/saas/platform-edge-rollout.service.js');
+const edgeRoutes = read('src/modules/edge/edge.routes.js');
+const edgeArtifactProxy = read('src/modules/edge/edge-release-proxy.public.routes.js');
 const coreRoutes = read('src/routes/core.routes.js');
 const restaurantPublic = read('src/modules/restaurant/restaurant.public.routes.js');
 
@@ -43,6 +45,19 @@ assert.match(platformService, /cancelActiveDeployment/);
 assert.match(platformService, /state: 'CANCELED'/);
 assert.match(platformService, /desiredVersion: null, updaterState: 'IDLE'/);
 assert.match(platformService, /EDGE_DEPLOYMENT_CANCEL/);
+
+assert.match(edgeRoutes, /edgeReleaseProxyPublicRouter/);
+assert.match(edgeRoutes, /proxyArtifactUrl/);
+assert.match(edgeRoutes, /delivery = 'CORE_PROXY_V1'/);
+assert.ok(edgeRoutes.indexOf('publicRouter.use(edgeReleaseProxyPublicRouter)') < edgeRoutes.indexOf('publicRouter.use(edgeAuth)'), 'artifact proxy must be reachable by the legacy updater before Edge auth');
+assert.match(edgeArtifactProxy, /CORE_PROXY_V1/);
+assert.match(edgeArtifactProxy, /EDGE_ARTIFACT_SIGNATURE_INVALID/);
+assert.match(edgeArtifactProxy, /ALLOWED_ARTIFACT_HOSTS/);
+assert.match(edgeArtifactProxy, /github\.com/);
+assert.match(edgeArtifactProxy, /Readable\.fromWeb/);
+assert.match(edgeArtifactProxy, /edgeDeployment\.findUnique/);
+assert.match(edgeArtifactProxy, /edgeRelease\.findUnique/);
+
 assert.match(platformUi, /Actualizaciones Edge/);
 assert.match(platformUi, /Actualizar todos/);
 assert.match(platformUi, /Publicar desde Master/);
@@ -87,6 +102,8 @@ console.log(JSON.stringify({
   platformUi: 'CENTRAL_ROLLOUT_V4_UPDATE_CHECK',
   deployNowRelay: true,
   deploymentAutoRefresh: true,
+  edgeArtifactDelivery: 'CORE_PROXY_V1',
+  directGithubDependencyRemovedFromEdgeManifest: true,
   stuckDeploymentRecovery: true,
   tenantHardware: 'PRESERVED',
   blockedTenantRoutes: 3
