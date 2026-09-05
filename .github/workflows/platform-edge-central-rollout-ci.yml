@@ -37,6 +37,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
       - name: Verify tenant cannot manage Edge releases
         run: node scripts/platform-edge-central-rollout-smoke.js
       - name: Verify bundled Edge releases auto-register safely
