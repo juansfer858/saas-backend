@@ -1,0 +1,37 @@
+name: Restaurant Print Template CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-print-template*'
+      - 'src/modules/edge/edge-restaurant-print-bridge.js'
+      - 'src/routes/core.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'edge/print-spooler/escpos.js'
+      - 'edge/version.json'
+      - 'scripts/restaurant-print-template-editor-smoke.js'
+      - '.github/workflows/restaurant-print-template-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate configurable Restaurant print templates
+        run: node scripts/restaurant-print-template-editor-smoke.js
+      - name: Validate ESC-POS spooler
+        run: node scripts/escpos-spooler-smoke.js
+      - name: Validate Windows USB printer contract
+        run: node scripts/restaurant-windows-usb-printer-smoke.js
