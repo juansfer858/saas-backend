@@ -12,6 +12,7 @@ const { restaurantMenuSurfaceSyncPublicRouter, installMenuSurfaceSyncRuntime } =
 const { installQrCategoryStableRuntime } = require('./restaurant-qr-category-stable.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { installKdsWindowsPrinterRuntime } = require('./restaurant-kds-windows-printer.public.routes');
+const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
@@ -57,6 +58,8 @@ router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
 router.use(restaurantKdsReliabilityPublicRouter);
+router.use(restaurantKdsWindowsPrinterAssetPublicRouter);
+router.use(installKdsWindowsPrinterAsset);
 router.use(installQrCategoryStableRuntime);
 router.use(installKdsReliabilityRuntime);
 router.use(installKdsWindowsPrinterRuntime);
