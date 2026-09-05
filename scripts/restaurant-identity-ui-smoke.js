@@ -79,7 +79,11 @@ assert.ok(publicRoutes.includes('identity.publicQrContext'));
 assert.ok(publicRoutes.includes("restaurant-theme.css"));
 assert.ok(publicRoutes.includes('/autorizar'));
 assert.ok(publicRoutes.includes('x-vantix-restaurant-visit'));
-assert.ok(visitUi.includes('Confirma que estás en esta mesa'));
+assert.ok(visitUi.includes('VANTIX_QR_DEFERRED_AUTH_V28'));
+assert.ok(visitUi.includes('Antes de enviar, confirma la mesa'));
+assert.ok(visitUi.includes('CONFIRMAR Y ENVIAR A COCINA'));
+assert.ok(visitUi.includes('codeAtOrderSubmit:true'));
+assert.ok(visitUi.includes('backendAuthorizationPreserved:true'));
 assert.ok(visitUi.includes('Persona ${seat}'));
 assert.ok(paymentsUi.includes('CUENTA SEPARADA / PAGOS POR PERSONA'));
 assert.ok(paymentsUi.includes('EFECTIVO'));
@@ -100,7 +104,7 @@ assert.ok(docs.includes('No existe un segundo mapa de roles de frontend'));
 new Function(visitUi);
 new Function(paymentsUi);
 
-console.log('RESTAURANT IDENTITY + PANEL TYPOGRAPHY + BALANCED CAJA + SECURE VISIT UI SMOKE OK');
+console.log('RESTAURANT IDENTITY + PANEL TYPOGRAPHY + BALANCED CAJA + DEFERRED SECURE VISIT UI SMOKE OK');
 console.log(JSON.stringify({
   sharedTheme: true,
   panelTypographyEverywhere: true,
@@ -109,6 +113,7 @@ console.log(JSON.stringify({
   kdsPolling: true,
   qrOriginMarker: true,
   qrVisitAuthorizationUi: true,
+  qrVisitAuthorizationDeferredUntilSubmit: true,
   splitPaymentsUi: true,
   rbacDrivenRail: true,
   liveCashDifference: true,

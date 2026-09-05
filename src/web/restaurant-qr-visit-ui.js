@@ -3,9 +3,12 @@
   if (!qrToken) return;
 
   const STORAGE_KEY = `vantixgc_restaurant_visit_${qrToken}`;
+  const DEFERRED_AUTH_MARKER = 'VANTIX_QR_DEFERRED_AUTH_V28';
   const nativeFetch = window.fetch.bind(window);
   let visitState = null;
   let selectedSeat = 1;
+  let authorizationPromise = null;
+  let authorizationResolve = null;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
   const storedToken = () => String(localStorage.getItem(STORAGE_KEY) || '').trim();
@@ -18,18 +21,62 @@
     return '';
   }
 
+  function requestMethod(input, init) {
+    return String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  }
+
+  function isOrderSubmit(input, init) {
+    return requestMethod(input, init) === 'POST' && targetUrl(input).includes(`${qrApiPrefix}/pedidos`);
+  }
+
+  function optionsWithVisitToken(input, init = {}) {
+    const token = storedToken();
+    if (!token) return init;
+    const headers = new Headers(input instanceof Request ? input.headers : undefined);
+    new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
+    headers.set('x-vantix-restaurant-visit', token);
+    return { ...init, headers };
+  }
+
+  function settleAuthorization(result) {
+    const resolve = authorizationResolve;
+    authorizationPromise = null;
+    authorizationResolve = null;
+    if (resolve) resolve(result);
+  }
+
+  function cancelledOrderResponse() {
+    return new Response(JSON.stringify({
+      ok:false,
+      error:{
+        code:'RESTAURANT_QR_VISIT_CANCELLED',
+        message:'Tu pedido sigue guardado. Cuando quieras enviarlo, toca Enviar a cocina y pide el código al mesero.'
+      }
+    }), { status:409, headers:{ 'Content-Type':'application/json' } });
+  }
+
   window.fetch = async (input, init = {}) => {
     const url = targetUrl(input);
     const shouldAttach = url.includes(qrApiPrefix);
-    let options = init;
-    if (shouldAttach && storedToken()) {
-      const headers = new Headers(input instanceof Request ? input.headers : undefined);
-      new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
-      headers.set('x-vantix-restaurant-visit', storedToken());
-      options = { ...init, headers };
+    const orderSubmit = shouldAttach && isOrderSubmit(input, init);
+
+    if (orderSubmit && !storedToken()) {
+      const authorization = await ensureOrderAuthorization();
+      if (authorization === 'cancelled') return cancelledOrderResponse();
     }
-    const response = await nativeFetch(input, options);
-    if (shouldAttach && response.status === 401 && (url.includes('/pedidos') || url.includes('/persona'))) {
+
+    let response = await nativeFetch(input, shouldAttach ? optionsWithVisitToken(input, init) : init);
+
+    if (orderSubmit && response.status === 401) {
+      forgetToken();
+      await refreshVisit().catch(() => {});
+      const authorization = await ensureOrderAuthorization();
+      if (authorization === 'authorized') {
+        response = await nativeFetch(input, optionsWithVisitToken(input, init));
+      } else if (authorization === 'cancelled') {
+        return cancelledOrderResponse();
+      }
+    } else if (shouldAttach && response.status === 401 && url.includes('/persona')) {
       forgetToken();
       setTimeout(() => refreshVisit().catch(() => {}), 0);
     }
@@ -49,6 +96,7 @@
       .qrv-visit-seat-title{margin:19px 0 8px;font-size:14px;font-weight:900}.qrv-visit-seats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
       .qrv-visit-seat{min-height:58px;border:2px solid #dccdb9;border-radius:14px;background:#fff;color:#201c18;font-size:16px;font-weight:900}.qrv-visit-seat.active{border-color:#ef6f24;background:#fff0e5;color:#b8430b}
       .qrv-visit-submit{width:100%;min-height:64px;margin-top:18px;border:0;border-radius:15px;background:#ef6f24;color:#fff;font-size:18px;font-weight:900}.qrv-visit-submit:disabled{opacity:.5}
+      .qrv-visit-secondary{width:100%;min-height:48px;margin-top:8px;border:1px solid #d8c9b6;border-radius:13px;background:#fff;color:#51483f;font-weight:900}
       .qrv-visit-error{margin-top:12px;padding:11px 13px;border-radius:12px;background:#fff1f0;color:#991b1b;font-weight:800;line-height:1.35}
       .qrv-visit-note{display:flex;gap:9px;margin-top:14px;padding:11px;border-radius:12px;background:#f3eee6;color:#62584e;font-size:13px;line-height:1.4}
       .qrv-visit-person{display:flex;align-items:center;gap:8px;margin:10px 0 0;padding:9px 12px;border:1px solid #c9d9d1;border-radius:13px;background:#eef8f2;color:#255a48;font-weight:900}
@@ -77,20 +125,24 @@
   function showAuthorization() {
     ensureStyles();
     removeOverlay();
-    if (!visitState?.open) return;
+    if (!visitState?.open) {
+      settleAuthorization('unavailable');
+      return;
+    }
     const overlay = document.createElement('div');
     overlay.id = 'restaurantQrVisitOverlay';
     overlay.className = 'qrv-visit-overlay';
     overlay.innerHTML = `<section class="qrv-visit-card" role="dialog" aria-modal="true" aria-labelledby="visitTitle">
-      <h2 id="visitTitle">Confirma que estás en esta mesa</h2>
-      <p>El QR es permanente, pero cada visita tiene un código nuevo. Pídeselo al mesero; así nadie puede hacer pedidos desde fuera del restaurante.</p>
+      <h2 id="visitTitle">Antes de enviar, confirma la mesa</h2>
+      <p>Tu pedido ya está listo. Pídele al mesero el código de 4 dígitos. Sólo lo necesitamos ahora para enviar el pedido a Cocina/Barra.</p>
       <label class="qrv-visit-code-label">Código de 4 dígitos
         <input id="restaurantVisitCode" class="qrv-visit-code" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]*" placeholder="••••" aria-label="Código de 4 dígitos">
       </label>
       ${Number(visitState.guestCount || 1) > 1 ? `<div class="qrv-visit-seat-title">¿Quién eres en la mesa?</div><div class="qrv-visit-seats">${seatButtons(visitState.guestCount)}</div>` : ''}
-      <button id="restaurantVisitAuthorize" type="button" class="qrv-visit-submit">ENTRAR A ESTA MESA</button>
+      <button id="restaurantVisitAuthorize" type="button" class="qrv-visit-submit">CONFIRMAR Y ENVIAR A COCINA</button>
+      <button id="restaurantVisitCancel" type="button" class="qrv-visit-secondary">VOLVER A MI PEDIDO</button>
       <div id="restaurantVisitError" hidden></div>
-      <div class="qrv-visit-note"><span aria-hidden="true">🔒</span><span>Esta autorización sólo funciona durante la apertura actual de la mesa. Al cerrar la cuenta deja de servir automáticamente.</span></div>
+      <div class="qrv-visit-note"><span aria-hidden="true">🔒</span><span>El código autoriza este teléfono sólo durante la apertura actual de la mesa. Al cerrar la cuenta deja de servir automáticamente.</span></div>
     </section>`;
     document.body.appendChild(overlay);
     bindSeatButtons(overlay);
@@ -116,13 +168,31 @@
         selectedSeat = Number(body.data.seatNumber || 1);
         removeOverlay();
         renderPersonBadge();
+        settleAuthorization('authorized');
       } catch (error) {
         errorNode.hidden = false; errorNode.className = 'qrv-visit-error'; errorNode.textContent = error.message;
-        submit.disabled = false; submit.textContent = 'ENTRAR A ESTA MESA';
+        submit.disabled = false; submit.textContent = 'CONFIRMAR Y ENVIAR A COCINA';
       }
     };
     submit.addEventListener('click', authorize);
+    overlay.querySelector('#restaurantVisitCancel').addEventListener('click', () => {
+      removeOverlay();
+      settleAuthorization('cancelled');
+    });
     input?.addEventListener('keydown', (event) => { if (event.key === 'Enter') authorize(); });
+  }
+
+  async function ensureOrderAuthorization() {
+    if (authorizationPromise) return authorizationPromise;
+    if (storedToken() && visitState?.authorized) return 'authorized';
+
+    await refreshVisit().catch(() => {});
+    if (storedToken() && visitState?.authorized) return 'authorized';
+    if (!visitState?.open) return 'unavailable';
+
+    authorizationPromise = new Promise((resolve) => { authorizationResolve = resolve; });
+    showAuthorization();
+    return authorizationPromise;
   }
 
   function showSeatChange() {
@@ -136,7 +206,7 @@
       <p>Los productos que agregues desde este teléfono quedarán asociados a esa persona para facilitar la cuenta separada.</p>
       <div class="qrv-visit-seats">${seatButtons(visitState?.guestCount || 1)}</div>
       <button id="restaurantVisitSaveSeat" class="qrv-visit-submit" type="button">GUARDAR PERSONA</button>
-      <button id="restaurantVisitCancelSeat" style="width:100%;min-height:48px;margin-top:8px;border:0;background:transparent;font-weight:900" type="button">Cancelar</button>
+      <button id="restaurantVisitCancelSeat" class="qrv-visit-secondary" type="button">Cancelar</button>
       <div id="restaurantVisitError" hidden></div>
     </section>`;
     document.body.appendChild(overlay);
@@ -183,13 +253,28 @@
     visitState = body.data || {};
     if (visitState.authorized) {
       selectedSeat = Number(visitState.seatNumber || 1);
-      removeOverlay(); renderPersonBadge();
+      removeOverlay();
+      renderPersonBadge();
+      settleAuthorization('authorized');
     } else {
       if (storedToken()) forgetToken();
       document.getElementById('restaurantVisitPerson')?.remove();
-      if (visitState.open) showAuthorization(); else removeOverlay();
+      if (!visitState.open) {
+        removeOverlay();
+        settleAuthorization('unavailable');
+      } else if (!authorizationPromise) {
+        removeOverlay();
+      }
     }
   }
+
+  window.VantixGCQrDeferredAuthorizationV28 = Object.freeze({
+    marker:DEFERRED_AUTH_MARKER,
+    browseBeforeCode:true,
+    codeAtOrderSubmit:true,
+    automaticOrderResume:true,
+    backendAuthorizationPreserved:true
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => refreshVisit().catch(() => {}), { once:true });
   else refreshVisit().catch(() => {});

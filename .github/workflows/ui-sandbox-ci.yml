@@ -30,6 +30,8 @@ jobs:
         run: node scripts/ui-sandbox-smoke.js
       - name: Validate Restaurant QR mobile viewport fit
         run: node scripts/restaurant-qr-mobile-fit-smoke.js
+      - name: Validate deferred Restaurant QR authorization at order submit
+        run: node scripts/restaurant-qr-deferred-auth-v28-smoke.js
       - name: Validate real read-only restaurant control preview
         run: node scripts/restaurant-control-preview-smoke.js
       - name: Validate operational restaurant control center
