@@ -60,6 +60,7 @@ const edgeReleaseSchema = z.object({
 const edgeRolloutSchema = z.object({ scope: z.enum(['CHANNEL','ALL']).optional().default('CHANNEL') });
 const edgeChannelSchema = z.object({ channel: z.enum(['PILOT','STABLE']) });
 const edgeDeploySchema = z.object({ releaseId: z.string().uuid() });
+const edgeCancelSchema = z.object({ reason: z.string().trim().max(1000).optional().nullable() });
 
 publicRouter.post('/login', async (req, res, next) => {
   try {
@@ -121,6 +122,12 @@ adminRouter.patch('/edge/installations/:edgeAgentId/channel', async (req, res, n
 adminRouter.post('/edge/installations/:edgeAgentId/deploy', async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await edgeRollout.deployOne(req.platformAdmin.id, req.params.edgeAgentId, parse(edgeDeploySchema, req.body || {}).releaseId) }); }
   catch (error) { next(error); }
+});
+adminRouter.post('/edge/installations/:edgeAgentId/cancel-deployment', async (req, res, next) => {
+  try {
+    const input = parse(edgeCancelSchema, req.body || {});
+    res.json({ ok: true, data: await edgeRollout.cancelActiveDeployment(req.platformAdmin.id, req.params.edgeAgentId, input.reason || null) });
+  } catch (error) { next(error); }
 });
 adminRouter.get('/tenants/:tenantId/verticals', async (req, res, next) => {
   try { res.json({ ok: true, data: await verticalEntitlements.listTenantEntitlements(req.params.tenantId) }); }

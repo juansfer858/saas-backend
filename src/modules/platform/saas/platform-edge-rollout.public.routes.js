@@ -25,11 +25,11 @@ async function sendPlatformAdmin(_req, res, next) {
     const html = await fs.promises.readFile(platformAdminHtmlPath, 'utf8');
     const scripts = [
       '<script src="/platform/restaurant-fiscal-governance.js?v=platform-only-v1"></script>',
-      '<script src="/platform/edge-rollout.js?v=platform-edge-central-v2"></script>'
+      '<script src="/platform/edge-rollout.js?v=platform-edge-central-v3"></script>'
     ].join('');
     const rendered = html.includes('</body>') ? html.replace('</body>', `${scripts}</body>`) : `${html}${scripts}`;
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Platform-Edge', 'CENTRAL_ROLLOUT_V2');
+    res.set('X-VantixGC-Platform-Edge', 'CENTRAL_ROLLOUT_V3_RECOVERY');
     res.type('html').send(rendered);
   } catch (error) { next(error); }
 }
