@@ -120,6 +120,40 @@ async function deployOne(superAdminId, edgeAgentId, releaseId) {
   return { release, installation, result };
 }
 
+async function cancelActiveDeployment(superAdminId, edgeAgentId, reason = null) {
+  const installation = await prisma.edgeInstallation.findUnique({ where: { edgeAgentId } });
+  if (!installation) throw new AppError(404, 'Instalación Edge no encontrada', 'PLATFORM_EDGE_INSTALLATION_NOT_FOUND');
+  const active = await prisma.edgeDeployment.findFirst({
+    where: { tenantId: installation.tenantId, edgeAgentId, state: { in: ACTIVE_STATES } },
+    orderBy: { requestedAt: 'desc' }
+  });
+  if (!active) return { status: 'NO_ACTIVE_DEPLOYMENT', installation };
+  const message = String(reason || 'Cancelado desde SaaS Master para recuperar un despliegue atascado').slice(0, 1000);
+  const result = await prisma.$transaction(async (tx) => {
+    const deployment = await tx.edgeDeployment.update({
+      where: { id: active.id },
+      data: {
+        state: 'CANCELED',
+        finishedAt: new Date(),
+        errorCode: 'PLATFORM_CANCELED',
+        errorMessage: message
+      }
+    });
+    const updatedInstallation = await tx.edgeInstallation.update({
+      where: { edgeAgentId },
+      data: { desiredVersion: null, updaterState: 'IDLE' }
+    });
+    await audit(superAdminId, 'EDGE_DEPLOYMENT_CANCEL', 'EDGE_DEPLOYMENT', deployment.id, installation.tenantId, {
+      edgeAgentId,
+      targetVersion: deployment.targetVersion,
+      previousState: active.state,
+      reason: message
+    }, tx);
+    return { deployment, installation: updatedInstallation };
+  });
+  return { status: 'CANCELED', ...result };
+}
+
 async function setInstallationChannel(superAdminId, edgeAgentId, channel) {
   const normalized = String(channel || '').toUpperCase();
   if (!CHANNELS.has(normalized)) throw new AppError(400, 'Canal Edge inválido', 'PLATFORM_EDGE_CHANNEL_INVALID');
@@ -136,5 +170,6 @@ module.exports = {
   createGlobalRelease,
   rolloutRelease,
   deployOne,
+  cancelActiveDeployment,
   setInstallationChannel
 };
