@@ -185,15 +185,34 @@
     return `<div class="rkds-table-wrap"><table class="rkds-table"><thead><tr><th>Nombre</th><th>Recibe</th><th>Trabaja con</th><th>Estado</th><th></th></tr></thead><tbody>${state.rows.map((row) => `<tr><td><b>${h(row.name)}</b></td><td>${h(queueLabel(row.queue))}</td><td>${h(modeLabel(row.mode))}</td><td><span class="rkds-pill ${row.active ? '' : 'off'}">${row.active ? 'Activa' : 'Inactiva'}</span></td><td><div class="rkds-actions"><button type="button" class="rkds-admin-btn" data-rkds-edit="${h(row.id)}">Editar</button>${row.active ? `<button type="button" class="rkds-admin-btn" data-rkds-off="${h(row.id)}">Retirar</button>` : ''}</div></td></tr>`).join('')}</tbody></table></div>`;
   }
 
+  function openPrintTemplatesFromManager(dialog) {
+    dialog?.close();
+    let frames = 30;
+    const openWhenReady = () => {
+      if (typeof window.RestaurantPrintTemplates?.open === 'function') {
+        window.RestaurantPrintTemplates.open();
+        return;
+      }
+      frames -= 1;
+      if (frames > 0) {
+        requestAnimationFrame(openWhenReady);
+        return;
+      }
+      window.dispatchEvent(new Event('vantix:restaurant-print-template:open'));
+    };
+    requestAnimationFrame(openWhenReady);
+  }
+
   async function openManager() {
     await loadRows().catch(() => {});
     document.querySelector('#restaurantKdsStationManager')?.remove();
     const dialog = document.createElement('dialog');
     dialog.id = 'restaurantKdsStationManager';
     dialog.className = 'rkds-dialog';
-    dialog.innerHTML = `<div class="rkds-shell"><div class="rkds-head"><div><h2>Gestionar KDS / estaciones</h2><p>Configuración propia del restaurante. No se crea ninguna estación por defecto.</p></div><button type="button" class="rkds-admin-btn" data-rkds-close>Cerrar</button></div><div class="rkds-actions"><button type="button" class="rkds-admin-btn primary" data-rkds-new>+ Nueva estación</button></div><div data-rkds-list>${managerRows()}</div></div>`;
+    dialog.innerHTML = `<div class="rkds-shell"><div class="rkds-head"><div><h2>Gestionar KDS / estaciones</h2><p>Configuración propia del restaurante. No se crea ninguna estación por defecto.</p></div><button type="button" class="rkds-admin-btn" data-rkds-close>Cerrar</button></div><div class="rkds-actions"><button type="button" class="rkds-admin-btn" data-rkds-print-template>🧾 Plantillas de impresión</button><button type="button" class="rkds-admin-btn primary" data-rkds-new>+ Nueva estación</button></div><div data-rkds-list>${managerRows()}</div></div>`;
     document.body.appendChild(dialog);
     dialog.querySelector('[data-rkds-close]')?.addEventListener('click', () => dialog.close());
+    dialog.querySelector('[data-rkds-print-template]')?.addEventListener('click', () => openPrintTemplatesFromManager(dialog));
     dialog.querySelector('[data-rkds-new]')?.addEventListener('click', () => stationDialog());
     dialog.querySelectorAll('[data-rkds-edit]').forEach((button) => button.addEventListener('click', () => stationDialog(button.dataset.rkdsEdit)));
     dialog.querySelectorAll('[data-rkds-off]').forEach((button) => button.addEventListener('click', async () => {
