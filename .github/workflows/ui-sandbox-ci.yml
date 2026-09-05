@@ -38,5 +38,7 @@ jobs:
         run: node scripts/restaurant-cash-compact-v30-smoke.js
       - name: Validate Restaurant cash shift recovery from Core
         run: node scripts/restaurant-cash-shift-recovery-smoke.js
+      - name: Validate waiter QR visit code composition
+        run: node scripts/restaurant-waiter-visit-code-composition-smoke.js
       - name: Validate isolated Super Core sidebar preview
         run: node scripts/super-core-sidebar-preview-smoke.js
