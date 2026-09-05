@@ -117,7 +117,7 @@ for (const token of [
   'id="reviewButton"',
   'id="helpPanel"',
   'Pedir es muy fácil',
-  'menu-list-v4'
+  'mobile-compact-v29'
 ]) assert.ok(customer.includes(token), `Restaurant QR customer shell must contain ${token}`);
 for (const token of [
   "label:'★ MÁS PEDIDOS'",
