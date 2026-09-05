@@ -24,7 +24,10 @@ function commandLines(command) {
     .filter((item) => Number(item?.quantity || 0) > 0 && String(item?.description || '').trim())
     .map((item) => ({
       quantity: Number(item.quantity),
-      name: `${String(item.description).trim()}${item.notes ? ` · ${String(item.notes).trim()}` : ''}${item.seatNumber ? ` · P${Number(item.seatNumber)}` : ''}`
+      name: String(item.description).trim(),
+      note: item.notes ? String(item.notes).trim() : null,
+      seatNumber: item.seatNumber ? Number(item.seatNumber) : null,
+      seatLabel: item.seatNumber ? `PERSONA ${Number(item.seatNumber)}` : null
     }));
 }
 
@@ -65,7 +68,13 @@ function buildCommandPrintJobs(commands, printers) {
           format: printer.format || null
         },
         payload: {
+          template: 'RESTAURANT_COMMAND_LARGE_V2',
           title: `COMANDA · ${command.table?.name || command.table?.code || 'Mesa'}`,
+          tableLabel: String(command.table?.name || command.table?.code || 'Mesa').trim(),
+          stationLabel: queue,
+          createdAt: command.createdAt || null,
+          traceLabel: `COMANDA ${String(command.id).slice(0, 8).toUpperCase()}`,
+          paperFormat: printer.format || 'TERMICA_80',
           lines,
           footer: `${queue} · ${String(command.state || 'PENDIENTE').replaceAll('_', ' ')}`,
           copies: 1,
