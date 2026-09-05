@@ -90,10 +90,15 @@ class EdgeUpdater {
   }
 
   async validateStagedRelease(staged) {
+    // These files are part of the managed boot contract. Validate them before
+    // changing edge/current so a malformed ZIP can never take the live agent offline.
     const required = [
       path.join(staged, 'agent', 'server.js'),
       path.join(staged, 'agent', 'store.js'),
-      path.join(staged, 'print-spooler', 'escpos.js')
+      path.join(staged, 'agent', 'universal-entry.js'),
+      path.join(staged, 'runtime', 'vertical-registry.js'),
+      path.join(staged, 'print-spooler', 'escpos.js'),
+      path.join(staged, 'version.json')
     ];
     for (const file of required) {
       try { await fsp.access(file, fs.constants.R_OK); }
