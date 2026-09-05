@@ -1,5 +1,5 @@
 {
-  "version": "2.1.5-runtime-fix.1",
+  "version": "2.1.6-supervisor-restart.1",
   "channel": "PILOT",
   "product": "VantixGC Restaurantes",
   "runtime": "Edge Workspace"
