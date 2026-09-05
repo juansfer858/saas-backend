@@ -20,6 +20,7 @@ const { edgeTenantUpdateGuard } = require('../modules/edge/edge-tenant-update-gu
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
+const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
 const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant-waiter-call.routes');
@@ -67,6 +68,7 @@ router.use('/restaurante', restaurantWaiterCallRouter);
 router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
+router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 router.use('/restaurante', restaurantRouter);
 
 module.exports = { coreRouter: router };
