@@ -16,6 +16,7 @@ const { payrollRouter } = require('../modules/platform/payroll/payroll.routes');
 const { printingRouter } = require('../modules/platform/printing/printing.routes');
 const { rbacRouter } = require('../modules/platform/rbac/rbac.routes');
 const { edgeTenantRouter } = require('../modules/edge/edge.routes');
+const { edgeTenantUpdateGuard } = require('../modules/edge/edge-tenant-update-guard');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
@@ -55,7 +56,7 @@ router.use('/dian', dianRouter);
 router.use('/nomina', payrollRouter);
 router.use('/impresion', printingRouter);
 router.use('/seguridad', rbacRouter);
-router.use('/edge', edgeTenantRouter);
+router.use('/edge', edgeTenantUpdateGuard, edgeTenantRouter);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
 // Extensions first so they can add isolated Restaurant capabilities while every other
