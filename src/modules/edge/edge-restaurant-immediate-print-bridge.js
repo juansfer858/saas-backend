@@ -2,8 +2,10 @@
 
 const { prisma } = require('../../config/prisma');
 const restaurant = require('../restaurant/restaurant.service');
+const identity = require('../restaurant/restaurant-identity.service');
 
 const INSTALL_FLAG = Symbol.for('vantixgc.restaurant.immediate.print.bridge.v1');
+const DRAFT_INSTALL_FLAG = Symbol.for('vantixgc.restaurant.immediate.print.bridge.draft.v1');
 const RELAY_ACTION = 'PRINT_QUEUE';
 const ONLINE_WINDOW_MS = 90000;
 
@@ -54,14 +56,29 @@ async function requestImmediatePrint(tenantId, order, client = prisma) {
 }
 
 function install() {
-  if (restaurant[INSTALL_FLAG]) return restaurant;
-  const original = restaurant.placeWaiterOrder.bind(restaurant);
-  restaurant.placeWaiterOrder = async function placeWaiterOrderWithImmediatePrint(tenantId, user, sessionId, input) {
-    const order = await original(tenantId, user, sessionId, input);
-    try { await requestImmediatePrint(tenantId, order); } catch {}
-    return order;
-  };
-  Object.defineProperty(restaurant, INSTALL_FLAG, { value: true });
+  if (!restaurant[INSTALL_FLAG]) {
+    const original = restaurant.placeWaiterOrder.bind(restaurant);
+    restaurant.placeWaiterOrder = async function placeWaiterOrderWithImmediatePrint(tenantId, user, sessionId, input) {
+      const order = await original(tenantId, user, sessionId, input);
+      try { await requestImmediatePrint(tenantId, order); } catch {}
+      return order;
+    };
+    Object.defineProperty(restaurant, INSTALL_FLAG, { value: true });
+  }
+
+  // The current Waiter PWA sends incremental drafts through identity.sendWaiterDraft().
+  // Keep the same immediate PRINT_QUEUE trigger on that path as on the legacy
+  // placeWaiterOrder() path so a command marked ENVIADO is physically dispatched.
+  if (!identity[DRAFT_INSTALL_FLAG]) {
+    const originalDraftSend = identity.sendWaiterDraft.bind(identity);
+    identity.sendWaiterDraft = async function sendWaiterDraftWithImmediatePrint(tenantId, user, sessionId) {
+      const order = await originalDraftSend(tenantId, user, sessionId);
+      try { await requestImmediatePrint(tenantId, order); } catch {}
+      return order;
+    };
+    Object.defineProperty(identity, DRAFT_INSTALL_FLAG, { value: true });
+  }
+
   return restaurant;
 }
 
@@ -69,6 +86,7 @@ install();
 
 module.exports = {
   INSTALL_FLAG,
+  DRAFT_INSTALL_FLAG,
   RELAY_ACTION,
   ONLINE_WINDOW_MS,
   commandIdsFromOrder,

@@ -6,10 +6,12 @@ process.env.EDGE_PORT ||= '8788';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {
+  DRAFT_INSTALL_FLAG,
   RELAY_ACTION,
   commandIdsFromOrder,
   requestImmediatePrint
 } = require('../src/modules/edge/edge-restaurant-immediate-print-bridge');
+const identity = require('../src/modules/restaurant/restaurant-identity.service');
 const {
   installImmediateRelayTrigger,
   RELAY_POLL_FRAGMENT
@@ -19,6 +21,8 @@ async function main() {
   const order = { id:'order-1', commands:[{ id:'cmd-kitchen-1' }, { id:'cmd-bar-1' }] };
   assert.deepEqual(commandIdsFromOrder(order), ['cmd-kitchen-1','cmd-bar-1']);
   assert.equal(RELAY_ACTION, 'PRINT_QUEUE');
+  assert.equal(identity[DRAFT_INSTALL_FLAG], true, 'Current waiter draft send path must be patched for immediate printing');
+  assert.match(identity.sendWaiterDraft.name, /sendWaiterDraftWithImmediatePrint/);
 
   const created = [];
   const fakeClient = {
@@ -94,8 +98,14 @@ async function main() {
   assert.equal(passiveCalls.some((row) => row.url.includes('/api/sync-now')), false, 'non-print relay must not force restaurant sync');
 
   const remoteAgent = fs.readFileSync('src/modules/edge/edge-remote-agent.service.js','utf8');
+  const immediateBridge = fs.readFileSync('src/modules/edge/edge-restaurant-immediate-print-bridge.js','utf8');
+  const restaurantRoutes = fs.readFileSync('src/modules/restaurant/restaurant.routes.js','utf8');
   const edgeBridge = fs.readFileSync('edge/agent/restaurant-print-bridge.js','utf8');
   assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
+  assert.match(restaurantRoutes, /pedido-borrador\/enviar/);
+  assert.match(restaurantRoutes, /identity\.sendWaiterDraft/);
+  assert.match(immediateBridge, /identity\.sendWaiterDraft = async function sendWaiterDraftWithImmediatePrint/);
+  assert.match(immediateBridge, /requestImmediatePrint\(tenantId, order\)/);
   assert.match(edgeBridge, /printJobExists/);
   assert.match(edgeBridge, /\/api\/sync-now/);
   assert.match(edgeBridge, /WINDOWS_PRINTERS/);
@@ -106,7 +116,8 @@ async function main() {
   assert.equal(version.channel, 'PILOT');
 
   console.log('RESTAURANT WAITER IMMEDIATE PRINT SMOKE OK', JSON.stringify({
-    waiterSendCreatesRelay:true,
+    legacyWaiterSendCreatesRelay:true,
+    incrementalDraftSendCreatesRelay:true,
     relayAction:'PRINT_QUEUE',
     edgeForcesLocalSyncNow:true,
     windowsUsbRelay:true,
