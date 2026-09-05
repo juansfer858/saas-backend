@@ -3,6 +3,7 @@
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
+const bundledReleaseSync = require('./platform-edge-bundled-release-sync.service');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', '..', 'web');
@@ -22,14 +23,20 @@ router.get('/platform/edge-rollout.js', (_req, res) => {
 
 async function sendPlatformAdmin(_req, res, next) {
   try {
+    try {
+      const sync = await bundledReleaseSync.ensureBundledGlobalReleases();
+      if (sync.conflicts.length) console.warn('[edge-bundled-release-sync] conflicts', sync.conflicts);
+    } catch (error) {
+      console.warn('[edge-bundled-release-sync] skipped', error?.code || error?.message || error);
+    }
     const html = await fs.promises.readFile(platformAdminHtmlPath, 'utf8');
     const scripts = [
       '<script src="/platform/restaurant-fiscal-governance.js?v=platform-only-v1"></script>',
-      '<script src="/platform/edge-rollout.js?v=platform-edge-central-v4-update-check"></script>'
+      '<script src="/platform/edge-rollout.js?v=platform-edge-central-v5-bundled-sync"></script>'
     ].join('');
     const rendered = html.includes('</body>') ? html.replace('</body>', `${scripts}</body>`) : `${html}${scripts}`;
     res.set('Cache-Control', 'no-store');
-    res.set('X-VantixGC-Platform-Edge', 'CENTRAL_ROLLOUT_V4_UPDATE_CHECK');
+    res.set('X-VantixGC-Platform-Edge', 'CENTRAL_ROLLOUT_V5_BUNDLED_SYNC');
     res.type('html').send(rendered);
   } catch (error) { next(error); }
 }
