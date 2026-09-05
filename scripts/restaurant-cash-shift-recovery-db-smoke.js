@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
-const identity = require('../src/modules/restaurant/restaurant-identity.service');
+const { cashShiftState } = require('../src/modules/restaurant/restaurant-cash-shift-recovery.service');
 
 async function main() {
   const stamp = Date.now();
@@ -52,13 +52,13 @@ async function main() {
     }
   });
 
-  const ownerView = await identity.cashShiftState(tenant.id, owner.id);
+  const ownerView = await cashShiftState(tenant.id, owner.id);
   assert.equal(ownerView.ownShift?.id, shift.id);
   assert.equal(ownerView.ownShift?.ownedByCurrentUser, true);
   assert.equal(ownerView.ownShift?.cajaBanco?.id, cash.id);
   assert.equal(ownerView.ownShift?.user?.id, owner.id);
 
-  const otherView = await identity.cashShiftState(tenant.id, other.id);
+  const otherView = await cashShiftState(tenant.id, other.id);
   assert.equal(otherView.ownShift, null);
   assert.equal(otherView.openShifts.length, 1);
   assert.equal(otherView.openShifts[0].id, shift.id);
@@ -69,7 +69,7 @@ async function main() {
     data: { estado: 'CERRADA', cerradoEn: new Date(), saldoFinal: 50000, saldoEsperado: 50000, descuadre: 0 }
   });
 
-  const closedView = await identity.cashShiftState(tenant.id, owner.id);
+  const closedView = await cashShiftState(tenant.id, owner.id);
   assert.equal(closedView.ownShift, null);
   assert.equal(closedView.openShifts.length, 0);
 
