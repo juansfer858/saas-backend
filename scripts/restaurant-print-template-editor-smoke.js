@@ -70,7 +70,7 @@ const withoutFooterTime = buildEscPos({
 assert.equal((withoutFooterTime.match(/\d{1,2}:\d{2}/g) || []).length, 0);
 assert.doesNotMatch(withoutFooterTime, /={4,}|-{4,}/);
 
-assert.equal(ui.MARKER, 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V2');
+assert.equal(ui.MARKER, 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V3');
 assert.doesNotThrow(() => new vm.Script(ui.browserRuntime));
 assert.match(ui.browserRuntime, /Plantillas de impresión/);
 assert.match(ui.browserRuntime, /Restaurar diseño recomendado/);
@@ -81,7 +81,18 @@ assert.match(ui.browserRuntime, /paper === '58' \? 32 : 48/);
 assert.match(ui.browserRuntime, /width:calc\(32ch \+ 22px\)/);
 assert.match(ui.browserRuntime, /width:calc\(48ch \+ 22px\)/);
 assert.match(ui.browserRuntime, /48 columnas para 80 mm y 32 columnas para 58 mm/);
+assert.match(ui.browserRuntime, /RestaurantPrintTemplates/);
+assert.match(ui.browserRuntime, /vantix:restaurant-print-template:open/);
+assert.doesNotMatch(ui.browserRuntime, /#ccDashboard \.cc-actions|data-cc-print-template/);
 assert.doesNotMatch(ui.browserRuntime, /setInterval|MutationObserver/);
+
+const stationAdmin = fs.readFileSync('src/web/restaurant-kds-stations-admin.js', 'utf8');
+assert.match(stationAdmin, /Gestionar KDS \/ estaciones/);
+assert.match(stationAdmin, /data-rkds-print-template/);
+assert.match(stationAdmin, /🧾 Plantillas de impresión/);
+assert.match(stationAdmin, /RestaurantPrintTemplates\?\.open/);
+assert.match(stationAdmin, /openPrintTemplatesFromManager/);
+assert.match(stationAdmin, /dialog\?\.close\(\)/);
 
 const coreRoutes = fs.readFileSync('src/routes/core.routes.js', 'utf8');
 const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
@@ -106,10 +117,12 @@ assert.equal(bundledRelease.channel, version.channel);
 assert.match(String(bundledRelease.sha256 || ''), /^[0-9a-f]{64}$/);
 assert.ok(fs.existsSync(`public/edge-releases/${bundledRelease.file}`), 'bundled Edge ZIP must exist in Core release store');
 
-console.log('RESTAURANT PRINT TEMPLATE EDITOR + SYMMETRIC COMMAND V3 SMOKE OK', JSON.stringify({
+console.log('RESTAURANT PRINT TEMPLATE EDITOR + KDS LOCATION V4 SMOKE OK', JSON.stringify({
   tenantScoped:true,
   noSchemaMigration:true,
   safeEditor:true,
+  locatedInsideKdsManager:true,
+  absentFromGeneralDashboard:true,
   livePreview58And80:true,
   previewColumns80:48,
   previewColumns58:32,

@@ -1,10 +1,10 @@
 'use strict';
 
-const MARKER = 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V2';
+const MARKER = 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V3';
 
 function browserInstaller() {
   'use strict';
-  const MARKER = 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V2';
+  const MARKER = 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V3';
   if (window[MARKER]) return;
   window[MARKER] = true;
 
@@ -180,24 +180,8 @@ function browserInstaller() {
     } catch (error) { message.innerHTML = `<span class="rpt-error">${esc(error.message)}</span>`; }
   }
 
-  function injectAction() {
-    const actions = document.querySelector('#ccDashboard .cc-actions');
-    if (!actions || actions.querySelector('[data-cc-print-template]')) return false;
-    const button = document.createElement('button');
-    button.type = 'button'; button.className = 'cc-action'; button.dataset.ccPrintTemplate = 'true'; button.textContent = '🧾 Plantillas de impresión'; button.addEventListener('click', openEditor); actions.appendChild(button); return true;
-  }
-
-  function scheduleInjection(frames = 90) {
-    let left = frames;
-    const tick = () => { if (injectAction()) return; left -= 1; if (left > 0) requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
-  }
-
-  document.addEventListener('click', () => requestAnimationFrame(() => scheduleInjection(8)), true);
-  window.addEventListener('popstate', () => scheduleInjection(30));
-  window.addEventListener('pageshow', () => scheduleInjection(60));
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => scheduleInjection(120), { once:true });
-  else scheduleInjection(120);
+  window.RestaurantPrintTemplates = Object.freeze({ open: openEditor });
+  window.addEventListener('vantix:restaurant-print-template:open', () => { openEditor(); });
 }
 
 const browserRuntime = `(${browserInstaller.toString()})();`;
@@ -212,7 +196,7 @@ function installPrintTemplateEditorRuntime(req, res, next) {
       const patched = `${source}\n;${browserRuntime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
-    res.set('X-VantixGC-Print-Template-Editor', 'v2-centering');
+    res.set('X-VantixGC-Print-Template-Editor', 'v3-kds-manager');
     return originalSend(body);
   };
   return next();
