@@ -95,6 +95,12 @@ assert.match(serviceSource, /themeData/);
 const version = require('../edge/version.json');
 assert.equal(version.version, '2.1.9-print-templates.1');
 assert.equal(version.channel, 'PILOT');
+const artifactManifest = JSON.parse(fs.readFileSync('public/edge-releases/manifest.json', 'utf8'));
+const bundledRelease = artifactManifest?.releases?.[version.version];
+assert.ok(bundledRelease, `Core release store must contain Edge ${version.version}`);
+assert.equal(bundledRelease.channel, version.channel);
+assert.match(String(bundledRelease.sha256 || ''), /^[0-9a-f]{64}$/);
+assert.ok(fs.existsSync(`public/edge-releases/${bundledRelease.file}`), 'bundled Edge ZIP must exist in Core release store');
 
 console.log('RESTAURANT PRINT TEMPLATE EDITOR + SYMMETRIC COMMAND V3 SMOKE OK', JSON.stringify({
   tenantScoped:true,
@@ -105,5 +111,6 @@ console.log('RESTAURANT PRINT TEMPLATE EDITOR + SYMMETRIC COMMAND V3 SMOKE OK', 
   timePrintedOnce:true,
   cajaReceiptsUntouched:true,
   configurableEscPos:true,
+  edgeBundledInCore:true,
   edgeVersion:version.version
 }));
