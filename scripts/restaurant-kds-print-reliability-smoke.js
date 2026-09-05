@@ -14,6 +14,7 @@ const command = {
   id: 'command-cocina-1',
   station: 'COCINA',
   state: 'PENDIENTE',
+  createdAt: '2026-09-05T17:04:00.000Z',
   table: { id:'t1', code:'M1', name:'Mesa 1' },
   items: [
     { description:'Hamburguesa', quantity:2, notes:'Sin cebolla', seatNumber:1 },
@@ -31,7 +32,13 @@ assert.equal(jobs[0].station, 'COCINA');
 assert.equal(jobs[0].printer.host, '192.168.1.50');
 assert.equal(jobs[0].printer.transport, 'LAN');
 assert.equal(jobs[0].payload.lines.length, 2);
-assert.match(jobs[0].payload.lines[0].name, /Sin cebolla/);
+assert.equal(jobs[0].payload.template, 'RESTAURANT_COMMAND_LARGE_V2');
+assert.equal(jobs[0].payload.tableLabel, 'Mesa 1');
+assert.equal(jobs[0].payload.stationLabel, 'COCINA');
+assert.equal(jobs[0].payload.lines[0].name, 'Hamburguesa');
+assert.equal(jobs[0].payload.lines[0].note, 'Sin cebolla');
+assert.equal(jobs[0].payload.lines[0].seatLabel, 'PERSONA 1');
+assert.match(jobs[0].payload.traceLabel, /^COMANDA /);
 assert.match(jobs[0].payload.title, /Mesa 1/);
 
 const windowsJobs = buildCommandPrintJobs([command], [
@@ -105,6 +112,8 @@ console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   kitchenSinglePrinter:true,
   hotColdSameQueue:true,
   windowsUsbQueue:true,
+  largeKitchenCommandTemplate:true,
+  kitchenNotesSeparated:true,
   idempotentBootstrapPrint:true,
   pendingNeverHidden:true,
   inlineImportantHideRescued:true,

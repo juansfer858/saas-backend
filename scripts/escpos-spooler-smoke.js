@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const net = require('node:net');
-const { buildEscPos, sendRawPrint, printBatch } = require('../edge/print-spooler/escpos');
+const { RESTAURANT_COMMAND_LARGE_V2, buildEscPos, sendRawPrint, printBatch } = require('../edge/print-spooler/escpos');
 
 function listen(server) { return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port))); }
 function close(server) { return new Promise((resolve) => server.close(resolve)); }
@@ -14,15 +14,34 @@ async function main() {
   });
   const port = await listen(printer);
   try {
-    const kitchen = buildEscPos({ title: 'COCINA · Mesa 4', lines: [{ quantity: 2, name: 'Hamburguesa', note: 'sin cebolla' }], footer: 'Pedido #123' });
+    const kitchen = buildEscPos({
+      template: RESTAURANT_COMMAND_LARGE_V2,
+      tableLabel: 'Mesa 4',
+      stationLabel: 'COCINA',
+      createdAt: '2026-09-05T17:04:00.000Z',
+      traceLabel: 'COMANDA ABC12345',
+      paperFormat: 'TERMICA_80',
+      lines: [{ quantity: 2, name: 'Hamburguesa', note: 'sin cebolla', seatNumber: 1, seatLabel: 'PERSONA 1' }],
+      cut: true
+    });
     assert.equal(kitchen[0], 0x1b);
     assert.equal(kitchen[1], 0x40);
+    assert.ok(kitchen.includes(Buffer.from([0x1d, 0x21, 0x11])), 'table/station must use double width+height');
+    assert.ok(kitchen.includes(Buffer.from([0x1d, 0x21, 0x01])), 'items and notes must use double height');
     assert.ok(kitchen.includes(Buffer.from([0x1d, 0x56, 0x00])));
+    const kitchenText = kitchen.toString('utf8');
+    assert.ok(kitchenText.includes('MESA 4'));
+    assert.ok(kitchenText.includes('COCINA'));
+    assert.ok(kitchenText.includes('2 x HAMBURGUESA'));
+    assert.ok(kitchenText.includes('*** SIN CEBOLLA ***'));
+    assert.ok(kitchenText.includes('>>> PERSONA 1 <<<'));
+    assert.ok(kitchenText.includes('COMANDA ABC12345'));
+    assert.equal(kitchenText.includes('$'), false, 'kitchen command must not print financial values');
 
     await sendRawPrint({ host: '127.0.0.1', port, buffer: kitchen });
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.equal(received.length, 1);
-    assert.ok(received[0].toString('utf8').includes('Hamburguesa'));
+    assert.ok(received[0].toString('utf8').includes('HAMBURGUESA'));
 
     const batch = await printBatch([
       { target: { name: 'Cocina', host: '127.0.0.1', port }, job: { title: 'COCINA', lines: ['1 x Plato fuerte'] } },

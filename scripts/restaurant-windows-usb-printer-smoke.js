@@ -92,7 +92,7 @@ async function main() {
   assert.match(commandBridge, /queueName/);
 
   const version = require('../edge/version.json');
-  assert.equal(version.version, '2.1.7-windows-relay.1');
+  assert.equal(version.version, '2.1.8-large-command.1');
   assert.equal(version.channel, 'PILOT');
 
   console.log('RESTAURANT WINDOWS USB PRINTER SMOKE OK', JSON.stringify({
