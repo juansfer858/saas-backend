@@ -48,8 +48,8 @@ const client = {
 
   const publicRoute = fs.readFileSync('src/modules/platform/saas/platform-edge-rollout.public.routes.js', 'utf8');
   assert.match(publicRoute, /ensureBundledGlobalReleases/);
-  assert.match(publicRoute, /CENTRAL_ROLLOUT_V5_BUNDLED_SYNC/);
-  assert.match(publicRoute, /platform-edge-central-v5-bundled-sync/);
+  assert.match(publicRoute, /CENTRAL_ROLLOUT_V4_UPDATE_CHECK/);
+  assert.match(publicRoute, /platform-edge-central-v4-update-check/);
 
   console.log('PLATFORM EDGE BUNDLED RELEASE SYNC V1 SMOKE OK', JSON.stringify({
     currentVersion: version.version,
@@ -57,7 +57,8 @@ const client = {
     createdOnFirstSync: first.created.length,
     idempotent: true,
     conflictSafe: true,
-    autoRollout: false
+    autoRollout: false,
+    platformUiContract: 'V4_PRESERVED'
   }));
 })().catch((error) => {
   console.error(error);
