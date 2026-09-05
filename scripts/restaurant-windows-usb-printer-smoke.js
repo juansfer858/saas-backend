@@ -78,17 +78,21 @@ async function main() {
   const printingRoutes = fs.readFileSync('src/modules/platform/printing/printing.routes.js','utf8');
   const printingService = fs.readFileSync('src/modules/platform/printing/printing.service.js','utf8');
   const edgeBridge = fs.readFileSync('edge/agent/restaurant-print-bridge.js','utf8');
+  const edgeRestaurantEntry = fs.readFileSync('edge/agent/restaurant-entry-v2.js','utf8');
   const commandBridge = fs.readFileSync('src/modules/edge/edge-restaurant-print-bridge.js','utf8');
   assert.match(printingRoutes, /'NAVEGADOR','LAN','WINDOWS'/);
   assert.match(printingService, /transport: \{ in: \['LAN', 'WINDOWS'\] \}/);
   assert.match(printingService, /PRINT_WINDOWS_QUEUE_REQUIRED/);
   assert.match(edgeBridge, /WINDOWS_PRINTERS_OPERATION/);
   assert.match(edgeBridge, /WINDOWS_TEST_OPERATION/);
+  assert.match(edgeBridge, /RELAY_POLL_FRAGMENT/);
+  assert.match(edgeRestaurantEntry, /require\('\.\/restaurant-print-bridge'\)/);
+  assert.ok(edgeRestaurantEntry.indexOf("require('./restaurant-print-bridge')") < edgeRestaurantEntry.indexOf("require('./workspace-entry-v28')"));
   assert.match(commandBridge, /WINDOWS:/);
   assert.match(commandBridge, /queueName/);
 
   const version = require('../edge/version.json');
-  assert.match(version.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
+  assert.equal(version.version, '2.1.7-windows-relay.1');
   assert.equal(version.channel, 'PILOT');
 
   console.log('RESTAURANT WINDOWS USB PRINTER SMOKE OK', JSON.stringify({
@@ -96,6 +100,7 @@ async function main() {
     rawWritePrinter:true,
     relayDiscovery:true,
     relayTestPrint:true,
+    relayBridgeLoadedByRestaurantRuntime:true,
     relayAllowedWhenHeartbeatOffline:true,
     kdsStationUi:true,
     windowsPrinterAssetDirect:true,
