@@ -54,7 +54,7 @@ async function ensureLegacyEntitlements(tenantId, client = prisma) {
   if (legacyCode && registry.getVertical(legacyCode)?.state === 'AVAILABLE') {
     await activateWithClient(client, tenantId, legacyCode, { source: 'LEGACY_NICHO_MIGRATION', metadata: { legacyNicho: tenant.nicho } });
   } else {
-    const restaurantConfig = await client.restaurantConfig.findUnique({ where: { tenantId }, select: { id: true } });
+    const restaurantConfig = await client.restaurantConfig.findUnique({ where: { tenantId }, select: { tenantId: true } });
     if (restaurantConfig) {
       await activateWithClient(client, tenantId, 'RESTAURANT', { source: 'LEGACY_RESTAURANT_CONFIG', metadata: { inferred: true } });
     }
