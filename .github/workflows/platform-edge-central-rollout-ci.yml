@@ -31,6 +31,8 @@ on:
 jobs:
   verify-central-rollout:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vantix_ci_unused
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
