@@ -4,6 +4,20 @@ const { listWindowsPrinters, sendWindowsRawPrint } = require('./windows-printer'
 const ESC = 0x1b;
 const GS = 0x1d;
 const RESTAURANT_COMMAND_LARGE_V2 = 'RESTAURANT_COMMAND_LARGE_V2';
+const DEFAULT_COMMAND_LAYOUT = Object.freeze({
+  itemAlign: 'CENTER',
+  noteAlign: 'CENTER',
+  seatAlign: 'CENTER',
+  headerSize: 'DOUBLE',
+  itemSize: 'TALL',
+  noteSize: 'TALL',
+  showTopTime: false,
+  showBottomDateTime: true,
+  showTrace: true,
+  showSeat: true,
+  separatorStyle: 'DOUBLE',
+  blankLinesBetweenItems: 1
+});
 
 function text(value) {
   return Buffer.from(String(value ?? ''), 'utf8');
@@ -31,58 +45,98 @@ function commandDateTime(value) {
   };
 }
 
+function layoutEnum(value, allowed, fallback) {
+  const normalized = String(value || '').trim().toUpperCase();
+  return allowed.includes(normalized) ? normalized : fallback;
+}
+
+function normalizeCommandLayout(value = {}) {
+  const input = value && typeof value === 'object' ? value : {};
+  return {
+    itemAlign: layoutEnum(input.itemAlign, ['LEFT', 'CENTER'], DEFAULT_COMMAND_LAYOUT.itemAlign),
+    noteAlign: layoutEnum(input.noteAlign, ['LEFT', 'CENTER'], DEFAULT_COMMAND_LAYOUT.noteAlign),
+    seatAlign: layoutEnum(input.seatAlign, ['LEFT', 'CENTER'], DEFAULT_COMMAND_LAYOUT.seatAlign),
+    headerSize: layoutEnum(input.headerSize, ['NORMAL', 'DOUBLE'], DEFAULT_COMMAND_LAYOUT.headerSize),
+    itemSize: layoutEnum(input.itemSize, ['NORMAL', 'TALL', 'DOUBLE'], DEFAULT_COMMAND_LAYOUT.itemSize),
+    noteSize: layoutEnum(input.noteSize, ['NORMAL', 'TALL', 'DOUBLE'], DEFAULT_COMMAND_LAYOUT.noteSize),
+    showTopTime: input.showTopTime === undefined ? DEFAULT_COMMAND_LAYOUT.showTopTime : Boolean(input.showTopTime),
+    showBottomDateTime: input.showBottomDateTime === undefined ? DEFAULT_COMMAND_LAYOUT.showBottomDateTime : Boolean(input.showBottomDateTime),
+    showTrace: input.showTrace === undefined ? DEFAULT_COMMAND_LAYOUT.showTrace : Boolean(input.showTrace),
+    showSeat: input.showSeat === undefined ? DEFAULT_COMMAND_LAYOUT.showSeat : Boolean(input.showSeat),
+    separatorStyle: layoutEnum(input.separatorStyle, ['DOUBLE', 'SINGLE', 'NONE'], DEFAULT_COMMAND_LAYOUT.separatorStyle),
+    blankLinesBetweenItems: Math.max(0, Math.min(2, Number.isFinite(Number(input.blankLinesBetweenItems)) ? Math.trunc(Number(input.blankLinesBetweenItems)) : DEFAULT_COMMAND_LAYOUT.blankLinesBetweenItems))
+  };
+}
+
+function alignCode(value) {
+  return String(value).toUpperCase() === 'CENTER' ? 1 : 0;
+}
+
+function sizeCode(value) {
+  const normalized = String(value || '').toUpperCase();
+  if (normalized === 'DOUBLE') return 0x11;
+  if (normalized === 'TALL') return 0x01;
+  return 0x00;
+}
+
+function commandSeparator(format, style) {
+  if (style === 'NONE') return '';
+  const length = format === 'TERMICA_58' ? 24 : 32;
+  return (style === 'SINGLE' ? '-' : '=').repeat(length);
+}
+
 function buildRestaurantCommandLargeV2(job = {}) {
   const chunks = [Buffer.from([ESC, 0x40])];
+  const layout = normalizeCommandLayout(job.layout);
   const format = String(job.paperFormat || 'TERMICA_80').toUpperCase();
-  const separator = format === 'TERMICA_58' ? '========================' : '================================';
+  const separator = commandSeparator(format, layout.separatorStyle);
   const table = String(job.tableLabel || job.title || 'MESA').replace(/^COMANDA\s*[·-]?\s*/i, '').trim().toUpperCase();
   const station = String(job.stationLabel || 'COCINA').trim().toUpperCase();
   const when = commandDateTime(job.createdAt);
 
-  chunks.push(align(1), bold(true), size(0x11));
+  chunks.push(align(1), bold(true), size(sizeCode(layout.headerSize)));
   chunks.push(text(`${table}\n`));
   chunks.push(text(`${station}\n`));
   chunks.push(size(0x00), bold(false));
-  chunks.push(text(`${separator}\n`));
-  if (when.time) {
-    chunks.push(bold(true));
-    chunks.push(text(`${when.time}\n`));
-    chunks.push(bold(false));
+  if (separator) chunks.push(text(`${separator}\n`));
+  if (layout.showTopTime && when.time) {
+    chunks.push(align(1), bold(true), text(`${when.time}\n`), bold(false));
+    if (separator) chunks.push(text(`${separator}\n`));
   }
-  chunks.push(text(`${separator}\n`));
-  chunks.push(align(0));
+  chunks.push(text('\n'));
 
   for (const line of job.lines || []) {
     if (typeof line === 'string') {
-      chunks.push(bold(true), size(0x01), text(`${String(line).toUpperCase()}\n`), size(0x00), bold(false), text('\n'));
+      chunks.push(align(alignCode(layout.itemAlign)), bold(true), size(sizeCode(layout.itemSize)), text(`${String(line).toUpperCase()}\n`), size(0x00), bold(false));
+      chunks.push(text('\n'.repeat(layout.blankLinesBetweenItems + 1)));
       continue;
     }
     const quantity = line.quantity ?? line.qty ?? '';
     const name = String(line.name ?? line.description ?? '').trim().toUpperCase();
     if (!name) continue;
-    chunks.push(bold(true), size(0x01));
+    chunks.push(align(alignCode(layout.itemAlign)), bold(true), size(sizeCode(layout.itemSize)));
     chunks.push(text(`${quantity ? `${quantity} x ` : ''}${name}\n`));
     chunks.push(size(0x00), bold(false));
 
     const note = String(line.note ?? line.notes ?? '').trim();
     if (note) {
-      chunks.push(bold(true), size(0x01));
+      chunks.push(align(alignCode(layout.noteAlign)), bold(true), size(sizeCode(layout.noteSize)));
       chunks.push(text(`*** ${note.toUpperCase()} ***\n`));
       chunks.push(size(0x00), bold(false));
     }
     const seat = String(line.seatLabel || (line.seatNumber ? `PERSONA ${line.seatNumber}` : '')).trim();
-    if (seat) {
-      chunks.push(bold(true));
+    if (layout.showSeat && seat) {
+      chunks.push(align(alignCode(layout.seatAlign)), bold(true));
       chunks.push(text(`>>> ${seat.toUpperCase()} <<<\n`));
       chunks.push(bold(false));
     }
-    chunks.push(text('\n'));
+    chunks.push(text('\n'.repeat(layout.blankLinesBetweenItems + 1)));
   }
 
-  chunks.push(align(1));
-  chunks.push(text(`${separator}\n`));
-  if (job.traceLabel) chunks.push(text(`${String(job.traceLabel).toUpperCase()}\n`));
-  if (when.date || when.time) chunks.push(text(`${[when.date, when.time].filter(Boolean).join(' · ')}\n`));
+  chunks.push(align(1), size(0x00), bold(false));
+  if (separator) chunks.push(text(`${separator}\n`));
+  if (layout.showTrace && job.traceLabel) chunks.push(text(`${String(job.traceLabel).toUpperCase()}\n`));
+  if (layout.showBottomDateTime && (when.date || when.time)) chunks.push(text(`${[when.date, when.time].filter(Boolean).join(' · ')}\n`));
   chunks.push(size(0x00), bold(false), align(0));
   chunks.push(text('\n\n\n'));
   if (job.cut !== false) chunks.push(Buffer.from([GS, 0x56, 0x00]));
@@ -181,6 +235,8 @@ async function printBatch(entries) {
 
 module.exports = {
   RESTAURANT_COMMAND_LARGE_V2,
+  DEFAULT_COMMAND_LAYOUT,
+  normalizeCommandLayout,
   buildRestaurantCommandLargeV2,
   buildEscPos,
   sendRawPrint,
