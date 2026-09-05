@@ -56,11 +56,20 @@ async function main() {
   assert.match(runtime, /transport:'WINDOWS'/);
 
   assert.equal(assetModule.ASSET_PATH, '/app/restaurant-kds-windows-printer.js');
-  assert.equal(assetModule.HTML_MARKER, 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V2');
+  assert.equal(assetModule.HTML_MARKER, 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V3');
+  assert.equal(assetModule.ASSET_VERSION, 'windows-printer-v3-relay-first');
+  assert.doesNotThrow(() => new vm.Script(assetModule.browserRuntime));
+  assert.match(assetModule.browserRuntime, /installation\?\.relayConnected===true/);
+  assert.match(assetModule.browserRuntime, /No hay un Edge activo registrado para este restaurante/);
+  assert.doesNotMatch(assetModule.browserRuntime, /El Edge del restaurante no está en línea/);
+  assert.match(assetModule.browserRuntime, /edgeAgentId:edge\.agent\.id/);
+  assert.match(assetModule.browserRuntime, /action:'PRINT_QUEUE'/);
+
   const assetSource = fs.readFileSync('src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js','utf8');
   const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8');
   assert.match(assetSource, /application\/javascript/);
-  assert.match(assetSource, /X-VantixGC-KDS-Windows-Printer-Asset/);
+  assert.match(assetSource, /v3-relay-first-js/);
+  assert.match(assetSource, /relayConnected/);
   assert.match(assetSource, /src=\\?"\$\{ASSET_PATH\}/);
   assert.match(publicRoutes, /restaurantKdsWindowsPrinterAssetPublicRouter/);
   assert.match(publicRoutes, /installKdsWindowsPrinterAsset/);
@@ -87,6 +96,7 @@ async function main() {
     rawWritePrinter:true,
     relayDiscovery:true,
     relayTestPrint:true,
+    relayAllowedWhenHeartbeatOffline:true,
     kdsStationUi:true,
     windowsPrinterAssetDirect:true,
     controlCenterLoadsPrinterAsset:true,
