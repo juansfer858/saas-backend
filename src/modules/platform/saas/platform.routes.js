@@ -2,6 +2,7 @@ const express = require('express');
 const { z } = require('zod');
 const service = require('./platform.service');
 const provisioning = require('./platform-tenant-provisioning.service');
+const edgeRollout = require('./platform-edge-rollout.service');
 const verticalRegistry = require('../verticals/vertical-registry');
 const verticalEntitlements = require('../verticals/vertical-entitlement.service');
 const { AppError } = require('../../../utils/app-error');
@@ -45,6 +46,20 @@ const restaurantFiscalDecisionSchema = z.object({
   reason: z.string().trim().min(20).max(1200),
   acknowledgedNoDianValidity: z.boolean().optional().default(false)
 });
+const edgeReleaseSchema = z.object({
+  version: z.string().trim().min(1).max(80),
+  channel: z.enum(['PILOT','STABLE']),
+  artifactUrl: z.string().url().max(2000),
+  sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  releaseNotes: z.string().max(5000).optional().nullable(),
+  minCoreVersion: z.string().trim().max(80).optional().nullable(),
+  mandatory: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+  autoRollout: z.boolean().optional().default(true)
+});
+const edgeRolloutSchema = z.object({ scope: z.enum(['CHANNEL','ALL']).optional().default('CHANNEL') });
+const edgeChannelSchema = z.object({ channel: z.enum(['PILOT','STABLE']) });
+const edgeDeploySchema = z.object({ releaseId: z.string().uuid() });
 
 publicRouter.post('/login', async (req, res, next) => {
   try {
@@ -85,6 +100,26 @@ adminRouter.post('/tenants', async (req, res, next) => {
 });
 adminRouter.get('/tenants', async (_req, res, next) => {
   try { res.json({ ok: true, data: await service.listTenants() }); }
+  catch (error) { next(error); }
+});
+adminRouter.get('/edge/overview', async (req, res, next) => {
+  try { res.json({ ok: true, data: await edgeRollout.listOverview() }); }
+  catch (error) { next(error); }
+});
+adminRouter.post('/edge/releases', async (req, res, next) => {
+  try { res.status(201).json({ ok: true, data: await edgeRollout.createGlobalRelease(req.platformAdmin.id, parse(edgeReleaseSchema, req.body || {})) }); }
+  catch (error) { next(error); }
+});
+adminRouter.post('/edge/releases/:id/rollout', async (req, res, next) => {
+  try { res.json({ ok: true, data: await edgeRollout.rolloutRelease(req.platformAdmin.id, req.params.id, parse(edgeRolloutSchema, req.body || {})) }); }
+  catch (error) { next(error); }
+});
+adminRouter.patch('/edge/installations/:edgeAgentId/channel', async (req, res, next) => {
+  try { res.json({ ok: true, data: await edgeRollout.setInstallationChannel(req.platformAdmin.id, req.params.edgeAgentId, parse(edgeChannelSchema, req.body || {}).channel) }); }
+  catch (error) { next(error); }
+});
+adminRouter.post('/edge/installations/:edgeAgentId/deploy', async (req, res, next) => {
+  try { res.status(201).json({ ok: true, data: await edgeRollout.deployOne(req.platformAdmin.id, req.params.edgeAgentId, parse(edgeDeploySchema, req.body || {}).releaseId) }); }
   catch (error) { next(error); }
 });
 adminRouter.get('/tenants/:tenantId/verticals', async (req, res, next) => {
