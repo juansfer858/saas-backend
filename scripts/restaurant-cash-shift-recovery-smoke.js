@@ -11,7 +11,7 @@ const {
 const root = path.join(__dirname, '..');
 const ui = fs.readFileSync(path.join(root, 'src', 'web', 'restaurant-ui.js'), 'utf8');
 const routes = fs.readFileSync(path.join(root, 'src', 'modules', 'restaurant', 'restaurant-cash-shift-recovery.routes.js'), 'utf8');
-const identity = fs.readFileSync(path.join(root, 'src', 'modules', 'restaurant', 'restaurant-identity.service.js'), 'utf8');
+const service = fs.readFileSync(path.join(root, 'src', 'modules', 'restaurant', 'restaurant-cash-shift-recovery.service.js'), 'utf8');
 const coreRoutes = fs.readFileSync(path.join(root, 'src', 'routes', 'core.routes.js'), 'utf8');
 const publicRoutes = fs.readFileSync(path.join(root, 'src', 'modules', 'restaurant', 'restaurant.public.routes.js'), 'utf8');
 
@@ -26,11 +26,11 @@ assert.equal(patchCashShiftRecovery(patched), patched, 'La composición debe ser
 new Function(patched);
 
 assert.match(routes, /router\.get\('\/caja\/turno-activo'/);
-assert.match(routes, /identity\.cashShiftState/);
-assert.match(identity, /async function cashShiftState/);
-assert.match(identity, /estado: 'ABIERTA'/);
-assert.match(identity, /ownedByCurrentUser/);
-assert.match(identity, /ownShift/);
+assert.match(routes, /cashShiftState\(req\.tenantId, req\.userId\)/);
+assert.match(service, /async function cashShiftState/);
+assert.match(service, /estado: 'ABIERTA'/);
+assert.match(service, /ownedByCurrentUser/);
+assert.match(service, /ownShift/);
 assert.match(coreRoutes, /restaurantCashShiftRecoveryRouter/);
 assert.ok(
   coreRoutes.indexOf("router.use('/restaurante', restaurantCashShiftRecoveryRouter)") < coreRoutes.indexOf("router.use('/restaurante', restaurantRouter)"),
