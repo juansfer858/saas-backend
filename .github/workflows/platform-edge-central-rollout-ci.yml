@@ -11,6 +11,7 @@ on:
       - 'src/web/platform-edge-rollout.js'
       - 'src/routes/core.routes.js'
       - 'scripts/platform-edge-central-rollout-smoke.js'
+      - 'scripts/platform-edge-bundled-release-sync-smoke.js'
       - '.github/workflows/platform-edge-central-rollout-ci.yml'
   push:
     branches: [main]
@@ -23,6 +24,7 @@ on:
       - 'src/web/platform-edge-rollout.js'
       - 'src/routes/core.routes.js'
       - 'scripts/platform-edge-central-rollout-smoke.js'
+      - 'scripts/platform-edge-bundled-release-sync-smoke.js'
       - '.github/workflows/platform-edge-central-rollout-ci.yml'
   workflow_dispatch:
 
@@ -37,3 +39,5 @@ jobs:
       - run: npm ci
       - name: Verify tenant cannot manage Edge releases
         run: node scripts/platform-edge-central-rollout-smoke.js
+      - name: Verify bundled Edge releases auto-register safely
+        run: node scripts/platform-edge-bundled-release-sync-smoke.js
