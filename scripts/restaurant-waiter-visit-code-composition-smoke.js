@@ -33,7 +33,7 @@ assert.match(waiterVisitCodeRuntime, /eventDriven:true/);
 assert.match(waiterVisitCodeRuntime, /noPolling:true/);
 assert.match(waiterVisitCodeRuntime, /noMutationObserver:true/);
 assert.doesNotMatch(waiterVisitCodeRuntime, /setInterval/);
-assert.doesNotMatch(waiterVisitCodeRuntime, /MutationObserver/);
+assert.doesNotMatch(waiterVisitCodeRuntime, /new\s+MutationObserver|MutationObserver\s*\(/);
 
 assert.match(publicRoot, /installWaiterVisitCodeRuntime/);
 assert.ok(
