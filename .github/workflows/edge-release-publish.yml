@@ -65,8 +65,9 @@ jobs:
           version = os.environ['EDGE_VERSION']
           out = root / f'vantixgc-edge-{version}.zip'
           files = subprocess.check_output(['git', 'ls-files', 'edge'], text=True).splitlines()
-          excluded_prefixes = ('edge/data/', 'edge/runtime/', 'edge/releases/')
-          files = [f for f in files if not f.startswith(excluded_prefixes)]
+          excluded_prefixes = ('edge/data/', 'edge/releases/')
+          excluded_files = {'edge/runtime/node.exe'}
+          files = [f for f in files if not f.startswith(excluded_prefixes) and f not in excluded_files]
           files.sort()
           if not files:
               raise SystemExit('No tracked Edge files found')
@@ -96,14 +97,65 @@ jobs:
           unzip -t "$ZIP"
           unzip -Z1 "$ZIP" | grep -Fx 'agent/server.js'
           unzip -Z1 "$ZIP" | grep -Fx 'agent/store.js'
+          unzip -Z1 "$ZIP" | grep -Fx 'agent/universal-entry.js'
           unzip -Z1 "$ZIP" | grep -Fx 'agent/offline-qr-self-order.js'
           unzip -Z1 "$ZIP" | grep -Fx 'agent/offline-waiter-hard-gate.js'
+          unzip -Z1 "$ZIP" | grep -Fx 'runtime/vertical-registry.js'
           unzip -Z1 "$ZIP" | grep -Fx 'print-spooler/escpos.js'
           unzip -Z1 "$ZIP" | grep -Fx 'version.json'
-          if unzip -Z1 "$ZIP" | grep -E '^(data|runtime|releases)/' >/dev/null; then
+          if unzip -Z1 "$ZIP" | grep -E '^(data|releases)/' >/dev/null; then
             echo 'Mutable Edge runtime data leaked into release package' >&2
             exit 1
           fi
+          if unzip -Z1 "$ZIP" | grep -Fx 'runtime/node.exe' >/dev/null; then
+            echo 'Embedded Node binary must not be shipped inside managed Edge release ZIP' >&2
+            exit 1
+          fi
+
+      - name: Boot extracted Edge release
+        shell: bash
+        env:
+          EDGE_VERSION: ${{ steps.identity.outputs.version }}
+        run: |
+          set -euo pipefail
+          ZIP="vantixgc-edge-$EDGE_VERSION.zip"
+          ROOT="$RUNNER_TEMP/edge-release-boot"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT/data"
+          unzip -q "$ZIP" -d "$ROOT"
+          export EDGE_INSTALL_ROOT="$ROOT"
+          export EDGE_DATA_DIR="$ROOT/data"
+          export EDGE_DB_PATH="$ROOT/data/edge.sqlite"
+          export EDGE_HOST="127.0.0.1"
+          export EDGE_PORT="18788"
+          export EDGE_AUTO_UPDATE_ENABLED="false"
+          export CORE_BASE_URL=""
+          export EDGE_AGENT_ID=""
+          export EDGE_AGENT_KEY=""
+          export EDGE_LOCAL_ENCRYPTION_KEY="release-smoke-local-key"
+          export EDGE_LAN_KEY="release-smoke-lan-key"
+          node "$ROOT/agent/universal-entry.js" >"$RUNNER_TEMP/edge-release-boot.log" 2>&1 &
+          PID=$!
+          trap 'kill "$PID" >/dev/null 2>&1 || true' EXIT
+          READY=0
+          for _ in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:18788/api/status" >"$RUNNER_TEMP/edge-release-status.json" 2>/dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo 'Extracted Edge process exited before health check' >&2
+              cat "$RUNNER_TEMP/edge-release-boot.log" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+          if [[ "$READY" != "1" ]]; then
+            echo 'Extracted Edge release never became healthy' >&2
+            cat "$RUNNER_TEMP/edge-release-boot.log" >&2 || true
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/edge-release-status.json"
 
       - name: Generate SHA-256 manifest
         id: manifest
@@ -161,7 +213,7 @@ jobs:
           Commit fuente: $GITHUB_SHA
           SHA-256: $EDGE_SHA256
 
-          El ZIP contiene únicamente el runtime Edge versionado. El updater valida SHA-256, crea backup, activa de forma atómica, ejecuta health check y puede hacer rollback.
+          El ZIP contiene el runtime Edge versionado requerido por el arranque. Antes de publicarlo, CI extrae el ZIP y exige que el agente real responda health check. El updater valida SHA-256, crea backup, activa de forma atómica y puede hacer rollback.
           EOF
           if gh release view "$EDGE_TAG" >/dev/null 2>&1; then
             gh release edit "$EDGE_TAG" --title "VantixGC Edge $EDGE_VERSION" --notes-file edge-release-notes.md
@@ -189,4 +241,5 @@ jobs:
             echo "- Asset: \`$EDGE_ASSET\`"
             echo "- SHA-256: \`$EDGE_SHA256\`"
             echo "- Tag: \`$EDGE_TAG\`"
+            echo '- Boot smoke: `PASS` required before publish'
           } >> "$GITHUB_STEP_SUMMARY"
