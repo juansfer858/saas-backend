@@ -74,6 +74,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Wait for exact commit in production
         shell: bash
         run: |
@@ -95,6 +96,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          EXPECTED_EDGE_VERSION="$(node -p "require('./edge/version.json').version")"
           curl -fsSL --max-time 15 -o /tmp/kds-print.json https://core.vantixgc.com/api/public/restaurante/kds-print-readiness
           cat /tmp/kds-print.json
           grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds-print.json
@@ -105,7 +107,7 @@ jobs:
           grep -q '"windowsRawSpooler":"WIN32_WRITE_PRINTER_RAW"' /tmp/kds-print.json
           grep -q '"onePrinterPerEndpoint":true' /tmp/kds-print.json
           grep -q '"kitchenQueueCoversNamedStations":true' /tmp/kds-print.json
-          grep -q '"edgeVersion":"2.1.4-windows-usb-print.1"' /tmp/kds-print.json
+          grep -Fq "\"edgeVersion\":\"${EXPECTED_EDGE_VERSION}\"" /tmp/kds-print.json
       - name: Verify final KDS browser assets
         shell: bash
         run: |

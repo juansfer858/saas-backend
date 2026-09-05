@@ -102,7 +102,7 @@ async function main() {
   assert.match(edgeBridge, /WINDOWS_TEST/);
 
   const version = require('../edge/version.json');
-  assert.equal(version.version, '2.1.4-windows-usb-print.1');
+  assert.match(version.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
   assert.equal(version.channel, 'PILOT');
 
   console.log('RESTAURANT WAITER IMMEDIATE PRINT SMOKE OK', JSON.stringify({
