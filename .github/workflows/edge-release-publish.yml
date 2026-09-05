@@ -132,8 +132,8 @@ jobs:
           export CORE_BASE_URL=""
           export EDGE_AGENT_ID=""
           export EDGE_AGENT_KEY=""
-          export EDGE_LOCAL_ENCRYPTION_KEY="release-smoke-local-key"
-          export EDGE_LAN_KEY="release-smoke-lan-key"
+          export EDGE_LOCAL_ENCRYPTION_KEY="release-smoke-local-encryption-key-123456"
+          export EDGE_LAN_KEY="release-smoke-lan-key-123456"
           node "$ROOT/agent/universal-entry.js" >"$RUNNER_TEMP/edge-release-boot.log" 2>&1 &
           PID=$!
           trap 'kill "$PID" >/dev/null 2>&1 || true' EXIT
