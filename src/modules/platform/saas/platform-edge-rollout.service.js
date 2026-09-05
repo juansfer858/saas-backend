@@ -15,17 +15,20 @@ async function audit(superAdminId, action, entity, entityId = null, tenantId = n
 }
 
 async function listOverview() {
-  const [releases, installations, agents, tenants, deployments] = await Promise.all([
+  const [releases, installations, agents, tenants, deployments, updateChecks] = await Promise.all([
     prisma.edgeRelease.findMany({ where: { tenantId: null, enabled: true }, orderBy: { creadoEn: 'desc' }, take: 100 }),
     prisma.edgeInstallation.findMany({ orderBy: { actualizadoEn: 'desc' } }),
     prisma.edgeAgent.findMany({ orderBy: [{ tenantId: 'asc' }, { pointCode: 'asc' }] }),
     prisma.tenant.findMany({ select: { id: true, nombreEmpresa: true, subdomain: true, activo: true } }),
-    prisma.edgeDeployment.findMany({ where: { state: { in: ACTIVE_STATES } }, orderBy: { requestedAt: 'desc' } })
+    prisma.edgeDeployment.findMany({ where: { state: { in: ACTIVE_STATES } }, orderBy: { requestedAt: 'desc' } }),
+    prisma.edgeRelayRequest.findMany({ where: { action: 'UPDATE_CHECK' }, orderBy: { creadoEn: 'desc' }, take: 200 })
   ]);
   const byAgent = new Map(agents.map((row) => [row.id, row]));
   const byTenant = new Map(tenants.map((row) => [row.id, row]));
   const activeByAgent = new Map();
   for (const row of deployments) if (!activeByAgent.has(row.edgeAgentId)) activeByAgent.set(row.edgeAgentId, row);
+  const updateCheckByAgent = new Map();
+  for (const row of updateChecks) if (!updateCheckByAgent.has(row.edgeAgentId)) updateCheckByAgent.set(row.edgeAgentId, row);
   const now = Date.now();
   return {
     releases,
@@ -36,7 +39,8 @@ async function listOverview() {
         installation: { ...installation, online: isOnline(installation.lastHeartbeatAt, now) },
         agent,
         tenant,
-        deployment: activeByAgent.get(installation.edgeAgentId) || null
+        deployment: activeByAgent.get(installation.edgeAgentId) || null,
+        updateCheck: updateCheckByAgent.get(installation.edgeAgentId) || null
       };
     })
   };
@@ -96,7 +100,16 @@ async function scheduleInstallation(release, installation) {
     }
   });
   await prisma.edgeInstallation.update({ where: { edgeAgentId: installation.edgeAgentId }, data: { desiredVersion: release.version, updaterState: 'PENDING' } });
-  return { status: 'SCHEDULED', edgeAgentId: installation.edgeAgentId, deploymentId: deployment.id };
+  const updateCheck = await prisma.edgeRelayRequest.create({
+    data: {
+      tenantId: installation.tenantId,
+      edgeAgentId: installation.edgeAgentId,
+      action: 'UPDATE_CHECK',
+      requestBody: { reason: 'PLATFORM_EDGE_DEPLOY_NOW', deploymentId: deployment.id, targetVersion: release.version },
+      expiresAt: new Date(Date.now() + 300000)
+    }
+  });
+  return { status: 'SCHEDULED', edgeAgentId: installation.edgeAgentId, deploymentId: deployment.id, updateCheckId: updateCheck.id };
 }
 
 async function rolloutRelease(superAdminId, releaseId, options = {}) {
