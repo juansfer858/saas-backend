@@ -73,3 +73,5 @@ jobs:
       - run: npx prisma db push
       - name: Validate six connected identity acceptance criteria
         run: node scripts/restaurant-identity-connected-smoke-fixed.js
+      - name: Validate Restaurant cash shift recovery against PostgreSQL
+        run: node scripts/restaurant-cash-shift-recovery-db-smoke.js
