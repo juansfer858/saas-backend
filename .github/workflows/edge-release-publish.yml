@@ -202,11 +202,12 @@ jobs:
         run: |
           set -euo pipefail
           DEST_DIR="public/edge-releases"
+          EDGE_SOURCE_COMMIT="$(git log -1 --format=%H -- edge)"
           mkdir -p "$DEST_DIR"
           cp "$EDGE_ASSET" "$DEST_DIR/$EDGE_ASSET"
           ACTUAL="$(sha256sum "$DEST_DIR/$EDGE_ASSET" | awk '{print $1}')"
           test "$ACTUAL" = "$EDGE_SHA256"
-          export DEST_DIR
+          export DEST_DIR EDGE_SOURCE_COMMIT
           python - <<'PY'
           import json
           import os
@@ -224,7 +225,7 @@ jobs:
               'channel': os.environ['EDGE_CHANNEL'],
               'file': os.environ['EDGE_ASSET'],
               'sha256': os.environ['EDGE_SHA256'],
-              'sourceCommit': os.environ['GITHUB_SHA']
+              'sourceCommit': os.environ['EDGE_SOURCE_COMMIT']
           }
           manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', 'utf-8')
           PY
