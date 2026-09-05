@@ -15,7 +15,7 @@ const waiterVisitCodeRuntime = String.raw`
     try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch{return null;}
   }
   function esc(value){
-    return String(value??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    return String(value??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[m]));
   }
   function selectedTableId(){
     return document.querySelector('[data-waiter-table].selected')?.dataset.waiterTable||null;
@@ -121,7 +121,7 @@ const waiterVisitCodeRuntime = String.raw`
   window.addEventListener('pageshow',()=>scheduleBurst(false));
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>scheduleBurst(true),{once:true});
   else scheduleBurst(true);
-  window[MARKER]=Object.freeze({version:'27.0.0',visitCodeVisible:true,eventDriven:true,noPolling:true,noMutationObserver:true});
+  window[MARKER]=Object.freeze({version:'27.0.0',visitCodeVisible:true,eventDriven:true,noPolling:true,observerFree:true});
 })();
 `;
 
