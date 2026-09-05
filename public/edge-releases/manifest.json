@@ -5,6 +5,12 @@
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
       "sha256": "263f110edf8425b571e3c9186721f97164449ccb08d441ed83ea425afa3141c1",
       "sourceCommit": "2440f9342cba72e6f6b3cf8a33093d57d1b370c1"
+    },
+    "2.1.9-print-templates.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.9-print-templates.1.zip",
+      "sha256": "a3347fe250c6f98234620daecf63f24a5992d0819efea617312170d0100e33f4",
+      "sourceCommit": "ff284752690a71162da35f87074aebdd91cee1c2"
     }
   },
   "schema": "vantixgc-edge-core-artifacts-v1"
