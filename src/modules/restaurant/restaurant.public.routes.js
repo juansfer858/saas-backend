@@ -27,6 +27,7 @@ const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
+const { installPrintTemplateEditorRuntime } = require('./restaurant-print-template-ui.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
@@ -73,6 +74,7 @@ router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installWaiterVisitCodeRuntime);
+router.use(installPrintTemplateEditorRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
