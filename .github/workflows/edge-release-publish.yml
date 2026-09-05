@@ -6,12 +6,14 @@ on:
       - main
     paths:
       - 'edge/**'
+      - 'scripts/edge-supervisor-restart-smoke.js'
       - '.github/workflows/edge-release-publish.yml'
   push:
     branches:
       - main
     paths:
       - 'edge/**'
+      - 'scripts/edge-supervisor-restart-smoke.js'
       - '.github/workflows/edge-release-publish.yml'
 
 permissions:
@@ -102,6 +104,7 @@ jobs:
           unzip -Z1 "$ZIP" | grep -Fx 'agent/offline-waiter-hard-gate.js'
           unzip -Z1 "$ZIP" | grep -Fx 'runtime/vertical-registry.js'
           unzip -Z1 "$ZIP" | grep -Fx 'print-spooler/escpos.js'
+          unzip -Z1 "$ZIP" | grep -Fx 'supervisor/supervisor.js'
           unzip -Z1 "$ZIP" | grep -Fx 'version.json'
           if unzip -Z1 "$ZIP" | grep -E '^(data|releases)/' >/dev/null; then
             echo 'Mutable Edge runtime data leaked into release package' >&2
@@ -111,6 +114,9 @@ jobs:
             echo 'Embedded Node binary must not be shipped inside managed Edge release ZIP' >&2
             exit 1
           fi
+
+      - name: Verify supervisor restart liveness
+        run: node scripts/edge-supervisor-restart-smoke.js
 
       - name: Boot extracted Edge release
         shell: bash
@@ -213,7 +219,7 @@ jobs:
           Commit fuente: $GITHUB_SHA
           SHA-256: $EDGE_SHA256
 
-          El ZIP contiene el runtime Edge versionado requerido por el arranque. Antes de publicarlo, CI extrae el ZIP y exige que el agente real responda health check. El updater valida SHA-256, crea backup, activa de forma atómica y puede hacer rollback.
+          El ZIP contiene el runtime Edge versionado requerido por el arranque. CI exige arranque real del agente y supervivencia del Supervisor ante el handoff de actualización exit 75. El updater valida SHA-256, crea backup, activa de forma atómica y puede hacer rollback.
           EOF
           if gh release view "$EDGE_TAG" >/dev/null 2>&1; then
             gh release edit "$EDGE_TAG" --title "VantixGC Edge $EDGE_VERSION" --notes-file edge-release-notes.md
@@ -242,4 +248,5 @@ jobs:
             echo "- SHA-256: \`$EDGE_SHA256\`"
             echo "- Tag: \`$EDGE_TAG\`"
             echo '- Boot smoke: `PASS` required before publish'
+            echo '- Supervisor exit-75 restart smoke: `PASS` required before publish'
           } >> "$GITHUB_STEP_SUMMARY"
