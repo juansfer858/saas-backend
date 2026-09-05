@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const restaurantSync = require('./edge-restaurant-sync.service');
 const printing = require('../platform/printing/printing.service');
+const printTemplate = require('../restaurant/restaurant-print-template.service');
 
 const INSTALL_FLAG = Symbol.for('vantixgc.edge.restaurant.print.bridge.v1');
 const QUEUES = new Set(['COCINA', 'BARRA', 'POSTRES']);
@@ -31,8 +32,9 @@ function commandLines(command) {
     }));
 }
 
-function buildCommandPrintJobs(commands, printers) {
+function buildCommandPrintJobs(commands, printers, layout = null) {
   const byQueue = new Map();
+  const normalizedLayout = printTemplate.normalizePrintTemplate(layout || printTemplate.DEFAULT_COMMAND_TEMPLATE);
   for (const printer of Array.isArray(printers) ? printers : []) {
     const queue = String(printer?.routeRole || printer?.role || '').trim().toUpperCase();
     if (!QUEUES.has(queue) || !String(printer?.host || '').trim()) continue;
@@ -69,6 +71,7 @@ function buildCommandPrintJobs(commands, printers) {
         },
         payload: {
           template: 'RESTAURANT_COMMAND_LARGE_V2',
+          layout: normalizedLayout,
           title: `COMANDA · ${command.table?.name || command.table?.code || 'Mesa'}`,
           tableLabel: String(command.table?.name || command.table?.code || 'Mesa').trim(),
           stationLabel: queue,
@@ -88,25 +91,30 @@ function buildCommandPrintJobs(commands, printers) {
 
 async function printRoutingForBootstrap(agent, bootstrap) {
   const queues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
-  if (!queues.length) return { printJobs: [], printRouting: { version: 'V2', queues: [], printerCount: 0, jobCount: 0, transports: [] } };
+  if (!queues.length) return { printJobs: [], printRouting: { version: 'V3', queues: [], printerCount: 0, jobCount: 0, transports: [] } };
   try {
-    const printers = await printing.printersForRoles(agent.tenantId, queues);
-    const printJobs = buildCommandPrintJobs(bootstrap.commands, printers);
+    const [printers, configuredLayout] = await Promise.all([
+      printing.printersForRoles(agent.tenantId, queues),
+      printTemplate.getPrintTemplate(agent.tenantId).catch(() => printTemplate.DEFAULT_COMMAND_TEMPLATE)
+    ]);
+    const layout = printTemplate.normalizePrintTemplate(configuredLayout);
+    const printJobs = buildCommandPrintJobs(bootstrap.commands, printers, layout);
     return {
       printJobs,
       printRouting: {
-        version: 'V2',
+        version: 'V3',
         queues,
         printerCount: new Set(printers.map(endpointKey)).size,
         jobCount: printJobs.length,
         transports: [...new Set(printers.map((p) => String(p.transport || 'LAN').toUpperCase()))],
+        templateVersion: layout.version,
         localSpoolerRequired: true
       }
     };
   } catch (error) {
     return {
       printJobs: [],
-      printRouting: { version: 'V2', queues, printerCount: 0, jobCount: 0, transports: [], localSpoolerRequired: true, error: String(error?.code || error?.message || 'PRINT_ROUTING_ERROR').slice(0, 160) }
+      printRouting: { version: 'V3', queues, printerCount: 0, jobCount: 0, transports: [], localSpoolerRequired: true, error: String(error?.code || error?.message || 'PRINT_ROUTING_ERROR').slice(0, 160) }
     };
   }
 }

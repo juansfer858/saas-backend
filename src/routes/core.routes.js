@@ -20,6 +20,7 @@ const { edgeTenantUpdateGuard } = require('../modules/edge/edge-tenant-update-gu
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
+const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaurant-print-template.routes');
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
@@ -62,6 +63,7 @@ router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
 // Extensions first so they can add isolated Restaurant capabilities while every other
 // endpoint falls through unchanged to the proven base router.
+router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
 router.use('/restaurante', restaurantWaiterCallRouter);
