@@ -3,6 +3,7 @@
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
+const bundledReleaseSync = require('./platform-edge-bundled-release-sync.service');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', '..', 'web');
@@ -22,6 +23,12 @@ router.get('/platform/edge-rollout.js', (_req, res) => {
 
 async function sendPlatformAdmin(_req, res, next) {
   try {
+    try {
+      const sync = await bundledReleaseSync.ensureBundledGlobalReleases();
+      if (sync.conflicts.length) console.warn('[edge-bundled-release-sync] conflicts', sync.conflicts);
+    } catch (error) {
+      console.warn('[edge-bundled-release-sync] skipped', error?.code || error?.message || error);
+    }
     const html = await fs.promises.readFile(platformAdminHtmlPath, 'utf8');
     const scripts = [
       '<script src="/platform/restaurant-fiscal-governance.js?v=platform-only-v1"></script>',
