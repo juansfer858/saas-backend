@@ -70,13 +70,17 @@ const withoutFooterTime = buildEscPos({
 assert.equal((withoutFooterTime.match(/\d{1,2}:\d{2}/g) || []).length, 0);
 assert.doesNotMatch(withoutFooterTime, /={4,}|-{4,}/);
 
-assert.equal(ui.MARKER, 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V1');
+assert.equal(ui.MARKER, 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V2');
 assert.doesNotThrow(() => new vm.Script(ui.browserRuntime));
 assert.match(ui.browserRuntime, /Plantillas de impresión/);
 assert.match(ui.browserRuntime, /Restaurar diseño recomendado/);
 assert.match(ui.browserRuntime, /Alineación del producto/);
 assert.match(ui.browserRuntime, /Vista previa térmica/);
 assert.match(ui.browserRuntime, /plantilla-impresion/);
+assert.match(ui.browserRuntime, /paper === '58' \? 32 : 48/);
+assert.match(ui.browserRuntime, /width:calc\(32ch \+ 22px\)/);
+assert.match(ui.browserRuntime, /width:calc\(48ch \+ 22px\)/);
+assert.match(ui.browserRuntime, /48 columnas para 80 mm y 32 columnas para 58 mm/);
 assert.doesNotMatch(ui.browserRuntime, /setInterval|MutationObserver/);
 
 const coreRoutes = fs.readFileSync('src/routes/core.routes.js', 'utf8');
@@ -107,6 +111,9 @@ console.log('RESTAURANT PRINT TEMPLATE EDITOR + SYMMETRIC COMMAND V3 SMOKE OK', 
   noSchemaMigration:true,
   safeEditor:true,
   livePreview58And80:true,
+  previewColumns80:48,
+  previewColumns58:32,
+  previewCenteredOnFullPaper:true,
   symmetricRecommendedLayout:true,
   timePrintedOnce:true,
   cajaReceiptsUntouched:true,
