@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Read Edge release identity
         id: identity
@@ -189,6 +191,60 @@ jobs:
           NODE
           cat edge-release-manifest.json
 
+      - name: Bundle validated Edge ZIP into Core release store
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          EDGE_VERSION: ${{ steps.identity.outputs.version }}
+          EDGE_CHANNEL: ${{ steps.identity.outputs.channel }}
+          EDGE_ASSET: ${{ steps.identity.outputs.asset }}
+          EDGE_SHA256: ${{ steps.manifest.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          DEST_DIR="public/edge-releases"
+          mkdir -p "$DEST_DIR"
+          cp "$EDGE_ASSET" "$DEST_DIR/$EDGE_ASSET"
+          ACTUAL="$(sha256sum "$DEST_DIR/$EDGE_ASSET" | awk '{print $1}')"
+          test "$ACTUAL" = "$EDGE_SHA256"
+          export DEST_DIR
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          root = pathlib.Path(os.environ['DEST_DIR'])
+          manifest_path = root / 'manifest.json'
+          try:
+              manifest = json.loads(manifest_path.read_text('utf-8'))
+          except Exception:
+              manifest = {'schema': 'vantixgc-edge-core-artifacts-v1', 'releases': {}}
+          manifest.setdefault('schema', 'vantixgc-edge-core-artifacts-v1')
+          releases = manifest.setdefault('releases', {})
+          existing = releases.get(os.environ['EDGE_VERSION']) or {}
+          same_artifact = (
+              existing.get('channel') == os.environ['EDGE_CHANNEL'] and
+              existing.get('file') == os.environ['EDGE_ASSET'] and
+              existing.get('sha256') == os.environ['EDGE_SHA256']
+          )
+          source_commit = existing.get('sourceCommit') if same_artifact and existing.get('sourceCommit') else os.environ['GITHUB_SHA']
+          releases[os.environ['EDGE_VERSION']] = {
+              'channel': os.environ['EDGE_CHANNEL'],
+              'file': os.environ['EDGE_ASSET'],
+              'sha256': os.environ['EDGE_SHA256'],
+              'sourceCommit': source_commit
+          }
+          manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', 'utf-8')
+          PY
+          git add "$DEST_DIR/$EDGE_ASSET" "$DEST_DIR/manifest.json"
+          if git diff --cached --quiet; then
+            echo "Core already contains exact Edge artifact $EDGE_VERSION"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(edge): bundle $EDGE_VERSION for Core distribution"
+          git push origin "HEAD:$GITHUB_HEAD_REF"
+
       - name: Upload PR validation artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -249,4 +305,5 @@ jobs:
             echo "- Tag: \`$EDGE_TAG\`"
             echo '- Boot smoke: `PASS` required before publish'
             echo '- Supervisor exit-75 restart smoke: `PASS` required before publish'
+            echo '- Core local distribution: validated ZIP committed on same-repo PRs'
           } >> "$GITHUB_STEP_SUMMARY"

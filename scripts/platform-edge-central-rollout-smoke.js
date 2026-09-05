@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 
@@ -13,8 +14,11 @@ const platformRoutes = read('src/modules/platform/saas/platform.routes.js');
 const platformService = read('src/modules/platform/saas/platform-edge-rollout.service.js');
 const edgeRoutes = read('src/modules/edge/edge.routes.js');
 const edgeArtifactProxy = read('src/modules/edge/edge-release-proxy.public.routes.js');
+const edgeReleaseWorkflow = read('.github/workflows/edge-release-publish.yml');
 const coreRoutes = read('src/routes/core.routes.js');
 const restaurantPublic = read('src/modules/restaurant/restaurant.public.routes.js');
+const edgeVersion = require('../edge/version.json');
+const coreArtifactManifest = JSON.parse(read('public/edge-releases/manifest.json'));
 
 assert.match(guardSource, /EDGE_UPDATE_PLATFORM_MANAGED/);
 assert.match(guardSource, /POST \/releases/);
@@ -49,14 +53,34 @@ assert.match(platformService, /EDGE_DEPLOYMENT_CANCEL/);
 assert.match(edgeRoutes, /edgeReleaseProxyPublicRouter/);
 assert.match(edgeRoutes, /proxyArtifactUrl/);
 assert.match(edgeRoutes, /delivery = 'CORE_PROXY_V1'/);
-assert.ok(edgeRoutes.indexOf('publicRouter.use(edgeReleaseProxyPublicRouter)') < edgeRoutes.indexOf('publicRouter.use(edgeAuth)'), 'artifact proxy must be reachable by the legacy updater before Edge auth');
+assert.ok(edgeRoutes.indexOf('publicRouter.use(edgeReleaseProxyPublicRouter)') < edgeRoutes.indexOf('publicRouter.use(edgeAuth)'), 'artifact distribution must be reachable by the legacy updater before Edge auth');
+assert.match(edgeArtifactProxy, /CORE_LOCAL_V2/);
 assert.match(edgeArtifactProxy, /CORE_PROXY_V1/);
+assert.match(edgeArtifactProxy, /LOCAL_ARTIFACT_ROOT/);
+assert.match(edgeArtifactProxy, /public\/edge-releases/);
+assert.match(edgeArtifactProxy, /resolveLocalArtifact/);
+assert.match(edgeArtifactProxy, /sha256File/);
+assert.match(edgeArtifactProxy, /EDGE_ARTIFACT_LOCAL_HASH_MISMATCH/);
 assert.match(edgeArtifactProxy, /EDGE_ARTIFACT_SIGNATURE_INVALID/);
 assert.match(edgeArtifactProxy, /ALLOWED_ARTIFACT_HOSTS/);
 assert.match(edgeArtifactProxy, /github\.com/);
 assert.match(edgeArtifactProxy, /Readable\.fromWeb/);
 assert.match(edgeArtifactProxy, /edgeDeployment\.findUnique/);
 assert.match(edgeArtifactProxy, /edgeRelease\.findUnique/);
+assert.ok(edgeArtifactProxy.indexOf('resolveLocalArtifact(release)') < edgeArtifactProxy.indexOf('resolveUpstream(release)'), 'Core-local artifact must be preferred before GitHub fallback');
+assert.match(edgeReleaseWorkflow, /Bundle validated Edge ZIP into Core release store/);
+assert.match(edgeReleaseWorkflow, /public\/edge-releases/);
+assert.match(edgeReleaseWorkflow, /vantixgc-edge-core-artifacts-v1/);
+assert.match(edgeReleaseWorkflow, /git push origin/);
+
+const bundledRelease = coreArtifactManifest?.releases?.[edgeVersion.version];
+assert.ok(bundledRelease, `Core artifact manifest must contain current Edge version ${edgeVersion.version}`);
+assert.equal(bundledRelease.channel, edgeVersion.channel);
+assert.match(String(bundledRelease.sha256 || ''), /^[a-f0-9]{64}$/);
+const bundledPath = `public/edge-releases/${bundledRelease.file}`;
+assert.ok(fs.existsSync(bundledPath), `Bundled Edge artifact missing: ${bundledPath}`);
+const bundledSha = crypto.createHash('sha256').update(fs.readFileSync(bundledPath)).digest('hex');
+assert.equal(bundledSha, bundledRelease.sha256, 'Bundled Edge ZIP must match its recorded SHA-256 byte-for-byte');
 
 assert.match(platformUi, /Actualizaciones Edge/);
 assert.match(platformUi, /Actualizar todos/);
@@ -102,8 +126,11 @@ console.log(JSON.stringify({
   platformUi: 'CENTRAL_ROLLOUT_V4_UPDATE_CHECK',
   deployNowRelay: true,
   deploymentAutoRefresh: true,
-  edgeArtifactDelivery: 'CORE_PROXY_V1',
-  directGithubDependencyRemovedFromEdgeManifest: true,
+  edgeArtifactDelivery: 'CORE_LOCAL_PREFERRED_V2',
+  bundledEdgeVersion: edgeVersion.version,
+  bundledEdgeSha256: bundledSha,
+  directGithubDependencyRemovedFromCriticalPath: true,
+  futureReleaseBundling: 'AUTOMATIC_PR_COMMIT',
   stuckDeploymentRecovery: true,
   tenantHardware: 'PRESERVED',
   blockedTenantRoutes: 3
