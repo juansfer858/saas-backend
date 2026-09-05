@@ -37,7 +37,18 @@ assert.match(platformService, /desiredVersion: release\.version/);
 assert.match(platformUi, /Actualizaciones Edge/);
 assert.match(platformUi, /Actualizar todos/);
 assert.match(platformUi, /Publicar desde Master/);
-assert.match(platformPublic, /CENTRAL_ROLLOUT_V1/);
+assert.match(platformPublic, /CENTRAL_ROLLOUT_V2/);
+assert.match(platformPublic, /platform-edge-central-v2/);
+
+// The Platform Edge surface must be self-contained. A failure in the legacy panel
+// globals must never collapse the central rollout view into a tiny flash message.
+assert.match(platformUi, /function platformApi\(/);
+assert.match(platformUi, /function renderLoading\(/);
+assert.match(platformUi, /function renderError\(/);
+assert.match(platformUi, /No se pudo abrir Actualizaciones Edge/);
+assert.match(platformUi, /data-edge-view/);
+assert.doesNotMatch(platformUi, /window\.api\(/);
+assert.doesNotMatch(platformUi, /window\.esc\(/);
 
 const { edgeTenantUpdateGuard } = require('../src/modules/edge/edge-tenant-update-guard');
 function blocked(method, path) {
@@ -57,7 +68,7 @@ new Function(tenantUi);
 console.log(JSON.stringify({
   ok: true,
   tenantUpdates: 'PLATFORM_MANAGED_ONLY',
-  platformUi: 'CENTRAL_ROLLOUT_V1',
+  platformUi: 'CENTRAL_ROLLOUT_V2_SELF_CONTAINED',
   tenantHardware: 'PRESERVED',
   blockedTenantRoutes: 3
 }, null, 2));
