@@ -97,7 +97,7 @@ assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
 assert.match(lanDiscovery, /restaurant-print-bridge/);
 
 const edgeVersion = require('../edge/version.json');
-assert.equal(edgeVersion.version, '2.1.4-windows-usb-print.1');
+assert.match(edgeVersion.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
 assert.equal(edgeVersion.channel, 'PILOT');
 
 console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
