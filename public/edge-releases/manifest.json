@@ -4,7 +4,7 @@
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
       "sha256": "263f110edf8425b571e3c9186721f97164449ccb08d441ed83ea425afa3141c1",
-      "sourceCommit": "7c4460f0a3171c455c3ebb4cf5f9efbcf548944d"
+      "sourceCommit": "05941d81ce946f162dada9b862ec00381b35546d"
     }
   },
   "schema": "vantixgc-edge-core-artifacts-v1"
