@@ -90,9 +90,10 @@ async function main() {
   assert.ok(edgeRestaurantEntry.indexOf("require('./restaurant-print-bridge')") < edgeRestaurantEntry.indexOf("require('./workspace-entry-v28')"));
   assert.match(commandBridge, /WINDOWS:/);
   assert.match(commandBridge, /queueName/);
+  assert.match(commandBridge, /layout: normalizedLayout/);
 
   const version = require('../edge/version.json');
-  assert.equal(version.version, '2.1.8-large-command.1');
+  assert.equal(version.version, '2.1.9-print-templates.1');
   assert.equal(version.channel, 'PILOT');
 
   console.log('RESTAURANT WINDOWS USB PRINTER SMOKE OK', JSON.stringify({
@@ -106,6 +107,7 @@ async function main() {
     windowsPrinterAssetDirect:true,
     controlCenterLoadsPrinterAsset:true,
     windowsTransportRouting:true,
+    configurableCommandLayout:true,
     edgeVersion:version.version
   }));
 }
