@@ -104,7 +104,16 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantDeliveryOrder"')::text AS "deliveryOrder",
       to_regclass('public."RestaurantDeliveryItem"')::text AS "deliveryItem",
       to_regclass('public."RestaurantDeliveryCommand"')::text AS "deliveryCommand",
-      to_regclass('public."RestaurantEmployeeWorkProfile"')::text AS "employeeWorkProfile"
+      to_regclass('public."RestaurantEmployeeWorkProfile"')::text AS "employeeWorkProfile",
+      to_regclass('public."PrintTenantConfig"')::text AS "printTenantConfig",
+      to_regclass('public."PrinterEndpoint"')::text AS "printerEndpoint",
+      EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_enum e ON e.enumtypid = t.oid
+        WHERE t.typname = 'PrinterTransport'
+          AND e.enumlabel = 'WINDOWS'
+      ) AS "printerTransportWindows"
   `);
   const state = rows?.[0] || {};
   const required = [
@@ -114,7 +123,8 @@ async function readRestaurantSchemaState() {
     'sessionPaymentAccountId', 'sessionPaymentReference',
     'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
-    'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile'
+    'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile',
+    'printTenantConfig', 'printerEndpoint', 'printerTransportWindows'
   ];
   const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };

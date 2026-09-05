@@ -17,6 +17,9 @@ on:
       - 'edge/print-spooler/escpos.js'
       - 'edge/print-spooler/windows-printer.js'
       - 'edge/version.json'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
+      - 'scripts/restaurant-runtime-schema-sync-smoke.js'
+      - 'scripts/restaurant-printing-schema-self-heal-smoke.js'
       - 'scripts/restaurant-kds-print-reliability-smoke.js'
       - 'scripts/restaurant-windows-usb-printer-smoke.js'
       - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
@@ -36,6 +39,9 @@ on:
       - 'edge/print-spooler/escpos.js'
       - 'edge/print-spooler/windows-printer.js'
       - 'edge/version.json'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
+      - 'scripts/restaurant-runtime-schema-sync-smoke.js'
+      - 'scripts/restaurant-printing-schema-self-heal-smoke.js'
       - 'scripts/restaurant-kds-print-reliability-smoke.js'
       - 'scripts/restaurant-windows-usb-printer-smoke.js'
       - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
@@ -56,7 +62,7 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
-      - name: Validate KDS and Edge print bridge syntax
+      - name: Validate KDS, printing and schema gate syntax
         run: |
           node --check src/modules/restaurant/restaurant-kds-reliability.public.routes.js
           node --check src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js
@@ -68,10 +74,45 @@ jobs:
           node --check edge/agent/restaurant-print-bridge.js
           node --check edge/print-spooler/escpos.js
           node --check edge/print-spooler/windows-printer.js
+          node --check scripts/ensure-restaurant-runtime-schema.js
+          node --check scripts/restaurant-printing-schema-self-heal-smoke.js
+      - name: Validate Restaurant printing startup schema contract
+        run: node scripts/restaurant-runtime-schema-sync-smoke.js
       - name: Validate pending visibility and single-printer kitchen routing
         run: node scripts/restaurant-kds-print-reliability-smoke.js
       - name: Validate Windows USB printer contract and browser asset loading
         run: node scripts/restaurant-windows-usb-printer-smoke.js
+
+  schema-self-heal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Reproduce legacy PrinterTransport and prove self-heal
+        run: node scripts/restaurant-printing-schema-self-heal-smoke.js
 
   verify-production:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

@@ -23,9 +23,18 @@ assert.ok(!demoFunction.includes('ensureRestaurantRuntimeSchema'), 'Schema readi
 
 assert.ok(sync.includes('RestaurantMenuItem'));
 assert.ok(sync.includes('RestaurantQrVisitDevice'));
+assert.ok(sync.includes('PrintTenantConfig'));
+assert.ok(sync.includes('PrinterEndpoint'));
+assert.ok(sync.includes("t.typname = 'PrinterTransport'"));
+assert.ok(sync.includes("e.enumlabel = 'WINDOWS'"));
+assert.ok(sync.includes("'printTenantConfig', 'printerEndpoint', 'printerTransportWindows'"));
 assert.ok(sync.includes("'db', 'push'"));
 assert.ok(!sync.includes('accept-data-loss'), 'Runtime schema sync must never bypass Prisma data-loss protection');
 assert.ok(sync.includes('to_regclass'));
 assert.ok(sync.includes('RESTAURANT_SCHEMA_SYNC_READY'));
 
-console.log('RESTAURANT RUNTIME SCHEMA STARTUP GATE SMOKE OK');
+console.log('RESTAURANT RUNTIME SCHEMA STARTUP GATE SMOKE OK', JSON.stringify({
+  printingSchemaCritical:true,
+  printerEndpointRequired:true,
+  windowsPrinterTransportRequired:true
+}));
