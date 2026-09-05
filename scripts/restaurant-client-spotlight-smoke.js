@@ -35,7 +35,7 @@ async function main() {
   assert.doesNotMatch(qrUi, /qrv3-media-symbol/);
   assert.doesNotMatch(qrUi, /const SYMBOLS/);
   assert.match(qrHtml, /qrv3-menu-list/);
-  assert.match(qrHtml, /restaurant-qr-ui\.js\?v=menu-list-v4/);
+  assert.match(qrHtml, /restaurant-qr-ui\.js\?v=mobile-compact-v29/);
   assert.doesNotMatch(qrHtml, /qrv3-media-symbol/);
   assert.match(routes, /clientSpotlight/);
   assert.match(themeSource, /RESTAURANT_CLIENT_SPOTLIGHT/);
