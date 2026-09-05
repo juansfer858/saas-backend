@@ -122,17 +122,19 @@ jobs:
 
           curl -fsSL --max-time 15 -D /tmp/windows.headers -o /tmp/windows.js https://core.vantixgc.com/app/restaurant-kds-windows-printer.js
           grep -qi '^content-type: application/javascript' /tmp/windows.headers
-          grep -qi '^X-VantixGC-KDS-Windows-Printer-Asset: v2-direct-js' /tmp/windows.headers
-          grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V2' /tmp/windows.js
+          grep -qi '^X-VantixGC-KDS-Windows-Printer-Asset: v3-relay-first-js' /tmp/windows.headers
+          grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V3' /tmp/windows.js
           grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_V1' /tmp/windows.js
           grep -q 'WINDOWS_PRINTERS' /tmp/windows.js
           grep -q 'WINDOWS_TEST' /tmp/windows.js
           grep -q 'Detectar impresoras' /tmp/windows.js
           grep -q 'Probar impresión' /tmp/windows.js
+          grep -q 'relayConnected===true' /tmp/windows.js
+          ! grep -q 'El Edge del restaurante no está en línea' /tmp/windows.js
 
           curl -fsSL --max-time 15 -D /tmp/control.headers -o /tmp/control.html https://core.vantixgc.com/app/centro-de-control?view=kds
           grep -qi '^content-type: text/html' /tmp/control.headers
-          grep -qi '^X-VantixGC-KDS-Windows-Printer-Loader: v2-direct-asset' /tmp/control.headers
-          grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V2' /tmp/control.html
-          grep -q '/app/restaurant-kds-windows-printer.js?v=windows-printer-v2-direct' /tmp/control.html
+          grep -qi '^X-VantixGC-KDS-Windows-Printer-Loader: v3-relay-first-asset' /tmp/control.headers
+          grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V3' /tmp/control.html
+          grep -q '/app/restaurant-kds-windows-printer.js?v=windows-printer-v3-relay-first' /tmp/control.html
           echo PRODUCTION_KDS_WINDOWS_USB_PRINT_OK
