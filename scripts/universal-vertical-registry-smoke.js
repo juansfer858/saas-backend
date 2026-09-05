@@ -62,6 +62,8 @@ assert.match(platformRoutes, /tenants\/:tenantId\/verticals/);
 assert.match(platformRoutes, /verticals\/:verticalCode/);
 assert.match(entitlementService, /setFromPlatform/);
 assert.match(entitlementService, /edgeManifest/);
+assert.match(entitlementService, /restaurantConfig\.findUnique\(\{ where: \{ tenantId \}, select: \{ tenantId: true \} \}\)/);
+assert.doesNotMatch(entitlementService, /restaurantConfig\.findUnique\(\{ where: \{ tenantId \}, select: \{ id: true \} \}\)/);
 assert.match(supervisor, /universal-entry\.js/);
 assert.match(selfHeal, /TenantVerticalEntitlement/);
 assert.doesNotMatch(read('src/modules/platform/verticals/vertical-registry.js'), /code:\s*['"]CORE['"]/);
