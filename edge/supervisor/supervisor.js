@@ -9,6 +9,7 @@ const ENV_FILE = path.join(ROOT, '.env');
 const UPDATE_MARKER = path.join(DATA, 'update-pending.json');
 const LAST_UPDATE_RESULT = path.join(DATA, 'update-last-result.json');
 const NODE = process.env.EDGE_NODE_PATH || (fs.existsSync(path.join(ROOT, 'runtime', 'node.exe')) ? path.join(ROOT, 'runtime', 'node.exe') : process.execPath);
+const SUPERVISOR_REVISION = 'restart-liveness-v2';
 
 let child = null;
 let stopping = false;
@@ -106,12 +107,15 @@ async function reportUpdate(marker, state, extra = {}) {
   }
 }
 
-function schedule() {
+function schedule(waitOverrideMs = null) {
   if (stopping) return;
-  const wait = Math.min(1000 * (2 ** Math.min(failures, 6)), 60000);
+  const wait = waitOverrideMs == null
+    ? Math.min(1000 * (2 ** Math.min(failures, 6)), 60000)
+    : Math.max(250, Number(waitOverrideMs) || 1000);
   clearTimeout(timer);
+  // This timer MUST stay referenced. If it is unref'ed and the agent exits with
+  // code 75, Node can terminate the supervisor before the replacement starts.
   timer = setTimeout(start, wait);
-  timer.unref?.();
 }
 
 async function rollbackPending(reason) {
@@ -161,7 +165,8 @@ async function completePendingIfHealthy() {
       evidence: {
         supervisorHealthCheck: true,
         target: marker.target || null,
-        sha256: marker.sha256 || null
+        sha256: marker.sha256 || null,
+        supervisorRevision: SUPERVISOR_REVISION
       }
     });
     if (!reported) return;
@@ -178,13 +183,23 @@ function start() {
   if (stopping || child) return;
   const entry = currentEntry();
   const env = runtimeEnv();
-  log('START', NODE, entry);
+  log('START', NODE, entry, `supervisor=${SUPERVISOR_REVISION}`);
   child = spawn(NODE, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   child.stdout.on('data', (d) => fs.appendFileSync(LOG, d));
   child.stderr.on('data', (d) => fs.appendFileSync(LOG, d));
   child.on('exit', (code, signal) => {
     log('EXIT', String(code), String(signal));
     child = null;
+
+    if (Number(code) === 75) {
+      // Exit 75 is an intentional updater handoff, not a health failure.
+      failures = 0;
+      pendingHealthFailures = 0;
+      log('UPDATE_RESTART_REQUEST accepted');
+      schedule(1000);
+      return;
+    }
+
     failures += 1;
     if (readMarker()) {
       pendingHealthFailures += 1;
@@ -197,7 +212,9 @@ function start() {
   });
 }
 
-setInterval(async () => {
+// The health interval is deliberately referenced. The supervisor is the long-lived
+// Windows service process and must not disappear when the child agent restarts.
+const healthTimer = setInterval(async () => {
   if (stopping) return;
   if (await health()) {
     failures = 0;
@@ -218,11 +235,12 @@ setInterval(async () => {
   } else {
     schedule();
   }
-}, 10000).unref();
+}, 10000);
 
 function stop() {
   stopping = true;
   clearTimeout(timer);
+  clearInterval(healthTimer);
   log('SUPERVISOR_STOP');
   if (child) {
     try { child.kill('SIGTERM'); } catch {}
