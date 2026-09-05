@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const { listWindowsPrinters, sendWindowsRawPrint, RAW_PRINT_SCRIPT } = require('../edge/print-spooler/windows-printer');
 const { buildEscPos } = require('../edge/print-spooler/escpos');
 const { runtime, MARKER } = require('../src/modules/restaurant/restaurant-kds-windows-printer.public.routes');
+const assetModule = require('../src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes');
 
 async function main() {
   const calls = [];
@@ -54,6 +55,17 @@ async function main() {
   assert.match(runtime, /Probar impresión/);
   assert.match(runtime, /transport:'WINDOWS'/);
 
+  assert.equal(assetModule.ASSET_PATH, '/app/restaurant-kds-windows-printer.js');
+  assert.equal(assetModule.HTML_MARKER, 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V2');
+  const assetSource = fs.readFileSync('src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js','utf8');
+  const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8');
+  assert.match(assetSource, /application\/javascript/);
+  assert.match(assetSource, /X-VantixGC-KDS-Windows-Printer-Asset/);
+  assert.match(assetSource, /src=\\?"\$\{ASSET_PATH\}/);
+  assert.match(publicRoutes, /restaurantKdsWindowsPrinterAssetPublicRouter/);
+  assert.match(publicRoutes, /installKdsWindowsPrinterAsset/);
+  assert.doesNotMatch(publicRoutes, /installKdsWindowsPrinterRuntime/);
+
   const printingRoutes = fs.readFileSync('src/modules/platform/printing/printing.routes.js','utf8');
   const printingService = fs.readFileSync('src/modules/platform/printing/printing.service.js','utf8');
   const edgeBridge = fs.readFileSync('edge/agent/restaurant-print-bridge.js','utf8');
@@ -76,6 +88,8 @@ async function main() {
     relayDiscovery:true,
     relayTestPrint:true,
     kdsStationUi:true,
+    windowsPrinterAssetDirect:true,
+    controlCenterLoadsPrinterAsset:true,
     windowsTransportRouting:true,
     edgeVersion:version.version
   }));
