@@ -517,10 +517,35 @@ async function sendAccountToCash(tenantId, user, tableId) {
 async function closeTableGuarded(tenantId, user, tableId, input) {
   const session = await prisma.restaurantTableSession.findFirst({ where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } } });
   if (session) {
-    const pending = await prisma.restaurantOrder.findFirst({ where: { tenantId, sessionId: session.id, state: 'BORRADOR' }, include: { _count: { select: { items: true } } } });
+    const pending = await prisma.restaurantOrder.findFirst({ where: { tenantId, sessionId: session.id, state: 'BORRADOR' }, include: { _count: { select: { items: true } } });
     if (pending?._count?.items) throw new AppError(409, 'Hay un pedido del mesero sin enviar. Envíelo o retire sus líneas antes de cerrar la mesa.', 'RESTAURANT_UNSENT_DRAFT_ORDER');
   }
   return base.closeTable(tenantId, user, tableId, input);
+}
+
+async function cashShiftState(tenantId, userId) {
+  const openShifts = await prisma.aperturaCierreCaja.findMany({
+    where: { tenantId, estado: 'ABIERTA' },
+    include: {
+      cajaBanco: { select: { id: true, nombre: true, tipo: true, activo: true } },
+      user: { select: { id: true, nombre: true, rol: true } }
+    },
+    orderBy: { abiertoEn: 'desc' }
+  });
+  const mapShift = (row) => ({
+    id: row.id,
+    cajaBancoId: row.cajaBancoId,
+    userId: row.userId,
+    abiertoEn: row.abiertoEn,
+    cajaBanco: row.cajaBanco,
+    user: row.user,
+    ownedByCurrentUser: row.userId === userId
+  });
+  const rows = openShifts.map(mapShift);
+  return {
+    ownShift: rows.find((row) => row.ownedByCurrentUser) || null,
+    openShifts: rows
+  };
 }
 
 async function cashShiftSummary(tenantId, userId, shiftId) {
@@ -591,6 +616,7 @@ module.exports = {
   prepareAccount,
   sendAccountToCash,
   closeTableGuarded,
+  cashShiftState,
   cashShiftSummary,
   publicQrContext
 };
