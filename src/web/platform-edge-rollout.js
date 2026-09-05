@@ -2,7 +2,7 @@
   'use strict';
 
   const SESSION_KEY = 'vantixgc_platform_session_v1';
-  const state = { releases: [], installations: [], loading: false };
+  const state = { releases: [], installations: [], loading: false, pollTimer: null };
 
   function esc(value) {
     return String(value ?? '').replace(/[&<>"']/g, (m) => ({
@@ -133,6 +133,40 @@
     </div>`).join('')}</div>`;
   }
 
+  function updateCheckMarkup(row) {
+    const check = row?.updateCheck || null;
+    if (!check) return '';
+    const response = check.responseBody || {};
+    const disabled = response.skipped === true && String(response.reason || '').toUpperCase() === 'DISABLED';
+    const label = disabled ? 'DISABLED' : String(check.state || '').toUpperCase();
+    const klass = disabled || check.state === 'FAILED' || check.state === 'EXPIRED' ? 'bad' : (check.state === 'COMPLETED' ? 'ok' : 'warn');
+    const detail = disabled
+      ? 'Auto-update desactivado en este Edge'
+      : (response.updated ? `Actualizando a ${esc(response.version || '')}` : (response.reason ? esc(response.reason) : ''));
+    return `<br><small>Check: <span class="badge ${klass}">${esc(label)}</span>${detail ? ` · ${detail}` : ''}</small>`;
+  }
+
+  function edgeViewActive() {
+    return Boolean(document.querySelector('[data-v="edge"].active'));
+  }
+
+  function scheduleEdgePoll() {
+    if (state.pollTimer) clearTimeout(state.pollTimer);
+    state.pollTimer = null;
+    const hasActive = state.installations.some((row) => Boolean(row.deployment));
+    if (!hasActive || !edgeViewActive()) return;
+    state.pollTimer = setTimeout(async () => {
+      if (!edgeViewActive()) return;
+      try {
+        await refreshEdgeOverview();
+        renderEdgeView();
+      } catch (error) {
+        console.error('[Platform Edge poll]', error);
+        scheduleEdgePoll();
+      }
+    }, 3000);
+  }
+
   function installationRows() {
     if (!state.installations.length) return '<tr><td colspan="8">No hay instalaciones Edge registradas.</td></tr>';
     return state.installations.map((row) => {
@@ -148,7 +182,7 @@
         <td>${esc(i.softwareVersion || '—')}<br><small>Deseada: ${esc(i.desiredVersion || '—')}</small></td>
         <td><select class="select" data-edge-channel="${esc(i.edgeAgentId || '')}"><option ${i.releaseChannel === 'PILOT' ? 'selected' : ''}>PILOT</option><option ${i.releaseChannel === 'STABLE' ? 'selected' : ''}>STABLE</option></select></td>
         <td>${deploymentCell}</td>
-        <td>${esc(i.updaterState || 'IDLE')}</td>
+        <td>${esc(i.updaterState || 'IDLE')}${updateCheckMarkup(row)}</td>
         <td><div class="edge-action-row"><select class="select" data-release-for="${esc(i.edgeAgentId || '')}">${releaseOptions()}</select><button class="btn" data-deploy="${esc(i.edgeAgentId || '')}" ${(state.releases.length && !d) ? '' : 'disabled'}>${d ? 'Cancela primero' : 'Actualizar ahora'}</button></div></td>
       </tr>`;
     }).join('');
@@ -180,6 +214,7 @@
       <div class="panel"><div class="ph"><strong>Releases globales</strong><button class="btn" id="edgeRefresh">Actualizar</button></div><div style="padding:12px">${releaseCards()}</div></div>
       <div class="panel"><div class="ph"><strong>Flota Edge</strong><span class="muted">${state.installations.length} instalaciones</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Empresa</th><th>Punto</th><th>Estado</th><th>Versión</th><th>Canal</th><th>Despliegue</th><th>Updater</th><th>Acción Master</th></tr></thead><tbody>${installationRows()}</tbody></table></div></div></div>`;
     bindEdgeActions();
+    scheduleEdgePoll();
   }
 
   async function loadEdgeView() {
