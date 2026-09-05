@@ -140,9 +140,13 @@
     const disabled = response.skipped === true && String(response.reason || '').toUpperCase() === 'DISABLED';
     const label = disabled ? 'DISABLED' : String(check.state || '').toUpperCase();
     const klass = disabled || check.state === 'FAILED' || check.state === 'EXPIRED' ? 'bad' : (check.state === 'COMPLETED' ? 'ok' : 'warn');
+    const relayError = String(check.errorMessage || '').trim();
+    const relayCode = String(check.errorCode || '').trim();
     const detail = disabled
       ? 'Auto-update desactivado en este Edge'
-      : (response.updated ? `Actualizando a ${esc(response.version || '')}` : (response.reason ? esc(response.reason) : ''));
+      : (relayError
+        ? `${relayCode ? `${esc(relayCode)} · ` : ''}${esc(relayError)}`
+        : (response.updated ? `Actualizando a ${esc(response.version || '')}` : (response.reason ? esc(response.reason) : '')));
     return `<br><small>Check: <span class="badge ${klass}">${esc(label)}</span>${detail ? ` · ${detail}` : ''}</small>`;
   }
 
