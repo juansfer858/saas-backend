@@ -53,6 +53,7 @@
       .edge-action-row .select{min-width:190px}
       .edge-release-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
       .edge-release-list .card{margin:0!important}
+      .edge-cancel{margin-top:6px}
       @keyframes edgeSpin{to{transform:rotate(360deg)}}
       @media(max-width:700px){.edge-loading,.edge-error{padding:12px}.edge-action-row .select{min-width:0;width:100%}}
     `;
@@ -137,15 +138,18 @@
     return state.installations.map((row) => {
       const i = row.installation || {}, a = row.agent || {}, t = row.tenant || {}, d = row.deployment || null;
       const online = Boolean(i.online);
+      const deploymentCell = d
+        ? `<span class="badge warn">${esc(d.state)}</span><br><small>${esc(d.targetVersion || '')}</small><br><button class="btn edge-cancel" data-cancel-deployment="${esc(i.edgeAgentId || '')}">Cancelar despliegue</button>`
+        : '<span class="muted">Sin despliegue activo</span>';
       return `<tr>
         <td><b>${esc(t.nombreEmpresa || '—')}</b><br><small>${esc(t.subdomain || '')}</small></td>
         <td>${esc(a.pointCode || '—')}<br><small>${esc(a.name || '')}</small></td>
         <td><span class="badge ${online ? 'ok' : 'bad'}">${online ? 'ONLINE' : 'OFFLINE'}</span></td>
         <td>${esc(i.softwareVersion || '—')}<br><small>Deseada: ${esc(i.desiredVersion || '—')}</small></td>
         <td><select class="select" data-edge-channel="${esc(i.edgeAgentId || '')}"><option ${i.releaseChannel === 'PILOT' ? 'selected' : ''}>PILOT</option><option ${i.releaseChannel === 'STABLE' ? 'selected' : ''}>STABLE</option></select></td>
-        <td>${d ? `<span class="badge warn">${esc(d.state)}</span><br><small>${esc(d.targetVersion || '')}</small>` : '<span class="muted">Sin despliegue activo</span>'}</td>
+        <td>${deploymentCell}</td>
         <td>${esc(i.updaterState || 'IDLE')}</td>
-        <td><div class="edge-action-row"><select class="select" data-release-for="${esc(i.edgeAgentId || '')}">${releaseOptions()}</select><button class="btn" data-deploy="${esc(i.edgeAgentId || '')}" ${state.releases.length ? '' : 'disabled'}>Actualizar ahora</button></div></td>
+        <td><div class="edge-action-row"><select class="select" data-release-for="${esc(i.edgeAgentId || '')}">${releaseOptions()}</select><button class="btn" data-deploy="${esc(i.edgeAgentId || '')}" ${(state.releases.length && !d) ? '' : 'disabled'}>${d ? 'Cancela primero' : 'Actualizar ahora'}</button></div></td>
       </tr>`;
     }).join('');
   }
@@ -222,11 +226,23 @@
         flash('Canal Edge actualizado desde Master.');
       } catch (error) { flash(error.message, true); await loadEdgeView(); }
     }));
+    document.querySelectorAll('[data-cancel-deployment]').forEach((button) => button.addEventListener('click', async () => {
+      if (!confirm('¿Cancelar este despliegue Edge? Se limpiará la versión deseada y el updater quedará en IDLE.')) return;
+      try {
+        await platformApi(`/platform/api/edge/installations/${encodeURIComponent(button.dataset.cancelDeployment)}/cancel-deployment`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: 'Recuperación de despliegue Edge atascado desde SaaS Master' })
+        });
+        flash('Despliegue Edge cancelado. Ya se puede recuperar el agente local sin que repita la versión defectuosa.');
+        await loadEdgeView();
+      } catch (error) { flash(error.message, true); }
+    }));
     document.querySelectorAll('[data-deploy]').forEach((button) => button.addEventListener('click', async () => {
       const releaseId = document.querySelector(`[data-release-for="${CSS.escape(button.dataset.deploy)}"]`)?.value;
       if (!releaseId) return flash('Selecciona primero un release global.', true);
       try {
-        await platformApi(`/platform/api/edge/installations/${encodeURIComponent(button.dataset.deploy)}/deploy`, { method: 'POST', body: JSON.stringify({ releaseId }) });
+        const response = await platformApi(`/platform/api/edge/installations/${encodeURIComponent(button.dataset.deploy)}/deploy`, { method: 'POST', body: JSON.stringify({ releaseId }) });
+        if (response.data?.result?.status === 'ACTIVE_DEPLOYMENT') return flash('Ese Edge ya tiene un despliegue activo. Cancélalo antes de enviar otro.', true);
         flash('Actualización enviada al Edge.');
         await loadEdgeView();
       } catch (error) { flash(error.message, true); }
