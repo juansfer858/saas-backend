@@ -68,12 +68,13 @@ jobs:
             sleep 10
           done
           exit 1
-      - name: Verify QR presence V25 asset in production
+      - name: Verify QR presence V25 hardening in production
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/qr.headers -o /tmp/qr.js 'https://core.vantixgc.com/app/restaurant-qr-ui.js?v=qr-presence-v25'
-          grep -qi '^X-VantixGC-QR-Realtime: v25-table-presence' /tmp/qr.headers
+          grep -qi '^X-VantixGC-QR-Realtime: v24-table-presence' /tmp/qr.headers
+          grep -qi '^X-VantixGC-QR-Presence-Hardening: v25-listener-ready-reconcile' /tmp/qr.headers
           grep -q 'VANTIX_QR_TABLE_PRESENCE_V25' /tmp/qr.js
           grep -q 'listenerReadyBeforeInitialState:true' /tmp/qr.js
           grep -q 'reconcileFallback:true' /tmp/qr.js
