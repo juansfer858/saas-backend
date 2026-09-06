@@ -1,12 +1,13 @@
 const assert = require('node:assert/strict');
 const net = require('node:net');
-const { ESC_POS_CP850_TABLE, encodeCp850, RESTAURANT_COMMAND_LARGE_V2, buildEscPos, sendRawPrint, printBatch } = require('../edge/print-spooler/escpos');
+const { ESC_POS_CP850_TABLE, encodeCp850, RESTAURANT_COMMAND_LARGE_V2, RESTAURANT_POS_RECEIPT_TYPE, buildEscPos, sendRawPrint, printBatch } = require('../edge/print-spooler/escpos');
 
 function listen(server) { return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port))); }
 function close(server) { return new Promise((resolve) => server.close(resolve)); }
 
 async function main() {
   assert.equal(ESC_POS_CP850_TABLE, 2);
+  assert.equal(RESTAURANT_POS_RECEIPT_TYPE, 'RESTAURANT_POS_V1');
   assert.deepEqual(
     Array.from(encodeCp850('áéíóúñÑ')),
     [0xa0, 0x82, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5],
@@ -16,15 +17,23 @@ async function main() {
   assert.ok(encodeCp850('Teléfono').includes(0x82));
 
   const spanishReceipt = buildEscPos({
+    receiptType: RESTAURANT_POS_RECEIPT_TYPE,
     title: 'Restaurante El Niño',
     lines: ['COMPROBANTE DE VENTA', 'Dirección: Carrera 10', 'Teléfono: 6041234567', 'Información válida'],
     cut: false
   });
   assert.ok(spanishReceipt.includes(Buffer.from([0x1b, 0x74, 0x02])), 'ESC/POS must select CP850 after reset');
+  assert.ok(spanishReceipt.includes(Buffer.from([0x1b, 0x61, 0x01])), 'restaurant POS name must be centered');
+  assert.ok(spanishReceipt.includes(Buffer.from([0x1b, 0x45, 0x01])), 'restaurant POS name must be bold');
+  assert.ok(spanishReceipt.includes(Buffer.from([0x1d, 0x21, 0x11])), 'restaurant POS name must use double width+height');
+  assert.ok(spanishReceipt.includes(Buffer.from([0x1d, 0x21, 0x00])), 'restaurant POS must reset text size after business name');
   assert.ok(spanishReceipt.includes(encodeCp850('Restaurante El Niño')));
   assert.ok(spanishReceipt.includes(encodeCp850('Dirección: Carrera 10')));
   assert.ok(spanishReceipt.includes(encodeCp850('Teléfono: 6041234567')));
   assert.equal(spanishReceipt.includes(Buffer.from('Dirección', 'utf8')), false, 'raw UTF-8 must not leak to ESC/POS printer');
+
+  const genericReceipt = buildEscPos({ title: 'Documento genérico', lines: ['Normal'], cut: false });
+  assert.equal(genericReceipt.includes(Buffer.from([0x1d, 0x21, 0x11])), false, 'non-restaurant generic documents must keep normal title size');
 
   const received = [];
   const printer = net.createServer((socket) => {
@@ -77,8 +86,8 @@ async function main() {
     assert.ok(all.includes(Buffer.from('Plato fuerte', 'ascii')));
     assert.ok(all.includes(Buffer.from('Limonada', 'ascii')));
 
-    console.log('ESC-POS LOCAL SPOOLER CP850 SMOKE OK');
-    console.log(JSON.stringify({ rawTcp9100Compatible: true, escPosBytes: true, codePage: 'CP850', spanishAccents: true, enye: true, rawUtf8Blocked: true, commandCategoryVisible: true, multiStationDirected: true, internetUsed: false, physicalPrinterTested: false }, null, 2));
+    console.log('ESC-POS LOCAL SPOOLER CP850 + RESTAURANT POS BRANDING SMOKE OK');
+    console.log(JSON.stringify({ rawTcp9100Compatible: true, escPosBytes: true, codePage: 'CP850', spanishAccents: true, enye: true, rawUtf8Blocked: true, restaurantPosBusinessNameCentered: true, restaurantPosBusinessNameBold: true, restaurantPosBusinessNameDoubleSize: true, genericDocumentsUnaffected: true, commandCategoryVisible: true, multiStationDirected: true, internetUsed: false, physicalPrinterTested: false }, null, 2));
   } finally { await close(printer); }
 }
 

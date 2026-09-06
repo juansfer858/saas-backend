@@ -6,6 +6,12 @@
       "sha256": "f42a4a83a2df96bb2cbeceb5df3fc233893b5c45ebb949463fa189dee2d88fc9",
       "sourceCommit": "ed32c6b498ac1456939e5ccf9075c785d6a2b53d"
     },
+    "2.1.11-pos-branding.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.11-pos-branding.1.zip",
+      "sha256": "4d52f12bc2ace2c8bc1d1506889f11ff6f27bbc1e7ab8b68fb6d189e5c9b92dc",
+      "sourceCommit": "2f5fe6005d2398ff259788bbffc29af1564be0dc"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
