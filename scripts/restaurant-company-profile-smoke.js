@@ -19,6 +19,18 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.equal(normalized.phone, '3001234567');
   assert.equal(normalized.email, 'caja@restaurante.co');
 
+  const fallback = companyService.normalizeProfile(
+    { nombreEmpresa:'Restaurante Trial', nit:null },
+    null,
+    { profile:{ address:'Carrera 5', city:'Yarumal', department:'Antioquia', phone:'3007654321' } },
+    { email:'trial@restaurante.co' }
+  );
+  assert.equal(fallback.address, 'Carrera 5');
+  assert.equal(fallback.city, 'Yarumal');
+  assert.equal(fallback.department, 'Antioquia');
+  assert.equal(fallback.phone, '3007654321');
+  assert.equal(fallback.email, 'trial@restaurante.co');
+
   const lines = companyService.receiptCompanyLines(normalized);
   assert.deepEqual(lines, [
     'NIT: 901234567-8',
@@ -30,16 +42,24 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
 
   const readClient = {
     tenant:{ findUnique:async () => ({ nombreEmpresa:'Restaurante Central', nit:'901234567-8' }) },
-    restaurantCompanyProfile:{ findUnique:async () => ({ address:'Calle 1', city:'Yarumal', department:'Antioquia', phone:null, email:null }) }
+    restaurantCompanyProfile:{ findUnique:async () => ({ address:'Calle 1', city:'Yarumal', department:'Antioquia', phone:null, email:null }) },
+    tenantOnboarding:{ findUnique:async () => ({ profile:{ phone:'3000000000' } }) },
+    user:{ findFirst:async () => ({ email:'admin@restaurante.co' }) }
   };
   const loaded = await companyService.getCompanyProfile('tenant-1', readClient);
   assert.equal(loaded.nombreEmpresa, 'Restaurante Central');
   assert.equal(loaded.address, 'Calle 1');
+  assert.equal(loaded.phone, '3000000000');
+  assert.equal(loaded.email, 'admin@restaurante.co');
 
-  const writes = { tenant:null, profile:null };
+  const writes = { tenant:null, profile:null, onboarding:null };
   const tx = {
     tenant:{ update:async (args) => { writes.tenant = args; return { nombreEmpresa:args.data.nombreEmpresa, nit:args.data.nit }; } },
-    restaurantCompanyProfile:{ upsert:async (args) => { writes.profile = args; return { tenantId:'tenant-1', ...args.create }; } }
+    restaurantCompanyProfile:{ upsert:async (args) => { writes.profile = args; return { tenantId:'tenant-1', ...args.create }; } },
+    tenantOnboarding:{
+      findUnique:async () => ({ profile:{ restaurantName:'Nombre anterior', phone:'3000000000', country:'CO' } }),
+      update:async (args) => { writes.onboarding = args; return { profile:args.data.profile }; }
+    }
   };
   const writeClient = { $transaction:async (callback) => callback(tx) };
   const saved = await companyService.updateCompanyProfile('tenant-1', {
@@ -56,6 +76,11 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.equal(writes.tenant.data.nit, '900111222-3');
   assert.equal(writes.profile.where.tenantId, 'tenant-1');
   assert.equal(writes.profile.create.address, 'Carrera 10 # 20-30');
+  assert.equal(writes.onboarding.data.profile.restaurantName, 'Nuevo Nombre');
+  assert.equal(writes.onboarding.data.profile.address, 'Carrera 10 # 20-30');
+  assert.equal(writes.onboarding.data.profile.city, 'Medellín');
+  assert.equal(writes.onboarding.data.profile.phone, '6041234567');
+  assert.equal(writes.onboarding.data.profile.country, 'CO');
   assert.equal(saved.email, 'admin@nuevo.co');
 
   const prismaSchema = fs.readFileSync('prisma/restaurant-company-profile-v1.prisma', 'utf8');
@@ -68,17 +93,18 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.match(routes, /router\.put\('\/empresa'/);
   assert.match(routes, /CONFIGURACION\.EDITAR/);
 
-  const ui = fs.readFileSync('src/web/restaurant-admin-config-ui.js', 'utf8');
+  const ui = fs.readFileSync('src/web/restaurant-company-admin-advanced.js', 'utf8');
+  assert.match(ui, /VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2/);
   assert.match(ui, /Información de la empresa/);
-  assert.match(ui, /rncCompanyNit/);
-  assert.match(ui, /rncCompanyAddress/);
-  assert.match(ui, /rncCompanyCity/);
-  assert.match(ui, /rncCompanyDepartment/);
-  assert.match(ui, /rncCompanyPhone/);
-  assert.match(ui, /rncCompanyEmail/);
+  assert.match(ui, /rcaCompanyNit/);
+  assert.match(ui, /rcaCompanyAddress/);
+  assert.match(ui, /rcaCompanyCity/);
+  assert.match(ui, /rcaCompanyDepartment/);
+  assert.match(ui, /rcaCompanyPhone/);
+  assert.match(ui, /rcaCompanyEmail/);
   assert.match(ui, /\/api\/v1\/impresion\/empresa/);
-  assert.match(ui, /no activa DIAN/);
-  assert.match(ui, /no genera factura electrónica/);
+  assert.match(ui, /prueba de 14 días/);
+  assert.match(ui, /no activa facturación electrónica ni bloqueos de DIAN/);
 
   const receiptSource = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
   assert.match(receiptSource, /companyService\.getCompanyProfile/);
@@ -91,8 +117,11 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
 
   console.log('RESTAURANT COMPANY PROFILE SMOKE OK', JSON.stringify({
     centralTenantIdentity:true,
+    trialOnboardingFallback:true,
+    adminEmailFallback:true,
     companyContactProfile:true,
     adminAdvancedConfig:true,
+    onboardingSync:true,
     posReceiptIdentity:true,
     runtimeSchemaSelfHeal:true,
     dianIndependent:true,
