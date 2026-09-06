@@ -1,5 +1,7 @@
 'use strict';
 
+require('./restaurant-pos-receipt-hooks');
+
 const MARKER = 'VANTIX_RESTAURANT_POS_RECEIPT_V38';
 
 const runtime = String.raw`
