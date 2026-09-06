@@ -31,11 +31,18 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    env:
+      DATABASE_URL: postgresql://localhost:5432/vantix_ci_placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
       - name: Validate ESC-POS Spanish and POS layout syntax
         run: |
           node --check edge/print-spooler/escpos.js
