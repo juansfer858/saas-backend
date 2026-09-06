@@ -139,10 +139,10 @@
         <div class="ccc-grid">
           <label>Nombre del restaurante / empresa<input id="cccNombreEmpresa" maxlength="160" value="${esc(company.nombreEmpresa || '')}" autocomplete="organization"></label>
           <label>NIT<input id="cccNit" maxlength="40" value="${esc(company.nit || '')}" inputmode="text"></label>
-          <label>Dirección<input id="cccDireccion" maxlength="220" value="${esc(company.direccion || '')}" autocomplete="street-address"></label>
-          <label>Ciudad / municipio<input id="cccCiudad" maxlength="120" value="${esc(company.ciudad || '')}" autocomplete="address-level2"></label>
-          <label>Departamento<input id="cccDepartamento" maxlength="120" value="${esc(company.departamento || '')}" autocomplete="address-level1"></label>
-          <label>Teléfono<input id="cccTelefono" maxlength="60" value="${esc(company.telefono || '')}" autocomplete="tel"></label>
+          <label>Dirección<input id="cccDireccion" maxlength="220" value="${esc(company.address || '')}" autocomplete="street-address"></label>
+          <label>Ciudad / municipio<input id="cccCiudad" maxlength="120" value="${esc(company.city || '')}" autocomplete="address-level2"></label>
+          <label>Departamento<input id="cccDepartamento" maxlength="120" value="${esc(company.department || '')}" autocomplete="address-level1"></label>
+          <label>Teléfono<input id="cccTelefono" maxlength="60" value="${esc(company.phone || '')}" autocomplete="tel"></label>
           <label>Correo electrónico<input id="cccEmail" maxlength="180" value="${esc(company.email || '')}" type="email" autocomplete="email"></label>
         </div>
         <div class="ccc-note"><b>Tirilla POS:</b> los cobros nuevos toman automáticamente nombre, NIT, dirección, ciudad/departamento, teléfono y correo que estén configurados aquí. Guardar estos datos no activa facturación electrónica ni crea bloqueos de DIAN.</div>
@@ -155,10 +155,10 @@
     return {
       nombreEmpresa:String(document.getElementById('cccNombreEmpresa')?.value || '').trim(),
       nit:String(document.getElementById('cccNit')?.value || '').trim(),
-      direccion:String(document.getElementById('cccDireccion')?.value || '').trim(),
-      ciudad:String(document.getElementById('cccCiudad')?.value || '').trim(),
-      departamento:String(document.getElementById('cccDepartamento')?.value || '').trim(),
-      telefono:String(document.getElementById('cccTelefono')?.value || '').trim(),
+      address:String(document.getElementById('cccDireccion')?.value || '').trim(),
+      city:String(document.getElementById('cccCiudad')?.value || '').trim(),
+      department:String(document.getElementById('cccDepartamento')?.value || '').trim(),
+      phone:String(document.getElementById('cccTelefono')?.value || '').trim(),
       email:String(document.getElementById('cccEmail')?.value || '').trim()
     };
   }
@@ -176,8 +176,6 @@
     try {
       loadedCompany = await api('/api/v1/impresion/empresa', { method:'PUT', body:JSON.stringify(payload) });
       if (message) message.innerHTML = '<div class="ccc-ok">✓ Información de la empresa guardada.</div>';
-      const tenant = session()?.tenant;
-      if (tenant && loadedCompany?.nombreEmpresa) tenant.nombreEmpresa = loadedCompany.nombreEmpresa;
     } catch (error) {
       if (message) message.innerHTML = `<div class="ccc-error">${esc(error.message)}</div>`;
     } finally {
