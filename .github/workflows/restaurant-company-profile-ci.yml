@@ -1,0 +1,41 @@
+name: Restaurant Company Profile CI
+
+on:
+  pull_request:
+    paths:
+      - 'prisma/restaurant-company-profile-v1.prisma'
+      - 'src/modules/restaurant/restaurant-company-profile.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/platform/printing/printing.routes.js'
+      - 'src/web/restaurant-admin-config-ui.js'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
+      - 'scripts/restaurant-company-profile-smoke.js'
+      - 'scripts/restaurant-pos-receipt-v38-smoke.js'
+      - '.github/workflows/restaurant-company-profile-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'prisma/restaurant-company-profile-v1.prisma'
+      - 'src/modules/restaurant/restaurant-company-profile.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/platform/printing/printing.routes.js'
+      - 'src/web/restaurant-admin-config-ui.js'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
+      - 'scripts/restaurant-company-profile-smoke.js'
+      - 'scripts/restaurant-pos-receipt-v38-smoke.js'
+      - '.github/workflows/restaurant-company-profile-ci.yml'
+
+jobs:
+  company-profile-and-pos-receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/restaurant-company-profile-smoke.js
+      - run: node scripts/restaurant-pos-receipt-v38-smoke.js
