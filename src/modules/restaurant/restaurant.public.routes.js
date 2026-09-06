@@ -29,6 +29,7 @@ const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
+const { restaurantCompanyConfigControlCenterPublicRouter, installCompanyConfigControlCenterAsset } = require('./restaurant-company-config-control-center.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
@@ -65,6 +66,10 @@ function installCashCompactRuntime(req, res, next) {
 // Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
+// Company Config must wrap Centro de control before Realtime/Resilience or the legacy shell
+// so its visible entrypoint cannot be swallowed by a later response layer.
+router.use(installCompanyConfigControlCenterAsset);
+router.use(restaurantCompanyConfigControlCenterPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
 router.use(restaurantKdsReliabilityPublicRouter);
 router.use(restaurantKdsWindowsPrinterAssetPublicRouter);
