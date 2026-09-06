@@ -62,6 +62,8 @@ jobs:
         run: node scripts/restaurant-waiter-table-pool-db-smoke.js
       - name: Validate QR waiter call routing and escalation
         run: node scripts/restaurant-waiter-call-db-smoke.js
+      - name: Validate waiter call delivery across PC and linked device V31
+        run: node scripts/restaurant-waiter-multisurface-v31-db-smoke.js
       - name: Validate waiter-call PWA cache refresh
         run: node scripts/restaurant-waiter-call-pwa-refresh-smoke.js
       - name: Validate QR electronic payment and waiter confirmation
