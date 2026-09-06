@@ -92,9 +92,13 @@ async function main() {
   assert.match(commandBridge, /queueName/);
   assert.match(commandBridge, /layout: normalizedLayout/);
 
+  // The active Edge release is versioned centrally. This smoke validates the
+  // current manifest identity instead of pinning a historical release number.
   const version = require('../edge/version.json');
-  assert.equal(version.version, '2.1.9-print-templates.1');
-  assert.equal(version.channel, 'PILOT');
+  assert.match(version.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
+  assert.ok(['PILOT', 'STABLE'].includes(version.channel));
+  assert.equal(version.product, 'VantixGC Restaurantes');
+  assert.equal(version.runtime, 'Edge Workspace');
 
   console.log('RESTAURANT WINDOWS USB PRINTER SMOKE OK', JSON.stringify({
     windowsDetection:true,
@@ -108,7 +112,8 @@ async function main() {
     controlCenterLoadsPrinterAsset:true,
     windowsTransportRouting:true,
     configurableCommandLayout:true,
-    edgeVersion:version.version
+    edgeVersion:version.version,
+    edgeVersionNotHardcoded:true
   }));
 }
 
