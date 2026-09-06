@@ -9,6 +9,10 @@ const receipt = require('../src/modules/restaurant/restaurant-pos-receipt-print.
 const immediate = require('../src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes');
 const operational = require('../src/modules/restaurant/restaurant-pos-operational-mode');
 
+function printable(value) {
+  return String(value ?? '').replace(/\u00a0/g, ' ');
+}
+
 const windows = { id:'p1', name:'Caja', transport:'WINDOWS', host:'EPSON TM-T20', role:'CAJA', format:'TERMICA_80', active:true };
 const kitchen = { id:'p2', name:'Cocina', transport:'WINDOWS', host:'COCINA', role:'STATION:abc', format:'TERMICA_80', active:true };
 const documents = { id:'p3', name:'Documentos', transport:'LAN', host:'10.0.0.8', port:9100, role:'DOCUMENTOS', format:'TERMICA_80', active:true };
@@ -54,10 +58,10 @@ assert.ok(trimmed80.includes('Tel: 604 000 0000'));
 assert.ok(trimmed80.includes('restaurante@vantixgc.com'));
 assert.ok(lines80.some((line) => line.includes('Venta: 000001') && line.includes('Mesa: Mesa 7')), 'Venta y Mesa deben compartir el ancho útil');
 assert.ok(lines80.some((line) => line.includes('2 x Hamburguesa especial')));
-assert.ok(lines80.some((line) => line.startsWith('Subtotal') && line.endsWith(receipt.cop(50000))), 'Subtotal debe terminar alineado a la derecha');
-assert.ok(lines80.some((line) => line.startsWith('Impoconsumo') && line.endsWith(receipt.cop(4000))));
-assert.ok(lines80.some((line) => line.startsWith('Propina') && line.endsWith(receipt.cop(5000))));
-assert.ok(lines80.some((line) => line.startsWith('TOTAL') && line.endsWith(receipt.cop(59000))));
+assert.ok(lines80.some((line) => line.startsWith('Subtotal') && printable(line).endsWith(printable(receipt.cop(50000)))), 'Subtotal debe terminar alineado a la derecha');
+assert.ok(lines80.some((line) => line.startsWith('Impoconsumo') && printable(line).endsWith(printable(receipt.cop(4000)))));
+assert.ok(lines80.some((line) => line.startsWith('Propina') && printable(line).endsWith(printable(receipt.cop(5000)))));
+assert.ok(lines80.some((line) => line.startsWith('TOTAL') && printable(line).endsWith(printable(receipt.cop(59000)))));
 assert.ok(lines80.some((line) => line.startsWith('Pago') && line.endsWith('Efectivo')));
 assert.ok(lines80.includes('-'.repeat(42)), '80 mm debe usar separador de 42 columnas');
 assert.ok(lines80.every((line) => line.length <= 42), 'ninguna línea de 80 mm puede exceder 42 columnas');
