@@ -45,8 +45,7 @@ function callView(row, actorId, now = new Date()) {
   };
 }
 
-async function waiterCallsSnapshot(tenantId, actorId) {
-  await assertStaff(tenantId, actorId);
+async function adminCallsSnapshot(tenantId, actorId) {
   const now = new Date();
   let rows = await prisma.trackingLink.findMany({
     where: {
@@ -76,8 +75,23 @@ async function waiterCallsSnapshot(tenantId, actorId) {
   return { calls:rows.map((row) => callView(row, actorId, now)) };
 }
 
+async function waiterCallsSnapshot(tenantId, actorId) {
+  const actor = await assertStaff(tenantId, actorId);
+  if (String(actor.rol).toUpperCase() === 'MESERO') {
+    // Preserve the proven primary-then-escalation policy. The V31 fix is about
+    // delivering that same snapshot to every surface owned by this waiter.
+    return baseCalls.waiterCallsSnapshot(tenantId, actorId);
+  }
+  // An administrator who intentionally opens Mesero acts as supervision/reinforcement.
+  return adminCallsSnapshot(tenantId, actorId);
+}
+
 async function attendCall(tenantId, actorId, callId) {
   const actor = await assertStaff(tenantId, actorId);
+  if (String(actor.rol).toUpperCase() === 'MESERO') {
+    return baseCalls.attendCall(tenantId, actorId, callId);
+  }
+
   const row = await prisma.trackingLink.findFirst({
     where:{ id:callId, tenantId, originType:baseCalls.ORIGIN_TYPE }
   });
@@ -95,7 +109,7 @@ async function attendCall(tenantId, actorId, callId) {
   const now = new Date();
   const timeline = [...timelineArray(row.timeline), {
     type:'CALL_ATTENDED', at:now.toISOString(), waiterUserId:actorId, waiterName:actor.nombre || null,
-    reinforced:meta.primaryWaiterId && meta.primaryWaiterId !== actorId
+    reinforced:true, actorRole:actor.rol
   }];
   const changed = await prisma.trackingLink.updateMany({
     where:{ id:row.id, tenantId, active:true, currentStatus:{ in:['PENDING_PRIMARY','ESCALATED'] } },
@@ -105,10 +119,10 @@ async function attendCall(tenantId, actorId, callId) {
   await prisma.notificationAudit.create({
     data:{
       tenantId, actorType:'USER', actorId, action:'WAITER_CALL_ATTENDED', entity:'RestaurantWaiterCall', entityId:row.id,
-      metadata:{ sessionId:row.originId, tableId:meta.tableId || null, primaryWaiterId:meta.primaryWaiterId || null, actorRole:actor.rol }
+      metadata:{ sessionId:row.originId, tableId:meta.tableId || null, primaryWaiterId:meta.primaryWaiterId || null, actorRole:actor.rol, reinforced:true }
     }
   }).catch(() => {});
   return { attended:true, alreadyAttended:false, callId:row.id, tableId:meta.tableId || null };
 }
 
-module.exports = { STAFF_ROLES, activeStaff, waiterCallsSnapshot, attendCall };
+module.exports = { STAFF_ROLES, activeStaff, adminCallsSnapshot, waiterCallsSnapshot, attendCall };
