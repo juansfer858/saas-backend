@@ -11,6 +11,8 @@ const { AppError } = require('../../utils/app-error');
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
 const PRESENCE_RECONCILE_MS = 3000;
+// VANTIX_QR_TABLE_PRESENCE_V24 remains the public compatibility contract.
+// V25 hardens listener readiness and missed-event reconciliation without breaking V24 consumers.
 
 function writeSse(res, eventName, payload) {
   if (res.writableEnded || res.destroyed) return false;
@@ -72,7 +74,7 @@ function patchVisitPresenceRealtime(source) {
   return patched;
 }
 
-// The V25 composite owns only this exact asset before V23. All business logic remains in the
+// The V25 hardening keeps the V24 public asset contract. All business logic remains in the
 // established V22/V23 source files; the patch exposes visit refresh to the table-presence event.
 router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
   try {
@@ -88,7 +90,8 @@ router.get('/app/restaurant-qr-ui.js', async (_req, res, next) => {
     ]);
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-QR-Payment', 'v22-electronic-confirmed-by-waiter');
-    res.set('X-VantixGC-QR-Realtime', 'v25-table-presence');
+    res.set('X-VantixGC-QR-Realtime', 'v24-table-presence');
+    res.set('X-VantixGC-QR-Presence-Hardening', 'v25-listener-ready-reconcile');
     res.type('application/javascript').send(`${mobileFit}\n;${edgeFallback}\n;${patchVisitPresenceRealtime(visitUi)}\n;${patchTrackingRealtime(trackingUi)}\n;${baseUi}\n;${callUi}\n;${paymentUi}\n;${realtimeUi}`);
   } catch (error) { next(error); }
 });
@@ -120,7 +123,8 @@ router.get('/api/public/restaurante/qr/:token/visita/realtime', async (req, res,
       'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Connection':'keep-alive',
       'X-Accel-Buffering':'no',
-      'X-VantixGC-Realtime':'restaurant-table-presence-v25'
+      'X-VantixGC-Realtime':'restaurant-table-presence-v24',
+      'X-VantixGC-Presence-Hardening':'v25-listener-ready-reconcile'
     });
     res.flushHeaders?.();
     res.write('retry: 2000\n\n');
