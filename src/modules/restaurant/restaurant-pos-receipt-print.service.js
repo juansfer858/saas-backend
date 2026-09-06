@@ -68,7 +68,7 @@ function dateTime(value) {
 
 function receiptLines({ company, sale, session, table }) {
   const lines = [];
-  lines.push('TIRILLA POS');
+  lines.push(String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim());
   lines.push(...companyService.receiptCompanyLines(company));
   if (lines.length > 1) lines.push('--------------------------------');
   lines.push(`Venta: ${sale?.numero || String(sale?.id || '').slice(0, 8).toUpperCase()}`);
@@ -119,6 +119,7 @@ function buildReceiptJob({ company, sale, session, table, printer }) {
       cut: true,
       paperFormat: printer.format || 'TERMICA_80',
       receiptType: 'RESTAURANT_POS_V1',
+      documentTitle: String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
       saleId: sale.id,
       sessionId: session.id
     }
