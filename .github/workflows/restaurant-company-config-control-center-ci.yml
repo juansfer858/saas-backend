@@ -1,20 +1,28 @@
-name: Restaurant Company Config Control Center CI
+name: Restaurant Company Admin Placement CI
 
 on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js'
       - 'src/modules/restaurant/restaurant-company-config-control-center.public.routes.js'
+      - 'src/modules/restaurant/restaurant-company-profile.service.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
       - 'src/web/restaurant-company-config-control-center.js'
+      - 'src/web/restaurant-signup.html'
       - 'scripts/restaurant-company-config-control-center-smoke.js'
       - '.github/workflows/restaurant-company-config-control-center-ci.yml'
   push:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js'
       - 'src/modules/restaurant/restaurant-company-config-control-center.public.routes.js'
+      - 'src/modules/restaurant/restaurant-company-profile.service.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
       - 'src/web/restaurant-company-config-control-center.js'
+      - 'src/web/restaurant-signup.html'
       - 'scripts/restaurant-company-config-control-center-smoke.js'
       - '.github/workflows/restaurant-company-config-control-center-ci.yml'
 
@@ -22,6 +30,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_ci_placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,14 +40,21 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
       - name: Validate syntax
         run: |
-          node --check src/modules/restaurant/restaurant-company-config-control-center.public.routes.js
+          node --check src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js
+          node --check src/modules/restaurant/restaurant-company-profile.service.js
           node --check src/modules/restaurant/restaurant.public.routes.js
-          node --check src/web/restaurant-company-config-control-center.js
+          node --check src/web/restaurant-company-admin-advanced.js
           node --check scripts/restaurant-company-config-control-center-smoke.js
-      - name: Validate visible Company Config composition
+      - name: Validate administrative placement and shared trial source
         run: node scripts/restaurant-company-config-control-center-smoke.js
+      - name: Validate existing POS company profile contract
+        run: node scripts/restaurant-company-profile-smoke.js
+      - name: Validate POS receipt company identity path
+        run: node scripts/restaurant-pos-receipt-v38-smoke.js
 
   verify-production:
     if: github.event_name == 'push'
@@ -64,19 +81,38 @@ jobs:
           echo "Production did not deploy commit $GITHUB_SHA in time" >&2
           exit 1
 
-      - name: Verify Configuración avanzada composition in production
+      - name: Verify Empresa in Administración Configuración avanzada
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --max-time 20 -D /tmp/config-page.headers -o /tmp/config-page.html 'https://core.vantixgc.com/app/centro-de-control?view=config'
-          grep -qi 'x-vantixgc-restaurant-company-config: v1-control-center' /tmp/config-page.headers
-          grep -q 'VANTIX_RESTAURANT_COMPANY_CONFIG_CONTROL_CENTER_V1' /tmp/config-page.html
-          grep -q '/app/restaurant-company-config-control-center.js?v=1' /tmp/config-page.html
+          curl -fsSL --max-time 20 -D /tmp/admin.headers -o /tmp/admin.html 'https://core.vantixgc.com/app/configuracion-avanzada'
+          grep -qi 'x-vantixgc-restaurant-company-admin: v2-advanced' /tmp/admin.headers
+          grep -q 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2' /tmp/admin.html
+          grep -q '/app/restaurant-company-admin-advanced.js?v=2' /tmp/admin.html
 
-          curl -fsSL --max-time 20 -D /tmp/config-js.headers -o /tmp/config.js 'https://core.vantixgc.com/app/restaurant-company-config-control-center.js?v=1'
-          grep -qi 'x-vantixgc-restaurant-company-config: v1-control-center' /tmp/config-js.headers
-          grep -q 'VANTIX_RESTAURANT_COMPANY_CONFIG_CONTROL_CENTER_V1' /tmp/config.js
-          grep -q 'Configuración avanzada' /tmp/config.js
-          grep -q 'Información de la empresa' /tmp/config.js
-          grep -q '/api/v1/impresion/empresa' /tmp/config.js
-          echo 'PRODUCTION_RESTAURANT_COMPANY_CONFIG_CONTROL_CENTER_OK'
+          curl -fsSL --max-time 20 -D /tmp/company-js.headers -o /tmp/company-admin.js 'https://core.vantixgc.com/app/restaurant-company-admin-advanced.js?v=2'
+          grep -qi 'x-vantixgc-restaurant-company-admin: v2-advanced' /tmp/company-js.headers
+          grep -q 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2' /tmp/company-admin.js
+          grep -q 'Información de la empresa' /tmp/company-admin.js
+          grep -q "button.textContent = 'Empresa'" /tmp/company-admin.js
+          grep -q 'prueba de 14 días' /tmp/company-admin.js
+          grep -q '/api/v1/impresion/empresa' /tmp/company-admin.js
+
+      - name: Verify Centro de control remains operational-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -D /tmp/control.headers -o /tmp/control.html 'https://core.vantixgc.com/app/centro-de-control'
+          if grep -q 'VANTIX_RESTAURANT_COMPANY_CONFIG_CONTROL_CENTER_V1' /tmp/control.html; then
+            echo 'Legacy company configuration marker is still present in Centro de control' >&2
+            exit 1
+          fi
+          if grep -q '/app/restaurant-company-config-control-center.js' /tmp/control.html; then
+            echo 'Legacy company configuration asset is still injected in Centro de control' >&2
+            exit 1
+          fi
+          if grep -qi 'x-vantixgc-restaurant-company-config: v1-control-center' /tmp/control.headers; then
+            echo 'Legacy company configuration header is still present in Centro de control' >&2
+            exit 1
+          fi
+          echo 'PRODUCTION_RESTAURANT_COMPANY_ADMIN_SOURCE_OK'
