@@ -4,11 +4,14 @@ const { prisma } = require('../../config/prisma');
 const restaurantService = require('./restaurant.service');
 const settlementFinalizer = require('./restaurant-settlement-finalizer.service');
 const posReceipt = require('./restaurant-pos-receipt-print.service');
+const posNumber = require('./restaurant-pos-number.service');
+const sales = require('../commercial/sales.service');
 const dian = require('../platform/dian/dian.service');
 
 const INSTALL_FLAG = Symbol.for('vantixgc.restaurant.operational.pos.v40');
 const DIAN_FLAG = Symbol.for('vantixgc.restaurant.operational.pos.dian.v40');
 const SETTLEMENT_FLAG = Symbol.for('vantixgc.restaurant.operational.pos.split.v40');
+const POS_NUMBER_FLAG = Symbol.for('vantixgc.restaurant.operational.pos.number.v1');
 
 function operationalStatus(config = {}) {
   const dianEnabled = Boolean(config.dianRealEnabled);
@@ -89,6 +92,22 @@ function installDianOptInGuard() {
   Object.defineProperty(dian, DIAN_FLAG, { value: true });
 }
 
+function installPosSequentialNumbering() {
+  if (sales[POS_NUMBER_FLAG]) return;
+  const original = sales.emitSaleInTx.bind(sales);
+  sales.emitSaleInTx = async function emitRestaurantSaleWithSequentialPosNumber(tx, tenantId, userId, id, documentType) {
+    const sale = await tx.comprobanteComercial.findFirst({
+      where: { id, tenantId, tipo: 'FACTURA_VENTA' },
+      select: { id: true, numero: true, sourceId: true }
+    });
+    if (sale && String(sale.sourceId || '').startsWith('REST-TABLE-') && !posNumber.isFinalPosNumber(sale.numero)) {
+      await posNumber.assignRestaurantPosNumberInTx(tx, tenantId, sale.id);
+    }
+    return original(tx, tenantId, userId, id, documentType);
+  };
+  Object.defineProperty(sales, POS_NUMBER_FLAG, { value: true });
+}
+
 function installSplitReceiptHook() {
   if (settlementFinalizer[SETTLEMENT_FLAG]) return;
   const original = settlementFinalizer.registerPartPaymentFinalized.bind(settlementFinalizer);
@@ -104,6 +123,7 @@ function installOperationalPosMode() {
   if (restaurantService[INSTALL_FLAG]) return restaurantService;
 
   installDianOptInGuard();
+  installPosSequentialNumbering();
   installSplitReceiptHook();
 
   const originalGetStatus = restaurantService.getStatus.bind(restaurantService);
@@ -158,10 +178,12 @@ module.exports = {
   INSTALL_FLAG,
   DIAN_FLAG,
   SETTLEMENT_FLAG,
+  POS_NUMBER_FLAG,
   operationalStatus,
   operationalResult,
   cleanupLegacySimulatedFiscal,
   installDianOptInGuard,
+  installPosSequentialNumbering,
   installSplitReceiptHook,
   installOperationalPosMode
 };
