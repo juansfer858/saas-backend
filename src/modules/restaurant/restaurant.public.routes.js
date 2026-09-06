@@ -29,7 +29,7 @@ const { restaurantDeliveryPublicRouter } = require('./restaurant-delivery.public
 const { restaurantEmployeesPublicRouter } = require('./restaurant-employees.public.routes');
 const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-work.public.routes');
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
-const { restaurantCompanyConfigControlCenterPublicRouter, installCompanyConfigControlCenterAsset } = require('./restaurant-company-config-control-center.public.routes');
+const { restaurantCompanyAdminAdvancedPublicRouter, installCompanyAdminAdvancedAsset } = require('./restaurant-company-admin-advanced.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
@@ -44,8 +44,7 @@ const router = express.Router();
 // Canonical Restaurant public surfaces remain owned by the established shell:
 // /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
 // restaurant-control-center.css · restaurant-control-center.js
-// Payment Methods Visibility V2 only appends the tenant-owned payment configuration shortcut
-// to Caja; it does not replace or fork the operational Restaurant shell.
+// Administrative company identity belongs to /app/configuracion-avanzada, not to Centro de control.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -66,10 +65,9 @@ function installCashCompactRuntime(req, res, next) {
 // Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
-// Company Config must wrap Centro de control before Realtime/Resilience or the legacy shell
-// so its visible entrypoint cannot be swallowed by a later response layer.
-router.use(installCompanyConfigControlCenterAsset);
-router.use(restaurantCompanyConfigControlCenterPublicRouter);
+// Company identity is an Administration concern. This layer wraps only Configuración avanzada.
+router.use(installCompanyAdminAdvancedAsset);
+router.use(restaurantCompanyAdminAdvancedPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
 router.use(restaurantKdsReliabilityPublicRouter);
 router.use(restaurantKdsWindowsPrinterAssetPublicRouter);

@@ -18,11 +18,8 @@ router.get('/ui-runtime/panel-printing-config.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(webRoot, 'panel-printing-config.js'));
 });
 
-// Configuración general del restaurante: impresoras y opciones transversales.
-router.get('/ui-runtime/restaurant-admin-config-ui.js', (_req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-admin-config-ui.js'));
-});
+// La identidad/configuración general del restaurante vive en Administración →
+// Configuración avanzada. No se publica como runtime del KDS ni del Centro de control.
 
 // Configuración propia del nicho KDS: crear, editar y retirar estaciones desde Ver KDS.
 router.get('/ui-runtime/restaurant-kds-stations-admin.js', (_req, res) => {
