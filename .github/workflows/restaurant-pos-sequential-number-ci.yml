@@ -1,0 +1,68 @@
+name: Restaurant POS Sequential Number CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-number.service.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-visit-payments.service.js'
+      - 'scripts/restaurant-pos-sequential-number-smoke.js'
+      - '.github/workflows/restaurant-pos-sequential-number-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-number.service.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-visit-payments.service.js'
+      - 'scripts/restaurant-pos-sequential-number-smoke.js'
+      - '.github/workflows/restaurant-pos-sequential-number-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://localhost:5432/unused
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Validate sequential POS syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-pos-number.service.js
+          node --check src/modules/restaurant/restaurant-pos-operational-mode.js
+          node --check scripts/restaurant-pos-sequential-number-smoke.js
+      - name: Validate first sale 000001 and transactional sequence
+        run: node scripts/restaurant-pos-sequential-number-smoke.js
+      - name: Validate existing POS receipt contract
+        run: node scripts/restaurant-pos-receipt-v38-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo PRODUCTION_EXACT_COMMIT_OK
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          exit 1
