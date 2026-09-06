@@ -9,6 +9,7 @@ on:
       - 'src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/modules/platform/printing/printing.routes.js'
       - 'src/modules/platform/printing/printing.service.js'
@@ -34,6 +35,7 @@ on:
       - 'src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/modules/platform/printing/printing.routes.js'
       - 'src/modules/platform/printing/printing.service.js'
@@ -68,13 +70,14 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
-      - name: Validate KDS, POS printing and schema gate syntax
+      - name: Validate KDS, POS printing and operational POS syntax
         run: |
           node --check src/modules/restaurant/restaurant-kds-reliability.public.routes.js
           node --check src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js
           node --check src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js
           node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
           node --check src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js
+          node --check src/modules/restaurant/restaurant-pos-operational-mode.js
           node --check src/modules/platform/printing/printing.routes.js
           node --check src/modules/platform/printing/printing.service.js
           node --check src/modules/edge/edge-restaurant-print-bridge.js
@@ -91,7 +94,7 @@ jobs:
         run: node scripts/restaurant-kds-print-reliability-smoke.js
       - name: Validate Windows USB printer contract and browser asset loading
         run: node scripts/restaurant-windows-usb-printer-smoke.js
-      - name: Validate automatic POS receipt after payment
+      - name: Validate automatic real POS receipt after payment
         run: node scripts/restaurant-pos-receipt-v38-smoke.js
 
   schema-self-heal:
