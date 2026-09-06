@@ -24,6 +24,7 @@ const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaur
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
+const { restaurantWaiterCallUnifiedRouter } = require('../modules/restaurant/restaurant-waiter-call-unified.routes');
 const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant-waiter-call.routes');
 const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaurant-waiter-device.routes');
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
@@ -66,6 +67,10 @@ router.use('/notificaciones', notificationsRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
+// V31 unifies waiter alerts for linked devices and authenticated PC sessions.
+// It is mounted before the legacy device-only channel so supported requests never
+// fall back to the narrower historical policy.
+router.use('/restaurante', restaurantWaiterCallUnifiedRouter);
 router.use('/restaurante', restaurantWaiterCallRouter);
 router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
