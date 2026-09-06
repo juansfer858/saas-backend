@@ -12,6 +12,7 @@ const { restaurantMenuSurfaceSyncPublicRouter, installMenuSurfaceSyncRuntime } =
 const { installQrCategoryStableRuntime } = require('./restaurant-qr-category-stable.public.routes');
 const { installQrOrderTouchLock } = require('./restaurant-qr-order-touch-lock.public.routes');
 const { installQrTrackingTouchLock } = require('./restaurant-qr-tracking-touch-lock.public.routes');
+const { installQrTableHeaderRuntime } = require('./restaurant-qr-table-header.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -67,6 +68,7 @@ router.use(installKdsWindowsPrinterAsset);
 router.use(installQrCategoryStableRuntime);
 router.use(installQrOrderTouchLock);
 router.use(installQrTrackingTouchLock);
+router.use(installQrTableHeaderRuntime);
 router.use(installKdsReliabilityRuntime);
 router.use(restaurantMenuSurfaceSyncPublicRouter);
 router.use(installMenuSurfaceSyncRuntime);
