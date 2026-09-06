@@ -15,22 +15,27 @@ const runtime = String.raw`
   function mobileDrawer(){
     return window.matchMedia?.('(max-width:1099px)').matches !== false;
   }
-  function panel(){ return document.querySelector('#orderPanel,.qrv3-order-panel,.qr-order-panel'); }
+  function orderPanel(){ return document.querySelector('#orderPanel'); }
+  function orderSheet(){ return document.querySelector('#orderPanel:not([hidden]) .qrv3-sheet'); }
+  function orderOpen(){
+    const panel=orderPanel();
+    return Boolean(panel&&!panel.hidden);
+  }
   function lock(){
-    if(locked||!mobileDrawer()||!document.body.classList.contains('order-open')) return;
-    const target=panel();
+    if(locked||!mobileDrawer()||!orderOpen()) return;
+    const target=orderSheet();
     if(!target) return;
     scrollY=window.scrollY||window.pageYOffset||0;
-    previous={position:document.body.style.position,top:document.body.style.top,left:document.body.style.left,right:document.body.style.right,width:document.body.style.width,overflow:document.body.style.overflow,htmlOverflow:document.documentElement.style.overflow};
+    previous={position:document.body.style.position,top:document.body.style.top,left:document.body.style.left,right:document.body.style.right,width:document.body.style.width,htmlOverflow:document.documentElement.style.overflow};
     document.body.style.position='fixed';
     document.body.style.top=(-scrollY)+'px';
     document.body.style.left='0';
     document.body.style.right='0';
     document.body.style.width='100%';
-    document.body.style.overflow='hidden';
     document.documentElement.style.overflow='hidden';
     document.body.dataset.qrOrderScrollLocked='1';
     locked=true;
+    target.setAttribute('tabindex','-1');
     target.focus?.({preventScroll:true});
   }
   function unlock(){
@@ -41,7 +46,6 @@ const runtime = String.raw`
     document.body.style.left=p.left||'';
     document.body.style.right=p.right||'';
     document.body.style.width=p.width||'';
-    document.body.style.overflow=p.overflow||'';
     document.documentElement.style.overflow=p.htmlOverflow||'';
     delete document.body.dataset.qrOrderScrollLocked;
     locked=false;
@@ -49,20 +53,21 @@ const runtime = String.raw`
     window.scrollTo(0,scrollY);
   }
   function sync(){
-    if(document.body.classList.contains('order-open')) lock();
+    if(orderOpen()) lock();
     else unlock();
   }
 
   if(!document.querySelector('#restaurantQrOrderScrollLockV31')){
     const style=document.createElement('style');
     style.id='restaurantQrOrderScrollLockV31';
-    style.textContent='@media(max-width:1099px){body.order-open{overscroll-behavior:none}.order-open .qr-order-panel,.order-open .qrv3-order-panel,#orderPanel{overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(var(--qrv-visible-height,100dvh) - 8px)!important}.order-open .qr-backdrop,.order-open .qrv3-backdrop{touch-action:none;overscroll-behavior:none}}';
+    style.textContent='@media(max-width:1099px){body[data-qr-order-scroll-locked="1"]{overscroll-behavior:none}#orderPanel:not([hidden]){overscroll-behavior:none;touch-action:none}#orderPanel:not([hidden]) .qrv3-sheet{overflow-y:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch;touch-action:pan-y;max-height:calc(var(--qrv-visible-height,100dvh) - 8px)!important}#orderPanel:not([hidden]) .qrv3-sheet-body{min-height:0}}';
     document.head.appendChild(style);
   }
 
   document.addEventListener('click',()=>requestAnimationFrame(sync),true);
   document.addEventListener('keydown',(event)=>{if(event.key==='Escape') requestAnimationFrame(sync);},true);
   window.addEventListener('resize',()=>requestAnimationFrame(sync),{passive:true});
+  window.visualViewport?.addEventListener('resize',()=>requestAnimationFrame(sync),{passive:true});
   window.addEventListener('pagehide',unlock);
   window.addEventListener('pageshow',()=>requestAnimationFrame(sync));
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>requestAnimationFrame(sync),{once:true});
