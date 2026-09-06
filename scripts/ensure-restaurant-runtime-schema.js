@@ -105,6 +105,7 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantDeliveryItem"')::text AS "deliveryItem",
       to_regclass('public."RestaurantDeliveryCommand"')::text AS "deliveryCommand",
       to_regclass('public."RestaurantEmployeeWorkProfile"')::text AS "employeeWorkProfile",
+      to_regclass('public."RestaurantCompanyProfile"')::text AS "companyProfile",
       to_regclass('public."PrintTenantConfig"')::text AS "printTenantConfig",
       to_regclass('public."PrinterEndpoint"')::text AS "printerEndpoint",
       EXISTS (
@@ -123,7 +124,7 @@ async function readRestaurantSchemaState() {
     'sessionPaymentAccountId', 'sessionPaymentReference',
     'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
-    'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile',
+    'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile', 'companyProfile',
     'printTenantConfig', 'printerEndpoint', 'printerTransportWindows'
   ];
   const ready = required.every((key) => Boolean(state[key]));

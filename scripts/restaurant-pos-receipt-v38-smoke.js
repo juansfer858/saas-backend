@@ -21,6 +21,15 @@ assert.equal(receipt.selectReceiptPrinters([kitchen]).routing, 'SINGLE_PHYSICAL_
 assert.equal(receipt.selectReceiptPrinters([kitchen, { ...windows, role:'STATION:def' }]).routing, 'AMBIGUOUS_PHYSICAL_PRINTERS');
 assert.equal(receipt.selectReceiptPrinters([]).routing, 'NO_PHYSICAL_PRINTER');
 
+const company = {
+  nombreEmpresa:'Restaurante Vantix Demo',
+  nit:'900123456-7',
+  address:'Carrera 20 # 10-30',
+  city:'Yarumal',
+  department:'Antioquia',
+  phone:'604 000 0000',
+  email:'restaurante@vantixgc.com'
+};
 const sale = {
   id:'sale-1', numero:'FV-1001', emitidoEn:'2026-09-06T14:00:00.000Z', formaPago:'EFECTIVO',
   subtotal:50000, descuentoTotal:0, ivaTotal:0, impoconsumoTotal:4000, total:54000, saldo:0,
@@ -31,8 +40,13 @@ const sale = {
 };
 const session = { id:'session-1', closedAt:'2026-09-06T14:03:00.000Z', tipAmount:5000, paymentMethodLabel:'Efectivo', paymentReference:null };
 const table = { name:'Mesa 7', code:'M7' };
-const lines = receipt.receiptLines({ sale, session, table });
+const lines = receipt.receiptLines({ company, sale, session, table });
 assert.ok(lines.includes('TIRILLA POS'));
+assert.ok(lines.includes('NIT: 900123456-7'));
+assert.ok(lines.includes('Dirección: Carrera 20 # 10-30'));
+assert.ok(lines.includes('Yarumal · Antioquia'));
+assert.ok(lines.includes('Tel: 604 000 0000'));
+assert.ok(lines.includes('restaurante@vantixgc.com'));
 assert.ok(lines.includes('Venta: FV-1001'));
 assert.ok(lines.includes('Mesa: Mesa 7'));
 assert.ok(lines.some((line) => line.includes('2 x Hamburguesa especial')));
@@ -43,12 +57,13 @@ assert.ok(lines.some((line) => line.startsWith('TOTAL:')));
 assert.ok(lines.includes('Pago: Efectivo'));
 assert.doesNotMatch(lines.join('\n'), /SIMULATED|SIMULADO/i);
 
-const jobA = receipt.buildReceiptJob({ tenantName:'VantixGC Demo Core', sale, session, table, printer:windows });
-const jobB = receipt.buildReceiptJob({ tenantName:'VantixGC Demo Core', sale, session, table, printer:windows });
+const jobA = receipt.buildReceiptJob({ company, sale, session, table, printer:windows });
+const jobB = receipt.buildReceiptJob({ company, sale, session, table, printer:windows });
 assert.equal(jobA.id, jobB.id, 'POS job must be deterministic to prevent duplicate prints');
 assert.match(jobA.id, /^restaurant-pos:sale-1:printer:/);
 assert.equal(jobA.station, 'CAJA');
 assert.equal(jobA.printer.transport, 'WINDOWS');
+assert.equal(jobA.payload.title, 'Restaurante Vantix Demo');
 assert.equal(jobA.payload.receiptType, 'RESTAURANT_POS_V1');
 assert.equal(jobA.payload.copies, 1);
 assert.equal(jobA.payload.cut, true);
@@ -116,8 +131,12 @@ assert.match(publicRoutes, /restaurant-pos-operational-mode/);
 assert.match(publicRoutes, /installPosReceiptImmediateRuntime/);
 assert.ok(publicRoutes.indexOf('installPosReceiptImmediateRuntime') < publicRoutes.lastIndexOf('restaurantTenantRealtimePublicRouter'), 'POS runtime must compose before canonical restaurant-ui sender');
 
-console.log('RESTAURANT POS RECEIPT V38 + OPERATIONAL POS V40 SMOKE OK', JSON.stringify({
+console.log('RESTAURANT POS RECEIPT V38 + OPERATIONAL POS V40 + COMPANY PROFILE SMOKE OK', JSON.stringify({
   automaticAfterPayment:true,
+  companyIdentityPrinted:true,
+  nitPrinted:true,
+  addressPrinted:true,
+  contactPrinted:true,
   normalClose:true,
   paymentMethodClose:true,
   splitFinalPayment:true,
