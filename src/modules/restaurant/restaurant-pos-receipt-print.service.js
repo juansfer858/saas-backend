@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { prisma } = require('../../config/prisma');
 const companyService = require('./restaurant-company-profile.service');
+const receiptLayout = require('./restaurant-pos-receipt-layout.service');
 
 const POS_ROLE = 'CAJA';
 const DOCUMENT_ROLE = 'DOCUMENTOS';
@@ -66,39 +67,26 @@ function dateTime(value) {
   }).format(date);
 }
 
-function receiptLines({ company, sale, session, table }) {
-  const lines = [];
-  lines.push(String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim());
-  lines.push(...companyService.receiptCompanyLines(company));
-  if (lines.length > 1) lines.push('--------------------------------');
-  lines.push(`Venta: ${sale?.numero || String(sale?.id || '').slice(0, 8).toUpperCase()}`);
-  lines.push(`Mesa: ${table?.name || table?.code || 'Mesa'}`);
-  const when = dateTime(sale?.emitidoEn || session?.closedAt || sale?.fecha);
-  if (when) lines.push(`Fecha: ${when}`);
-  lines.push('--------------------------------');
-
-  for (const detail of Array.isArray(sale?.detalles) ? sale.detalles : []) {
-    const description = String(detail?.descripcion || 'Producto').trim();
-    lines.push(`${qty(detail?.cantidad)} x ${description}`);
-    lines.push(`  ${cop(detail?.precioUnitario)} c/u  ${cop(detail?.totalLinea)}`);
-  }
-
-  lines.push('--------------------------------');
-  lines.push(`Subtotal: ${cop(sale?.subtotal)}`);
-  if (number(sale?.descuentoTotal) > 0) lines.push(`Descuento: ${cop(sale.descuentoTotal)}`);
-  if (number(sale?.ivaTotal) > 0) lines.push(`IVA: ${cop(sale.ivaTotal)}`);
-  if (number(sale?.impoconsumoTotal) > 0) lines.push(`Impoconsumo: ${cop(sale.impoconsumoTotal)}`);
-  const tip = number(session?.tipAmount);
-  if (tip > 0) lines.push(`Propina: ${cop(tip)}`);
-  lines.push(`TOTAL: ${cop(number(sale?.total) + tip)}`);
-  const payment = String(session?.paymentMethodLabel || session?.paymentMethodKind || sale?.formaPago || '').trim();
-  if (payment) lines.push(`Pago: ${payment}`);
-  if (session?.paymentReference) lines.push(`Ref: ${String(session.paymentReference).slice(0, 80)}`);
-  return lines;
+function receiptLines({ company, sale, session, table, paperFormat = 'TERMICA_80' }) {
+  return receiptLayout.receiptLinesFullWidth({
+    company,
+    sale,
+    session,
+    table,
+    paperFormat,
+    companyLines: companyService.receiptCompanyLines,
+    money: cop,
+    qty,
+    dateTime,
+    number,
+    defaultTitle: companyService.DEFAULT_POS_RECEIPT_TITLE
+  });
 }
 
 function buildReceiptJob({ company, sale, session, table, printer }) {
   const transport = String(printer.transport || 'LAN').toUpperCase();
+  const paperFormat = printer.format || 'TERMICA_80';
+  const columns = receiptLayout.paperColumns(paperFormat);
   return {
     id: stableReceiptJobId(sale.id, printer),
     station: POS_ROLE,
@@ -109,16 +97,18 @@ function buildReceiptJob({ company, sale, session, table, printer }) {
       host: printer.host,
       port: transport === 'LAN' ? Number(printer.port || 9100) : null,
       queueName: transport === 'WINDOWS' ? printer.host : null,
-      format: printer.format || 'TERMICA_80'
+      format: paperFormat
     },
     payload: {
       title: String(company?.nombreEmpresa || 'VantixGC').trim(),
-      lines: receiptLines({ company, sale, session, table }),
-      footer: 'Gracias por su compra',
+      lines: receiptLines({ company, sale, session, table, paperFormat }),
+      footer: receiptLayout.centerLine('Gracias por su compra', columns),
       copies: 1,
       cut: true,
-      paperFormat: printer.format || 'TERMICA_80',
+      paperFormat,
       receiptType: 'RESTAURANT_POS_V1',
+      receiptLayout: 'FULL_WIDTH_V2',
+      columns,
       documentTitle: String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
       saleId: sale.id,
       sessionId: session.id
@@ -224,8 +214,11 @@ module.exports = {
   stableReceiptJobId,
   uniquePhysicalPrinters,
   selectReceiptPrinters,
+  number,
   cop,
   qty,
+  dateTime,
+  paperColumns: receiptLayout.paperColumns,
   receiptLines,
   buildReceiptJob,
   intentTokenHash,

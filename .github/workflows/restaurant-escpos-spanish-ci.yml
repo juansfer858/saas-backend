@@ -1,4 +1,4 @@
-name: Restaurant ESC-POS Spanish CI
+name: Restaurant ESC-POS Spanish + POS Layout CI
 
 on:
   pull_request:
@@ -7,7 +7,9 @@ on:
       - 'edge/print-spooler/escpos.js'
       - 'edge/version.json'
       - 'scripts/escpos-spooler-smoke.js'
+      - 'scripts/restaurant-pos-receipt-v38-smoke.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-layout.service.js'
       - 'src/modules/restaurant/restaurant-company-profile.service.js'
       - 'src/web/restaurant-company-admin-advanced.js'
       - '.github/workflows/restaurant-escpos-spanish-ci.yml'
@@ -17,7 +19,9 @@ on:
       - 'edge/print-spooler/escpos.js'
       - 'edge/version.json'
       - 'scripts/escpos-spooler-smoke.js'
+      - 'scripts/restaurant-pos-receipt-v38-smoke.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-layout.service.js'
       - 'src/modules/restaurant/restaurant-company-profile.service.js'
       - 'src/web/restaurant-company-admin-advanced.js'
       - '.github/workflows/restaurant-escpos-spanish-ci.yml'
@@ -27,25 +31,39 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    env:
+      DATABASE_URL: postgresql://localhost:5432/vantix_ci_placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate ESC-POS Spanish syntax
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Validate ESC-POS Spanish and POS layout syntax
         run: |
           node --check edge/print-spooler/escpos.js
           node --check scripts/escpos-spooler-smoke.js
+          node --check scripts/restaurant-pos-receipt-v38-smoke.js
           node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-layout.service.js
           node --check src/modules/restaurant/restaurant-company-profile.service.js
           node --check src/web/restaurant-company-admin-advanced.js
       - name: Validate CP850 bytes and block raw UTF-8
         run: node scripts/escpos-spooler-smoke.js
-      - name: Validate document title source
+      - name: Validate full-width POS receipt geometry
+        run: node scripts/restaurant-pos-receipt-v38-smoke.js
+      - name: Validate document title and full-width source
         shell: bash
         run: |
           grep -q 'DEFAULT_POS_RECEIPT_TITLE' src/modules/restaurant/restaurant-company-profile.service.js
           grep -q 'receiptTitle' src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          grep -q 'FULL_WIDTH_V2' src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          grep -q 'DEFAULT_COLUMNS_80 = 42' src/modules/restaurant/restaurant-pos-receipt-layout.service.js
+          grep -q 'DEFAULT_COLUMNS_58 = 32' src/modules/restaurant/restaurant-pos-receipt-layout.service.js
           grep -q 'Nombre del documento POS' src/web/restaurant-company-admin-advanced.js
           ! grep -q "lines.push('TIRILLA POS')" src/modules/restaurant/restaurant-pos-receipt-print.service.js
 
