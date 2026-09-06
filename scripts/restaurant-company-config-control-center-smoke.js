@@ -41,18 +41,30 @@ assert.match(client, /Teléfono/);
 assert.match(client, /Correo electrónico/);
 assert.match(client, /Guardar empresa/);
 assert.match(client, /method:'PUT'/);
+assert.match(client, /company\.address/);
+assert.match(client, /company\.city/);
+assert.match(client, /company\.department/);
+assert.match(client, /company\.phone/);
+assert.match(client, /address:String\(/);
+assert.match(client, /city:String\(/);
+assert.match(client, /department:String\(/);
+assert.match(client, /phone:String\(/);
 assert.match(client, /no activa facturación electrónica ni crea bloqueos de DIAN/);
 assert.doesNotMatch(client, /\/api\/[^"]*dian/i, 'company configuration must not call DIAN APIs');
 
-assert.match(companyProfile, /RestaurantCompanyProfile/);
+assert.match(companyProfile, /restaurantCompanyProfile/);
 assert.match(companyProfile, /nombreEmpresa/);
 assert.match(companyProfile, /nit/);
-assert.match(companyProfile, /direccion/);
+assert.match(companyProfile, /address/);
+assert.match(companyProfile, /city/);
+assert.match(companyProfile, /department/);
+assert.match(companyProfile, /phone/);
 
 console.log('RESTAURANT COMPANY CONFIG CONTROL CENTER SMOKE OK', JSON.stringify({
   visibleEntrypoint:true,
   directConfigRoute:true,
   companyProfileApi:true,
+  companyProfileContractAligned:true,
   realtimeCompositionProtected:true,
   dianDecoupled:true
 }));
