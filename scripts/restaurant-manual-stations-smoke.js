@@ -9,7 +9,7 @@ function read(path) { return fs.readFileSync(path, 'utf8'); }
 async function main() {
   const panel = read('src/web/panel-printing-config.js');
   const theme = read('src/web/restaurant-theme.js');
-  const nativeConfig = read('src/web/restaurant-admin-config-ui.js');
+  const companyAdmin = read('src/web/restaurant-company-admin-advanced.js');
   const kdsAdmin = read('src/web/restaurant-kds-stations-admin.js');
   const routes = read('src/modules/platform/printing/printing.routes.js');
   const commercialRoutes = read('src/modules/commercial/commercial.routes.js');
@@ -56,10 +56,12 @@ async function main() {
   assert.ok(theme.includes('hasKds || canManage'), 'Administrador debe poder abrir KDS aun con cero estaciones');
   assert.ok(theme.includes("querySelectorAll('[data-cc-order-kds]')"), 'Accesos operativos de pedidos deben depender de KDS existente');
 
-  // Configuración general puede seguir existiendo como runtime reutilizable, pero
-  // el Centro de control no la enlaza como si fuera un view nativo inexistente.
-  assert.ok(nativeConfig.includes('Impresoras del restaurante'));
-  assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"));
+  // La configuración empresarial ya no es un runtime del KDS/Centro de control.
+  // Vive en Administración → Configuración avanzada y no debe acoplar estaciones.
+  assert.ok(companyAdmin.includes('VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2'));
+  assert.ok(companyAdmin.includes("button.textContent = 'Empresa'"));
+  assert.equal(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"), false,
+    'No debe conservarse el runtime administrativo empresarial duplicado');
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-kds-stations-admin.js'"));
   assert.ok(theme.includes('restaurant-production-stations'));
   assert.ok(routes.includes("router.get('/estaciones'"));
@@ -68,7 +70,7 @@ async function main() {
 
   new Function(panel);
   new Function(theme);
-  new Function(nativeConfig);
+  new Function(companyAdmin);
   new Function(kdsAdmin);
 
   const stamp = Date.now();
@@ -150,6 +152,7 @@ async function main() {
     inactiveStationStopsRouting:true,
     authenticatedKdsRuntime:true,
     brokenConfigShortcutRemoved:true,
+    companyAdminDecoupledFromKds:true,
     lanesRequireManualStation:true,
     kdsShellPreservedDuringPolling:true,
     adminCanOpenEmptyKds:true,
