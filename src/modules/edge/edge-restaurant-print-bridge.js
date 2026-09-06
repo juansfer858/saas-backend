@@ -5,6 +5,7 @@ const { prisma } = require('../../config/prisma');
 const restaurantSync = require('./edge-restaurant-sync.service');
 const printing = require('../platform/printing/printing.service');
 const printTemplate = require('../restaurant/restaurant-print-template.service');
+const posReceipt = require('../restaurant/restaurant-pos-receipt-print.service');
 
 const INSTALL_FLAG = Symbol.for('vantixgc.edge.restaurant.print.bridge.v1');
 const QUEUES = new Set(['COCINA', 'BARRA', 'POSTRES']);
@@ -97,7 +98,6 @@ async function commandsWithCategories(tenantId, commands) {
       return items?.length ? { ...command, items } : command;
     });
   } catch (_) {
-    // La categoría mejora la identificación, pero jamás debe bloquear una impresión.
     return rows;
   }
 }
@@ -159,35 +159,54 @@ function buildCommandPrintJobs(commands, printers, layout = null) {
   return jobs;
 }
 
-async function printRoutingForBootstrap(agent, bootstrap) {
-  const queues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
-  if (!queues.length) return { printJobs: [], printRouting: { version: 'V3', queues: [], printerCount: 0, jobCount: 0, transports: [] } };
+async function commandRouting(tenantId, bootstrap, queues) {
+  if (!queues.length) return { jobs: [], printers: [], layout: null, error: null };
   try {
     const [printers, configuredLayout, categorizedCommands] = await Promise.all([
-      printing.printersForRoles(agent.tenantId, queues),
-      printTemplate.getPrintTemplate(agent.tenantId).catch(() => printTemplate.DEFAULT_COMMAND_TEMPLATE),
-      commandsWithCategories(agent.tenantId, bootstrap.commands)
+      printing.printersForRoles(tenantId, queues),
+      printTemplate.getPrintTemplate(tenantId).catch(() => printTemplate.DEFAULT_COMMAND_TEMPLATE),
+      commandsWithCategories(tenantId, bootstrap.commands)
     ]);
     const layout = printTemplate.normalizePrintTemplate(configuredLayout);
-    const printJobs = buildCommandPrintJobs(categorizedCommands, printers, layout);
-    return {
-      printJobs,
-      printRouting: {
-        version: 'V3',
-        queues,
-        printerCount: new Set(printers.map(endpointKey)).size,
-        jobCount: printJobs.length,
-        transports: [...new Set(printers.map((p) => String(p.transport || 'LAN').toUpperCase()))],
-        templateVersion: layout.version,
-        localSpoolerRequired: true
-      }
-    };
+    return { jobs: buildCommandPrintJobs(categorizedCommands, printers, layout), printers, layout, error: null };
   } catch (error) {
-    return {
-      printJobs: [],
-      printRouting: { version: 'V3', queues, printerCount: 0, jobCount: 0, transports: [], localSpoolerRequired: true, error: String(error?.code || error?.message || 'PRINT_ROUTING_ERROR').slice(0, 160) }
-    };
+    return { jobs: [], printers: [], layout: null, error: String(error?.code || error?.message || 'COMMAND_PRINT_ROUTING_ERROR').slice(0, 160) };
   }
+}
+
+async function printRoutingForBootstrap(agent, bootstrap) {
+  const queues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
+  const [commands, receipts] = await Promise.all([
+    commandRouting(agent.tenantId, bootstrap, queues),
+    posReceipt.buildRecentReceiptJobs(agent.tenantId).catch((error) => ({
+      jobs: [], routing: 'ERROR', receiptCount: 0, printerCount: 0,
+      error: String(error?.code || error?.message || 'POS_RECEIPT_ROUTING_ERROR').slice(0, 160)
+    }))
+  ]);
+  const printJobs = [...commands.jobs, ...(receipts.jobs || [])];
+  const transports = [...new Set([
+    ...commands.printers.map((p) => String(p.transport || 'LAN').toUpperCase()),
+    ...(receipts.jobs || []).map((job) => String(job?.printer?.transport || 'LAN').toUpperCase())
+  ])];
+  return {
+    printJobs,
+    printRouting: {
+      version: 'V3',
+      queues,
+      printerCount: new Set(commands.printers.map(endpointKey)).size,
+      jobCount: printJobs.length,
+      transports,
+      templateVersion: commands.layout?.version || null,
+      localSpoolerRequired: true,
+      commandJobCount: commands.jobs.length,
+      posReceiptJobCount: (receipts.jobs || []).length,
+      posReceiptCount: receipts.receiptCount || 0,
+      posReceiptRouting: receipts.routing || 'NO_PHYSICAL_PRINTER',
+      posReceiptPrinterCount: receipts.printerCount || 0,
+      ...(commands.error ? { commandError: commands.error } : {}),
+      ...(receipts.error ? { posReceiptError: receipts.error } : {})
+    }
+  };
 }
 
 function install() {
@@ -210,6 +229,7 @@ module.exports = {
   commandLines,
   commandsWithCategories,
   buildCommandPrintJobs,
+  commandRouting,
   printRoutingForBootstrap,
   stableJobId,
   install

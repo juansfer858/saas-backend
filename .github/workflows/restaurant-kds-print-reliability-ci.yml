@@ -7,6 +7,9 @@ on:
       - 'src/modules/restaurant/restaurant-kds-reliability.public.routes.js'
       - 'src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js'
       - 'src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/modules/platform/printing/printing.routes.js'
       - 'src/modules/platform/printing/printing.service.js'
@@ -22,6 +25,7 @@ on:
       - 'scripts/restaurant-printing-schema-self-heal-smoke.js'
       - 'scripts/restaurant-kds-print-reliability-smoke.js'
       - 'scripts/restaurant-windows-usb-printer-smoke.js'
+      - 'scripts/restaurant-pos-receipt-v38-smoke.js'
       - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
   push:
     branches: [main]
@@ -29,6 +33,9 @@ on:
       - 'src/modules/restaurant/restaurant-kds-reliability.public.routes.js'
       - 'src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js'
       - 'src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/modules/platform/printing/printing.routes.js'
       - 'src/modules/platform/printing/printing.service.js'
@@ -44,6 +51,7 @@ on:
       - 'scripts/restaurant-printing-schema-self-heal-smoke.js'
       - 'scripts/restaurant-kds-print-reliability-smoke.js'
       - 'scripts/restaurant-windows-usb-printer-smoke.js'
+      - 'scripts/restaurant-pos-receipt-v38-smoke.js'
       - '.github/workflows/restaurant-kds-print-reliability-ci.yml'
   workflow_dispatch:
 
@@ -62,11 +70,14 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
-      - name: Validate KDS, printing and schema gate syntax
+      - name: Validate KDS, POS printing and operational POS syntax
         run: |
           node --check src/modules/restaurant/restaurant-kds-reliability.public.routes.js
           node --check src/modules/restaurant/restaurant-kds-windows-printer.public.routes.js
           node --check src/modules/restaurant/restaurant-kds-windows-printer-asset.public.routes.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js
+          node --check src/modules/restaurant/restaurant-pos-operational-mode.js
           node --check src/modules/platform/printing/printing.routes.js
           node --check src/modules/platform/printing/printing.service.js
           node --check src/modules/edge/edge-restaurant-print-bridge.js
@@ -76,12 +87,15 @@ jobs:
           node --check edge/print-spooler/windows-printer.js
           node --check scripts/ensure-restaurant-runtime-schema.js
           node --check scripts/restaurant-printing-schema-self-heal-smoke.js
+          node --check scripts/restaurant-pos-receipt-v38-smoke.js
       - name: Validate Restaurant printing startup schema contract
         run: node scripts/restaurant-runtime-schema-sync-smoke.js
       - name: Validate pending visibility and single-printer kitchen routing
         run: node scripts/restaurant-kds-print-reliability-smoke.js
       - name: Validate Windows USB printer contract and browser asset loading
         run: node scripts/restaurant-windows-usb-printer-smoke.js
+      - name: Validate automatic real POS receipt after payment
+        run: node scripts/restaurant-pos-receipt-v38-smoke.js
 
   schema-self-heal:
     runs-on: ubuntu-latest
@@ -152,13 +166,16 @@ jobs:
           grep -q '"onePrinterPerEndpoint":true' /tmp/kds-print.json
           grep -q '"kitchenQueueCoversNamedStations":true' /tmp/kds-print.json
           grep -Fq "\"edgeVersion\":\"${EXPECTED_EDGE_VERSION}\"" /tmp/kds-print.json
-      - name: Verify final KDS browser assets
+      - name: Verify final KDS and POS browser assets
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 15 -D /tmp/kds.headers -o /tmp/kds.js https://core.vantixgc.com/app/restaurant-ui.js
           grep -qi '^X-VantixGC-KDS-Reliability: v2-inline-hidden-rescue' /tmp/kds.headers
+          grep -qi '^X-VantixGC-POS-Receipt: v38-auto-after-payment' /tmp/kds.headers
           grep -q 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2' /tmp/kds.js
+          grep -q 'VANTIX_RESTAURANT_POS_RECEIPT_V38' /tmp/kds.js
+          grep -q 'POS_RECEIPT_SYNC' /tmp/kds.js
           grep -q 'kdsRescueHiddenPendingLanes' /tmp/kds.js
 
           curl -fsSL --max-time 15 -D /tmp/windows.headers -o /tmp/windows.js https://core.vantixgc.com/app/restaurant-kds-windows-printer.js
@@ -178,4 +195,4 @@ jobs:
           grep -qi '^X-VantixGC-KDS-Windows-Printer-Loader: v3-relay-first-asset' /tmp/control.headers
           grep -q 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V3' /tmp/control.html
           grep -q '/app/restaurant-kds-windows-printer.js?v=windows-printer-v3-relay-first' /tmp/control.html
-          echo PRODUCTION_KDS_WINDOWS_USB_PRINT_OK
+          echo PRODUCTION_KDS_WINDOWS_USB_AND_POS_PRINT_OK

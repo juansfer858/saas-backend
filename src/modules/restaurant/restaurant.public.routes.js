@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+require('./restaurant-pos-operational-mode');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
 const { restaurantEdgeManagedPublicRouter } = require('./restaurant-edge-managed.public.routes');
@@ -33,6 +34,7 @@ const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-rec
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
 const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
 const { installPrintTemplateEditorRuntime } = require('./restaurant-print-template-ui.public.routes');
+const { installPosReceiptImmediateRuntime } = require('./restaurant-pos-receipt-immediate.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
@@ -85,6 +87,7 @@ router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);
 router.use(installPrintTemplateEditorRuntime);
+router.use(installPosReceiptImmediateRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
