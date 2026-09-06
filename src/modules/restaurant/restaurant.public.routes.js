@@ -15,7 +15,9 @@ const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAs
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
+const { restaurantWaiterCallUnifiedPublicRouter, installWaiterCallPcRuntime } = require('./restaurant-waiter-call-unified.public.routes');
 const { restaurantWaiterCallPublicRouter } = require('./restaurant-waiter-call.public.routes');
+const { installQrOrderScrollLock } = require('./restaurant-qr-order-scroll-lock.public.routes');
 const { restaurantMenuImportPublicRouter } = require('./restaurant-menu-import.public.routes');
 const { restaurantVisitPublicRouter } = require('./restaurant-visit.public.routes');
 const { restaurantClientTrackingPublicRouter } = require('./restaurant-client-tracking.public.routes');
@@ -26,7 +28,7 @@ const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-wo
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
-const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
+const { installWaiterVisitCodeStableRuntime } = require('./restaurant-waiter-visit-code-stable.public.routes');
 const { installPrintTemplateEditorRuntime } = require('./restaurant-print-template-ui.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
@@ -73,11 +75,17 @@ router.use(restaurantWaiterDevicePersistencePublicRouter);
 router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
-router.use(installWaiterVisitCodeRuntime);
+router.use(installWaiterVisitCodeStableRuntime);
+router.use(installWaiterCallPcRuntime);
 router.use(installPrintTemplateEditorRuntime);
+router.use(installQrOrderScrollLock);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
+// The unified V31 public channel must run before the historical device-only routes.
+// The realtime publisher above still wraps the customer mutation and publishes the
+// restaurant.call topic after the database commit.
+router.use(restaurantWaiterCallUnifiedPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
 router.use(restaurantVisitPublicRouter);
