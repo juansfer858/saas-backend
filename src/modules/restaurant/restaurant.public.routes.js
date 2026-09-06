@@ -18,6 +18,7 @@ const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAs
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
 const { restaurantElectronicPaymentPublicRouter } = require('./restaurant-electronic-payment.public.routes');
 const { restaurantWaiterCallRefreshPublicRouter } = require('./restaurant-waiter-call-refresh.public.routes');
+const { restaurantWaiterCallUnifiedPublicRouter, installWaiterCallPcRuntime } = require('./restaurant-waiter-call-unified.public.routes');
 const { restaurantWaiterCallPublicRouter } = require('./restaurant-waiter-call.public.routes');
 const { restaurantMenuImportPublicRouter } = require('./restaurant-menu-import.public.routes');
 const { restaurantVisitPublicRouter } = require('./restaurant-visit.public.routes');
@@ -36,11 +37,6 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
-// Canonical Restaurant public surfaces remain owned by the established shell:
-// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
-// restaurant-control-center.css · restaurant-control-center.js
-// Payment Methods Visibility V2 only appends the tenant-owned payment configuration shortcut
-// to Caja; it does not replace or fork the operational Restaurant shell.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -57,8 +53,6 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
-// This root-mounted public router is evaluated before the generic /app HTML fallback.
-// Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
@@ -80,10 +74,12 @@ router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installWaiterVisitCodeRuntime);
+router.use(installWaiterCallPcRuntime);
 router.use(installPrintTemplateEditorRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);
+router.use(restaurantWaiterCallUnifiedPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
 router.use(restaurantVisitPublicRouter);
