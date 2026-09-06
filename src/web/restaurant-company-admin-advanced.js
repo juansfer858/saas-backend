@@ -1,11 +1,11 @@
 (() => {
   'use strict';
 
-  const MARKER = 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2';
+  const MARKER = 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V3';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const PAGE_PATH = '/app/configuracion-avanzada';
   if (window[MARKER] || location.pathname !== PAGE_PATH) return;
-  window[MARKER] = Object.freeze({ version:'2.0.0', surface:'ADMIN_ADVANCED', source:'TRIAL_AND_COMPANY_PROFILE' });
+  window[MARKER] = Object.freeze({ version:'3.0.0', surface:'ADMIN_ADVANCED', source:'TRIAL_COMPANY_AND_POS_RECEIPT' });
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
@@ -58,6 +58,7 @@
       .rca-company-source strong{color:#166534}
       .rca-company-status{font-size:12px;font-weight:750}
       .rca-company-status.ok{color:#027a48}.rca-company-status.bad{color:#b42318}
+      .rca-pos-title-help{font-size:11px;color:#64748b;line-height:1.4;margin-top:4px}
       @media(max-width:700px){.rca-company-grid{grid-template-columns:1fr}.rca-company-grid .wide{grid-column:auto}}
     `;
     document.head.appendChild(style);
@@ -66,7 +67,7 @@
   function companyMarkup(company = {}, message = '') {
     return `<div class="panel" data-restaurant-company-admin="true">
       <div class="ph">
-        <div><strong>Información de la empresa</strong><div class="muted" style="font-size:12px;margin-top:4px">Identidad administrativa del restaurante y encabezado de las tirillas POS internas.</div></div>
+        <div><strong>Información de la empresa</strong><div class="muted" style="font-size:12px;margin-top:4px">Identidad administrativa del restaurante y encabezado de los comprobantes POS internos.</div></div>
         <span class="badge ok">Empresa · Restaurante</span>
       </div>
       <div class="pb">
@@ -80,6 +81,7 @@
             <div class="field"><label>Departamento</label><input class="input" id="rcaCompanyDepartment" maxlength="120" value="${esc(company.department || '')}" placeholder="Ej. Antioquia"></div>
             <div class="field"><label>Teléfono</label><input class="input" id="rcaCompanyPhone" maxlength="80" value="${esc(company.phone || '')}" autocomplete="tel"></div>
             <div class="field"><label>Correo electrónico</label><input class="input" id="rcaCompanyEmail" type="email" maxlength="160" value="${esc(company.email || '')}" autocomplete="email"></div>
+            <div class="field wide"><label>Nombre del documento POS</label><input class="input" id="rcaReceiptTitle" maxlength="80" value="${esc(company.receiptTitle || 'COMPROBANTE DE VENTA')}" placeholder="Ej. COMPROBANTE DE VENTA"><div class="rca-pos-title-help">Este texto reemplaza “TIRILLA POS” en los próximos cobros. Es un documento interno del POS y no activa facturación electrónica ni DIAN.</div></div>
           </div>
           <div class="rca-company-actions"><button class="btn primary" type="submit" id="rcaCompanySave">Guardar información de empresa</button><span class="rca-company-status ${message ? 'ok' : ''}" id="rcaCompanyStatus">${esc(message)}</span></div>
           <div class="muted" style="font-size:11px;margin-top:12px">Esta ficha pertenece a Administración. No modifica el flujo operativo del Centro de control y no activa facturación electrónica ni bloqueos de DIAN.</div>
@@ -112,7 +114,8 @@
       city:String(document.getElementById('rcaCompanyCity')?.value || '').trim() || null,
       department:String(document.getElementById('rcaCompanyDepartment')?.value || '').trim() || null,
       phone:String(document.getElementById('rcaCompanyPhone')?.value || '').trim() || null,
-      email:String(document.getElementById('rcaCompanyEmail')?.value || '').trim() || null
+      email:String(document.getElementById('rcaCompanyEmail')?.value || '').trim() || null,
+      receiptTitle:String(document.getElementById('rcaReceiptTitle')?.value || '').trim() || 'COMPROBANTE DE VENTA'
     };
     if (!payload.nombreEmpresa) {
       if (status) { status.className = 'rca-company-status bad'; status.textContent = 'El nombre de la empresa es obligatorio.'; }
@@ -127,7 +130,7 @@
         current.tenant.nombreEmpresa = saved.nombreEmpresa;
         localStorage.setItem(SESSION_KEY, JSON.stringify(current));
       }
-      await loadCompany('Información guardada. También quedó sincronizada con el perfil administrativo del restaurante.');
+      await loadCompany('Información guardada. Los próximos comprobantes POS usarán estos datos y este nombre de documento.');
     } catch (error) {
       if (status) { status.className = 'rca-company-status bad'; status.textContent = error.message; }
       if (button) button.disabled = false;
