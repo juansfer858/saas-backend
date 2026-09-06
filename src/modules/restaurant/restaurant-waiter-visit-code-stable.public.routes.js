@@ -13,7 +13,7 @@ const runtime = String.raw`
   let burstToken=0;
 
   function session(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}catch{return null;}}
-  function esc(value){return String(value??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[m]));}
+  function esc(value){return String(value??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
   function selectedTableId(){return document.querySelector('[data-waiter-table].selected')?.dataset.waiterTable||null;}
   function removeCard(){document.querySelector('#waiterVisitCodeV31')?.remove();}
   function ensureStyles(){
@@ -31,9 +31,7 @@ const runtime = String.raw`
     if(!card){card=document.createElement('section');card.id='waiterVisitCodeV31';card.className='waiter-visit-code-v31';card.dataset.tableId=tableId;top.insertAdjacentElement('afterend',card);}
     return card;
   }
-  function signature(status){
-    return JSON.stringify({open:Boolean(status?.open),code:String(status?.visitCode||''),devices:Number(status?.activeDevices||0),table:String(status?.table?.name||'')});
-  }
+  function signature(status){return JSON.stringify({open:Boolean(status?.open),code:String(status?.visitCode||''),devices:Number(status?.activeDevices||0),table:String(status?.table?.name||'')});}
   function renderStatus(tableId,status){
     const card=ensureCard(tableId);if(!card) return false;
     const nextSignature=signature(status);
@@ -45,19 +43,14 @@ const runtime = String.raw`
     card.querySelector('[data-waiter-visit-rotate]')?.addEventListener('click',rotateCode);
     return true;
   }
-  function renderError(tableId,text){
-    const card=ensureCard(tableId);if(!card) return false;
-    card.dataset.loaded='1';card.dataset.signature='ERROR:'+String(text||'');
-    card.innerHTML='<div><small>AUTOPEDIDO QR</small><b>Código no disponible</b><span>'+esc(text||'No fue posible consultar el código.')+'</span></div>';return true;
-  }
+  function renderError(tableId,text){const card=ensureCard(tableId);if(!card)return false;card.dataset.loaded='1';card.dataset.signature='ERROR:'+String(text||'');card.innerHTML='<div><small>AUTOPEDIDO QR</small><b>Código no disponible</b><span>'+esc(text||'No fue posible consultar el código.')+'</span></div>';return true;}
   async function refreshCode(force=false){
     const tableId=selectedTableId();const top=document.querySelector('.waiter-top-card');
     if(!tableId||!top){removeCard();return false;}
     const existing=document.querySelector('#waiterVisitCodeV31');
     if(!force&&existing?.dataset.tableId===tableId&&existing.dataset.loaded==='1') return true;
     const s=session();if(!s?.token||!s?.subdomain) return false;
-    const seq=++requestSeq;
-    const card=ensureCard(tableId);
+    const seq=++requestSeq;const card=ensureCard(tableId);
     if(card&&!card.dataset.loaded){card.innerHTML='<div><small>AUTOPEDIDO QR</small><b>Consultando código…</b><span>Este código vincula los teléfonos que escanearon el QR con la mesa abierta.</span></div>';}
     try{
       const response=await fetch('/api/v1/restaurante/mesas/'+encodeURIComponent(tableId)+'/qr-visita',{cache:'no-store',headers:{Authorization:'Bearer '+s.token,'x-tenant-subdomain':s.subdomain}});
@@ -85,7 +78,7 @@ const runtime = String.raw`
   }
   function realtimeRelevant(detail){
     const topics=Array.isArray(detail?.topics)?detail.topics:[];
-    return !topics.length||topics.some((topic)=>['restaurant.visit','restaurant','restaurant.order'].includes(String(topic)));
+    return topics.includes('restaurant.visit');
   }
 
   ensureStyles();
