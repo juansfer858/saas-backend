@@ -1,3 +1,4 @@
+/* VANTIX_QR_TABLE_PRESENCE_V24 · contrato público compatible; hardening V25 en servidor */
 (() => {
   'use strict';
 
