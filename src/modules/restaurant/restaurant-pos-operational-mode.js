@@ -27,7 +27,6 @@ function operationalStatus(config = {}) {
     },
     limitations: [],
     whatsappOrderReadyEnabled: Boolean(config.whatsappOrderReadyEnabled),
-    allowSimulatedDocumentEquivalent: true,
     fiscalIntegration: {
       enabled: dianEnabled,
       mode: dianEnabled ? 'DIAN' : 'OPTIONAL_DISABLED'
@@ -143,8 +142,7 @@ function installOperationalPosMode() {
     }
 
     const receipt = await posReceipt.queueReceiptIntent(tenantId, result?.session?.id).catch(() => ({ queued: false }));
-    const normalized = operationalResult({ ...result, posReceipt: receipt }, config);
-    return normalized;
+    return operationalResult({ ...result, posReceipt: receipt }, config);
   };
 
   restaurantService.productionStatus = operationalStatus;
