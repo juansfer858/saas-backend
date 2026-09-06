@@ -2,6 +2,7 @@ const express = require('express');
 const { z } = require('zod');
 const service = require('./printing.service');
 const stationService = require('./printing-stations.service');
+const companyService = require('../../restaurant/restaurant-company-profile.service');
 const { AppError } = require('../../../utils/app-error');
 const { requirePermission } = require('../../../middleware/require-permission');
 
@@ -23,6 +24,17 @@ const configSchema = z.object({
   qrMinimumMm: z.coerce.number().int().min(20).max(100).optional(),
   showLegalLegend: z.boolean().optional()
 }).refine((v) => Object.keys(v).length > 0, { message: 'Debe enviar al menos un cambio' });
+
+const optionalText = (max) => z.union([z.string().trim().max(max), z.null()]).optional();
+const companySchema = z.object({
+  nombreEmpresa: z.string().trim().min(2).max(160),
+  nit: optionalText(40),
+  address: optionalText(220),
+  city: optionalText(120),
+  department: optionalText(120),
+  phone: optionalText(80),
+  email: z.union([z.string().trim().email().max(160), z.literal(''), z.null()]).optional()
+});
 
 const printerSchema = z.object({
   id: z.string().uuid().optional(),
@@ -57,6 +69,15 @@ const directedSchema = z.object({
     footer: z.string().trim().max(300).optional().nullable(),
     copies: z.coerce.number().int().min(1).max(10).optional()
   })).min(1)
+});
+
+router.get('/empresa', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await companyService.getCompanyProfile(req.tenantId) }); }
+  catch (error) { next(error); }
+});
+router.put('/empresa', requirePermission('CONFIGURACION.EDITAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await companyService.updateCompanyProfile(req.tenantId, parse(companySchema, req.body)) }); }
+  catch (error) { next(error); }
 });
 
 router.get('/formatos', requirePermission('CONFIGURACION.VER'), (req, res) => {
