@@ -227,5 +227,6 @@ module.exports = {
   intentTokenHash,
   queueReceiptIntent,
   queueReceiptForTableIfClosed,
-  buildPendingReceiptJobs
+  buildPendingReceiptJobs,
+  buildRecentReceiptJobs: buildPendingReceiptJobs
 };
