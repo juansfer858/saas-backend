@@ -8,29 +8,47 @@ function clean(value, maxLength = 180) {
   return text ? text.slice(0, maxLength) : null;
 }
 
-function normalizeProfile(tenant, profile) {
+function onboardingProfile(row) {
+  const value = row?.profile ?? row;
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function normalizeProfile(tenant, profile, onboarding = null, admin = null) {
+  const signup = onboardingProfile(onboarding);
   return {
-    nombreEmpresa: clean(tenant?.nombreEmpresa, 160) || 'Restaurante',
+    nombreEmpresa: clean(tenant?.nombreEmpresa, 160) || clean(signup.restaurantName, 160) || 'Restaurante',
     nit: clean(tenant?.nit, 40),
-    address: clean(profile?.address, 220),
-    city: clean(profile?.city, 120),
-    department: clean(profile?.department, 120),
-    phone: clean(profile?.phone, 80),
-    email: clean(profile?.email, 160)
+    address: clean(profile?.address, 220) || clean(signup.address, 220),
+    city: clean(profile?.city, 120) || clean(signup.city, 120),
+    department: clean(profile?.department, 120) || clean(signup.department, 120),
+    phone: clean(profile?.phone, 80) || clean(signup.phone, 80),
+    email: clean(profile?.email, 160) || clean(signup.email, 160) || clean(admin?.email, 160)
   };
 }
 
 async function getCompanyProfile(tenantId, client = prisma) {
-  const [tenant, profile] = await Promise.all([
+  const onboardingPromise = client.tenantOnboarding?.findUnique
+    ? client.tenantOnboarding.findUnique({ where: { tenantId }, select: { profile: true } })
+    : Promise.resolve(null);
+  const adminPromise = client.user?.findFirst
+    ? client.user.findFirst({
+      where: { tenantId, rol: { in: ['ADMIN', 'SUPER_ADMIN'] }, activo: true },
+      orderBy: { creadoEn: 'asc' },
+      select: { email: true }
+    })
+    : Promise.resolve(null);
+  const [tenant, profile, onboarding, admin] = await Promise.all([
     client.tenant.findUnique({
       where: { id: tenantId },
       select: { nombreEmpresa: true, nit: true }
     }),
-    client.restaurantCompanyProfile.findUnique({ where: { tenantId } })
+    client.restaurantCompanyProfile.findUnique({ where: { tenantId } }),
+    onboardingPromise,
+    adminPromise
   ]);
 
   if (!tenant) throw new AppError(404, 'Empresa no encontrada', 'TENANT_NOT_FOUND');
-  return normalizeProfile(tenant, profile);
+  return normalizeProfile(tenant, profile, onboarding, admin);
 }
 
 async function updateCompanyProfile(tenantId, input, client = prisma) {
@@ -50,6 +68,9 @@ async function updateCompanyProfile(tenantId, input, client = prisma) {
   };
 
   return client.$transaction(async (tx) => {
+    const currentOnboarding = tx.tenantOnboarding?.findUnique
+      ? await tx.tenantOnboarding.findUnique({ where: { tenantId }, select: { profile: true } })
+      : null;
     const tenant = await tx.tenant.update({
       where: { id: tenantId },
       data: tenantData,
@@ -60,7 +81,26 @@ async function updateCompanyProfile(tenantId, input, client = prisma) {
       create: { tenantId, ...profileData },
       update: profileData
     });
-    return normalizeProfile(tenant, profile);
+
+    let syncedOnboarding = currentOnboarding;
+    if (currentOnboarding && tx.tenantOnboarding?.update) {
+      const mergedProfile = {
+        ...onboardingProfile(currentOnboarding),
+        restaurantName: nombreEmpresa,
+        address: profileData.address,
+        city: profileData.city,
+        department: profileData.department,
+        phone: profileData.phone,
+        email: profileData.email
+      };
+      syncedOnboarding = await tx.tenantOnboarding.update({
+        where: { tenantId },
+        data: { profile: mergedProfile },
+        select: { profile: true }
+      });
+    }
+
+    return normalizeProfile(tenant, profile, syncedOnboarding, { email: profileData.email });
   });
 }
 
@@ -83,6 +123,7 @@ function receiptCompanyLines(profile) {
 
 module.exports = {
   clean,
+  onboardingProfile,
   normalizeProfile,
   getCompanyProfile,
   updateCompanyProfile,
