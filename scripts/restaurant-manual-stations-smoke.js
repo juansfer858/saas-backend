@@ -58,8 +58,9 @@ async function main() {
 
   // La configuración empresarial ya no es un runtime del KDS/Centro de control.
   // Vive en Administración → Configuración avanzada y no debe acoplar estaciones.
-  assert.ok(companyAdmin.includes('VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2'));
+  assert.ok(companyAdmin.includes('VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V3'));
   assert.ok(companyAdmin.includes("button.textContent = 'Empresa'"));
+  assert.ok(companyAdmin.includes('Nombre del documento POS'));
   assert.equal(commercialRoutes.includes("router.get('/ui-runtime/restaurant-admin-config-ui.js'"), false,
     'No debe conservarse el runtime administrativo empresarial duplicado');
   assert.ok(commercialRoutes.includes("router.get('/ui-runtime/restaurant-kds-stations-admin.js'"));
@@ -153,6 +154,7 @@ async function main() {
     authenticatedKdsRuntime:true,
     brokenConfigShortcutRemoved:true,
     companyAdminDecoupledFromKds:true,
+    companyAdminCurrentSurface:true,
     lanesRequireManualStation:true,
     kdsShellPreservedDuringPolling:true,
     adminCanOpenEmptyKds:true,

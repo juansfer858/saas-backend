@@ -18,6 +18,7 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.equal(normalized.department, 'Antioquia');
   assert.equal(normalized.phone, '3001234567');
   assert.equal(normalized.email, 'caja@restaurante.co');
+  assert.equal(normalized.receiptTitle, 'COMPROBANTE DE VENTA');
 
   const fallback = companyService.normalizeProfile(
     { nombreEmpresa:'Restaurante Trial', nit:null },
@@ -30,6 +31,16 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.equal(fallback.department, 'Antioquia');
   assert.equal(fallback.phone, '3007654321');
   assert.equal(fallback.email, 'trial@restaurante.co');
+  assert.equal(fallback.receiptTitle, 'COMPROBANTE DE VENTA');
+
+  const customTitle = companyService.normalizeProfile(
+    { nombreEmpresa:'Restaurante Trial', nit:null },
+    null,
+    null,
+    null,
+    { themeData:{ restaurantPosReceipt:{ receiptTitle:'RECIBO DE VENTA' } } }
+  );
+  assert.equal(customTitle.receiptTitle, 'RECIBO DE VENTA');
 
   const lines = companyService.receiptCompanyLines(normalized);
   assert.deepEqual(lines, [
@@ -44,21 +55,27 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
     tenant:{ findUnique:async () => ({ nombreEmpresa:'Restaurante Central', nit:'901234567-8' }) },
     restaurantCompanyProfile:{ findUnique:async () => ({ address:'Calle 1', city:'Yarumal', department:'Antioquia', phone:null, email:null }) },
     tenantOnboarding:{ findUnique:async () => ({ profile:{ phone:'3000000000' } }) },
-    user:{ findFirst:async () => ({ email:'admin@restaurante.co' }) }
+    user:{ findFirst:async () => ({ email:'admin@restaurante.co' }) },
+    restaurantConfig:{ findUnique:async () => ({ themeData:{ restaurantPosReceipt:{ receiptTitle:'CUENTA PAGADA' } } }) }
   };
   const loaded = await companyService.getCompanyProfile('tenant-1', readClient);
   assert.equal(loaded.nombreEmpresa, 'Restaurante Central');
   assert.equal(loaded.address, 'Calle 1');
   assert.equal(loaded.phone, '3000000000');
   assert.equal(loaded.email, 'admin@restaurante.co');
+  assert.equal(loaded.receiptTitle, 'CUENTA PAGADA');
 
-  const writes = { tenant:null, profile:null, onboarding:null };
+  const writes = { tenant:null, profile:null, onboarding:null, config:null };
   const tx = {
     tenant:{ update:async (args) => { writes.tenant = args; return { nombreEmpresa:args.data.nombreEmpresa, nit:args.data.nit }; } },
     restaurantCompanyProfile:{ upsert:async (args) => { writes.profile = args; return { tenantId:'tenant-1', ...args.create }; } },
     tenantOnboarding:{
       findUnique:async () => ({ profile:{ restaurantName:'Nombre anterior', phone:'3000000000', country:'CO' } }),
       update:async (args) => { writes.onboarding = args; return { profile:args.data.profile }; }
+    },
+    restaurantConfig:{
+      findUnique:async () => ({ themeData:{ otherSetting:{ keep:true }, restaurantPosReceipt:{ receiptTitle:'RECIBO ANTERIOR' } } }),
+      upsert:async (args) => { writes.config = args; return { themeData:args.create.themeData }; }
     }
   };
   const writeClient = { $transaction:async (callback) => callback(tx) };
@@ -69,7 +86,8 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
     city:'Medellín',
     department:'Antioquia',
     phone:'6041234567',
-    email:'admin@nuevo.co'
+    email:'admin@nuevo.co',
+    receiptTitle:'RECIBO DE VENTA'
   }, writeClient);
   assert.equal(writes.tenant.where.id, 'tenant-1');
   assert.equal(writes.tenant.data.nombreEmpresa, 'Nuevo Nombre');
@@ -81,7 +99,10 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.equal(writes.onboarding.data.profile.city, 'Medellín');
   assert.equal(writes.onboarding.data.profile.phone, '6041234567');
   assert.equal(writes.onboarding.data.profile.country, 'CO');
+  assert.equal(writes.config.create.themeData.otherSetting.keep, true);
+  assert.equal(writes.config.create.themeData.restaurantPosReceipt.receiptTitle, 'RECIBO DE VENTA');
   assert.equal(saved.email, 'admin@nuevo.co');
+  assert.equal(saved.receiptTitle, 'RECIBO DE VENTA');
 
   const prismaSchema = fs.readFileSync('prisma/restaurant-company-profile-v1.prisma', 'utf8');
   assert.match(prismaSchema, /model RestaurantCompanyProfile/);
@@ -94,7 +115,7 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.match(routes, /CONFIGURACION\.EDITAR/);
 
   const ui = fs.readFileSync('src/web/restaurant-company-admin-advanced.js', 'utf8');
-  assert.match(ui, /VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2/);
+  assert.match(ui, /VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V3/);
   assert.match(ui, /Información de la empresa/);
   assert.match(ui, /rcaCompanyNit/);
   assert.match(ui, /rcaCompanyAddress/);
@@ -102,6 +123,9 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   assert.match(ui, /rcaCompanyDepartment/);
   assert.match(ui, /rcaCompanyPhone/);
   assert.match(ui, /rcaCompanyEmail/);
+  assert.match(ui, /rcaReceiptTitle/);
+  assert.match(ui, /Nombre del documento POS/);
+  assert.match(ui, /COMPROBANTE DE VENTA/);
   assert.match(ui, /\/api\/v1\/impresion\/empresa/);
   assert.match(ui, /prueba de 14 días/);
   assert.match(ui, /no activa facturación electrónica ni bloqueos de DIAN/);
@@ -109,23 +133,27 @@ const companyService = require('../src/modules/restaurant/restaurant-company-pro
   const receiptSource = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
   assert.match(receiptSource, /companyService\.getCompanyProfile/);
   assert.match(receiptSource, /companyService\.receiptCompanyLines/);
+  assert.match(receiptSource, /company\?\.receiptTitle/);
+  assert.doesNotMatch(receiptSource, /lines\.push\('TIRILLA POS'\)/);
   assert.doesNotMatch(receiptSource, /dianRealEnabled|fiscal gate/i);
 
   const runtimeSchema = fs.readFileSync('scripts/ensure-restaurant-runtime-schema.js', 'utf8');
   assert.match(runtimeSchema, /RestaurantCompanyProfile/);
   assert.match(runtimeSchema, /companyProfile/);
 
-  console.log('RESTAURANT COMPANY PROFILE SMOKE OK', JSON.stringify({
+  console.log('RESTAURANT COMPANY PROFILE + POS TITLE SMOKE OK', JSON.stringify({
     centralTenantIdentity:true,
     trialOnboardingFallback:true,
     adminEmailFallback:true,
     companyContactProfile:true,
     adminAdvancedConfig:true,
     onboardingSync:true,
+    configurablePosDocumentTitle:true,
+    defaultPosDocumentTitle:'COMPROBANTE DE VENTA',
     posReceiptIdentity:true,
     runtimeSchemaSelfHeal:true,
     dianIndependent:true,
-    edgeUpgradeRequired:false
+    edgeUpgradeRequired:true
   }));
 })().catch((error) => {
   console.error(error);

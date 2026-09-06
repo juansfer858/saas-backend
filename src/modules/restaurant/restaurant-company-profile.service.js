@@ -3,6 +3,9 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
+const POS_RECEIPT_SETTINGS_KEY = 'restaurantPosReceipt';
+const DEFAULT_POS_RECEIPT_TITLE = 'COMPROBANTE DE VENTA';
+
 function clean(value, maxLength = 180) {
   const text = String(value ?? '').trim();
   return text ? text.slice(0, maxLength) : null;
@@ -13,7 +16,17 @@ function onboardingProfile(row) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-function normalizeProfile(tenant, profile, onboarding = null, admin = null) {
+function themeData(row) {
+  const value = row?.themeData;
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function receiptTitleFromConfig(config) {
+  const settings = themeData(config)[POS_RECEIPT_SETTINGS_KEY];
+  return clean(settings?.receiptTitle, 80) || DEFAULT_POS_RECEIPT_TITLE;
+}
+
+function normalizeProfile(tenant, profile, onboarding = null, admin = null, restaurantConfig = null) {
   const signup = onboardingProfile(onboarding);
   return {
     nombreEmpresa: clean(tenant?.nombreEmpresa, 160) || clean(signup.restaurantName, 160) || 'Restaurante',
@@ -22,7 +35,8 @@ function normalizeProfile(tenant, profile, onboarding = null, admin = null) {
     city: clean(profile?.city, 120) || clean(signup.city, 120),
     department: clean(profile?.department, 120) || clean(signup.department, 120),
     phone: clean(profile?.phone, 80) || clean(signup.phone, 80),
-    email: clean(profile?.email, 160) || clean(signup.email, 160) || clean(admin?.email, 160)
+    email: clean(profile?.email, 160) || clean(signup.email, 160) || clean(admin?.email, 160),
+    receiptTitle: receiptTitleFromConfig(restaurantConfig)
   };
 }
 
@@ -37,18 +51,22 @@ async function getCompanyProfile(tenantId, client = prisma) {
       select: { email: true }
     })
     : Promise.resolve(null);
-  const [tenant, profile, onboarding, admin] = await Promise.all([
+  const configPromise = client.restaurantConfig?.findUnique
+    ? client.restaurantConfig.findUnique({ where: { tenantId }, select: { themeData: true } })
+    : Promise.resolve(null);
+  const [tenant, profile, onboarding, admin, restaurantConfig] = await Promise.all([
     client.tenant.findUnique({
       where: { id: tenantId },
       select: { nombreEmpresa: true, nit: true }
     }),
     client.restaurantCompanyProfile.findUnique({ where: { tenantId } }),
     onboardingPromise,
-    adminPromise
+    adminPromise,
+    configPromise
   ]);
 
   if (!tenant) throw new AppError(404, 'Empresa no encontrada', 'TENANT_NOT_FOUND');
-  return normalizeProfile(tenant, profile, onboarding, admin);
+  return normalizeProfile(tenant, profile, onboarding, admin, restaurantConfig);
 }
 
 async function updateCompanyProfile(tenantId, input, client = prisma) {
@@ -71,6 +89,13 @@ async function updateCompanyProfile(tenantId, input, client = prisma) {
     const currentOnboarding = tx.tenantOnboarding?.findUnique
       ? await tx.tenantOnboarding.findUnique({ where: { tenantId }, select: { profile: true } })
       : null;
+    const currentConfig = tx.restaurantConfig?.findUnique
+      ? await tx.restaurantConfig.findUnique({ where: { tenantId }, select: { themeData: true } })
+      : null;
+    const receiptTitle = input?.receiptTitle === undefined
+      ? receiptTitleFromConfig(currentConfig)
+      : (clean(input.receiptTitle, 80) || DEFAULT_POS_RECEIPT_TITLE);
+
     const tenant = await tx.tenant.update({
       where: { id: tenantId },
       data: tenantData,
@@ -100,7 +125,24 @@ async function updateCompanyProfile(tenantId, input, client = prisma) {
       });
     }
 
-    return normalizeProfile(tenant, profile, syncedOnboarding, { email: profileData.email });
+    const nextThemeData = {
+      ...themeData(currentConfig),
+      [POS_RECEIPT_SETTINGS_KEY]: {
+        ...(themeData(currentConfig)[POS_RECEIPT_SETTINGS_KEY] || {}),
+        receiptTitle
+      }
+    };
+    let savedConfig = { themeData: nextThemeData };
+    if (tx.restaurantConfig?.upsert) {
+      savedConfig = await tx.restaurantConfig.upsert({
+        where: { tenantId },
+        create: { tenantId, themeData: nextThemeData },
+        update: { themeData: nextThemeData },
+        select: { themeData: true }
+      });
+    }
+
+    return normalizeProfile(tenant, profile, syncedOnboarding, { email: profileData.email }, savedConfig);
   });
 }
 
@@ -122,8 +164,12 @@ function receiptCompanyLines(profile) {
 }
 
 module.exports = {
+  POS_RECEIPT_SETTINGS_KEY,
+  DEFAULT_POS_RECEIPT_TITLE,
   clean,
   onboardingProfile,
+  themeData,
+  receiptTitleFromConfig,
   normalizeProfile,
   getCompanyProfile,
   updateCompanyProfile,

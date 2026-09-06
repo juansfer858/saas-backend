@@ -7,6 +7,7 @@ on:
       - 'src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js'
       - 'src/modules/restaurant/restaurant-company-config-control-center.public.routes.js'
       - 'src/modules/restaurant/restaurant-company-profile.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/restaurant-company-admin-advanced.js'
       - 'src/web/restaurant-company-config-control-center.js'
@@ -19,6 +20,7 @@ on:
       - 'src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js'
       - 'src/modules/restaurant/restaurant-company-config-control-center.public.routes.js'
       - 'src/modules/restaurant/restaurant-company-profile.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/restaurant-company-admin-advanced.js'
       - 'src/web/restaurant-company-config-control-center.js'
@@ -46,10 +48,11 @@ jobs:
         run: |
           node --check src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js
           node --check src/modules/restaurant/restaurant-company-profile.service.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
           node --check src/modules/restaurant/restaurant.public.routes.js
           node --check src/web/restaurant-company-admin-advanced.js
           node --check scripts/restaurant-company-config-control-center-smoke.js
-      - name: Validate administrative placement and shared trial source
+      - name: Validate administrative placement, shared trial source and POS title
         run: node scripts/restaurant-company-config-control-center-smoke.js
       - name: Validate existing POS company profile contract
         run: node scripts/restaurant-company-profile-smoke.js
@@ -81,7 +84,7 @@ jobs:
           echo "Production did not deploy commit $GITHUB_SHA in time" >&2
           exit 1
 
-      - name: Verify Empresa in Administración Configuración avanzada
+      - name: Verify Empresa and POS title in Administración Configuración avanzada
         shell: bash
         run: |
           set -euo pipefail
@@ -92,10 +95,13 @@ jobs:
 
           curl -fsSL --max-time 20 -D /tmp/company-js.headers -o /tmp/company-admin.js 'https://core.vantixgc.com/app/restaurant-company-admin-advanced.js?v=2'
           grep -qi 'x-vantixgc-restaurant-company-admin: v2-advanced' /tmp/company-js.headers
-          grep -q 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V2' /tmp/company-admin.js
+          grep -q 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V3' /tmp/company-admin.js
           grep -q 'Información de la empresa' /tmp/company-admin.js
           grep -q "button.textContent = 'Empresa'" /tmp/company-admin.js
           grep -q 'prueba de 14 días' /tmp/company-admin.js
+          grep -q 'Nombre del documento POS' /tmp/company-admin.js
+          grep -q 'rcaReceiptTitle' /tmp/company-admin.js
+          grep -q 'COMPROBANTE DE VENTA' /tmp/company-admin.js
           grep -q '/api/v1/impresion/empresa' /tmp/company-admin.js
 
       - name: Verify Centro de control remains operational-only
@@ -115,4 +121,4 @@ jobs:
             echo 'Legacy company configuration header is still present in Centro de control' >&2
             exit 1
           fi
-          echo 'PRODUCTION_RESTAURANT_COMPANY_ADMIN_SOURCE_OK'
+          echo 'PRODUCTION_RESTAURANT_COMPANY_ADMIN_POS_TITLE_OK'

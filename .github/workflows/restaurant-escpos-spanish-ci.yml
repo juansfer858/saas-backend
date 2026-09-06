@@ -1,0 +1,83 @@
+name: Restaurant ESC-POS Spanish CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'edge/print-spooler/escpos.js'
+      - 'edge/version.json'
+      - 'scripts/escpos-spooler-smoke.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-company-profile.service.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
+      - '.github/workflows/restaurant-escpos-spanish-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'edge/print-spooler/escpos.js'
+      - 'edge/version.json'
+      - 'scripts/escpos-spooler-smoke.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-company-profile.service.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
+      - '.github/workflows/restaurant-escpos-spanish-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate ESC-POS Spanish syntax
+        run: |
+          node --check edge/print-spooler/escpos.js
+          node --check scripts/escpos-spooler-smoke.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          node --check src/modules/restaurant/restaurant-company-profile.service.js
+          node --check src/web/restaurant-company-admin-advanced.js
+      - name: Validate CP850 bytes and block raw UTF-8
+        run: node scripts/escpos-spooler-smoke.js
+      - name: Validate document title source
+        shell: bash
+        run: |
+          grep -q 'DEFAULT_POS_RECEIPT_TITLE' src/modules/restaurant/restaurant-company-profile.service.js
+          grep -q 'receiptTitle' src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          grep -q 'Nombre del documento POS' src/web/restaurant-company-admin-advanced.js
+          ! grep -q "lines.push('TIRILLA POS')" src/modules/restaurant/restaurant-pos-receipt-print.service.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for exact Core commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo PRODUCTION_EXACT_COMMIT_OK
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          exit 1
+      - name: Verify configurable POS title UI in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -o /tmp/company-admin.js 'https://core.vantixgc.com/app/restaurant-company-admin-advanced.js?v=2'
+          grep -q 'Nombre del documento POS' /tmp/company-admin.js
+          grep -q 'rcaReceiptTitle' /tmp/company-admin.js
+          grep -q 'COMPROBANTE DE VENTA' /tmp/company-admin.js
+          echo PRODUCTION_POS_DOCUMENT_TITLE_UI_OK

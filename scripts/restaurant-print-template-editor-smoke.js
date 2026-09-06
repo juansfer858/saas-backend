@@ -52,7 +52,7 @@ const printed = buildEscPos({
   tableLabel:'Mesa 1', stationLabel:'COCINA', createdAt:'2026-09-05T17:04:00.000Z', traceLabel:'COMANDA ABC12345', paperFormat:'TERMICA_80',
   lines:[{ quantity:2, name:'Hamburguesa especial', note:'sin cebolla', seatNumber:1 }], cut:false
 });
-const printedText = printed.toString('utf8');
+const printedText = printed.toString('latin1');
 assert.match(printedText, /MESA 1/);
 assert.match(printedText, /2 x HAMBURGUESA ESPECIAL/);
 assert.match(printedText, /\*\*\* SIN CEBOLLA \*\*\*/);
@@ -60,13 +60,14 @@ assert.match(printedText, />>> PERSONA 1 <<</);
 assert.match(printedText, /COMANDA ABC12345/);
 assert.equal((printedText.match(/\d{1,2}:\d{2}/g) || []).length, 1, 'recommended command must print time once only');
 assert.ok(printed.includes(Buffer.from([0x1b, 0x61, 0x01])), 'recommended product alignment must use ESC/POS center');
+assert.ok(printed.includes(Buffer.from([0x1b, 0x74, 0x02])), 'print templates must select the Spanish-compatible CP850 table');
 
 const withoutFooterTime = buildEscPos({
   template:RESTAURANT_COMMAND_LARGE_V2,
   tableLabel:'Mesa 2', stationLabel:'BARRA', createdAt:'2026-09-05T17:04:00.000Z',
   layout:{ showTopTime:false, showBottomDateTime:false, showTrace:false, separatorStyle:'NONE', blankLinesBetweenItems:0 },
   lines:[{ quantity:1, name:'Limonada' }], cut:false
-}).toString('utf8');
+}).toString('latin1');
 assert.equal((withoutFooterTime.match(/\d{1,2}:\d{2}/g) || []).length, 0);
 assert.doesNotMatch(withoutFooterTime, /={4,}|-{4,}/);
 
@@ -108,8 +109,8 @@ assert.match(serviceSource, /RESTAURANT_PRINT_TEMPLATE/);
 assert.match(serviceSource, /themeData/);
 
 const version = require('../edge/version.json');
-assert.equal(version.version, '2.1.9-print-templates.1');
-assert.equal(version.channel, 'PILOT');
+assert.match(version.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
+assert.ok(['PILOT', 'STABLE'].includes(version.channel));
 const artifactManifest = JSON.parse(fs.readFileSync('public/edge-releases/manifest.json', 'utf8'));
 const bundledRelease = artifactManifest?.releases?.[version.version];
 assert.ok(bundledRelease, `Core release store must contain Edge ${version.version}`);
@@ -129,8 +130,9 @@ console.log('RESTAURANT PRINT TEMPLATE EDITOR + KDS LOCATION V4 SMOKE OK', JSON.
   previewCenteredOnFullPaper:true,
   symmetricRecommendedLayout:true,
   timePrintedOnce:true,
-  cajaReceiptsUntouched:true,
   configurableEscPos:true,
+  spanishCodePageSelected:true,
   edgeBundledInCore:true,
+  edgeVersionNotHardcoded:true,
   edgeVersion:version.version
 }));

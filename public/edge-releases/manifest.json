@@ -1,5 +1,11 @@
 {
   "releases": {
+    "2.1.10-spanish-pos.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.10-spanish-pos.1.zip",
+      "sha256": "f42a4a83a2df96bb2cbeceb5df3fc233893b5c45ebb949463fa189dee2d88fc9",
+      "sourceCommit": "ed32c6b498ac1456939e5ccf9075c785d6a2b53d"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",

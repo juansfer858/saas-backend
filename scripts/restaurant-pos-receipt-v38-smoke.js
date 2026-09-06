@@ -28,7 +28,8 @@ const company = {
   city:'Yarumal',
   department:'Antioquia',
   phone:'604 000 0000',
-  email:'restaurante@vantixgc.com'
+  email:'restaurante@vantixgc.com',
+  receiptTitle:'RECIBO DE VENTA'
 };
 const sale = {
   id:'sale-1', numero:'FV-1001', emitidoEn:'2026-09-06T14:00:00.000Z', formaPago:'EFECTIVO',
@@ -41,7 +42,8 @@ const sale = {
 const session = { id:'session-1', closedAt:'2026-09-06T14:03:00.000Z', tipAmount:5000, paymentMethodLabel:'Efectivo', paymentReference:null };
 const table = { name:'Mesa 7', code:'M7' };
 const lines = receipt.receiptLines({ company, sale, session, table });
-assert.ok(lines.includes('TIRILLA POS'));
+assert.equal(lines[0], 'RECIBO DE VENTA');
+assert.equal(lines.includes('TIRILLA POS'), false);
 assert.ok(lines.includes('NIT: 900123456-7'));
 assert.ok(lines.includes('Dirección: Carrera 20 # 10-30'));
 assert.ok(lines.includes('Yarumal · Antioquia'));
@@ -57,6 +59,9 @@ assert.ok(lines.some((line) => line.startsWith('TOTAL:')));
 assert.ok(lines.includes('Pago: Efectivo'));
 assert.doesNotMatch(lines.join('\n'), /SIMULATED|SIMULADO/i);
 
+const defaultLines = receipt.receiptLines({ company:{ ...company, receiptTitle:null }, sale, session, table });
+assert.equal(defaultLines[0], 'COMPROBANTE DE VENTA');
+
 const jobA = receipt.buildReceiptJob({ company, sale, session, table, printer:windows });
 const jobB = receipt.buildReceiptJob({ company, sale, session, table, printer:windows });
 assert.equal(jobA.id, jobB.id, 'POS job must be deterministic to prevent duplicate prints');
@@ -65,6 +70,7 @@ assert.equal(jobA.station, 'CAJA');
 assert.equal(jobA.printer.transport, 'WINDOWS');
 assert.equal(jobA.payload.title, 'Restaurante Vantix Demo');
 assert.equal(jobA.payload.receiptType, 'RESTAURANT_POS_V1');
+assert.equal(jobA.payload.documentTitle, 'RECIBO DE VENTA');
 assert.equal(jobA.payload.copies, 1);
 assert.equal(jobA.payload.cut, true);
 
@@ -131,9 +137,12 @@ assert.match(publicRoutes, /restaurant-pos-operational-mode/);
 assert.match(publicRoutes, /installPosReceiptImmediateRuntime/);
 assert.ok(publicRoutes.indexOf('installPosReceiptImmediateRuntime') < publicRoutes.lastIndexOf('restaurantTenantRealtimePublicRouter'), 'POS runtime must compose before canonical restaurant-ui sender');
 
-console.log('RESTAURANT POS RECEIPT V38 + OPERATIONAL POS V40 + COMPANY PROFILE SMOKE OK', JSON.stringify({
+console.log('RESTAURANT POS RECEIPT V38 + OPERATIONAL POS V40 + CONFIGURABLE DOCUMENT TITLE SMOKE OK', JSON.stringify({
   automaticAfterPayment:true,
   companyIdentityPrinted:true,
+  configurableDocumentTitle:true,
+  defaultDocumentTitle:'COMPROBANTE DE VENTA',
+  legacyPrintedTitleRemoved:true,
   nitPrinted:true,
   addressPrinted:true,
   contactPrinted:true,
@@ -152,5 +161,5 @@ console.log('RESTAURANT POS RECEIPT V38 + OPERATIONAL POS V40 + COMPANY PROFILE 
   nonDianOperationIsRealPos:true,
   simulatedFiscalRecordRemoved:true,
   noFiscalGateOnRestaurantOperation:true,
-  edgeUpgradeRequired:false
+  edgeUpgradeRequired:true
 }));
