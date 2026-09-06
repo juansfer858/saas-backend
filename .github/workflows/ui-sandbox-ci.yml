@@ -32,6 +32,8 @@ jobs:
         run: node scripts/restaurant-qr-mobile-fit-smoke.js
       - name: Validate deferred Restaurant QR authorization at order submit
         run: node scripts/restaurant-qr-deferred-auth-v28-smoke.js
+      - name: Validate QR order scroll, waiter calls and stable visit code V31
+        run: node scripts/restaurant-qr-waiter-stability-v31-smoke.js
       - name: Validate real read-only restaurant control preview
         run: node scripts/restaurant-control-preview-smoke.js
       - name: Validate operational restaurant control center
