@@ -32,7 +32,7 @@ assert.match(qrUi, /closePanel\('#orderPanel'\)/);
 // El bloqueo debe ocurrir dentro del flujo canónico, antes de mostrar/focalizar el modal.
 assert.match(patched, /if \(isOrderPanel\) lockOrderPanelTouch\(panel\);\n    panel\.hidden = false/);
 assert.match(patched, /focus\(\{ preventScroll:true \}\)/);
-assert.match(patched, /document\.body\.style\.position = 'fixed'/);
+assert.match(patched, /body\.style\.position = 'fixed'/);
 assert.match(patched, /body\.dataset\.qrOrderTouchLocked = '1'/);
 assert.match(patched, /node\.inert = true/);
 assert.match(patched, /window\.scrollTo\(0, restoreY\)/);
