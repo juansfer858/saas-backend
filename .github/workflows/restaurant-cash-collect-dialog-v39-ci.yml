@@ -1,0 +1,38 @@
+name: Restaurant Cash Collect Dialog V39 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-cash-collect-dialog.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-ui.js'
+      - 'scripts/restaurant-cash-collect-dialog-v39-smoke.js'
+      - '.github/workflows/restaurant-cash-collect-dialog-v39-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-cash-collect-dialog.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-ui.js'
+      - 'scripts/restaurant-cash-collect-dialog-v39-smoke.js'
+      - '.github/workflows/restaurant-cash-collect-dialog-v39-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-cash-collect-dialog.public.routes.js
+          node --check src/modules/restaurant/restaurant.public.routes.js
+          node --check scripts/restaurant-cash-collect-dialog-v39-smoke.js
+      - name: Validate direct Cobrar dialog
+        run: node scripts/restaurant-cash-collect-dialog-v39-smoke.js
