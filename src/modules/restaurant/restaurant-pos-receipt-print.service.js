@@ -5,7 +5,8 @@ const { prisma } = require('../../config/prisma');
 
 const POS_ROLE = 'CAJA';
 const DOCUMENT_ROLE = 'DOCUMENTOS';
-const DEFAULT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+const ORIGIN_TYPE = 'RESTAURANT_POS_RECEIPT';
+const INTENT_TTL_MS = 24 * 60 * 60 * 1000;
 
 function endpointKey(printer) {
   const transport = String(printer?.transport || 'LAN').trim().toUpperCase();
@@ -121,24 +122,75 @@ function buildReceiptJob({ tenantName, sale, session, table, printer }) {
   };
 }
 
-async function buildRecentReceiptJobs(tenantId, options = {}) {
-  const lookbackMs = Math.max(60_000, Number(options.lookbackMs || DEFAULT_LOOKBACK_MS));
-  const since = new Date(Date.now() - lookbackMs);
-  const [tenant, printers, sessions] = await Promise.all([
+function intentTokenHash(tenantId, sessionId) {
+  return crypto.createHash('sha256').update(`restaurant-pos-receipt:${tenantId}:${sessionId}`).digest('hex');
+}
+
+async function queueReceiptIntent(tenantId, sessionId, client = prisma) {
+  const session = await client.restaurantTableSession.findFirst({
+    where: { id: sessionId, tenantId, state: 'CERRADA' },
+    select: { id: true, saleId: true, closedAt: true }
+  });
+  if (!session) return { queued: false, reason: 'SESSION_NOT_CLOSED' };
+  const sale = await client.comprobanteComercial.findFirst({
+    where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: { not: 'ANULADO' } },
+    select: { id: true, numero: true, saldo: true }
+  });
+  if (!sale || number(sale.saldo) > 0) return { queued: false, reason: 'SALE_NOT_PAID' };
+  const now = new Date();
+  const data = {
+    tokenHash: intentTokenHash(tenantId, session.id),
+    tokenCiphertext: `POS_RECEIPT:${session.id}`,
+    tokenHint: String(sale.numero || sale.id).slice(-6),
+    publicReference: String(sale.numero || sale.id),
+    currentStatus: 'PENDING',
+    timeline: [{ type: 'POS_RECEIPT_QUEUED', at: now.toISOString(), sessionId: session.id, saleId: sale.id }],
+    expiresAt: new Date(now.getTime() + INTENT_TTL_MS),
+    completedAt: null,
+    active: true,
+    lastNotificationAt: now
+  };
+  const intent = await client.trackingLink.upsert({
+    where: { tenantId_originType_originId: { tenantId, originType: ORIGIN_TYPE, originId: session.id } },
+    create: { tenantId, originType: ORIGIN_TYPE, originId: session.id, ...data },
+    update: data
+  });
+  return { queued: true, intentId: intent.id, sessionId: session.id, saleId: sale.id };
+}
+
+async function queueReceiptForTableIfClosed(tenantId, tableId) {
+  const since = new Date(Date.now() - 5 * 60 * 1000);
+  const session = await prisma.restaurantTableSession.findFirst({
+    where: { tenantId, tableId, state: 'CERRADA', closedAt: { gte: since } },
+    select: { id: true },
+    orderBy: { closedAt: 'desc' }
+  });
+  if (!session) return { queued: false, reason: 'PAYMENT_NOT_FINAL' };
+  return queueReceiptIntent(tenantId, session.id);
+}
+
+async function buildPendingReceiptJobs(tenantId) {
+  const now = new Date();
+  const [tenant, printers, intents] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { nombreEmpresa: true } }),
     prisma.printerEndpoint.findMany({ where: { tenantId, active: true, transport: { in: ['LAN', 'WINDOWS'] } }, orderBy: { name: 'asc' } }),
-    prisma.restaurantTableSession.findMany({
-      where: { tenantId, state: 'CERRADA', closedAt: { gte: since } },
-      include: { table: true },
-      orderBy: { closedAt: 'desc' },
+    prisma.trackingLink.findMany({
+      where: { tenantId, originType: ORIGIN_TYPE, active: true, currentStatus: 'PENDING', expiresAt: { gt: now } },
+      orderBy: { creadoEn: 'asc' },
       take: 60
     })
   ]);
   const selected = selectReceiptPrinters(printers);
-  if (!selected.printers.length || !sessions.length) {
+  if (!selected.printers.length || !intents.length) {
     return { jobs: [], routing: selected.routing, receiptCount: 0, printerCount: selected.printers.length };
   }
 
+  const sessionIds = [...new Set(intents.map((intent) => intent.originId).filter(Boolean))];
+  const sessions = sessionIds.length ? await prisma.restaurantTableSession.findMany({
+    where: { tenantId, id: { in: sessionIds }, state: 'CERRADA' },
+    include: { table: true }
+  }) : [];
+  const sessionById = new Map(sessions.map((session) => [session.id, session]));
   const saleIds = [...new Set(sessions.map((session) => session.saleId).filter(Boolean))];
   const sales = saleIds.length ? await prisma.comprobanteComercial.findMany({
     where: { tenantId, id: { in: saleIds }, tipo: 'FACTURA_VENTA', estado: { not: 'ANULADO' } },
@@ -147,9 +199,10 @@ async function buildRecentReceiptJobs(tenantId, options = {}) {
   const saleById = new Map(sales.map((sale) => [sale.id, sale]));
   const jobs = [];
   let receiptCount = 0;
-  for (const session of sessions) {
-    const sale = saleById.get(session.saleId);
-    if (!sale || !Array.isArray(sale.detalles) || !sale.detalles.length || number(sale.saldo) > 0) continue;
+  for (const intent of intents) {
+    const session = sessionById.get(intent.originId);
+    const sale = session ? saleById.get(session.saleId) : null;
+    if (!session || !sale || !sale.detalles?.length || number(sale.saldo) > 0) continue;
     receiptCount += 1;
     for (const printer of selected.printers) {
       jobs.push(buildReceiptJob({ tenantName: tenant?.nombreEmpresa || 'VantixGC', sale, session, table: session.table, printer }));
@@ -161,7 +214,8 @@ async function buildRecentReceiptJobs(tenantId, options = {}) {
 module.exports = {
   POS_ROLE,
   DOCUMENT_ROLE,
-  DEFAULT_LOOKBACK_MS,
+  ORIGIN_TYPE,
+  INTENT_TTL_MS,
   endpointKey,
   stableReceiptJobId,
   uniquePhysicalPrinters,
@@ -170,5 +224,8 @@ module.exports = {
   qty,
   receiptLines,
   buildReceiptJob,
-  buildRecentReceiptJobs
+  intentTokenHash,
+  queueReceiptIntent,
+  queueReceiptForTableIfClosed,
+  buildPendingReceiptJobs
 };
