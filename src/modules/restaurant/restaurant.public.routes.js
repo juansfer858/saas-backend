@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+require('./restaurant-pos-operational-mode');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
 const { restaurantEdgeManagedPublicRouter } = require('./restaurant-edge-managed.public.routes');
