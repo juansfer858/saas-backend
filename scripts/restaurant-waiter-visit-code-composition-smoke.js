@@ -32,6 +32,12 @@ new Function(patched);
 assert.match(waiterVisitCodeRuntime, /eventDriven:true/);
 assert.match(waiterVisitCodeRuntime, /noPolling:true/);
 assert.match(waiterVisitCodeRuntime, /observerFree:true/);
+assert.match(waiterVisitCodeRuntime, /productClicksIgnored:true/);
+assert.match(waiterVisitCodeRuntime, /stableDom:true/);
+assert.match(waiterVisitCodeRuntime, /function signature\(status\)/);
+assert.match(waiterVisitCodeRuntime, /card\.dataset\.signature===nextSignature/);
+assert.doesNotMatch(waiterVisitCodeRuntime, /\[data-draft-plus\]|\[data-draft-minus\]/, 'Los +/− de productos no deben refrescar la tarjeta del código');
+assert.doesNotMatch(waiterVisitCodeRuntime, /card\.dataset\.loaded='0'/, 'Un refresh no debe ocultar el código existente mientras consulta');
 assert.doesNotMatch(waiterVisitCodeRuntime, /setInterval|MutationObserver/);
 
 assert.match(publicRoot, /installWaiterVisitCodeRuntime/);
@@ -41,7 +47,7 @@ assert.ok(
 );
 assert.ok(
   publicRoot.indexOf('router.use(restaurantTenantRealtimePublicRouter)') < publicRoot.indexOf('router.use(restaurantVisitPublicRouter)'),
-  'El smoke documenta la precedencia que ocultaba el complemento antiguo de visitas'
+  'La precedencia del complemento de visitas debe conservarse'
 );
 assert.match(tenantRealtime, /router\.get\('\/app\/restaurant-ui\.js'/);
 
@@ -62,8 +68,10 @@ assert.match(waiterBridge, /noMutationObserver:true/);
 
 console.log(JSON.stringify({
   ok:true,
-  controlCenterVisitCode:'V27_EVENT_DRIVEN',
+  controlCenterVisitCode:'V31_STABLE_NO_FLICKER',
   dedicatedWaiterPwaVisitCode:'V16_PRESERVED',
+  productClicksRefreshCode:false,
+  stableDomWhenStatusUnchanged:true,
   fourDigitCodeVisible:true,
   rotateCodeVisible:true,
   qrAuthorizationBackendPreserved:true,
