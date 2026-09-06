@@ -24,6 +24,7 @@ const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaur
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
+const { restaurantWaiterCallUnifiedRouter } = require('../modules/restaurant/restaurant-waiter-call-unified.routes');
 const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant-waiter-call.routes');
 const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaurant-waiter-device.routes');
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
@@ -39,9 +40,6 @@ router.use(extractTenantBySubdomain);
 router.use(authMiddleware);
 router.use(enforceTenantPermissions);
 
-// Un único bus por tenant enlaza Restaurante y Super Core. El middleware publica sólo
-// después de una respuesta mutante exitosa, por lo que los consumidores nunca recargan
-// antes de que la transacción haya terminado.
 router.use(tenantRealtimeMutationMiddleware);
 router.use('/realtime', tenantRealtimeRouter);
 
@@ -61,11 +59,10 @@ router.use('/seguridad', rbacRouter);
 router.use('/edge', edgeTenantUpdateGuard, edgeTenantRouter);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
-// Extensions first so they can add isolated Restaurant capabilities while every other
-// endpoint falls through unchanged to the proven base router.
 router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
+router.use('/restaurante', restaurantWaiterCallUnifiedRouter);
 router.use('/restaurante', restaurantWaiterCallRouter);
 router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
