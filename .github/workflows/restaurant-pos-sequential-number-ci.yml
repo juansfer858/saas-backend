@@ -9,6 +9,7 @@ on:
       - 'src/modules/restaurant/restaurant.service.js'
       - 'src/modules/restaurant/restaurant-visit-payments.service.js'
       - 'scripts/restaurant-pos-sequential-number-smoke.js'
+      - 'scripts/restaurant-pos-sequential-number-postgres-smoke.js'
       - '.github/workflows/restaurant-pos-sequential-number-ci.yml'
   push:
     branches: [main]
@@ -18,14 +19,29 @@ on:
       - 'src/modules/restaurant/restaurant.service.js'
       - 'src/modules/restaurant/restaurant-visit-payments.service.js'
       - 'scripts/restaurant-pos-sequential-number-smoke.js'
+      - 'scripts/restaurant-pos-sequential-number-postgres-smoke.js'
       - '.github/workflows/restaurant-pos-sequential-number-ci.yml'
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
-      DATABASE_URL: postgresql://localhost:5432/unused
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,8 +55,11 @@ jobs:
           node --check src/modules/restaurant/restaurant-pos-number.service.js
           node --check src/modules/restaurant/restaurant-pos-operational-mode.js
           node --check scripts/restaurant-pos-sequential-number-smoke.js
-      - name: Validate first sale 000001 and transactional sequence
+          node --check scripts/restaurant-pos-sequential-number-postgres-smoke.js
+      - name: Validate first sale 000001 and bounded sequence contract
         run: node scripts/restaurant-pos-sequential-number-smoke.js
+      - name: Validate real PostgreSQL contention never blocks Caja indefinitely
+        run: node scripts/restaurant-pos-sequential-number-postgres-smoke.js
       - name: Validate existing POS receipt contract
         run: node scripts/restaurant-pos-receipt-v38-smoke.js
 
