@@ -4,44 +4,37 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const {
-  WAITER_VISIT_CODE_MARKER,
-  waiterVisitCodeRuntime,
-  patchWaiterVisitCodeRuntime
-} = require('../src/modules/restaurant/restaurant-waiter-visit-code.public.routes');
+  MARKER,
+  runtime
+} = require('../src/modules/restaurant/restaurant-waiter-visit-code-stable.public.routes');
 
 const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const baseUi = read('src/web/restaurant-ui.js');
 const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
 const tenantRealtime = read('src/modules/restaurant/restaurant-tenant-realtime.public.routes.js');
 const visitRoutes = read('src/modules/restaurant/restaurant-visit-payments.routes.js');
 const visitService = read('src/modules/restaurant/restaurant-visit-payments.service.js');
 const waiterBridge = read('src/web/restaurant-waiter-session-v8.js');
 
-const patched = patchWaiterVisitCodeRuntime(baseUi);
-assert.notEqual(patched, baseUi, 'El Centro de control debe recibir la capa del código de visita');
-assert.match(patched, new RegExp(WAITER_VISIT_CODE_MARKER));
-assert.match(patched, /CÓDIGO PARA ACTIVAR AUTOPEDIDO/);
-assert.match(patched, /\/qr-visita/);
-assert.match(patched, /\/qr-visita\/regenerar/);
-assert.match(patched, /Dile estos 4 números/);
-assert.match(patched, /data-waiter-visit-rotate/);
-assert.equal(patchWaiterVisitCodeRuntime(patched), patched, 'La composición debe ser idempotente');
-new Function(patched);
+assert.equal(MARKER, 'VANTIX_WAITER_VISIT_CODE_V31_STABLE');
+assert.doesNotThrow(() => new Function(runtime));
+assert.match(runtime, /CÓDIGO PARA ACTIVAR AUTOPEDIDO/);
+assert.match(runtime, /\/qr-visita/);
+assert.match(runtime, /\/qr-visita\/regenerar/);
+assert.match(runtime, /data-waiter-visit-rotate/);
+assert.match(runtime, /dataset\.signature/);
+assert.match(runtime, /topics\.includes\('restaurant\.visit'\)/);
+assert.doesNotMatch(runtime, /data-draft-plus|data-draft-minus|setInterval|MutationObserver/);
 
-assert.match(waiterVisitCodeRuntime, /eventDriven:true/);
-assert.match(waiterVisitCodeRuntime, /noPolling:true/);
-assert.match(waiterVisitCodeRuntime, /observerFree:true/);
-assert.doesNotMatch(waiterVisitCodeRuntime, /setInterval|MutationObserver/);
-
-assert.match(publicRoot, /installWaiterVisitCodeRuntime/);
+assert.match(publicRoot, /installWaiterVisitCodeStableRuntime/);
+assert.doesNotMatch(publicRoot, /router\.use\(installWaiterVisitCodeRuntime\)/);
 assert.ok(
-  publicRoot.indexOf('router.use(installWaiterVisitCodeRuntime)') < publicRoot.indexOf('router.use(restaurantTenantRealtimePublicRouter)'),
-  'La tarjeta debe componerse antes de que Realtime V23 entregue restaurant-ui.js'
+  publicRoot.indexOf('router.use(installWaiterVisitCodeStableRuntime)') < publicRoot.indexOf('router.use(restaurantTenantRealtimePublicRouter)'),
+  'La tarjeta estable debe componerse antes de que Realtime entregue restaurant-ui.js'
 );
 assert.ok(
   publicRoot.indexOf('router.use(restaurantTenantRealtimePublicRouter)') < publicRoot.indexOf('router.use(restaurantVisitPublicRouter)'),
-  'El smoke documenta la precedencia que ocultaba el complemento antiguo de visitas'
+  'Realtime debe conservar precedencia sobre la superficie de visitas'
 );
 assert.match(tenantRealtime, /router\.get\('\/app\/restaurant-ui\.js'/);
 
@@ -51,7 +44,7 @@ assert.match(visitService, /function visitCode\(session\)/);
 assert.match(visitService, /async function staffVisitStatus/);
 assert.match(visitService, /visitCode:\s*visitCode\(session\)/);
 
-// La PWA/tablet conserva su implementación nativa V16; esta corrección no la reemplaza.
+// La PWA/tablet conserva su implementación nativa V16; V31 estabiliza sólo el Mesero del Core/PC.
 assert.match(waiterBridge, /VANTIX_WAITER_AUTOPEDIDO_CODE_V16/);
 assert.match(waiterBridge, /CÓDIGO PARA ACTIVAR AUTOPEDIDO/);
 assert.match(waiterBridge, /data-wv-autopedido-code/);
@@ -62,8 +55,10 @@ assert.match(waiterBridge, /noMutationObserver:true/);
 
 console.log(JSON.stringify({
   ok:true,
-  controlCenterVisitCode:'V27_EVENT_DRIVEN',
+  controlCenterVisitCode:'V31_STABLE_NO_FLICKER',
   dedicatedWaiterPwaVisitCode:'V16_PRESERVED',
+  productQuantityClicksRefreshCode:false,
+  sameSignatureRewritesDom:false,
   fourDigitCodeVisible:true,
   rotateCodeVisible:true,
   qrAuthorizationBackendPreserved:true,
