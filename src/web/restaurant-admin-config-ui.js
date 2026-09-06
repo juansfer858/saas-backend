@@ -13,7 +13,7 @@
     ['CAJA', 'Caja'],
     ['DOCUMENTOS', 'Documentos generales']
   ];
-  const state = { loaded:false, loading:false, stations:[], printers:[], config:null, observer:null };
+  const state = { loaded:false, loading:false, stations:[], printers:[], config:null, company:null, observer:null };
 
   function session() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -55,9 +55,10 @@
       #restaurantNativeConfig .rnc-body{padding:14px 18px 18px}#restaurantNativeConfig .rnc-empty{padding:18px;border:1px dashed #cfd8df;border-radius:14px;color:#66727d;background:#fafcfd}
       #restaurantNativeConfig .rnc-btn{border:1px solid #cfd7df;background:#fff;border-radius:10px;min-height:38px;padding:0 12px;font-weight:800;cursor:pointer}#restaurantNativeConfig .rnc-btn.primary{background:#137a53;border-color:#137a53;color:#fff}
       #restaurantNativeConfig .rnc-format{display:grid;grid-template-columns:minmax(240px,420px) auto;gap:10px;align-items:end;margin-bottom:14px}#restaurantNativeConfig label{display:grid;gap:6px;font-size:12px;font-weight:800}#restaurantNativeConfig select,#restaurantNativeConfig input{min-height:40px;border:1px solid #cfd7df;border-radius:10px;padding:0 10px;background:#fff;color:#17212b}
+      #restaurantNativeConfig .rnc-company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#restaurantNativeConfig .rnc-company-grid .wide{grid-column:1/-1}
       #restaurantNativeConfig table{width:100%;border-collapse:collapse;font-size:12px}#restaurantNativeConfig th{text-align:left;padding:10px 8px;color:#66727d;border-bottom:1px solid #e8edf1}#restaurantNativeConfig td{padding:11px 8px;border-bottom:1px solid #eef2f5;vertical-align:middle}.rnc-table-wrap{overflow:auto}.rnc-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rnc-pill{display:inline-flex;padding:4px 8px;border-radius:999px;background:#edf7f2;color:#176246;font-weight:800;font-size:10px}.rnc-pill.off{background:#f2f4f6;color:#6d7780}
       .rnc-dialog{border:0;border-radius:18px;padding:0;width:min(560px,calc(100vw - 24px));box-shadow:0 28px 80px rgba(15,23,42,.3)}.rnc-dialog::backdrop{background:rgba(15,23,42,.45)}.rnc-dialog form{display:grid;gap:14px;padding:20px}.rnc-dialog h2{margin:0}.rnc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.rnc-note{padding:11px 12px;border-radius:10px;background:#f4f8f6;color:#466055;font-size:11px;line-height:1.4}.rnc-error{color:#a12d2d;font-size:12px;font-weight:700}.rnc-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
-      @media(max-width:720px){#restaurantNativeConfig .rnc-head,#restaurantNativeConfig .rnc-panel-head{display:grid}#restaurantNativeConfig .rnc-format,.rnc-grid{grid-template-columns:1fr}.rnc-actions{justify-content:flex-start}}
+      @media(max-width:720px){#restaurantNativeConfig .rnc-head,#restaurantNativeConfig .rnc-panel-head{display:grid}#restaurantNativeConfig .rnc-format,.rnc-grid,#restaurantNativeConfig .rnc-company-grid{grid-template-columns:1fr}.rnc-actions{justify-content:flex-start}}
     `;
     document.head.appendChild(style);
   }
@@ -90,14 +91,16 @@
     if (!root) { state.loading = false; return; }
     root.innerHTML = '<div class="rnc-empty">Cargando configuración del restaurante…</div>';
     try {
-      const [stations, printers, config] = await Promise.all([
+      const [stations, printers, config, company] = await Promise.all([
         api('/api/v1/impresion/estaciones'),
         api('/api/v1/impresion/impresoras'),
-        api('/api/v1/impresion/configuracion')
+        api('/api/v1/impresion/configuracion'),
+        api('/api/v1/impresion/empresa')
       ]);
       state.stations = Array.isArray(stations) ? stations : [];
       state.printers = Array.isArray(printers) ? printers : [];
       state.config = config || {};
+      state.company = company || {};
       state.loaded = true;
       render();
     } catch (error) {
@@ -110,10 +113,15 @@
     return `<div class="rnc-table-wrap"><table><thead><tr><th>Nombre</th><th>Destino</th><th>Conexión</th><th>Formato</th><th>Estado</th><th></th></tr></thead><tbody>${state.printers.map((printer) => `<tr><td><b>${h(printer.name)}</b></td><td>${h(roleLabel(printer.role))}</td><td>${printer.transport === 'LAN' ? `${h(printer.host || '—')}:${h(printer.port || '—')}` : 'Navegador'}</td><td>${h(formatLabel(printer.format || state.config?.defaultFormat))}</td><td><span class="rnc-pill ${printer.active ? '' : 'off'}">${printer.active ? 'Activa' : 'Inactiva'}</span></td><td><div class="rnc-actions"><button class="rnc-btn" data-rnc-printer-edit="${h(printer.id)}">Editar</button><button class="rnc-btn" data-rnc-printer-toggle="${h(printer.id)}">${printer.active ? 'Desactivar' : 'Activar'}</button></div></td></tr>`).join('')}</tbody></table></div>`;
   }
 
+  function companyPanel() {
+    const company = state.company || {};
+    return `<section class="rnc-panel"><div class="rnc-panel-head"><div><h2>Información de la empresa</h2><p>Identidad del restaurante usada por el POS y por sus documentos internos.</p></div><button class="rnc-btn primary" type="submit" form="rncCompanyForm">Guardar empresa</button></div><div class="rnc-body"><form id="rncCompanyForm"><div class="rnc-company-grid"><label>Nombre del restaurante / empresa<input id="rncCompanyName" maxlength="160" value="${h(company.nombreEmpresa || '')}" required></label><label>NIT<input id="rncCompanyNit" maxlength="40" value="${h(company.nit || '')}" placeholder="Ej. 900123456-7"></label><label class="wide">Dirección<input id="rncCompanyAddress" maxlength="220" value="${h(company.address || '')}" placeholder="Ej. Calle 10 # 20-30"></label><label>Ciudad / municipio<input id="rncCompanyCity" maxlength="120" value="${h(company.city || '')}" placeholder="Ej. Yarumal"></label><label>Departamento<input id="rncCompanyDepartment" maxlength="120" value="${h(company.department || '')}" placeholder="Ej. Antioquia"></label><label>Teléfono<input id="rncCompanyPhone" maxlength="80" value="${h(company.phone || '')}" placeholder="Ej. 604 000 0000"></label><label>Correo electrónico<input id="rncCompanyEmail" type="email" maxlength="160" value="${h(company.email || '')}" placeholder="Ej. restaurante@correo.com"></label></div><div class="rnc-note" style="margin-top:14px"><b>Tirilla POS interna:</b> los cobros nuevos imprimirán estos datos en el encabezado. Esta configuración no activa DIAN, no genera factura electrónica y no agrega ningún bloqueo fiscal.</div><div class="rnc-error" id="rncCompanyError" style="margin-top:10px"></div></form></div></section>`;
+  }
+
   function render() {
     const root = ensureRoot();
     if (!root) return;
-    root.innerHTML = `<div class="rnc-head"><div><div class="ri-eyebrow">ADMINISTRACIÓN DEL RESTAURANTE</div><h1>Configuración</h1><p>Impresoras y opciones generales. Los KDS/estaciones se crean y retiran directamente desde Ver KDS.</p></div><button class="rnc-btn" data-rnc-back>← Centro de control</button></div><section class="rnc-panel"><div class="rnc-panel-head"><div><h2>Impresoras del restaurante</h2><p>Puedes dirigirlas a Caja, Documentos o a una estación creada desde Ver KDS.</p></div><button class="rnc-btn primary" data-rnc-printer-new>+ Nueva impresora</button></div><div class="rnc-body"><div class="rnc-format"><label>Formato general<select id="rncDefaultFormat">${optionList(FORMAT_OPTIONS, state.config?.defaultFormat || 'TERMICA_80')}</select></label><button class="rnc-btn" data-rnc-format-save>Guardar formato</button></div>${printerRows()}</div></section>`;
+    root.innerHTML = `<div class="rnc-head"><div><div class="ri-eyebrow">ADMINISTRACIÓN DEL RESTAURANTE</div><h1>Configuración avanzada</h1><p>Empresa, tirilla POS, impresoras y opciones operativas del restaurante.</p></div><button class="rnc-btn" data-rnc-back>← Centro de control</button></div>${companyPanel()}<section class="rnc-panel"><div class="rnc-panel-head"><div><h2>Impresoras del restaurante</h2><p>Puedes dirigirlas a Caja, Documentos o a una estación creada desde Ver KDS.</p></div><button class="rnc-btn primary" data-rnc-printer-new>+ Nueva impresora</button></div><div class="rnc-body"><div class="rnc-format"><label>Formato general<select id="rncDefaultFormat">${optionList(FORMAT_OPTIONS, state.config?.defaultFormat || 'TERMICA_80')}</select></label><button class="rnc-btn" data-rnc-format-save>Guardar formato</button></div>${printerRows()}</div></section>`;
     bind();
   }
 
@@ -121,10 +129,32 @@
     const root = document.querySelector('#restaurantNativeConfig');
     if (!root) return;
     root.querySelector('[data-rnc-back]')?.addEventListener('click', () => { location.href = CONTROL_PATH; });
+    root.querySelector('#rncCompanyForm')?.addEventListener('submit', saveCompany);
     root.querySelector('[data-rnc-printer-new]')?.addEventListener('click', () => printerDialog());
     root.querySelectorAll('[data-rnc-printer-edit]').forEach((button) => button.addEventListener('click', () => printerDialog(button.dataset.rncPrinterEdit)));
     root.querySelectorAll('[data-rnc-printer-toggle]').forEach((button) => button.addEventListener('click', () => togglePrinter(button.dataset.rncPrinterToggle)));
     root.querySelector('[data-rnc-format-save]')?.addEventListener('click', saveDefaultFormat);
+  }
+
+  async function saveCompany(event) {
+    event?.preventDefault();
+    const errorBox = document.querySelector('#rncCompanyError');
+    const payload = {
+      nombreEmpresa:document.querySelector('#rncCompanyName')?.value.trim() || '',
+      nit:document.querySelector('#rncCompanyNit')?.value.trim() || null,
+      address:document.querySelector('#rncCompanyAddress')?.value.trim() || null,
+      city:document.querySelector('#rncCompanyCity')?.value.trim() || null,
+      department:document.querySelector('#rncCompanyDepartment')?.value.trim() || null,
+      phone:document.querySelector('#rncCompanyPhone')?.value.trim() || null,
+      email:document.querySelector('#rncCompanyEmail')?.value.trim() || null
+    };
+    try {
+      if (errorBox) errorBox.textContent = '';
+      state.company = await api('/api/v1/impresion/empresa', { method:'PUT', body:JSON.stringify(payload) });
+      render();
+    } catch (error) {
+      if (errorBox) errorBox.textContent = error.message;
+    }
   }
 
   function printerDialog(id = '') {
