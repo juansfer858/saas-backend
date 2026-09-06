@@ -29,6 +29,8 @@ jobs:
   company-profile-and-pos-receipt:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://localhost:5432/unused
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
