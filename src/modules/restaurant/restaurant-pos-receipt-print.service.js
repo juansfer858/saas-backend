@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { prisma } = require('../../config/prisma');
+const companyService = require('./restaurant-company-profile.service');
 
 const POS_ROLE = 'CAJA';
 const DOCUMENT_ROLE = 'DOCUMENTOS';
@@ -65,9 +66,11 @@ function dateTime(value) {
   }).format(date);
 }
 
-function receiptLines({ sale, session, table }) {
+function receiptLines({ company, sale, session, table }) {
   const lines = [];
   lines.push('TIRILLA POS');
+  lines.push(...companyService.receiptCompanyLines(company));
+  if (lines.length > 1) lines.push('--------------------------------');
   lines.push(`Venta: ${sale?.numero || String(sale?.id || '').slice(0, 8).toUpperCase()}`);
   lines.push(`Mesa: ${table?.name || table?.code || 'Mesa'}`);
   const when = dateTime(sale?.emitidoEn || session?.closedAt || sale?.fecha);
@@ -94,7 +97,7 @@ function receiptLines({ sale, session, table }) {
   return lines;
 }
 
-function buildReceiptJob({ tenantName, sale, session, table, printer }) {
+function buildReceiptJob({ company, sale, session, table, printer }) {
   const transport = String(printer.transport || 'LAN').toUpperCase();
   return {
     id: stableReceiptJobId(sale.id, printer),
@@ -109,8 +112,8 @@ function buildReceiptJob({ tenantName, sale, session, table, printer }) {
       format: printer.format || 'TERMICA_80'
     },
     payload: {
-      title: String(tenantName || 'VantixGC').trim(),
-      lines: receiptLines({ sale, session, table }),
+      title: String(company?.nombreEmpresa || 'VantixGC').trim(),
+      lines: receiptLines({ company, sale, session, table }),
       footer: 'Gracias por su compra',
       copies: 1,
       cut: true,
@@ -171,8 +174,8 @@ async function queueReceiptForTableIfClosed(tenantId, tableId) {
 
 async function buildPendingReceiptJobs(tenantId) {
   const now = new Date();
-  const [tenant, printers, intents] = await Promise.all([
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { nombreEmpresa: true } }),
+  const [company, printers, intents] = await Promise.all([
+    companyService.getCompanyProfile(tenantId),
     prisma.printerEndpoint.findMany({ where: { tenantId, active: true, transport: { in: ['LAN', 'WINDOWS'] } }, orderBy: { name: 'asc' } }),
     prisma.trackingLink.findMany({
       where: { tenantId, originType: ORIGIN_TYPE, active: true, currentStatus: 'PENDING', expiresAt: { gt: now } },
@@ -205,7 +208,7 @@ async function buildPendingReceiptJobs(tenantId) {
     if (!session || !sale || !sale.detalles?.length || number(sale.saldo) > 0) continue;
     receiptCount += 1;
     for (const printer of selected.printers) {
-      jobs.push(buildReceiptJob({ tenantName: tenant?.nombreEmpresa || 'VantixGC', sale, session, table: session.table, printer }));
+      jobs.push(buildReceiptJob({ company, sale, session, table: session.table, printer }));
     }
   }
   return { jobs, routing: selected.routing, receiptCount, printerCount: selected.printers.length };
