@@ -34,6 +34,8 @@ jobs:
         run: node scripts/restaurant-qr-deferred-auth-v28-smoke.js
       - name: Validate Restaurant QR Mi pedido touch ownership
         run: node scripts/restaurant-qr-order-touch-lock-v33-smoke.js
+      - name: Validate Restaurant QR tracking touch ownership
+        run: node scripts/restaurant-qr-tracking-touch-lock-v35-smoke.js
       - name: Validate real read-only restaurant control preview
         run: node scripts/restaurant-control-preview-smoke.js
       - name: Validate operational restaurant control center
