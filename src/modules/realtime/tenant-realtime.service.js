@@ -145,6 +145,10 @@ async function startListener() {
   return listenerStarting;
 }
 
+async function ensureListenerReady() {
+  return startListener();
+}
+
 async function publishTenantChange(tenantId, topics, refs = {}, meta = {}) {
   if (!tenantId) return null;
   const event = makeEvent(tenantId, topics, refs, meta);
@@ -204,6 +208,7 @@ module.exports = {
   CHANNEL,
   VERSION,
   compactRefs,
+  ensureListenerReady,
   publishTenantChange,
   subscribeTenant,
   realtimeStatus,
