@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { prisma } = require('../../config/prisma');
 const restaurantSync = require('./edge-restaurant-sync.service');
 const printing = require('../platform/printing/printing.service');
 const printTemplate = require('../restaurant/restaurant-print-template.service');
@@ -20,16 +21,85 @@ function stableJobId(commandId, printer) {
   return `restaurant-command:${commandId}:printer:${digest}`;
 }
 
+function normalizedCategory(value) {
+  const category = String(value || '').trim().toUpperCase();
+  return category || null;
+}
+
+function printItemName(item) {
+  const name = String(item?.description || '').trim();
+  const category = normalizedCategory(item?.category);
+  return category ? `${name}\nCAT: ${category}` : name;
+}
+
 function commandLines(command) {
   return (Array.isArray(command?.items) ? command.items : [])
     .filter((item) => Number(item?.quantity || 0) > 0 && String(item?.description || '').trim())
     .map((item) => ({
       quantity: Number(item.quantity),
-      name: String(item.description).trim(),
+      name: printItemName(item),
+      category: normalizedCategory(item.category),
       note: item.notes ? String(item.notes).trim() : null,
       seatNumber: item.seatNumber ? Number(item.seatNumber) : null,
       seatLabel: item.seatNumber ? `PERSONA ${Number(item.seatNumber)}` : null
     }));
+}
+
+async function commandsWithCategories(tenantId, commands) {
+  const rows = Array.isArray(commands) ? commands : [];
+  if (!rows.length) return rows;
+  if (rows.every((command) => (command.items || []).every((item) => normalizedCategory(item.category)))) return rows;
+
+  const orderIds = [...new Set(rows.map((command) => command?.orderId).filter(Boolean))];
+  if (!orderIds.length) return rows;
+
+  try {
+    const orderItems = await prisma.restaurantOrderItem.findMany({
+      where: { tenantId, orderId: { in: orderIds } },
+      select: {
+        id: true,
+        orderId: true,
+        menuItemId: true,
+        description: true,
+        quantity: true,
+        notes: true,
+        seatNumber: true,
+        station: true,
+        creadoEn: true
+      },
+      orderBy: [{ creadoEn: 'asc' }, { id: 'asc' }]
+    });
+    const menuItemIds = [...new Set(orderItems.map((item) => item.menuItemId).filter(Boolean))];
+    const menuItems = menuItemIds.length
+      ? await prisma.restaurantMenuItem.findMany({
+          where: { tenantId, id: { in: menuItemIds } },
+          select: { id: true, category: true }
+        })
+      : [];
+    const categories = new Map(menuItems.map((item) => [item.id, normalizedCategory(item.category)]));
+    const itemsByCommand = new Map();
+
+    for (const item of orderItems) {
+      const key = `${item.orderId}|${String(item.station || '').toUpperCase()}`;
+      if (!itemsByCommand.has(key)) itemsByCommand.set(key, []);
+      itemsByCommand.get(key).push({
+        description: item.description,
+        quantity: item.quantity,
+        notes: item.notes,
+        seatNumber: item.seatNumber,
+        category: categories.get(item.menuItemId) || null
+      });
+    }
+
+    return rows.map((command) => {
+      const key = `${command.orderId}|${String(command.station || '').toUpperCase()}`;
+      const items = itemsByCommand.get(key);
+      return items?.length ? { ...command, items } : command;
+    });
+  } catch (_) {
+    // La categoría mejora la identificación, pero jamás debe bloquear una impresión.
+    return rows;
+  }
 }
 
 function buildCommandPrintJobs(commands, printers, layout = null) {
@@ -93,12 +163,13 @@ async function printRoutingForBootstrap(agent, bootstrap) {
   const queues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
   if (!queues.length) return { printJobs: [], printRouting: { version: 'V3', queues: [], printerCount: 0, jobCount: 0, transports: [] } };
   try {
-    const [printers, configuredLayout] = await Promise.all([
+    const [printers, configuredLayout, categorizedCommands] = await Promise.all([
       printing.printersForRoles(agent.tenantId, queues),
-      printTemplate.getPrintTemplate(agent.tenantId).catch(() => printTemplate.DEFAULT_COMMAND_TEMPLATE)
+      printTemplate.getPrintTemplate(agent.tenantId).catch(() => printTemplate.DEFAULT_COMMAND_TEMPLATE),
+      commandsWithCategories(agent.tenantId, bootstrap.commands)
     ]);
     const layout = printTemplate.normalizePrintTemplate(configuredLayout);
-    const printJobs = buildCommandPrintJobs(bootstrap.commands, printers, layout);
+    const printJobs = buildCommandPrintJobs(categorizedCommands, printers, layout);
     return {
       printJobs,
       printRouting: {
@@ -136,6 +207,8 @@ install();
 module.exports = {
   INSTALL_FLAG,
   endpointKey,
+  commandLines,
+  commandsWithCategories,
   buildCommandPrintJobs,
   printRoutingForBootstrap,
   stableJobId,

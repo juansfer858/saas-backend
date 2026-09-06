@@ -21,7 +21,7 @@ async function main() {
       createdAt: '2026-09-05T17:04:00.000Z',
       traceLabel: 'COMANDA ABC12345',
       paperFormat: 'TERMICA_80',
-      lines: [{ quantity: 2, name: 'Hamburguesa', note: 'sin cebolla', seatNumber: 1, seatLabel: 'PERSONA 1' }],
+      lines: [{ quantity: 2, name: 'Hamburguesa\nCAT: FUERTES', category: 'FUERTES', note: 'sin cebolla', seatNumber: 1, seatLabel: 'PERSONA 1' }],
       cut: true
     });
     assert.equal(kitchen[0], 0x1b);
@@ -33,6 +33,7 @@ async function main() {
     assert.ok(kitchenText.includes('MESA 4'));
     assert.ok(kitchenText.includes('COCINA'));
     assert.ok(kitchenText.includes('2 x HAMBURGUESA'));
+    assert.ok(kitchenText.includes('CAT: FUERTES'));
     assert.ok(kitchenText.includes('*** SIN CEBOLLA ***'));
     assert.ok(kitchenText.includes('>>> PERSONA 1 <<<'));
     assert.ok(kitchenText.includes('COMANDA ABC12345'));
@@ -42,6 +43,7 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 30));
     assert.equal(received.length, 1);
     assert.ok(received[0].toString('utf8').includes('HAMBURGUESA'));
+    assert.ok(received[0].toString('utf8').includes('CAT: FUERTES'));
 
     const batch = await printBatch([
       { target: { name: 'Cocina', host: '127.0.0.1', port }, job: { title: 'COCINA', lines: ['1 x Plato fuerte'] } },
@@ -56,7 +58,7 @@ async function main() {
     assert.ok(allText.includes('Limonada'));
 
     console.log('ESC-POS LOCAL SPOOLER SMOKE OK');
-    console.log(JSON.stringify({ rawTcp9100Compatible: true, escPosBytes: true, multiStationDirected: true, internetUsed: false, physicalPrinterTested: false }, null, 2));
+    console.log(JSON.stringify({ rawTcp9100Compatible: true, escPosBytes: true, commandCategoryVisible: true, multiStationDirected: true, internetUsed: false, physicalPrinterTested: false }, null, 2));
   } finally { await close(printer); }
 }
 

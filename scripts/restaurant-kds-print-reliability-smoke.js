@@ -17,8 +17,8 @@ const command = {
   createdAt: '2026-09-05T17:04:00.000Z',
   table: { id:'t1', code:'M1', name:'Mesa 1' },
   items: [
-    { description:'Hamburguesa', quantity:2, notes:'Sin cebolla', seatNumber:1 },
-    { description:'Papas', quantity:1, notes:null, seatNumber:null }
+    { description:'Hamburguesa', category:'FUERTES', quantity:2, notes:'Sin cebolla', seatNumber:1 },
+    { description:'Papas', category:'FUERTES', quantity:1, notes:null, seatNumber:null }
   ]
 };
 
@@ -35,7 +35,8 @@ assert.equal(jobs[0].payload.lines.length, 2);
 assert.equal(jobs[0].payload.template, 'RESTAURANT_COMMAND_LARGE_V2');
 assert.equal(jobs[0].payload.tableLabel, 'Mesa 1');
 assert.equal(jobs[0].payload.stationLabel, 'COCINA');
-assert.equal(jobs[0].payload.lines[0].name, 'Hamburguesa');
+assert.equal(jobs[0].payload.lines[0].name, 'Hamburguesa\nCAT: FUERTES');
+assert.equal(jobs[0].payload.lines[0].category, 'FUERTES');
 assert.equal(jobs[0].payload.lines[0].note, 'Sin cebolla');
 assert.equal(jobs[0].payload.lines[0].seatLabel, 'PERSONA 1');
 assert.match(jobs[0].payload.traceLabel, /^COMANDA /);
@@ -52,12 +53,14 @@ assert.equal(windowsJobs[0].printer.port, null);
 
 const withBar = buildCommandPrintJobs([
   command,
-  { ...command, id:'command-bar-1', station:'BARRA', items:[{ description:'Limonada', quantity:1 }] }
+  { ...command, id:'command-bar-1', station:'BARRA', items:[{ description:'Limonada', category:'BEBIDAS', quantity:1 }] }
 ], [
   samePhysicalPrinterTwice[0],
   { id:'p-bar', name:'Barra', transport:'LAN', host:'192.168.1.51', port:9100, role:'BARRA', routeRole:'BARRA' }
 ]);
 assert.equal(withBar.length, 2, 'distinct queues/printers must produce distinct jobs');
+assert.equal(withBar[1].payload.lines[0].category, 'BEBIDAS');
+assert.match(withBar[1].payload.lines[0].name, /CAT: BEBIDAS/);
 
 const existing = new Set();
 const enqueued = [];
@@ -99,9 +102,13 @@ assert.match(stationAdmin, /\['KDS', 'AMBOS'\]\.includes\(String\(row\.mode \|\|
 
 const remoteAgent = fs.readFileSync('src/modules/edge/edge-remote-agent.service.js', 'utf8');
 const lanDiscovery = fs.readFileSync('edge/agent/lan-discovery.js', 'utf8');
+const printBridgeSource = fs.readFileSync('src/modules/edge/edge-restaurant-print-bridge.js', 'utf8');
 assert.match(remoteAgent, /edge-restaurant-print-bridge/);
 assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
 assert.match(lanDiscovery, /restaurant-print-bridge/);
+assert.match(printBridgeSource, /restaurantOrderItem\.findMany/);
+assert.match(printBridgeSource, /restaurantMenuItem\.findMany/);
+assert.match(printBridgeSource, /CAT: \$\{category\}/);
 
 const edgeVersion = require('../edge/version.json');
 assert.match(edgeVersion.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
@@ -113,6 +120,7 @@ console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   hotColdSameQueue:true,
   windowsUsbQueue:true,
   largeKitchenCommandTemplate:true,
+  kitchenCategoryVisible:true,
   kitchenNotesSeparated:true,
   idempotentBootstrapPrint:true,
   pendingNeverHidden:true,
