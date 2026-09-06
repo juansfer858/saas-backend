@@ -21,6 +21,7 @@ on:
       - 'src/modules/restaurant/restaurant-company-profile.service.js'
       - 'src/web/restaurant-company-admin-advanced.js'
       - '.github/workflows/restaurant-escpos-spanish-ci.yml'
+  workflow_dispatch:
 
 jobs:
   validate:
