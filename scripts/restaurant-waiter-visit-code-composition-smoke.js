@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   WAITER_VISIT_CODE_MARKER,
+  RENDER_HOOK_MARKER,
   waiterVisitCodeRuntime,
   patchWaiterVisitCodeRuntime
 } = require('../src/modules/restaurant/restaurant-waiter-visit-code.public.routes');
@@ -18,9 +19,14 @@ const visitRoutes = read('src/modules/restaurant/restaurant-visit-payments.route
 const visitService = read('src/modules/restaurant/restaurant-visit-payments.service.js');
 const waiterBridge = read('src/web/restaurant-waiter-session-v8.js');
 
+const baseBindCalls = (baseUi.match(/bindWaiterTop\(\);/g) || []).length;
+assert.equal(baseBindCalls, 3, 'El render Mesero esperado debe tener tres puntos de montaje después de reconstruir #view');
+
 const patched = patchWaiterVisitCodeRuntime(baseUi);
 assert.notEqual(patched, baseUi, 'El Centro de control debe recibir la capa del código de visita');
 assert.match(patched, new RegExp(WAITER_VISIT_CODE_MARKER));
+assert.equal((patched.match(new RegExp(RENDER_HOOK_MARKER, 'g')) || []).length, baseBindCalls, 'Cada reconstrucción del Mesero debe remontar el código antes de pintar');
+assert.match(patched, /VantixWaiterVisitCodeV32\?\.remount\?\.\(\)/);
 assert.match(patched, /CÓDIGO PARA ACTIVAR AUTOPEDIDO/);
 assert.match(patched, /\/qr-visita/);
 assert.match(patched, /\/qr-visita\/regenerar/);
@@ -34,6 +40,10 @@ assert.match(waiterVisitCodeRuntime, /noPolling:true/);
 assert.match(waiterVisitCodeRuntime, /observerFree:true/);
 assert.match(waiterVisitCodeRuntime, /productClicksIgnored:true/);
 assert.match(waiterVisitCodeRuntime, /stableDom:true/);
+assert.match(waiterVisitCodeRuntime, /persistentAcrossWaiterRender:true/);
+assert.match(waiterVisitCodeRuntime, /const statusCache=new Map\(\)/);
+assert.match(waiterVisitCodeRuntime, /function remount\(\)/);
+assert.match(waiterVisitCodeRuntime, /statusCache\.get\(tableId\)/);
 assert.match(waiterVisitCodeRuntime, /function signature\(status\)/);
 assert.match(waiterVisitCodeRuntime, /card\.dataset\.signature===nextSignature/);
 assert.doesNotMatch(waiterVisitCodeRuntime, /\[data-draft-plus\]|\[data-draft-minus\]/, 'Los +/− de productos no deben refrescar la tarjeta del código');
@@ -68,10 +78,12 @@ assert.match(waiterBridge, /noMutationObserver:true/);
 
 console.log(JSON.stringify({
   ok:true,
-  controlCenterVisitCode:'V31_STABLE_NO_FLICKER',
+  controlCenterVisitCode:'V32_PERSISTENT_RENDER_HOOK',
   dedicatedWaiterPwaVisitCode:'V16_PRESERVED',
   productClicksRefreshCode:false,
   stableDomWhenStatusUnchanged:true,
+  persistentAcrossFullWaiterRender:true,
+  renderHookCount:baseBindCalls,
   fourDigitCodeVisible:true,
   rotateCodeVisible:true,
   qrAuthorizationBackendPreserved:true,
