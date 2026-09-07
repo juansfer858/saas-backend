@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { prisma } = require('../src/config/prisma');
 const { seedTenantDefaults } = require('../src/services/tenant-seed.service');
 const { seedPlatformDefaults } = require('../src/services/platform-seed.service');
@@ -34,6 +35,11 @@ async function main() {
     await seedTenantDefaults(tx, tenant);
     await seedPlatformDefaults(tx, tenant, user);
   });
+
+  const generic = await prisma.tercero.findFirst({
+    where:{ tenantId:tenant.id, identificacion:credit.GENERIC_CUSTOMER_IDENTIFICATION, activo:true }
+  });
+  assert.ok(generic, 'el tenant debe tener cliente genérico POS');
 
   const customer = await prisma.tercero.create({
     data:{
@@ -75,6 +81,7 @@ async function main() {
   const prepared = await credit.prepareCreditClose(tenant.id, creditTable.table.id, customer.id);
   assert.equal(prepared.customer.id, customer.id);
   assert.equal(prepared.credit.saleTotal, '10000');
+  assert.equal(prepared.previous.terceroId, generic.id, 'debe recordar el cliente genérico previo para rollback');
   assert.ok(new Date(prepared.credit.dueDate).getTime() > Date.now() + 28 * 86400000, 'debe respetar los 30 días de plazo');
 
   const draft = await prisma.comprobanteComercial.findUnique({ where:{ id:creditTable.opened.sale.id } });
@@ -112,8 +119,7 @@ async function main() {
 
   const blockedTable = await createSaleTable(tenant.id, user, menuItem.id, 'CR2');
   const blockedBefore = await prisma.comprobanteComercial.findUnique({ where:{ id:blockedTable.opened.sale.id } });
-  assert.ok(blockedBefore.terceroId, 'la venta POS nace con el cliente genérico canónico');
-  assert.notEqual(blockedBefore.terceroId, lowLimitCustomer.id);
+  assert.equal(blockedBefore.terceroId, generic.id, 'la venta POS nace con el cliente genérico canónico');
   let limitError = null;
   try {
     await credit.prepareCreditClose(tenant.id, blockedTable.table.id, lowLimitCustomer.id);
@@ -127,13 +133,40 @@ async function main() {
   assert.notEqual(blockedSale.terceroId, lowLimitCustomer.id, 'el cliente rechazado no puede quedar asociado');
   assert.notEqual(blockedSale.formaPago, 'CREDITO', 'si supera cupo no debe dejar la venta marcada a crédito');
 
+  const genericTable = await createSaleTable(tenant.id, user, menuItem.id, 'CR3');
+  let genericError = null;
+  try {
+    await credit.prepareCreditClose(tenant.id, genericTable.table.id, generic.id);
+  } catch (error) {
+    genericError = error;
+  }
+  assert.equal(genericError?.code, 'RESTAURANT_CREDIT_CUSTOMER_INVALID', 'cliente genérico no puede recibir crédito');
+
+  const rollbackTable = await createSaleTable(tenant.id, user, menuItem.id, 'CR4');
+  const rollbackBefore = await prisma.comprobanteComercial.findUnique({ where:{ id:rollbackTable.opened.sale.id } });
+  const rollbackPrepared = await credit.prepareCreditClose(tenant.id, rollbackTable.table.id, customer.id);
+  assert.equal((await prisma.comprobanteComercial.findUnique({ where:{ id:rollbackTable.opened.sale.id } })).terceroId, customer.id);
+  assert.equal(await credit.restorePreparedCredit(tenant.id, rollbackPrepared), true);
+  const restored = await prisma.comprobanteComercial.findUnique({ where:{ id:rollbackTable.opened.sale.id } });
+  assert.equal(restored.estado, 'BORRADOR');
+  assert.equal(restored.terceroId, rollbackBefore.terceroId);
+  assert.equal(restored.formaPago, rollbackBefore.formaPago);
+  assert.equal(restored.cajaBancoId, rollbackBefore.cajaBancoId);
+  assert.equal(restored.fechaVencimiento?.toISOString?.() || null, rollbackBefore.fechaVencimiento?.toISOString?.() || null);
+
+  const coreRoutes = fs.readFileSync('src/routes/core.routes.js', 'utf8');
+  assert.match(coreRoutes, /restaurantCreditRollbackMiddleware/);
+  assert.match(coreRoutes, /router\.use\(restaurantCreditRollbackMiddleware\)/);
+
   console.log('RESTAURANT CREDIT PAYMENT V46 SMOKE OK');
   console.log(JSON.stringify({
     creditButtonBackendReady:true,
     customerRequired:true,
+    genericCustomerRejected:true,
     dueDaysApplied:true,
     creditLimitEnforced:true,
     rejectedCreditLeavesDraftUntouched:true,
+    rollbackRestoresDraftOnDownstreamError:true,
     cxcCreated:true,
     carteraChargeCreated:true,
     tableClosedAndFreed:true,
