@@ -4,6 +4,8 @@
 // Intercepta las respuestas de /relay/pull para operaciones especiales
 // WINDOWS_PRINTERS / WINDOWS_TEST y para el disparo inmediato PRINT_QUEUE.
 require('./restaurant-print-bridge');
-require('./offline-qr-self-order');
+// V54 mantiene el autopedido offline/LAN, pero durante pruebas elimina sólo el PIN
+// de 4 dígitos. La capa base sigue intacta y vuelve al quitar este wrapper.
+require('./offline-qr-self-order-v54');
 require('./offline-waiter-hard-gate');
 require('./workspace-entry-v28');
