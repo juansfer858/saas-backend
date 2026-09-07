@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const express = require('express');
 const path = require('node:path');
 const controller = require('./commercial.controller');
@@ -8,9 +9,20 @@ const productionStations = require('../platform/printing/printing-stations.servi
 const router = express.Router();
 const webRoot = path.join(__dirname, '../../web');
 
-router.get('/ui-runtime/panel-integration-extras-core.js', (_req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.type('application/javascript').sendFile(path.join(webRoot, 'panel-integration-extras-core.js'));
+router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, next) => {
+  try {
+    let source = await fs.promises.readFile(path.join(webRoot, 'panel-integration-extras-core.js'), 'utf8');
+    source = source.replace(
+      "api('/api/v1/tesoreria/pagos')",
+      "api('/api/v1/tesoreria/recaudos-recientes')"
+    );
+    if (!source.includes("api('/api/v1/tesoreria/recaudos-recientes')")) {
+      throw new Error('No fue posible aplicar el origen canónico de recaudos en Tesorería');
+    }
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Treasury-Recent-Receipts', 'v43-movimiento-tesoreria');
+    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}`);
+  } catch (error) { next(error); }
 });
 
 router.get('/ui-runtime/panel-printing-config.js', (_req, res) => {
