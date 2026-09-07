@@ -87,7 +87,9 @@ async function main() {
   assert.match(edgeBridge, /WINDOWS_TEST_OPERATION/);
   assert.match(edgeBridge, /RELAY_POLL_FRAGMENT/);
   assert.match(edgeRestaurantEntry, /require\('\.\/restaurant-print-bridge'\)/);
-  assert.ok(edgeRestaurantEntry.indexOf("require('./restaurant-print-bridge')") < edgeRestaurantEntry.indexOf("require('./workspace-entry-v28')"));
+  const workspaceRequire = edgeRestaurantEntry.match(/require\('\.\/workspace-entry-v\d+'\)/)?.[0] || '';
+  assert.ok(workspaceRequire, 'El runtime Restaurante debe cargar una capa Workspace versionada');
+  assert.ok(edgeRestaurantEntry.indexOf("require('./restaurant-print-bridge')") < edgeRestaurantEntry.indexOf(workspaceRequire));
   assert.match(commandBridge, /WINDOWS:/);
   assert.match(commandBridge, /queueName/);
   assert.match(commandBridge, /layout: normalizedLayout/);
