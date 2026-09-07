@@ -151,6 +151,10 @@ async function main() {
   assert.match(chainRuntime.paymentTreasuryChainRuntime, /legacyGenericAccountSelector:false/);
   assert.match(chainRuntime.paymentTreasuryChainRuntime, /creditRequiresCustomerPortfolio:true/);
   assert.match(chainRuntime.paymentTreasuryChainRuntime, /failClosedOnConfigurationError:true/);
+  assert.match(chainRuntime.paymentTreasuryChainRuntime, /eventDrivenMount:true/);
+  assert.match(chainRuntime.paymentTreasuryChainRuntime, /noMutationObserver:true/);
+  assert.doesNotMatch(chainRuntime.paymentTreasuryChainRuntime, /MutationObserver/);
+  assert.match(chainRuntime.paymentTreasuryChainRuntime, /cashReceived'\)\?\.defaultValue/);
   assert.match(chainRuntime.paymentTreasuryChainRuntime, /\/cerrar-con-metodo/);
   assert.match(chainRuntime.paymentTreasuryChainRuntime, /Cuenta destino del cobro/);
   assert.match(chainRuntime.paymentTreasuryChainRuntime, /stopImmediatePropagation/);
@@ -174,6 +178,9 @@ async function main() {
     portfolioCollectionPreserved:true,
     cashierConfiguredMethodsAuthoritative:true,
     genericCashBankSelectorRemoved:true,
+    totalUsesCashierCanonicalRenderedValue:true,
+    eventDrivenMount:true,
+    mutationObserver:false,
     failClosedIfMethodConfigUnavailable:true
   }, null, 2));
 }
