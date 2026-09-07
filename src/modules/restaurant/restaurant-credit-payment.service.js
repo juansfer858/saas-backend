@@ -14,6 +14,34 @@ function dueDateFrom(saleDate, days) {
   return due;
 }
 
+async function createCreditCustomer(tenantId, input) {
+  const identification = String(input.identificacion || '').trim();
+  if (!identification || identification === GENERIC_CUSTOMER_IDENTIFICATION) {
+    throw new AppError(400, 'Ingresa una identificación válida para el cliente', 'RESTAURANT_CREDIT_CUSTOMER_IDENTIFICATION_INVALID');
+  }
+  try {
+    return await prisma.tercero.create({
+      data: {
+        tenantId,
+        tipo: 'CLIENTE',
+        tipoDocumento: String(input.tipoDocumento || 'CC').trim() || 'CC',
+        identificacion: identification,
+        nombre: String(input.nombre || '').trim(),
+        telefono: input.telefono ? String(input.telefono).trim() : null,
+        email: input.email ? String(input.email).trim() : null,
+        cupoCredito: Number(input.cupoCredito || 0),
+        diasPlazo: Number(input.diasPlazo || 0),
+        activo: true
+      }
+    });
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      throw new AppError(409, 'Ya existe un cliente con esa identificación', 'RESTAURANT_CREDIT_CUSTOMER_EXISTS');
+    }
+    throw error;
+  }
+}
+
 async function prepareCreditClose(tenantId, tableId, terceroId) {
   const customerId = String(terceroId || '').trim();
   if (!customerId) {
@@ -133,6 +161,7 @@ module.exports = {
   CUSTOMER_TYPES,
   GENERIC_CUSTOMER_IDENTIFICATION,
   dueDateFrom,
+  createCreditCustomer,
   prepareCreditClose,
   restorePreparedCredit
 };
