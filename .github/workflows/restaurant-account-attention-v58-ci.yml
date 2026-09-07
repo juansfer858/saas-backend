@@ -1,0 +1,71 @@
+name: Restaurant Account Attention V58 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-account-attention-v58.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-account-attention-v58-smoke.js'
+      - '.github/workflows/restaurant-account-attention-v58-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-account-attention-v58.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-account-attention-v58-smoke.js'
+      - '.github/workflows/restaurant-account-attention-v58-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check V58
+        run: node --check src/modules/restaurant/restaurant-account-attention-v58.public.routes.js
+      - name: Validate client and waiter account-attention semantics
+        run: node scripts/restaurant-account-attention-v58-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V58 commit and account-attention surfaces in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              ok=1
+              for ASSET in restaurant-ui.js restaurant-waiter-runtime-v7.js; do
+                HDR="$(mktemp)"
+                JS="$(mktemp)"
+                if ! curl -fsS -D "$HDR" "$BASE/app/$ASSET?v=account-attention-v58-$GITHUB_SHA" -o "$JS"; then ok=0; break; fi
+                grep -Fqi 'X-VantixGC-Account-Attention: v58-account-attention' "$HDR" || ok=0
+                grep -Fq 'VANTIX_RESTAURANT_ACCOUNT_ATTENTION_V58' "$JS" || ok=0
+                grep -Fq 'ACCOUNT_ATTENTION' "$JS" || ok=0
+                grep -Fq 'CUENTA SOLICITADA' "$JS" || ok=0
+              done
+              OP="$(mktemp)"
+              curl -fsS "$BASE/app/restaurant-ui.js?v=v58-compose-$GITHUB_SHA" -o "$OP" || ok=0
+              grep -Fq 'COBRAR ${esc(String(table.name' "$OP" || ok=0
+              grep -Fq "setTab('caja')" "$OP" || ok=0
+              grep -Fq 'VANTIX_RESTAURANT_GLOBAL_PRODUCT_SEARCH_V57' "$OP" || ok=0
+              if [ "$ok" -eq 1 ]; then
+                echo "V58 exact commit and account-attention surfaces are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V58 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
