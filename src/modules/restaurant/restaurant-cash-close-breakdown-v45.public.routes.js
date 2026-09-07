@@ -44,20 +44,19 @@ const runtime = String.raw`
     if(document.getElementById(STYLE_ID)) return;
     const style=document.createElement('style');
     style.id=STYLE_ID;
-    style.textContent=\`
-      #view .cash-workspace.cash-table-collect-only-v45{grid-template-columns:minmax(0,1fr)!important}
-      #view .cash-fast-panel.cash-table-collect-only-v45:not(.cash-collect-dialog-v40){display:none!important}
-      #view .cash-fast-panel.cash-table-collect-only-v45.cash-collect-dialog-v40{display:block!important}
-      .cash-payment-breakdown-v45{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:4px 0 14px}
-      .cash-payment-card-v45{border:1px solid #d7e1ec;border-radius:13px;background:#fff;padding:12px;display:grid;gap:4px;min-width:0}
-      .cash-payment-card-v45 small{font-size:10px;color:#637997;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-      .cash-payment-card-v45 b{font-size:20px;color:#10233f;font-weight:950;letter-spacing:-.02em}
-      .cash-payment-card-v45 span{font-size:10px;color:#718096;font-weight:700;line-height:1.35}
-      .cash-payment-card-v45.cash-v45{border-color:#b9decf;background:#f3fbf7}
-      .cash-payment-card-v45.bank-v45{border-color:#c9d9f3;background:#f5f8ff}
-      .cash-payment-card-v45.credit-v45{border-color:#ead8ae;background:#fffbef}
-      @media(max-width:699px){.cash-payment-breakdown-v45{grid-template-columns:1fr}.cash-payment-card-v45{padding:11px}.cash-payment-card-v45 b{font-size:18px}}
-    \`;
+    style.textContent=
+      '#view .cash-workspace.cash-table-collect-only-v45{grid-template-columns:minmax(0,1fr)!important}'+
+      '#view .cash-fast-panel.cash-table-collect-only-v45:not(.cash-collect-dialog-v40){display:none!important}'+
+      '#view .cash-fast-panel.cash-table-collect-only-v45.cash-collect-dialog-v40{display:block!important}'+
+      '.cash-payment-breakdown-v45{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:4px 0 14px}'+
+      '.cash-payment-card-v45{border:1px solid #d7e1ec;border-radius:13px;background:#fff;padding:12px;display:grid;gap:4px;min-width:0}'+
+      '.cash-payment-card-v45 small{font-size:10px;color:#637997;font-weight:800;text-transform:uppercase;letter-spacing:.03em}'+
+      '.cash-payment-card-v45 b{font-size:20px;color:#10233f;font-weight:950;letter-spacing:-.02em}'+
+      '.cash-payment-card-v45 span{font-size:10px;color:#718096;font-weight:700;line-height:1.35}'+
+      '.cash-payment-card-v45.cash-v45{border-color:#b9decf;background:#f3fbf7}'+
+      '.cash-payment-card-v45.bank-v45{border-color:#c9d9f3;background:#f5f8ff}'+
+      '.cash-payment-card-v45.credit-v45{border-color:#ead8ae;background:#fffbef}'+
+      '@media(max-width:699px){.cash-payment-breakdown-v45{grid-template-columns:1fr}.cash-payment-card-v45{padding:11px}.cash-payment-card-v45 b{font-size:18px}}';
     document.head.appendChild(style);
   }
 
@@ -109,11 +108,10 @@ const runtime = String.raw`
       const lines=$('.cash-close-lines',panel);
       if(lines) panel.insertBefore(root,lines); else panel.prepend(root);
     }
-    root.innerHTML=\`
-      <article class="cash-payment-card-v45 cash-v45"><small>Efectivo esperado en caja</small><b>\${money(summary.systemCashExpected)}</b><span>Ventas en efectivo: \${money(breakdown.cashSales)} · incluye fondo inicial y movimientos físicos del turno.</span></article>
-      <article class="cash-payment-card-v45 bank-v45"><small>Banco / Tarjeta / QR</small><b>\${money(breakdown.electronicSales)}</b><span>Recaudos electrónicos registrados durante este turno.</span></article>
-      <article class="cash-payment-card-v45 credit-v45"><small>Crédito / cartera</small><b>\${money(breakdown.creditSales)}</b><span>Ventas del turno que quedaron pendientes por cobrar al cliente.</span></article>
-    \`;
+    root.innerHTML=
+      '<article class="cash-payment-card-v45 cash-v45"><small>Efectivo esperado en caja</small><b>'+money(summary.systemCashExpected)+'</b><span>Ventas en efectivo: '+money(breakdown.cashSales)+' · incluye fondo inicial y movimientos físicos del turno.</span></article>'+
+      '<article class="cash-payment-card-v45 bank-v45"><small>Banco / Tarjeta / QR</small><b>'+money(breakdown.electronicSales)+'</b><span>Recaudos electrónicos registrados durante este turno.</span></article>'+
+      '<article class="cash-payment-card-v45 credit-v45"><small>Crédito / cartera</small><b>'+money(breakdown.creditSales)+'</b><span>Ventas del turno que quedaron pendientes por cobrar al cliente.</span></article>';
     panel.dataset.cashCloseBreakdown='v45';
   }
 
