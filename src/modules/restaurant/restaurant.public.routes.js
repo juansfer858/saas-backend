@@ -19,6 +19,7 @@ const { installRestaurantQrPrintRollV48 } = require('./restaurant-qr-print-roll-
 const { installRestaurantIndividualCashV49 } = require('./restaurant-individual-cash-v49.public.routes');
 const { installRestaurantHybridLocalOriginV53 } = require('./restaurant-hybrid-local-origin-v53.public.routes');
 const { restaurantQrDirectTestV54PublicRouter, installRestaurantQrDirectTestV54 } = require('./restaurant-qr-direct-test-v54.public.routes');
+const { restaurantTableEnableV55PublicRouter, installRestaurantTableEnableV55 } = require('./restaurant-table-enable-v55.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -112,6 +113,9 @@ router.use(installRestaurantCreditCheckoutV47);
 router.use(installRestaurantCashCloseBreakdownV45);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);
+// V55 envuelve las superficies antes de V54: así el cliente espera la habilitación
+// y, una vez abierta la mesa, V54 entrega el pase del teléfono sin PIN y el pedido continúa.
+router.use(installRestaurantTableEnableV55);
 router.use(installPrintTemplateEditorRuntime);
 router.use(installPosReceiptImmediateRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
@@ -120,8 +124,9 @@ router.use(restaurantWaiterCallRefreshPublicRouter);
 router.use(restaurantWaiterCallUnifiedPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
-// V54 es una capa de pruebas removible: mantiene la visita/dispositivo y todos los
-// límites existentes, pero obtiene el pase del teléfono sin pedir PIN de 4 dígitos.
+router.use(restaurantTableEnableV55PublicRouter);
+// V54 queda como autorización automática del teléfono DESPUÉS de que V55 haya exigido
+// una sesión de mesa aprobada por personal. No vuelve el PIN de cuatro dígitos.
 router.use(installRestaurantQrDirectTestV54);
 router.use(restaurantQrDirectTestV54PublicRouter);
 router.use(restaurantVisitPublicRouter);
