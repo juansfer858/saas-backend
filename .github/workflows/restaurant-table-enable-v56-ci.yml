@@ -29,6 +29,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Syntax check V56
         run: node --check src/modules/restaurant/restaurant-table-enable-v56.public.routes.js
       - name: Validate order-first table enable semantics
