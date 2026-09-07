@@ -1,7 +1,14 @@
-name: Restaurant PC Mesero V60 Diagnostic
+name: Restaurant PC Mesero V60 CI
 
 on:
   pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/restaurant-pc-mesero-v60-diagnostic.js'
+      - '.github/workflows/restaurant-pc-mesero-v60-diagnostic.yml'
+      - 'src/modules/restaurant/**'
+      - 'src/web/restaurant-ui.js'
+  push:
     branches: [main]
     paths:
       - 'scripts/restaurant-pc-mesero-v60-diagnostic.js'
@@ -13,7 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  validate:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -29,5 +36,44 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - name: Inspect final served Restaurant staff asset
+      - name: Validate final served Restaurant staff asset
         run: node scripts/restaurant-pc-mesero-v60-diagnostic.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V60 commit and Mesero asset in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              JS="$(mktemp)"
+              HDR="$(mktemp)"
+              if curl -fsS -D "$HDR" "$BASE/app/restaurant-ui.js?v=pc-mesero-v60-$GITHUB_SHA" -o "$JS"; then
+                node - "$JS" <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync(process.argv[2], 'utf8');
+          if (!source.includes("$$('[data-waiter-category]').forEach")) {
+            throw new Error('Falta binding múltiple $$ para categorías del Mesero');
+          }
+          const bad = source.split(/\r?\n/).filter((line) => /(^|[^$])\$\([^\n]*\)\.forEach/.test(line));
+          if (bad.length) throw new Error(`Persisten llamadas $().forEach: ${bad.join(' | ')}`);
+          if (!source.includes('VANTIX_RESTAURANT_GLOBAL_PRODUCT_SEARCH_V57')) throw new Error('Falta V57');
+          if (!source.includes('VANTIX_RESTAURANT_ACCOUNT_ATTENTION_V58')) throw new Error('Falta V58');
+          console.log('V60 production asset OK');
+          NODE
+                grep -Fqi 'X-VantixGC-Global-Product-Search: v57-all-menu' "$HDR"
+                grep -Fqi 'X-VantixGC-Account-Attention: v58-account-attention' "$HDR"
+                echo "V60 exact commit and PC Mesero asset are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V60 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
