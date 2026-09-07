@@ -62,8 +62,13 @@ assert.match(edgePatch, /autopedido directo no depende del PIN sincronizado/);
 assert.match(edgePatch, /\/autorizar/);
 assert.match(edgeEntry, /require\('\.\/offline-qr-self-order-v54'\)/);
 assert.doesNotMatch(edgeEntry, /require\('\.\/offline-qr-self-order'\);/);
-assert.equal(edgeVersion.version, '2.1.12-qr-direct-test.1');
-assert.equal(edgeVersion.channel, 'PILOT');
+
+// V54 is a detachable feature contract, not an Edge release number. Later Edge
+// releases must be allowed as long as the V54 patch remains mounted and valid.
+assert.match(edgeVersion.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
+assert.ok(['PILOT', 'STABLE'].includes(edgeVersion.channel));
+assert.equal(edgeVersion.product, 'VantixGC Restaurantes');
+assert.equal(edgeVersion.runtime, 'Edge Workspace');
 
 // Execute the detachable source patch against the real base file. This catches drift
 // in the exact anchors and proves the patched offline module compiles at runtime.
@@ -82,6 +87,4 @@ assert.equal(patchRun.status, 0, `El patch Edge V54 no pudo cargarse: ${patchRun
 assert.match(patchRun.stdout, /EDGE_RESTAURANT_QR_OFFLINE_LAN_V1|PATCH_OK/);
 fs.rmSync(temp, { recursive: true, force: true });
 
-// This source-head commit intentionally re-runs the PR matrix after GitHub Actions
-// bundled the validated 2.1.12 artifact, so current-head checks cover the final PR tree.
-console.log('RESTAURANT QR DIRECT TEST V54 CLOUD + EDGE OK');
+console.log('RESTAURANT QR DIRECT TEST V54 CLOUD + EDGE OK', JSON.stringify({ edgeVersion:edgeVersion.version, versionIndependent:true }));
