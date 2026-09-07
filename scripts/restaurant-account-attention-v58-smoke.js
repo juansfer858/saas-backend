@@ -23,7 +23,9 @@ assert.ok(desktop.includes('COBRAR '));
 assert.ok(desktop.includes('Cuenta solicitada · abrir Caja'));
 assert.ok(desktop.includes("can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR')"));
 assert.ok(desktop.includes("setTab('caja')"));
-assert.ok(desktop.includes('setInterval(() => refreshAccountAttentionDock().catch(() => {}), 2500)'));
+assert.ok(desktop.includes("window.addEventListener('vantix:tenant-realtime'"));
+assert.ok(desktop.includes("window.addEventListener('vantix:tenant-realtime-ready'"));
+assert.ok(!desktop.includes('setInterval(() => refreshAccountAttentionDock'), 'V58 no debe reintroducir polling en Centro');
 assert.ok(desktop.includes('prefers-reduced-motion:reduce'));
 assert.ok(desktop.includes(globalSearch.MARKER), 'V58 debe preservar V57');
 assert.ok(desktop.includes(menuSurface.MARKER), 'V58 debe preservar Menu Surfaces');
@@ -50,4 +52,4 @@ const v58 = routes.indexOf('router.use(installRestaurantAccountAttentionV58);');
 const v57 = routes.indexOf('router.use(installRestaurantGlobalProductSearchV57);');
 assert.ok(v58 >= 0 && v57 >= 0 && v58 < v57, 'V58 debe envolver el asset final después de V57 por unwind inverso');
 
-console.log('RESTAURANT ACCOUNT ATTENTION V58 CLIENT+WAITER+FLOATING CASH CONTRACT OK');
+console.log('RESTAURANT ACCOUNT ATTENTION V58 CLIENT+WAITER+FLOATING CASH REALTIME CONTRACT OK');
