@@ -24,6 +24,12 @@
       "sha256": "8942709c6eaba3bc5ef8e71f29cc9c53b82934073699b6c9689c2b3b16a08c76",
       "sourceCommit": "c5bcb315f612d66b1049cc1e49f22c58bcc18a83"
     },
+    "2.1.14-qr-product-notes.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.14-qr-product-notes.1.zip",
+      "sha256": "ca11b8d2b0890ccff2adb9f408ef30087882af9588bb1cf6492fb431a48f5809",
+      "sourceCommit": "ae95aa08c4d5ed22d5eafc15c890f78af2af6412"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
