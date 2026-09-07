@@ -1,4 +1,4 @@
-/* VANTIX_QR_TABLE_PRESENCE_V24 · contrato público compatible; hardening V25 en servidor */
+/* VANTIX_QR_TABLE_PRESENCE_V24 · contrato público compatible; hardening V26 visual realtime */
 (() => {
   'use strict';
 
@@ -14,8 +14,37 @@
     visit:makeChannel(),
     tableOpen:null,
     waitingForAuthorization:false,
+    visualSyncEpoch:0,
+    visualReloadPending:false,
     destroyed:false
   };
+
+  function renderedTableOpen() {
+    const strip = document.querySelector('#accountStrip');
+    if (!strip) return null;
+    const text = String(strip.textContent || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es');
+    if (!text) return null;
+    if (text.includes('mesa pendiente de apertura') || text.includes('cerrada')) return false;
+    if (text.includes('mesa activa') || text.includes('pedido enviado correctamente') || text.includes('en cocina')) return true;
+    return null;
+  }
+
+  function scheduleVisualSync(expectedOpen) {
+    const epoch = ++state.visualSyncEpoch;
+    const check = (attempt = 0) => {
+      if (state.destroyed || epoch !== state.visualSyncEpoch || state.visualReloadPending) return;
+      const rendered = renderedTableOpen();
+      if (rendered === null) {
+        if (attempt < 60) setTimeout(() => check(attempt + 1), 50);
+        return;
+      }
+      if (rendered === Boolean(expectedOpen)) return;
+      state.visualReloadPending = true;
+      document.documentElement.dataset.qrVisualRealtime = 'refreshing';
+      window.location.reload();
+    };
+    check();
+  }
 
   function parseBlock(kind, block) {
     const lines = block.split(/\r?\n/);
@@ -30,8 +59,11 @@
     try { payload = JSON.parse(data.join('\n')); } catch { return; }
 
     if (kind === 'presence' && (eventName === 'ready' || eventName === 'availability')) {
+      const previousOpen = state.tableOpen;
       state.tableOpen = Boolean(payload?.open);
-      window.dispatchEvent(new CustomEvent('vantix:restaurant-table-availability', { detail:payload }));
+      const stateChanged = previousOpen !== null && previousOpen !== state.tableOpen;
+      window.dispatchEvent(new CustomEvent('vantix:restaurant-table-availability', { detail:{ ...payload, previousOpen, stateChanged } }));
+      scheduleVisualSync(state.tableOpen);
       if (state.tableOpen) startVisit();
       else {
         state.waitingForAuthorization = false;
@@ -146,10 +178,12 @@
   window.addEventListener('beforeunload', () => { state.destroyed = true; pause(); }, { once:true });
 
   window.VantixGCQrRealtimeV1 = Object.freeze({
-    version:'1.1.0',
+    version:'1.2.0',
     transport:'SSE+PG_NOTIFY',
     tablePresenceBeforeAuthorization:true,
     automaticOpenClose:true,
+    automaticVisualRefresh:true,
+    initialStateRaceReconciled:true,
     resume,
     pause
   });
