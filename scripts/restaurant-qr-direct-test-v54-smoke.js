@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
@@ -30,6 +31,7 @@ for (const file of [
 // Cloud: no PIN is requested by V54, but a per-phone visit token is still created
 // so table state, traceability, seat attribution and existing order rate limits survive.
 assert.match(service, /RESTAURANT_QR_DIRECT_TEST_V54/);
+assert.match(service, /DIRECT_TEST_MAX_DEVICES = 20/);
 assert.match(service, /authorizeDirectVisit/);
 assert.match(service, /restaurantQrVisitDevice\.create/);
 assert.match(service, /RESTAURANT_QR_TABLE_NOT_OPEN/);
@@ -62,5 +64,22 @@ assert.match(edgeEntry, /require\('\.\/offline-qr-self-order-v54'\)/);
 assert.doesNotMatch(edgeEntry, /require\('\.\/offline-qr-self-order'\);/);
 assert.equal(edgeVersion.version, '2.1.12-qr-direct-test.1');
 assert.equal(edgeVersion.channel, 'PILOT');
+
+// Execute the detachable source patch against the real base file. This catches drift
+// in the exact anchors and proves the patched offline module compiles at runtime.
+const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'vantix-v54-'));
+const patchRun = spawnSync(process.execPath, ['-e', "const m=require('./edge/agent/offline-qr-self-order-v54'); console.log(m.marker||'PATCH_OK')"], {
+  cwd: root,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    EDGE_DATA_DIR: temp,
+    EDGE_DB_PATH: path.join(temp, 'edge.sqlite'),
+    EDGE_LOCAL_ENCRYPTION_KEY: 'qr-direct-test-v54-local-key-1234567890'
+  }
+});
+assert.equal(patchRun.status, 0, `El patch Edge V54 no pudo cargarse: ${patchRun.stderr}`);
+assert.match(patchRun.stdout, /EDGE_RESTAURANT_QR_OFFLINE_LAN_V1|PATCH_OK/);
+fs.rmSync(temp, { recursive: true, force: true });
 
 console.log('RESTAURANT QR DIRECT TEST V54 CLOUD + EDGE OK');
