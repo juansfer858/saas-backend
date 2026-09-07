@@ -1,0 +1,69 @@
+name: Restaurant Global Product Search V57 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-global-product-search-v57.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-global-product-search-v57-smoke.js'
+      - '.github/workflows/restaurant-global-product-search-v57-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-global-product-search-v57.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-global-product-search-v57-smoke.js'
+      - '.github/workflows/restaurant-global-product-search-v57-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check V57
+        run: node --check src/modules/restaurant/restaurant-global-product-search-v57.public.routes.js
+      - name: Validate global menu search semantics
+        run: node scripts/restaurant-global-product-search-v57-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V57 commit and all three search surfaces in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              ok=1
+              for ASSET in restaurant-qr-ui.js restaurant-ui.js restaurant-waiter-runtime-v7.js; do
+                HDR="$(mktemp)"
+                JS="$(mktemp)"
+                if ! curl -fsS -D "$HDR" "$BASE/app/$ASSET?v=global-search-v57-$GITHUB_SHA" -o "$JS"; then ok=0; break; fi
+                grep -Fqi 'X-VantixGC-Global-Product-Search: v57-all-menu' "$HDR" || ok=0
+                grep -Fq 'VANTIX_RESTAURANT_GLOBAL_PRODUCT_SEARCH_V57' "$JS" || ok=0
+                grep -Fq 'Buscar en toda la carta' "$JS" || ok=0
+              done
+              QR="$(mktemp)"
+              curl -fsS "$BASE/app/restaurant-qr-ui.js?v=v57-compose-$GITHUB_SHA" -o "$QR" || ok=0
+              grep -Fq 'VANTIX_RESTAURANT_TABLE_ENABLE_V56' "$QR" || ok=0
+              grep -Fq 'globalMenuSearchTokens' "$QR" || ok=0
+              if [ "$ok" -eq 1 ]; then
+                echo "V57 exact commit and all-menu search surfaces are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V57 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
