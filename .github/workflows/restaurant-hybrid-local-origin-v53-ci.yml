@@ -1,0 +1,64 @@
+name: Restaurant Hybrid Local Origin V53 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/edge/edge-workspace.service.js'
+      - 'src/modules/edge/edge-hybrid-local-origin-v53.routes.js'
+      - 'src/modules/restaurant/restaurant-hybrid-local-origin-v53.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'scripts/restaurant-hybrid-local-origin-v53-smoke.js'
+      - '.github/workflows/restaurant-hybrid-local-origin-v53-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/modules/edge/edge-workspace.service.js'
+      - 'src/modules/edge/edge-hybrid-local-origin-v53.routes.js'
+      - 'src/modules/restaurant/restaurant-hybrid-local-origin-v53.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'scripts/restaurant-hybrid-local-origin-v53-smoke.js'
+      - '.github/workflows/restaurant-hybrid-local-origin-v53-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate hybrid local-origin bridge
+        run: node scripts/restaurant-hybrid-local-origin-v53-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait exact V53 commit and asset in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 75); do
+            INFO="$(curl -fsS --max-time 8 https://core.vantixgc.com/api/public/runtime-info 2>/dev/null || true)"
+            ASSET="$(curl -fsS --max-time 8 -D /tmp/v53-headers.txt 'https://core.vantixgc.com/app/restaurant-ui.js?v=hybrid-local-origin-v53' 2>/dev/null || true)"
+            COMMIT="$(node -e "try{const x=JSON.parse(process.argv[1]);process.stdout.write(String(x.commit||x.gitSha||x.sha||''))}catch{}" "$INFO")"
+            if [ "$COMMIT" = "$GITHUB_SHA" ] \
+              && grep -q 'VANTIX_RESTAURANT_HYBRID_LOCAL_ORIGIN_V53' <<<"$ASSET" \
+              && grep -qi 'X-VantixGC-Restaurant-Hybrid-Origin: v53-safe-return' /tmp/v53-headers.txt; then
+              echo "HYBRID_LOCAL_ORIGIN_V53_PRODUCTION_OK attempt=$attempt commit=$COMMIT"
+              exit 0
+            fi
+            echo "Esperando V53... attempt=$attempt commit=$COMMIT"
+            sleep 10
+          done
+          echo 'V53 no apareció en producción dentro del tiempo esperado.' >&2
+          exit 1
