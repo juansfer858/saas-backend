@@ -11,22 +11,30 @@ const paymentChain = require('../src/modules/restaurant/restaurant-payment-chain
 async function main() {
   assert.equal(paymentChain.MARKER, 'VANTIX_RESTAURANT_PAYMENT_CHAIN_V43');
   new Function(paymentChain.runtime);
-  assert.match(paymentChain.runtime, /version:'43\.2\.0'/);
+  assert.match(paymentChain.runtime, /version:'43\.3\.0'/);
   assert.match(paymentChain.runtime, /cashOnlyToCashAccount:true/);
   assert.match(paymentChain.runtime, /bankOnlyToBankAccount:true/);
   assert.match(paymentChain.runtime, /creditRequiresCustomer:true/);
   assert.match(paymentChain.runtime, /creditCustomerSelector:true/);
   assert.match(paymentChain.runtime, /creditCreatesCxc:true/);
   assert.match(paymentChain.runtime, /creditNoTreasuryMovement:true/);
+  assert.match(paymentChain.runtime, /creditSelectionSticky:true/);
+  assert.match(paymentChain.runtime, /creditChangeIsolation:true/);
+  assert.match(paymentChain.runtime, /quickCustomerCreate:true/);
   assert.match(paymentChain.runtime, /selectionSurvivesRerender:true/);
   assert.match(paymentChain.runtime, /methodSelectionAuthoritative:true/);
   assert.match(paymentChain.runtime, /let selectedMethod='EFECTIVO'/);
   assert.match(paymentChain.runtime, /let selectedCreditCustomerId=''/);
   assert.match(paymentChain.runtime, /\/api\/v1\/terceros\?activo=true&limit=500/);
-  assert.match(paymentChain.runtime, /id='creditCustomerField'|field\.id='creditCustomerField'/);
-  assert.match(paymentChain.runtime, /selectedMethod=own==='BANCO'\?'BANCO':own==='CREDITO'\?'CREDITO':'EFECTIVO'/);
+  assert.match(paymentChain.runtime, /\/api\/v1\/restaurante\/credito\/clientes/);
+  assert.match(paymentChain.runtime, /createCreditCustomerV47/);
+  assert.match(paymentChain.runtime, /Crear y seleccionar cliente/);
+  assert.match(paymentChain.runtime, /setSelectedMethod\('CREDITO'\)/);
+  assert.match(paymentChain.runtime, /event\.stopImmediatePropagation\(\)/);
   assert.match(paymentChain.runtime, /payload\.terceroId=selectedCreditCustomerId\|\|null/);
-  assert.match(paymentChain.runtime, /El crédito se registrará como cuenta por cobrar y no moverá Caja\/Banco/);
+  assert.match(paymentChain.runtime, /payload\.formaPago='CREDITO'/);
+  assert.match(paymentChain.runtime, /payload\.cajaBancoId=null/);
+  assert.match(paymentChain.runtime, /Selecciona un cliente o créalo aquí/);
   assert.match(paymentChain.runtime, /La propina debe cobrarse por un medio de contado/);
   assert.match(paymentChain.runtime, /Selecciona una cuenta tipo CAJA para efectivo/);
   assert.match(paymentChain.runtime, /Selecciona una cuenta tipo BANCO para Tarjeta \/ QR/);
@@ -40,6 +48,11 @@ async function main() {
   const coreRoutes = fs.readFileSync('src/routes/core.routes.js', 'utf8');
   assert.match(coreRoutes, /\/tesoreria\/recaudos-recientes/);
   assert.match(coreRoutes, /restaurantCreditPaymentRouter/);
+
+  const creditRoutes = fs.readFileSync('src/modules/restaurant/restaurant-credit-payment.routes.js', 'utf8');
+  assert.match(creditRoutes, /\/credito\/clientes/);
+  assert.match(creditRoutes, /createCreditCustomer/);
+  assert.match(creditRoutes, /RESTAURANTE\.CERRAR/);
 
   const suffix = crypto.randomBytes(5).toString('hex');
   const tenant = await prisma.tenant.create({
@@ -96,13 +109,16 @@ async function main() {
   assert.equal(recent.paymentLabel({ cajaBanco:{ tipo:'CAJA' } }), 'EFECTIVO');
   assert.equal(recent.paymentLabel({ cajaBanco:{ tipo:'BANCO' } }), 'TARJETA / QR');
 
-  console.log('RESTAURANT PAYMENT CHAIN + TREASURY V43.2 SMOKE OK');
+  console.log('RESTAURANT PAYMENT CHAIN + TREASURY V43.3 SMOKE OK');
   console.log(JSON.stringify({
     cashToCashAccountOnly:true,
     bankToBankAccountOnly:true,
     creditRequiresCustomer:true,
     creditCustomerSelector:true,
     creditRequestCarriesCustomer:true,
+    creditSelectionSticky:true,
+    creditChangeIsolation:true,
+    quickCustomerCreate:true,
     selectionSurvivesRerender:true,
     methodSelectionAuthoritative:true,
     posMovementCanonicalSource:true,
