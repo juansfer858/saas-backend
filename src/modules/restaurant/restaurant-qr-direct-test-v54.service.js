@@ -5,6 +5,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
 const DIRECT_TEST_MODE = 'RESTAURANT_QR_DIRECT_TEST_V54';
+const DIRECT_TEST_MAX_DEVICES = 20;
 
 function hashToken(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
@@ -44,12 +45,13 @@ async function authorizeDirectVisit(qrToken, seatNumber = 1) {
       throw new AppError(409, 'La cuenta de esta mesa ya está en proceso de cobro', 'RESTAURANT_ACCOUNT_ALREADY_PREPARED');
     }
 
+    // Durante las pruebas evitamos que escaneos repetidos bloqueen la mesa rápidamente.
+    // Sigue existiendo un techo alto para impedir crecimiento accidental ilimitado.
     const activeDevices = await tx.restaurantQrVisitDevice.count({
       where: { tenantId: table.tenantId, sessionId: session.id, revokedAt: null }
     });
-    const maxDevices = Math.min(Math.max(Number(session.guestCount || 1) * 2 + 2, 4), 20);
-    if (activeDevices >= maxDevices) {
-      throw new AppError(429, 'Esta mesa ya tiene demasiados teléfonos activos. Cierra y vuelve a abrir la mesa para reiniciar la prueba.', 'RESTAURANT_QR_VISIT_DEVICE_LIMIT');
+    if (activeDevices >= DIRECT_TEST_MAX_DEVICES) {
+      throw new AppError(429, 'Esta mesa alcanzó el máximo temporal de teléfonos de prueba. Cierra y vuelve a abrir la mesa para reiniciar.', 'RESTAURANT_QR_VISIT_DEVICE_LIMIT');
     }
 
     const seat = normalizeSeat(session, seatNumber);
@@ -63,7 +65,7 @@ async function authorizeDirectVisit(qrToken, seatNumber = 1) {
     });
 
     // V54 sólo elimina el PIN de cuatro dígitos. Conservamos sesión de mesa,
-    // límites, trazabilidad por dispositivo y bloqueo cuando la cuenta entra a cobro.
+    // trazabilidad por dispositivo y bloqueo cuando la cuenta entra a cobro.
     await tx.restaurantTableSession.update({
       where: { id: session.id },
       data: { qrVisitFailedAttempts: 0, qrVisitLockedUntil: null }
@@ -83,5 +85,6 @@ async function authorizeDirectVisit(qrToken, seatNumber = 1) {
 
 module.exports = {
   DIRECT_TEST_MODE,
+  DIRECT_TEST_MAX_DEVICES,
   authorizeDirectVisit
 };
