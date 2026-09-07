@@ -22,4 +22,23 @@ router.post('/mesas/:id/cerrar', requirePermission('RESTAURANTE.CERRAR'), async 
   }
 });
 
-module.exports = { restaurantCreditPaymentRouter: router };
+// Se monta después del router canónico de Restaurante. Si cualquier validación
+// posterior falla, restauramos el borrador antes de entregar el error al cliente.
+async function restaurantCreditRollbackMiddleware(error, req, _res, next) {
+  if (!req?.restaurantCreditPrepared) return next(error);
+  try {
+    await credit.restorePreparedCredit(req.tenantId, req.restaurantCreditPrepared);
+  } catch (rollbackError) {
+    console.error('RESTAURANT_CREDIT_ROLLBACK_FAILED', {
+      tenantId: req.tenantId,
+      saleId: req.restaurantCreditPrepared?.saleId,
+      error: rollbackError?.message || rollbackError
+    });
+  }
+  return next(error);
+}
+
+module.exports = {
+  restaurantCreditPaymentRouter: router,
+  restaurantCreditRollbackMiddleware
+};
