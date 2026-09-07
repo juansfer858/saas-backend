@@ -31,6 +31,7 @@ const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-wo
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
 const { restaurantCompanyAdminAdvancedPublicRouter, installCompanyAdminAdvancedAsset } = require('./restaurant-company-admin-advanced.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
+const { installRestaurantPaymentChainV43 } = require('./restaurant-payment-chain-v43.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
 const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
@@ -41,10 +42,6 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
-// Canonical Restaurant public surfaces remain owned by the established shell:
-// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
-// restaurant-control-center.css · restaurant-control-center.js
-// Administrative company identity belongs to /app/configuracion-avanzada, not to Centro de control.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -61,11 +58,8 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
-// This root-mounted public router is evaluated before the generic /app HTML fallback.
-// Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
-// Company identity is an Administration concern. This layer wraps only Configuración avanzada.
 router.use(installCompanyAdminAdvancedAsset);
 router.use(restaurantCompanyAdminAdvancedPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
@@ -87,6 +81,7 @@ router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
 router.use(installCashCollectDialogRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
+router.use(installRestaurantPaymentChainV43);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);
 router.use(installPrintTemplateEditorRuntime);
