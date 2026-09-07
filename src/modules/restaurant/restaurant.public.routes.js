@@ -22,6 +22,7 @@ const { restaurantQrDirectTestV54PublicRouter, installRestaurantQrDirectTestV54 
 const { restaurantTableEnableV55PublicRouter, installRestaurantTableEnableV55 } = require('./restaurant-table-enable-v55.public.routes');
 const { installRestaurantTableEnableV56 } = require('./restaurant-table-enable-v56.public.routes');
 const { installRestaurantGlobalProductSearchV57 } = require('./restaurant-global-product-search-v57.public.routes');
+const { installRestaurantAccountAttentionV58 } = require('./restaurant-account-attention-v58.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -79,6 +80,9 @@ function installCashCompactRuntime(req, res, next) {
 router.use(publicInstallerRouter);
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
+// V58 is outermost for the staff assets. Response wrappers unwind in reverse order,
+// so this layer sees the final V57/V56/Menu Surfaces asset and only adds account-attention UI.
+router.use(installRestaurantAccountAttentionV58);
 // V57 wraps the same three product-selection assets before V56 and all other Restaurant
 // layers. Because response wrappers unwind in reverse order, V57 receives the final V56
 // QR asset and makes search global across the whole active menu instead of one category.
