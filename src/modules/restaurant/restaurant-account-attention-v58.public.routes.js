@@ -17,7 +17,6 @@ function patchOperatorSource(source) {
     helperNeedle,
     '',
     `  const ${MARKER}_OPERATOR = true;`,
-    '  let accountAttentionPoll = null;',
     '  let accountAttentionBusy = false;',
     "  function accountAttentionActive(table) { return Boolean(table?.activeSession && (String(table.state || '') === 'CUENTA_PEDIDA' || table.activeSession.accountRequestedAt)); }",
     '  function ensureAccountAttentionStyles() {',
@@ -48,13 +47,21 @@ function patchOperatorSource(source) {
     '    accountAttentionBusy = true;',
     "    try { const rows = await api('/api/v1/restaurante/mesas'); renderAccountAttentionDock(rows); } catch {} finally { accountAttentionBusy = false; }",
     '  }',
-    '  function startAccountAttentionPoll() {',
+    '  function accountAttentionRealtimeRelevant(detail) {',
+    '    const topics = Array.isArray(detail?.topics) ? detail.topics : [];',
+    "    return topics.some((topic) => topic === 'treasury' || topic.startsWith('restaurant'));",
+    '  }',
+    '  function accountAttentionRealtimeKick(detail) {',
+    '    if (!accountAttentionRealtimeRelevant(detail)) return;',
+    '    refreshAccountAttentionDock().catch(() => {});',
+    '  }',
+    '  function startAccountAttentionRealtime() {',
     '    ensureAccountAttentionStyles();',
     "    if (!(can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR'))) return;",
     '    refreshAccountAttentionDock().catch(() => {});',
-    '    if (!accountAttentionPoll) accountAttentionPoll = setInterval(() => refreshAccountAttentionDock().catch(() => {}), 2500);',
-    '  }',
-    '  function stopAccountAttentionPoll() { if (accountAttentionPoll) clearInterval(accountAttentionPoll); accountAttentionPoll = null; }'
+    "    window.addEventListener('vantix:tenant-realtime', (event) => accountAttentionRealtimeKick(event.detail || {}));",
+    "    window.addEventListener('vantix:tenant-realtime-ready', () => accountAttentionRealtimeKick({ topics:['restaurant','treasury'] }));",
+    '  }'
   ].join('\n');
   out = requiredReplace(out, helperNeedle, helperReplacement, 'OP_HELPERS');
 
@@ -82,7 +89,6 @@ function patchOperatorSource(source) {
     "    return `<article class=\"salon-list-row ${table.state} ${accountAttentionActive(table) ? 'ACCOUNT_ATTENTION' : ''}\"><div class=\"salon-list-main\"><span class=\"salon-table-state\">${esc(accountAttentionActive(table) ? 'CUENTA SOLICITADA' : salonStateLabel(table.state))}</span>",
     'OP_LIST_ATTENTION'
   );
-
   out = requiredReplace(
     out,
     '    const people = Number(table.activeSession?.guestCount || 0);\n    const meta = state === \'LIBRE\' ? \'Libre\' : state === \'CUENTA_PEDIDA\' ? \'Cuenta pedida\' : `${state.replaceAll(\'_\',\' \')}${people ? ` · ${people} pers.` : \'\'}`;',
@@ -95,11 +101,10 @@ function patchOperatorSource(source) {
     'class="waiter-table-chip ${selected ? \'selected\' : \'\'} ${state} ${attention ? \'ACCOUNT_ATTENTION\' : \'\'}"',
     'OP_WAITER_CLASS'
   );
-
   out = requiredReplace(
     out,
     "  window.addEventListener('beforeunload', stopPoll);\n  loadContext().then(renderCurrent).catch((error) => message(error.message, true));",
-    "  window.addEventListener('beforeunload', () => { stopPoll(); stopAccountAttentionPoll(); });\n  loadContext().then(async () => { startAccountAttentionPoll(); await renderCurrent(); }).catch((error) => message(error.message, true));",
+    "  window.addEventListener('beforeunload', stopPoll);\n  loadContext().then(async () => { startAccountAttentionRealtime(); await renderCurrent(); }).catch((error) => message(error.message, true));",
     'OP_START'
   );
 
