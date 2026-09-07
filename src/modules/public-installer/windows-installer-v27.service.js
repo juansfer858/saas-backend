@@ -23,6 +23,11 @@ function fixPowerShell(source) {
   fixed = fixed.replace(/& \$Installer @InstallArgs/g, '& $Installer @InstallParams');
   fixed = fixed.replace(legacy.INSTALL_SOURCE_COMMIT, INSTALL_SOURCE_COMMIT);
 
+  const installAnchor = `  $Installer = Join-Path $EdgeSource 'supervisor\\install-windows.ps1'\n  & $Installer @InstallParams`;
+  const installBlock = `  $Stage = 'normalizacion de activacion Edge anterior'\n  $ManagedCurrent = Join-Path $InstallDir 'current'\n  $PendingActivation = Join-Path $InstallDir 'data\\update-pending.json'\n  try { Stop-ScheduledTask -TaskName 'VantixGC Edge Supervisor' -ErrorAction SilentlyContinue } catch {}\n  Start-Sleep -Milliseconds 700\n  if (Test-Path $ManagedCurrent) {\n    Write-Host 'Restableciendo runtime base verificado antes de reinstalar...' -ForegroundColor Cyan\n    Remove-Item -LiteralPath $ManagedCurrent -Recurse -Force -ErrorAction Stop\n  }\n  Remove-Item -LiteralPath $PendingActivation -Force -ErrorAction SilentlyContinue\n\n  $Stage = 'vinculacion e instalacion local'\n  $Installer = Join-Path $EdgeSource 'supervisor\\install-windows.ps1'\n  & $Installer @InstallParams`;
+  if (!fixed.includes(installAnchor)) throw new Error('El instalador Windows perdió el punto de instalación local.');
+  fixed = fixed.replace(installAnchor, installBlock);
+
   const stabilityAnchor = `  $Stage = 'vinculacion con Super Core'\n  Write-Host '[6/7] Verificando identidad y vinculacion...' -ForegroundColor Cyan`;
   const stabilityBlock = `  $Stage = 'estabilidad del servicio local'\n  Write-Host 'Validando estabilidad del servicio local...' -ForegroundColor Cyan\n  $StableChecks = 0\n  for ($i = 0; $i -lt 3; $i++) {\n    Start-Sleep -Seconds 4\n    try {\n      $StableStatus = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8788/api/status' -TimeoutSec 3\n      if ($StableStatus.ok) { $StableChecks += 1; $Status = $StableStatus }\n    } catch {}\n  }\n  if ($StableChecks -lt 3) {\n    $SupervisorLog = Join-Path $InstallDir 'data\\supervisor.log'\n    if (Test-Path $SupervisorLog) { Get-Content -LiteralPath $SupervisorLog -Tail 40 | ForEach-Object { Write-Host $_ } }\n    throw 'El servicio local arranco, pero no se mantuvo estable. La instalacion no se marcara como completada.'\n  }\n\n  $Stage = 'vinculacion con Super Core'\n  Write-Host '[6/7] Verificando identidad y vinculacion...' -ForegroundColor Cyan`;
   if (!fixed.includes(stabilityAnchor)) throw new Error('El instalador Windows perdió el punto de validación de estabilidad.');
@@ -42,6 +47,9 @@ function fixPowerShell(source) {
   }
   if (!fixed.includes('$StableChecks = 0') || !fixed.includes("$Stage = 'estabilidad del servicio local'")) {
     throw new Error('El instalador Windows no contiene la validación V28 de estabilidad.');
+  }
+  if (!fixed.includes("$Stage = 'normalizacion de activacion Edge anterior'") || !fixed.includes("Join-Path $InstallDir 'current'")) {
+    throw new Error('El instalador Windows no limpia una activación Edge anterior antes de reinstalar.');
   }
 
   return fixed;
