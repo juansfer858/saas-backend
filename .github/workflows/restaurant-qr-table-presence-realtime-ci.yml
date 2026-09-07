@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/modules/realtime/tenant-realtime.service.js'
       - 'src/modules/realtime/tenant-realtime.routes.js'
+      - 'src/modules/restaurant/restaurant-public-realtime-publisher.js'
       - 'src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js'
       - 'src/modules/restaurant/restaurant.routes.js'
       - 'src/web/restaurant-qr-realtime-ui.js'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'src/modules/realtime/tenant-realtime.service.js'
       - 'src/modules/realtime/tenant-realtime.routes.js'
+      - 'src/modules/restaurant/restaurant-public-realtime-publisher.js'
       - 'src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js'
       - 'src/modules/restaurant/restaurant.routes.js'
       - 'src/web/restaurant-qr-realtime-ui.js'
@@ -41,9 +43,10 @@ jobs:
       - name: Validate syntax
         run: |
           node --check src/modules/realtime/tenant-realtime.service.js
+          node --check src/modules/restaurant/restaurant-public-realtime-publisher.js
           node --check src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js
           node --check scripts/restaurant-qr-table-presence-v25-smoke.js
-      - name: Validate real table-open to customer QR realtime contract
+      - name: Validate table open and final payment close realtime contract
         run: node scripts/restaurant-qr-table-presence-v25-smoke.js
 
   verify-production:
