@@ -18,6 +18,7 @@ const { installQrTableHeaderRuntime } = require('./restaurant-qr-table-header.pu
 const { installRestaurantQrPrintRollV48 } = require('./restaurant-qr-print-roll-v48.public.routes');
 const { installRestaurantIndividualCashV49 } = require('./restaurant-individual-cash-v49.public.routes');
 const { installRestaurantHybridLocalOriginV53 } = require('./restaurant-hybrid-local-origin-v53.public.routes');
+const { restaurantQrDirectTestV54PublicRouter, installRestaurantQrDirectTestV54 } = require('./restaurant-qr-direct-test-v54.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -119,6 +120,10 @@ router.use(restaurantWaiterCallRefreshPublicRouter);
 router.use(restaurantWaiterCallUnifiedPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
+// V54 es una capa de pruebas removible: mantiene la visita/dispositivo y todos los
+// límites existentes, pero obtiene el pase del teléfono sin pedir PIN de 4 dígitos.
+router.use(installRestaurantQrDirectTestV54);
+router.use(restaurantQrDirectTestV54PublicRouter);
 router.use(restaurantVisitPublicRouter);
 router.use(restaurantClientTrackingPublicRouter);
 router.use(restaurantWaiterDevicePublicRouter);
