@@ -8,6 +8,8 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const installerModulePath = path.join(root, 'src/modules/public-installer/windows-installer-v27.service.js');
 const installerSource = read('src/modules/public-installer/windows-installer-v27.service.js');
 const routes = read('src/modules/public-installer/public-installer.routes.js');
+const publicComposition = read('src/modules/restaurant/restaurant.public.routes.js');
+const platformPanelRuntime = read('src/web/platform-restaurant-fiscal-governance.js');
 const selfServiceRoutes = read('src/modules/self-service/restaurant-self-service.routes.js');
 const landing = read('src/web/public-installer.html');
 const edgeVersion = JSON.parse(read('edge/version.json'));
@@ -16,7 +18,9 @@ for (const file of [
   'src/modules/public-installer/windows-installer.service.js',
   'src/modules/public-installer/windows-installer-v27.service.js',
   'src/modules/public-installer/public-installer.routes.js',
-  'src/modules/self-service/restaurant-self-service.routes.js'
+  'src/modules/self-service/restaurant-self-service.routes.js',
+  'src/modules/restaurant/restaurant.public.routes.js',
+  'src/web/platform-restaurant-fiscal-governance.js'
 ]) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
@@ -83,6 +87,8 @@ assert.match(routes, /\/instalar\/windows\.ps1/);
 assert.match(routes, /windows-installer-v27\.service/);
 assert.match(routes, /genericInstallerCmd/);
 assert.match(routes, /genericInstallerPowerShell/);
+assert.match(publicComposition, /publicInstallerRouter/);
+assert.match(publicComposition, /router\.use\(publicInstallerRouter\)/);
 assert.match(selfServiceRoutes, /windows-installer-v27\.service/);
 assert.match(selfServiceRoutes, /claimInstallerCmd/);
 assert.match(selfServiceRoutes, /claimInstallerPowerShell/);
@@ -91,9 +97,14 @@ assert.doesNotMatch(selfServiceRoutes, /service\.installerPowerShell/);
 assert.match(landing, /href="\/instalar\/windows\.cmd"/);
 assert.doesNotMatch(landing, /raw\.githubusercontent\.com\/juansfer858\/saas-backend\/main\/public\/downloads/);
 assert.match(landing, /solicitará automáticamente permiso de Administrador/);
+assert.match(platformPanelRuntime, /VANTIXGC_PLATFORM_RESTAURANT_INSTALLER_V1/);
+assert.match(platformPanelRuntime, /Instalador Restaurante/);
+assert.match(platformPanelRuntime, /publicPage:\s*'\/instalar'/);
+assert.match(platformPanelRuntime, /windowsDownload:\s*'\/instalar\/windows\.cmd'/);
+assert.match(platformPanelRuntime, /Abrir página de descarga/);
 
 assert.match(installerSource, /splatting posicional inseguro/);
 assert.match(installerSource, /ruta canónica de instalación/);
 assert.match(installerSource, /Edge V28 corregido/);
 assert.match(installerSource, /validación V28 de estabilidad/);
-console.log('PUBLIC INSTALLER WINDOWS V28 NAMED PARAMS + STABLE EDGE CONTRACT OK');
+console.log('PUBLIC INSTALLER WINDOWS V50 + PLATFORM PANEL CONTRACT OK');
