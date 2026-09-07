@@ -10,7 +10,18 @@ const MUTATIONS = new Set(['POST','PUT','PATCH','DELETE']);
 
 function cleanPath(req) { return String(req.originalUrl || req.url || '').split('?')[0]; }
 
-function publicTopics(path) {
+function paymentClosedTable(path, response) {
+  const value = String(path || '').toLowerCase();
+  if (!value.includes('pago-electronico') && !value.includes('pagos-electronicos')) return false;
+  return Boolean(
+    response?.confirmed === true
+    && response?.paymentSummary?.closed === true
+    && typeof response?.tableId === 'string'
+    && typeof response?.sessionId === 'string'
+  );
+}
+
+function publicTopics(path, response = null) {
   const value = String(path || '').toLowerCase();
   const topics = new Set(['restaurant']);
   if (value.includes('/pedidos')) topics.add('restaurant.order');
@@ -20,6 +31,10 @@ function publicTopics(path) {
     topics.add('restaurant.account');
     topics.add('treasury');
   }
+  // A successful electronic-payment confirmation can finalize the whole visit. In that case
+  // the customer QR must receive the same restaurant.table signal as any other table close,
+  // instead of waiting for the canonical reconciliation safety net.
+  if (paymentClosedTable(path, response)) topics.add('restaurant.table');
   if (value.includes('/autorizar') || value.includes('/persona')) topics.add('restaurant.visit');
   return [...topics];
 }
@@ -57,10 +72,11 @@ router.use('/api/public/restaurante/qr/:token', (req, res, next) => {
           orderBy:{ openedAt:'desc' },
           select:{ id:true }
         });
-        const refs = publicResponseRefs(path, res.locals.tenantRealtimePublicResponse || {});
+        const response = res.locals.tenantRealtimePublicResponse || {};
+        const refs = publicResponseRefs(path, response);
         refs.tableId ||= table.id;
         if (active?.id) refs.sessionId ||= active.id;
-        await realtime.publishTenantChange(table.tenantId, publicTopics(path), refs, { source:'restaurant-public-qr', method:req.method, path });
+        await realtime.publishTenantChange(table.tenantId, publicTopics(path, response), refs, { source:'restaurant-public-qr', method:req.method, path });
       } catch {}
     }, 0);
   });
@@ -78,10 +94,11 @@ router.use('/api/public/restaurante/mesero-dispositivo', (req, res, next) => {
   const path = cleanPath(req);
   res.once('finish', () => {
     if (res.statusCode < 200 || res.statusCode >= 400 || !payload?.tenantId || payload.authType !== 'WAITER_DEVICE') return;
-    const refs = publicResponseRefs(path, res.locals.tenantRealtimePublicResponse || {});
-    realtime.publishTenantChange(payload.tenantId, publicTopics(path), refs, { source:'restaurant-waiter-device', method:req.method, path }).catch(() => {});
+    const response = res.locals.tenantRealtimePublicResponse || {};
+    const refs = publicResponseRefs(path, response);
+    realtime.publishTenantChange(payload.tenantId, publicTopics(path, response), refs, { source:'restaurant-waiter-device', method:req.method, path }).catch(() => {});
   });
   next();
 });
 
-module.exports = { restaurantPublicRealtimePublisher:router, publicTopics, publicResponseRefs };
+module.exports = { restaurantPublicRealtimePublisher:router, publicTopics, publicResponseRefs, paymentClosedTable };
