@@ -1,0 +1,62 @@
+name: Platform Restaurant Installer CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/public-installer/**'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/public-installer.html'
+      - 'src/web/platform-restaurant-fiscal-governance.js'
+      - 'scripts/public-installer-workspace-smoke.js'
+      - '.github/workflows/platform-restaurant-installer-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/modules/public-installer/**'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/public-installer.html'
+      - 'src/web/platform-restaurant-fiscal-governance.js'
+      - 'scripts/public-installer-workspace-smoke.js'
+      - '.github/workflows/platform-restaurant-installer-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate public installer and SaaS panel contract
+        run: node scripts/public-installer-workspace-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for installer V50 in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 75); do
+            PAGE="$(curl -fsS --max-time 8 https://core.vantixgc.com/instalar 2>/dev/null || true)"
+            PANEL="$(curl -fsS --max-time 8 https://core.vantixgc.com/platform/restaurant-fiscal-governance.js 2>/dev/null || true)"
+            CMD_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 https://core.vantixgc.com/instalar/windows.cmd || true)"
+            if grep -q 'Instalar VantixGC Restaurantes' <<<"$PAGE" \
+              && grep -q 'VANTIXGC_PLATFORM_RESTAURANT_INSTALLER_V1' <<<"$PANEL" \
+              && [ "$CMD_STATUS" = '200' ]; then
+              echo "INSTALLER_V50_PRODUCTION_OK attempt=$attempt"
+              exit 0
+            fi
+            echo "Esperando despliegue del instalador V50... attempt=$attempt cmd=$CMD_STATUS"
+            sleep 10
+          done
+          echo 'El instalador V50 no apareció en producción dentro del tiempo esperado.' >&2
+          exit 1
