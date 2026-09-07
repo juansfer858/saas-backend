@@ -58,8 +58,14 @@ async function main() {
     tenantId:tenant.id, productoId:ingredient.id, tipo:'COMPRA', cantidad:10, costoUnitario:1000, referencia:'CREDIT-SEED'
   }));
   await prisma.consumptionRecipe.create({
-    data:{ tenantId:tenant.id, code:`REC-CREDIT-${stamp}`, name:'Receta Crédito QA', outputProductId:dish.id, active:true,
+    data:{
+      tenantId:tenant.id,
+      code:`REC-CREDIT-${stamp}`,
+      name:'Receta Crédito QA',
+      outputProductId:dish.id,
+      active:true,
       items:{ create:[{ tenantId:tenant.id, ingredientProductId:ingredient.id, quantity:1, unitLabel:'UND' }] }
+    }
   });
   const menuItem = await restaurant.saveMenuItem(tenant.id, null, {
     productId:dish.id, category:'FUERTES', station:'COCINA', requiresRecipe:true, active:true, sortOrder:10
