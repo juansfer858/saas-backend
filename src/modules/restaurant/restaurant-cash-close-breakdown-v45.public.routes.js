@@ -8,13 +8,15 @@ const runtime = String.raw`
   const MARKER='VANTIX_RESTAURANT_CASH_CLOSE_BREAKDOWN_V45';
   if(window[MARKER]) return;
   window[MARKER]=Object.freeze({
-    version:'45.0.0',
+    version:'45.1.0',
     cashCloseBreakdown:true,
     cashExpectedUsesDrawerBalance:true,
     bankUsesElectronicTurnSales:true,
     creditUsesTurnCreditSales:true,
     quickCollectInlineRemoved:true,
     collectOnlyFromTable:true,
+    inlineHiddenByStructuralCss:true,
+    metricRerenderSafe:true,
     noPolling:true
   });
 
@@ -45,9 +47,9 @@ const runtime = String.raw`
     const style=document.createElement('style');
     style.id=STYLE_ID;
     style.textContent=
-      '#view .cash-workspace.cash-table-collect-only-v45{grid-template-columns:minmax(0,1fr)!important}'+
-      '#view .cash-fast-panel.cash-table-collect-only-v45:not(.cash-collect-dialog-v40){display:none!important}'+
-      '#view .cash-fast-panel.cash-table-collect-only-v45.cash-collect-dialog-v40{display:block!important}'+
+      '#view .cash-shell .cash-workspace{grid-template-columns:minmax(0,1fr)!important}'+
+      '#view .cash-shell .cash-fast-panel:not(.cash-collect-dialog-v40){display:none!important}'+
+      '#view .cash-shell .cash-fast-panel.cash-collect-dialog-v40{display:block!important}'+
       '.cash-payment-breakdown-v45{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:4px 0 14px}'+
       '.cash-payment-card-v45{border:1px solid #d7e1ec;border-radius:13px;background:#fff;padding:12px;display:grid;gap:4px;min-width:0}'+
       '.cash-payment-card-v45 small{font-size:10px;color:#637997;font-weight:800;text-transform:uppercase;letter-spacing:.03em}'+
@@ -83,11 +85,8 @@ const runtime = String.raw`
     ensureStyle();
     const shell=$('#view .cash-shell');
     if(!shell) return;
-    const workspace=$('.cash-workspace',shell);
     const fast=$('.cash-fast-panel',shell);
-    if(workspace) workspace.classList.add('cash-table-collect-only-v45');
     if(!fast) return;
-    fast.classList.add('cash-table-collect-only-v45');
     const title=$('.cash-panel-head h2',fast);
     if(title){
       const table=$('.cash-selected-summary b',fast)?.textContent?.trim();
@@ -123,7 +122,7 @@ const runtime = String.raw`
 
   function scheduleBurst(force=false){
     const token=++burstToken;
-    [0,80,180,360,700,1200].forEach((delay)=>setTimeout(()=>{
+    [0,40,90,180,360,700,1200].forEach((delay)=>setTimeout(()=>{
       if(token!==burstToken) return;
       enhance(force&&delay===0).catch(()=>{});
     },delay));
@@ -133,7 +132,7 @@ const runtime = String.raw`
     const table=event.target?.closest?.('[data-cash-table]');
     if(table){scheduleBurst(false);return}
     if(event.target?.closest?.('#closeTable')){summaryAt=0;setTimeout(()=>scheduleBurst(true),120);return}
-    if(event.target?.closest?.('[data-tab="caja"],[data-cc-tab="caja"],.cash-compact-summary-v30')) scheduleBurst(false);
+    if(event.target?.closest?.('[data-cash-metric],[data-cash-metric-back],[data-tab="caja"],[data-cc-tab="caja"],.cash-compact-summary-v30')) scheduleBurst(false);
   },true);
   window.addEventListener('vantix:tenant-realtime',()=>{summaryAt=0;scheduleBurst(true)});
   window.addEventListener('vantix:tenant-realtime-ready',()=>scheduleBurst(true));
@@ -153,7 +152,7 @@ function installRestaurantCashCloseBreakdownV45(req, res, next) {
       const patched = `${source}\n;${runtime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
-    res.set('X-VantixGC-Restaurant-Cash-Close', 'v45-payment-breakdown-table-collect');
+    res.set('X-VantixGC-Restaurant-Cash-Close', 'v45.1-structural-inline-hide');
     return originalSend(body);
   };
   return next();
