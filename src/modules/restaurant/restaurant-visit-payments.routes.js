@@ -57,6 +57,7 @@ const itemSplit = z.object({
 const noneSplit = z.object({ mode: z.literal('NONE') });
 const closeWithMethodSchema = z.object({
   paymentMethodId: z.string().uuid(),
+  terceroId: z.string().uuid().optional().nullable(),
   reference: z.string().trim().max(160).optional().nullable(),
   tipAmount: z.coerce.number().min(0).max(100000000).optional().default(0),
   split: z.union([equalSplit, itemSplit, noneSplit]).optional().nullable()
