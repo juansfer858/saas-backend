@@ -44,6 +44,10 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
+// Canonical Restaurant public surfaces remain owned by the established shell:
+// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
+// restaurant-control-center.css · restaurant-control-center.js
+// Administrative company identity belongs to /app/configuracion-avanzada, not to Centro de control.
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -60,8 +64,11 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
+// This root-mounted public router is evaluated before the generic /app HTML fallback.
+// Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
+// Company identity is an Administration concern. This layer wraps only Configuración avanzada.
 router.use(installCompanyAdminAdvancedAsset);
 router.use(restaurantCompanyAdminAdvancedPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
