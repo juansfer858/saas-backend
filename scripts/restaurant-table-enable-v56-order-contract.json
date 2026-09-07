@@ -1,0 +1,18 @@
+{
+  "version": "V56",
+  "flow": [
+    "SCAN_QR",
+    "BROWSE_MENU_WITH_TABLE_FREE",
+    "BUILD_CART_WITH_TABLE_FREE",
+    "REVIEW_ORDER",
+    "CONFIRM_ORDER",
+    "REQUEST_TABLE_ENABLE_IF_NEEDED",
+    "STAFF_ENABLES_TABLE",
+    "AUTO_AUTHORIZE_PHONE_NO_PIN",
+    "AUTO_SEND_ORDER_TO_PRODUCTION"
+  ],
+  "requestBeforeConfirm": false,
+  "menuBlockedWhenTableFree": false,
+  "cartBlockedWhenTableFree": false,
+  "pinRequired": false
+}
