@@ -8,4 +8,6 @@ require('./restaurant-print-bridge');
 // de 4 dígitos. La capa base sigue intacta y vuelve al quitar este wrapper.
 require('./offline-qr-self-order-v54');
 require('./offline-waiter-hard-gate');
-require('./workspace-entry-v28');
+// V59 conserva la corrección de redirect V28 y corrige la superficie Mesero del PC:
+// muestra todas las mesas, permite abrir una libre y explica si falta carta o permiso.
+require('./workspace-entry-v59');
