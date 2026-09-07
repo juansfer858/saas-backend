@@ -12,6 +12,7 @@ on:
       - fix/restaurant-payment-methods-visible-in-cash
       - fix/restaurant-payment-chain-treasury-v43
       - fix/restaurant-cash-close-breakdown-v45
+      - fix/restaurant-credit-payment-v46
 
 jobs:
   validate:
@@ -63,3 +64,5 @@ jobs:
         run: node scripts/restaurant-payment-chain-treasury-v43-smoke.js
       - name: Validate cash close payment breakdown and table-only collect V45
         run: node scripts/restaurant-cash-close-breakdown-v45-smoke.js
+      - name: Validate real Restaurant credit close to receivables V46
+        run: node scripts/restaurant-credit-payment-v46-smoke.js
