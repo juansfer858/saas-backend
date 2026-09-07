@@ -1,7 +1,10 @@
 'use strict';
 
 const legacy = require('./windows-installer.service');
-const INSTALL_SOURCE_COMMIT = '97e3d958f5a787c9826d9bb74a1b0a2def12f1d0';
+// 2.1.11 is the first installer source we pin here with the restart-liveness-v2
+// Supervisor contract. It keeps the Supervisor alive when the managed updater
+// intentionally exits the Edge child with code 75 during activation handoff.
+const INSTALL_SOURCE_COMMIT = '2f5fe6005d2398ff259788bbffc29af1564be0dc';
 
 function replaceOnce(source, search, replacement, label) {
   if (!source.includes(search)) throw new Error(`No se encontró el bloque esperado del instalador: ${label}`);
@@ -23,6 +26,11 @@ function fixPowerShell(source) {
   fixed = fixed.replace(/& \$Installer @InstallArgs/g, '& $Installer @InstallParams');
   fixed = fixed.replace(legacy.INSTALL_SOURCE_COMMIT, INSTALL_SOURCE_COMMIT);
 
+  const packageAnchor = `  foreach ($Required in @('agent\\server.js', 'supervisor\\install-windows.ps1', 'supervisor\\supervisor.js')) {\n    if (-not (Test-Path (Join-Path $EdgeSource $Required))) { throw \"El paquete VantixGC esta incompleto: falta $Required\" }\n  }\n\n  $Stage = 'runtime local'`;
+  const packageBlock = `  foreach ($Required in @('agent\\server.js', 'supervisor\\install-windows.ps1', 'supervisor\\supervisor.js')) {\n    if (-not (Test-Path (Join-Path $EdgeSource $Required))) { throw \"El paquete VantixGC esta incompleto: falta $Required\" }\n  }\n  $SupervisorSource = Join-Path $EdgeSource 'supervisor\\supervisor.js'\n  $SupervisorContract = Get-Content -LiteralPath $SupervisorSource -Raw\n  if (-not $SupervisorContract.Contains('restart-liveness-v2') -or -not $SupervisorContract.Contains('UPDATE_RESTART_REQUEST accepted')) {\n    throw 'El paquete VantixGC no contiene el Supervisor persistente requerido para actualizaciones Edge.'\n  }\n\n  $Stage = 'runtime local'`;
+  if (!fixed.includes(packageAnchor)) throw new Error('El instalador Windows perdió la validación del paquete Edge.');
+  fixed = fixed.replace(packageAnchor, packageBlock);
+
   const installAnchor = `  $Installer = Join-Path $EdgeSource 'supervisor\\install-windows.ps1'\n  & $Installer @InstallParams`;
   const installBlock = `  $Stage = 'normalizacion de activacion Edge anterior'\n  $ManagedCurrent = Join-Path $InstallDir 'current'\n  $PendingActivation = Join-Path $InstallDir 'data\\update-pending.json'\n  try { Stop-ScheduledTask -TaskName 'VantixGC Edge Supervisor' -ErrorAction SilentlyContinue } catch {}\n  Start-Sleep -Milliseconds 700\n  if (Test-Path $ManagedCurrent) {\n    Write-Host 'Restableciendo runtime base verificado antes de reinstalar...' -ForegroundColor Cyan\n    Remove-Item -LiteralPath $ManagedCurrent -Recurse -Force -ErrorAction Stop\n  }\n  Remove-Item -LiteralPath $PendingActivation -Force -ErrorAction SilentlyContinue\n\n  $Stage = 'vinculacion e instalacion local'\n  $Installer = Join-Path $EdgeSource 'supervisor\\install-windows.ps1'\n  & $Installer @InstallParams`;
   if (!fixed.includes(installAnchor)) throw new Error('El instalador Windows perdió el punto de instalación local.');
@@ -37,16 +45,19 @@ function fixPowerShell(source) {
     throw new Error('El instalador Windows conserva el splatting posicional inseguro.');
   }
   if (!fixed.includes('$InstallParams = @{') || !fixed.includes('& $Installer @InstallParams')) {
-    throw new Error('El instalador Windows no contiene el contrato V27 de parámetros nombrados.');
+    throw new Error('El instalador Windows no contiene el contrato de parámetros nombrados.');
   }
   if (!/\$InstallDir\s*=\s*'C:\\+ProgramData\\+VantixGC\\+Edge'/.test(fixed)) {
     throw new Error('El instalador Windows perdió la ruta canónica de instalación.');
   }
   if (!fixed.includes(INSTALL_SOURCE_COMMIT)) {
-    throw new Error('El instalador Windows no apunta al Edge V28 corregido.');
+    throw new Error('El instalador Windows no apunta al Edge con Supervisor persistente validado.');
+  }
+  if (!fixed.includes("$SupervisorContract.Contains('restart-liveness-v2')") || !fixed.includes("$SupervisorContract.Contains('UPDATE_RESTART_REQUEST accepted')")) {
+    throw new Error('El instalador Windows no valida el contrato de reinicio persistente del Supervisor.');
   }
   if (!fixed.includes('$StableChecks = 0') || !fixed.includes("$Stage = 'estabilidad del servicio local'")) {
-    throw new Error('El instalador Windows no contiene la validación V28 de estabilidad.');
+    throw new Error('El instalador Windows no contiene la validación de estabilidad.');
   }
   if (!fixed.includes("$Stage = 'normalizacion de activacion Edge anterior'") || !fixed.includes("Join-Path $InstallDir 'current'")) {
     throw new Error('El instalador Windows no limpia una activación Edge anterior antes de reinstalar.');

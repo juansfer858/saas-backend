@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const installerModulePath = path.join(root, 'src/modules/public-installer/windows-installer-v27.service.js');
 const installerSource = read('src/modules/public-installer/windows-installer-v27.service.js');
+const supervisorSource = read('edge/supervisor/supervisor.js');
 const routes = read('src/modules/public-installer/public-installer.routes.js');
 const publicComposition = read('src/modules/restaurant/restaurant.public.routes.js');
 const platformPanelRuntime = read('src/web/platform-restaurant-fiscal-governance.js');
@@ -32,13 +33,17 @@ const genericPs = installer.genericInstallerPowerShell('https://core.vantixgc.co
 const genericCmd = installer.genericInstallerCmd('https://core.vantixgc.com');
 const claimPs = installer.claimInstallerPowerShell(claimToken, 'https://core.vantixgc.com');
 const claimCmd = installer.claimInstallerCmd(claimToken, 'https://core.vantixgc.com');
-const EDGE_V28_COMMIT = '97e3d958f5a787c9826d9bb74a1b0a2def12f1d0';
+const EDGE_STABLE_SUPERVISOR_COMMIT = '2f5fe6005d2398ff259788bbffc29af1564be0dc';
 
-assert.equal(installer.INSTALL_SOURCE_COMMIT, EDGE_V28_COMMIT);
+assert.equal(installer.INSTALL_SOURCE_COMMIT, EDGE_STABLE_SUPERVISOR_COMMIT);
 assert.match(edgeVersion.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
 assert.equal(edgeVersion.channel, 'PILOT');
 assert.equal(installer.NODE_VERSION, '22.23.2');
 assert.equal(installer.NODE_WIN_X64_SHA256, '1177b4137ba5adaa56354ae40f1080c7450e8ae09cecb47da459d1c52ac99f97');
+assert.match(supervisorSource, /SUPERVISOR_REVISION = 'restart-liveness-v2'/);
+assert.match(supervisorSource, /Number\(code\) === 75/);
+assert.match(supervisorSource, /UPDATE_RESTART_REQUEST accepted/);
+assert.doesNotMatch(supervisorSource, /setTimeout\(start, wait\)\.unref/);
 
 for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /Start-Process[^\n]+-Verb RunAs/);
@@ -55,7 +60,8 @@ for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /http:\/\/127\.0\.0\.1:8788\/api\/status/);
   assert.match(ps, /installationId/);
   assert.match(ps, /provisioned/);
-  assert.match(ps, new RegExp(EDGE_V28_COMMIT));
+  assert.match(ps, new RegExp(EDGE_STABLE_SUPERVISOR_COMMIT));
+  assert.doesNotMatch(ps, /97e3d958f5a787c9826d9bb74a1b0a2def12f1d0/);
   assert.doesNotMatch(ps, /07f057ec69c699fbb24859d49c1fabfa7eb9d7c9/);
   assert.match(ps, /\$InstallParams = @\{/);
   assert.match(ps, /InstallDir = \$InstallDir/);
@@ -64,6 +70,10 @@ for (const ps of [genericPs, claimPs]) {
   assert.doesNotMatch(ps, /\$InstallArgs = @\(/);
   assert.doesNotMatch(ps, /& \$Installer @InstallArgs/);
   assert.match(ps, /\$InstallDir\s*=\s*'C:\\+ProgramData\\+VantixGC\\+Edge'/);
+  assert.match(ps, /\$SupervisorContract = Get-Content -LiteralPath \$SupervisorSource -Raw/);
+  assert.match(ps, /\$SupervisorContract\.Contains\('restart-liveness-v2'\)/);
+  assert.match(ps, /\$SupervisorContract\.Contains\('UPDATE_RESTART_REQUEST accepted'\)/);
+  assert.match(ps, /Supervisor persistente requerido para actualizaciones Edge/);
   assert.match(ps, /estabilidad del servicio local/);
   assert.match(ps, /\$StableChecks = 0/);
   assert.match(ps, /\$StableChecks -lt 3/);
@@ -110,9 +120,9 @@ assert.match(platformPanelRuntime, /publicPage:\s*'\/instalar'/);
 assert.match(platformPanelRuntime, /windowsDownload:\s*'\/instalar\/windows\.cmd'/);
 assert.match(platformPanelRuntime, /Abrir página de descarga/);
 
-assert.match(installerSource, /splatting posicional inseguro/);
+assert.match(installerSource, /Supervisor contract/);
 assert.match(installerSource, /ruta canónica de instalación/);
-assert.match(installerSource, /Edge V28 corregido/);
-assert.match(installerSource, /validación V28 de estabilidad/);
+assert.match(installerSource, /Supervisor persistente validado/);
+assert.match(installerSource, /contrato de reinicio persistente del Supervisor/);
 assert.match(installerSource, /activación Edge anterior antes de reinstalar/);
-console.log('PUBLIC INSTALLER WINDOWS V51 STALE CURRENT RECOVERY + PLATFORM PANEL CONTRACT OK');
+console.log('PUBLIC INSTALLER WINDOWS V52 STABLE SUPERVISOR HANDOFF + PLATFORM PANEL CONTRACT OK');
