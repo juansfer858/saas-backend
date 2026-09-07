@@ -3,6 +3,7 @@
 const express = require('express');
 require('./restaurant-pos-operational-mode');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
+const { publicInstallerRouter } = require('../public-installer/public-installer.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
 const { restaurantEdgeManagedPublicRouter } = require('./restaurant-edge-managed.public.routes');
 const { restaurantPublicRealtimePublisher } = require('./restaurant-public-realtime-publisher');
@@ -68,6 +69,9 @@ function installCashCompactRuntime(req, res, next) {
 
 // This root-mounted public router is evaluated before the generic /app HTML fallback.
 // Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
+// Installer V50 is public by design: it only serves the bootstrap. Tenant credentials
+// are still requested/provisioned separately by the installer and are never embedded here.
+router.use(publicInstallerRouter);
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
 // Company identity is an Administration concern. This layer wraps only Configuración avanzada.
