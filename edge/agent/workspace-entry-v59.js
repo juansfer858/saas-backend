@@ -15,8 +15,8 @@ const fixedRedirect = `function redirect(res, location, headers = {}) {\n  res.w
 if (!source.includes(originalRedirect)) throw new Error(`${MARKER}_V28_REDIRECT_TARGET_MISSING`);
 source = source.replace(originalRedirect, fixedRedirect);
 
-// Esta función no se ejecuta en Node. Se serializa con toString() y reemplaza sólo
-// renderWaiter() dentro del HTML local, dejando Mesas/KDS/Caja y sus APIs intactas.
+// Esta función se serializa dentro del workspace base. Por eso es deliberadamente
+// autocontenida y sólo usa símbolos que ya existen en el HTML del Workspace.
 function workspacePcWaiterRenderV59() {
   /* VANTIX_EDGE_WORKSPACE_PC_WAITER_V59 */
   const tables = state.restaurant.tables || [];
@@ -59,28 +59,31 @@ function workspacePcWaiterRenderV59() {
   $('#sendOrder')?.addEventListener('click', sendOrder);
 }
 
+// También se serializa, por lo que no puede depender de MARKER ni de otras variables
+// privadas de este wrapper. El renderer anterior se inyecta junto a esta función.
 function patchWorkspaceHtmlV59(html) {
-  if (html.includes(MARKER)) return html;
+  const marker = 'VANTIX_EDGE_WORKSPACE_PC_WAITER_V59';
+  if (html.includes(marker)) return html;
   const start = html.indexOf('function renderWaiter(){');
   const end = html.indexOf('async function sendOrder()', start);
-  if (start < 0 || end < 0) throw new Error(`${MARKER}_HTML_RENDER_WAITER_TARGET_MISSING`);
+  if (start < 0 || end < 0) throw new Error(`${marker}_HTML_RENDER_WAITER_TARGET_MISSING`);
   const replacement = workspacePcWaiterRenderV59
     .toString()
     .replace('workspacePcWaiterRenderV59', 'renderWaiter')
     .replaceAll('workspacePcWaiterRenderV59()', 'renderWaiter()');
-  const patched = `${html.slice(0, start)}${replacement}${html.slice(end)}`;
-  if (!patched.includes(MARKER) || !patched.includes('Abrir mesa y tomar pedido') || !patched.includes('Sincronizar carta')) {
-    throw new Error(`${MARKER}_HTML_PATCH_FAILED`);
+  const patchedHtml = `${html.slice(0, start)}${replacement}${html.slice(end)}`;
+  if (!patchedHtml.includes(marker) || !patchedHtml.includes('Abrir mesa y tomar pedido') || !patchedHtml.includes('Sincronizar carta')) {
+    throw new Error(`${marker}_HTML_PATCH_FAILED`);
   }
-  return patched;
+  return patchedHtml;
 }
 
 const workspaceHtmlNeedle = "const WORKSPACE_HTML = fs.readFileSync(path.join(__dirname, '..', 'workspace', 'public', 'index.html'), 'utf8');";
-const workspaceHtmlReplacement = `${patchWorkspaceHtmlV59.toString()}\n\nconst WORKSPACE_HTML = patchWorkspaceHtmlV59(fs.readFileSync(path.join(__dirname, '..', 'workspace', 'public', 'index.html'), 'utf8'));`;
+const workspaceHtmlReplacement = `${workspacePcWaiterRenderV59.toString()}\n\n${patchWorkspaceHtmlV59.toString()}\n\nconst WORKSPACE_HTML = patchWorkspaceHtmlV59(fs.readFileSync(path.join(__dirname, '..', 'workspace', 'public', 'index.html'), 'utf8'));`;
 if (!source.includes(workspaceHtmlNeedle)) throw new Error(`${MARKER}_WORKSPACE_HTML_TARGET_MISSING`);
 source = source.replace(workspaceHtmlNeedle, workspaceHtmlReplacement);
 
-if (!source.includes('return true;\n}\n\nasync function readJson') || !source.includes('patchWorkspaceHtmlV59')) {
+if (!source.includes('return true;\n}\n\nasync function readJson') || !source.includes('patchWorkspaceHtmlV59') || !source.includes('workspacePcWaiterRenderV59')) {
   throw new Error(`${MARKER}_SOURCE_PATCH_NOT_APPLIED`);
 }
 
