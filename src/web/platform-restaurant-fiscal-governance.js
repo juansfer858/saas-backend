@@ -1,6 +1,7 @@
 (() => {
   const SESSION_KEY = 'vantixgc_platform_session_v1';
   const WARNING = 'Los documentos emitidos en modo fiscal simulado NO tienen validez fiscal ante la DIAN. No deben entregarse ni presentarse como si hubieran sido validados fiscalmente por la DIAN.';
+  const INSTALLER_MARKER = 'VANTIXGC_PLATFORM_RESTAURANT_INSTALLER_V1';
 
   function session() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
@@ -34,6 +35,43 @@
   function close() {
     const root = modalRoot();
     if (root) root.innerHTML = '';
+  }
+
+  function renderInstallerWorkspace() {
+    const root = document.querySelector('#view');
+    if (!root) return;
+    const pageUrl = `${location.origin}/instalar`;
+    root.innerHTML = `<h1>Instaladores</h1>
+      <div class="muted">Descargas oficiales administradas por VantixGC para instalar componentes locales en los negocios.</div>
+      <div class="panel" data-platform-installer-workspace="${INSTALLER_MARKER}" style="margin-top:16px">
+        <div class="ph"><div><strong>VantixGC Restaurantes · Windows</strong><div class="muted" style="font-size:12px;margin-top:4px">Edge local, Supervisor de Windows, SQLite, red LAN e impresión local.</div></div><span class="badge ok">OFICIAL</span></div>
+        <div style="padding:18px">
+          <p style="margin-top:0">Usa esta página desde el computador principal del restaurante. El instalador solicita permisos de Administrador y luego las credenciales de vinculación del Edge asignadas al negocio.</p>
+          <div class="notice"><b>Página pública de descarga</b><br><span style="word-break:break-all">${esc(pageUrl)}</span></div>
+          <div class="toolbar" style="margin-top:16px">
+            <a class="btn primary" href="/instalar" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">Abrir página de descarga</a>
+            <a class="btn" href="/instalar/windows.cmd" style="text-decoration:none;display:inline-flex;align-items:center">Descargar instalador Windows</a>
+          </div>
+          <p class="muted" style="font-size:12px;margin-bottom:0">El archivo público no contiene claves de ningún tenant. La identidad del restaurante se vincula durante la instalación.</p>
+        </div>
+      </div>`;
+  }
+
+  function installInstallerNav() {
+    const nav = document.querySelector('.nav');
+    if (!nav || nav.querySelector('[data-platform-installer]')) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.platformInstaller = INSTALLER_MARKER;
+    button.textContent = 'Instalador Restaurante';
+    button.onclick = () => {
+      document.querySelectorAll('.nav button').forEach((item) => item.classList.remove('active'));
+      button.classList.add('active');
+      renderInstallerWorkspace();
+    };
+    const first = nav.querySelector('button');
+    if (first?.nextSibling) nav.insertBefore(button, first.nextSibling);
+    else nav.appendChild(button);
   }
 
   async function openTenantProvisioning() {
@@ -192,6 +230,7 @@
   }
 
   function enhanceTenantRows() {
+    installInstallerNav();
     installCreateTenantButton();
     document.querySelectorAll('[data-control]').forEach((controlButton) => {
       const tenantId = controlButton.dataset.control;
@@ -205,6 +244,13 @@
       toolbar.appendChild(button);
     });
   }
+
+  window.VantixGCPlatformRestaurantInstaller = Object.freeze({
+    version: '1.0.0',
+    marker: INSTALLER_MARKER,
+    publicPage: '/instalar',
+    windowsDownload: '/instalar/windows.cmd'
+  });
 
   const observer = new MutationObserver(enhanceTenantRows);
   observer.observe(document.documentElement, { childList: true, subtree: true });
