@@ -15,6 +15,7 @@ const runtime = String.raw`
     creditCustomerSelector:true,
     creditCreatesCxc:true,
     creditNoTreasuryMovement:true,
+    genericCustomerCannotReceiveCredit:true,
     invalidCombinationBlocked:true,
     treasurySource:'MOVIMIENTO_TESORERIA',
     selectionSurvivesRerender:true,
@@ -22,6 +23,7 @@ const runtime = String.raw`
   });
 
   const SESSION_KEY='vantixgc_core_session_v1';
+  const GENERIC_CUSTOMER_IDENTIFICATION='222222222222';
   let session=null;
   try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
   if(!session?.token) return;
@@ -65,7 +67,11 @@ const runtime = String.raw`
       let body={};
       try{body=await response.json()}catch{}
       if(!response.ok) throw new Error(body?.error?.message||body?.message||('HTTP '+response.status));
-      customers=(Array.isArray(body.data)?body.data:[]).filter((row)=>row&&row.activo!==false&&(row.tipo==='CLIENTE'||row.tipo==='CLIENTE_PROVEEDOR'));
+      customers=(Array.isArray(body.data)?body.data:[]).filter((row)=>
+        row&&row.activo!==false&&
+        (row.tipo==='CLIENTE'||row.tipo==='CLIENTE_PROVEEDOR')&&
+        String(row.identificacion||'').trim()!==GENERIC_CUSTOMER_IDENTIFICATION
+      );
       return customers;
     })().finally(()=>{customerLoadPromise=null});
     return customerLoadPromise;
@@ -148,7 +154,7 @@ const runtime = String.raw`
     }
     const selected=customers.find((row)=>String(row.id)===selectedCreditCustomerId)||null;
     if(help){
-      if(!customers.length) help.textContent='No hay clientes activos. Créalo primero en Clientes / Proveedores.';
+      if(!customers.length) help.textContent='No hay clientes identificados activos. Créalo primero en Clientes / Proveedores.';
       else if(selected) help.textContent='Plazo: '+Number(selected.diasPlazo||0)+' día(s) · cupo configurado: '+Number(selected.cupoCredito||0).toLocaleString('es-CO');
       else help.textContent='El crédito se registrará como cuenta por cobrar y no moverá Caja/Banco.';
     }
