@@ -17,6 +17,7 @@ const { installQrTrackingTouchLock } = require('./restaurant-qr-tracking-touch-l
 const { installQrTableHeaderRuntime } = require('./restaurant-qr-table-header.public.routes');
 const { installRestaurantQrPrintRollV48 } = require('./restaurant-qr-print-roll-v48.public.routes');
 const { installRestaurantIndividualCashV49 } = require('./restaurant-individual-cash-v49.public.routes');
+const { installRestaurantHybridLocalOriginV53 } = require('./restaurant-hybrid-local-origin-v53.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -95,6 +96,9 @@ router.use(restaurantQrOrderWaiterAlertPublicRouter);
 router.use(restaurantWaiterDevicePersistencePublicRouter);
 router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
+// V53 se instala sobre el asset Cloud antes de que el DOMContentLoaded del Centro
+// de Control cree el pase local, para conservar el mismo origen que inició el flujo.
+router.use(installRestaurantHybridLocalOriginV53);
 router.use(installCashCollectDialogRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installRestaurantPaymentChainV43);
