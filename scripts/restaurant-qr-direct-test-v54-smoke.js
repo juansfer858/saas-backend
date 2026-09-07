@@ -82,4 +82,6 @@ assert.equal(patchRun.status, 0, `El patch Edge V54 no pudo cargarse: ${patchRun
 assert.match(patchRun.stdout, /EDGE_RESTAURANT_QR_OFFLINE_LAN_V1|PATCH_OK/);
 fs.rmSync(temp, { recursive: true, force: true });
 
+// This source-head commit intentionally re-runs the PR matrix after GitHub Actions
+// bundled the validated 2.1.12 artifact, so current-head checks cover the final PR tree.
 console.log('RESTAURANT QR DIRECT TEST V54 CLOUD + EDGE OK');
