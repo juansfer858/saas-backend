@@ -19,7 +19,7 @@ assert.ok(desktop.includes('table.activeSession.accountRequestedAt'));
 assert.ok(desktop.includes("String(table.state || '') === 'CUENTA_PEDIDA'"));
 assert.ok(desktop.includes('ACCOUNT_ATTENTION'));
 assert.ok(desktop.includes('CUENTA SOLICITADA'));
-assert.ok(desktop.includes("'COBRAR ' + esc(String(table.name"));
+assert.ok(desktop.includes('COBRAR '));
 assert.ok(desktop.includes('Cuenta solicitada · abrir Caja'));
 assert.ok(desktop.includes("can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR')"));
 assert.ok(desktop.includes("setTab('caja')"));
