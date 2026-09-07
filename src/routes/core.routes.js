@@ -18,6 +18,7 @@ const { printingRouter } = require('../modules/platform/printing/printing.routes
 const { rbacRouter } = require('../modules/platform/rbac/rbac.routes');
 const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { edgeTenantUpdateGuard } = require('../modules/edge/edge-tenant-update-guard');
+const { edgeHybridLocalOriginV53Router } = require('../modules/edge/edge-hybrid-local-origin-v53.routes');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
@@ -60,6 +61,9 @@ router.use('/dian', dianRouter);
 router.use('/nomina', payrollRouter);
 router.use('/impresion', printingRouter);
 router.use('/seguridad', rbacRouter);
+// V53 debe resolver el pase de retorno antes del router Edge canónico para conservar
+// exactamente el origen local autorizado (127.0.0.1/localhost o la IP LAN reportada).
+router.use('/edge', edgeHybridLocalOriginV53Router);
 router.use('/edge', edgeTenantUpdateGuard, edgeTenantRouter);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
