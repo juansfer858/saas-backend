@@ -15,6 +15,7 @@ const { installQrOrderTouchLock } = require('./restaurant-qr-order-touch-lock.pu
 const { installQrTrackingTouchLock } = require('./restaurant-qr-tracking-touch-lock.public.routes');
 const { installQrTableHeaderRuntime } = require('./restaurant-qr-table-header.public.routes');
 const { installRestaurantQrPrintRollV48 } = require('./restaurant-qr-print-roll-v48.public.routes');
+const { installRestaurantIndividualCashV49 } = require('./restaurant-individual-cash-v49.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -93,6 +94,9 @@ router.use(installCashCompactRuntime);
 router.use(installCashCollectDialogRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installRestaurantPaymentChainV43);
+// V49 queda después de V43 y antes de V47 en la cadena de montaje para que su
+// presentación por persona sea la última capa visual sobre el cobro individual.
+router.use(installRestaurantIndividualCashV49);
 // Se monta después de V43 para que su runtime quede antes de V43 en el asset final:
 // remapea la lectura de clientes al endpoint acotado y hace autoritativo Crédito.
 router.use(installRestaurantCreditCheckoutV47);

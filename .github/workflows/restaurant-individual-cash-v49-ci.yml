@@ -1,0 +1,68 @@
+name: Restaurant Individual Cash V49 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-individual-cash-v49.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-individual-cash-v49-smoke.js'
+      - '.github/workflows/restaurant-individual-cash-v49-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-individual-cash-v49.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-individual-cash-v49-smoke.js'
+      - '.github/workflows/restaurant-individual-cash-v49-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-individual-cash-v49.public.routes.js
+          node --check src/modules/restaurant/restaurant.public.routes.js
+          node --check scripts/restaurant-individual-cash-v49-smoke.js
+      - name: Validate individual-account Caja contract
+        run: node scripts/restaurant-individual-cash-v49-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo PRODUCTION_EXACT_COMMIT_OK
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit $GITHUB_SHA attempt=$attempt"
+            sleep 10
+          done
+          exit 1
+      - name: Verify individual Caja V49 asset in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/individual.headers -o /tmp/individual.js 'https://core.vantixgc.com/app/restaurant-ui.js?v=individual-cash-v49'
+          grep -qi '^X-VantixGC-Restaurant-Individual-Cash: v49-by-seat' /tmp/individual.headers
+          grep -q 'VANTIX_RESTAURANT_INDIVIDUAL_CASH_V49' /tmp/individual.js
+          grep -q 'COBRAR POR PERSONA' /tmp/individual.js
+          grep -q 'partsLabel.hidden=true' /tmp/individual.js
+          grep -q 'bySeat.click()' /tmp/individual.js
+          echo PRODUCTION_RESTAURANT_INDIVIDUAL_CASH_V49_OK
