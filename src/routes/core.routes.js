@@ -24,6 +24,7 @@ const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
 const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaurant-print-template.routes');
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
+const { restaurantCreditPaymentRouter, restaurantCreditRollbackMiddleware } = require('../modules/restaurant/restaurant-credit-payment.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
 const { restaurantWaiterCallUnifiedRouter } = require('../modules/restaurant/restaurant-waiter-call-unified.routes');
 const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant-waiter-call.routes');
@@ -64,6 +65,10 @@ router.use('/notificaciones', notificationsRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
+// Debe ejecutarse antes del router base: para crédito enlaza cliente/plazo/cupo
+// al borrador y luego deja que la ruta canónica /mesas/:id/cerrar haga emisión,
+// inventario, contabilidad, cartera, cierre de mesa e impresión.
+router.use('/restaurante', restaurantCreditPaymentRouter);
 router.use('/restaurante', restaurantWaiterCallUnifiedRouter);
 router.use('/restaurante', restaurantWaiterCallRouter);
 router.use('/restaurante', restaurantWaiterDeviceRouter);
@@ -71,5 +76,8 @@ router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 router.use('/restaurante', restaurantRouter);
+// Sólo procesa errores de un cierre a crédito previamente preparado. Si el cierre
+// canónico falló, restaura el BORRADOR antes de continuar al error handler global.
+router.use(restaurantCreditRollbackMiddleware);
 
 module.exports = { coreRouter: router };

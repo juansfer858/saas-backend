@@ -8,10 +8,14 @@ const runtime = String.raw`
   const MARKER='VANTIX_RESTAURANT_PAYMENT_CHAIN_V43';
   if(window[MARKER]) return;
   window[MARKER]=Object.freeze({
-    version:'43.1.0',
+    version:'43.2.0',
     cashOnlyToCashAccount:true,
     bankOnlyToBankAccount:true,
     creditRequiresCustomer:true,
+    creditCustomerSelector:true,
+    creditCreatesCxc:true,
+    creditNoTreasuryMovement:true,
+    genericCustomerCannotReceiveCredit:true,
     invalidCombinationBlocked:true,
     treasurySource:'MOVIMIENTO_TESORERIA',
     selectionSurvivesRerender:true,
@@ -19,14 +23,19 @@ const runtime = String.raw`
   });
 
   const SESSION_KEY='vantixgc_core_session_v1';
+  const GENERIC_CUSTOMER_IDENTIFICATION='222222222222';
   let session=null;
   try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
   if(!session?.token) return;
 
+  const nativeFetch=window.fetch.bind(window);
   let accounts=[];
+  let customers=[];
   let loadPromise=null;
+  let customerLoadPromise=null;
   let syncToken=0;
   let selectedMethod='EFECTIVO';
+  let selectedCreditCustomerId='';
   const selectedAccountByMethod=Object.create(null);
 
   const $=(q,r=document)=>r.querySelector(q);
@@ -35,7 +44,7 @@ const runtime = String.raw`
   async function loadAccounts(force=false){
     if(loadPromise&&!force) return loadPromise;
     loadPromise=(async()=>{
-      const response=await fetch('/api/v1/tesoreria/cajas-bancos',{
+      const response=await nativeFetch('/api/v1/tesoreria/cajas-bancos',{
         cache:'no-store',
         headers:{Authorization:'Bearer '+session.token,'x-tenant-subdomain':session.subdomain}
       });
@@ -48,12 +57,28 @@ const runtime = String.raw`
     return loadPromise;
   }
 
-  function detectedMethod(){
-    return $$('[data-cash-method]').find((button)=>button.classList.contains('active'))?.dataset.cashMethod||'EFECTIVO';
+  async function loadCustomers(force=false){
+    if(customerLoadPromise&&!force) return customerLoadPromise;
+    customerLoadPromise=(async()=>{
+      const response=await nativeFetch('/api/v1/terceros?activo=true&limit=500',{
+        cache:'no-store',
+        headers:{Authorization:'Bearer '+session.token,'x-tenant-subdomain':session.subdomain}
+      });
+      let body={};
+      try{body=await response.json()}catch{}
+      if(!response.ok) throw new Error(body?.error?.message||body?.message||('HTTP '+response.status));
+      customers=(Array.isArray(body.data)?body.data:[]).filter((row)=>
+        row&&row.activo!==false&&
+        (row.tipo==='CLIENTE'||row.tipo==='CLIENTE_PROVEEDOR')&&
+        String(row.identificacion||'').trim()!==GENERIC_CUSTOMER_IDENTIFICATION
+      );
+      return customers;
+    })().finally(()=>{customerLoadPromise=null});
+    return customerLoadPromise;
   }
 
-  function activeMethod(){
-    return selectedMethod||detectedMethod();
+  function detectedMethod(){
+    return $$('[data-cash-method]').find((button)=>button.classList.contains('active'))?.dataset.cashMethod||'EFECTIVO';
   }
 
   function methodAccountType(method){
@@ -68,8 +93,8 @@ const runtime = String.raw`
     buttons.forEach((button)=>{
       const own=button.dataset.cashMethod;
       if(own==='CREDITO'){
-        button.disabled=true;
-        button.title='El crédito requiere seleccionar un cliente y generar cartera. No usa Caja/Banco.';
+        button.disabled=false;
+        button.title='Venta a crédito: selecciona el cliente que quedará en cartera.';
         button.dataset.creditRequiresCustomer='true';
       }
       button.classList.toggle('active',own===method);
@@ -90,15 +115,62 @@ const runtime = String.raw`
     }
   }
 
-  function markCreditUnavailable(){
-    const credit=$('[data-cash-method="CREDITO"]');
-    if(!credit) return;
-    credit.disabled=true;
-    credit.title='El crédito requiere seleccionar un cliente y generar cartera. No usa Caja/Banco.';
-    credit.dataset.creditRequiresCustomer='true';
-    const small=credit.querySelector('small');
-    if(small) small.textContent='Requiere cliente';
-    else credit.insertAdjacentHTML?.('beforeend','<small>Requiere cliente</small>');
+  function ensureCreditField(){
+    const accountLabel=$('#accountLabel');
+    if(!accountLabel) return null;
+    let field=$('#creditCustomerField');
+    if(!field){
+      field=document.createElement('label');
+      field.id='creditCustomerField';
+      field.className='ri-label cash-credit-customer-field';
+      field.innerHTML='Cliente para crédito<select id="creditCustomer" class="ri-select"><option value="">Selecciona un cliente</option></select><small id="creditCustomerHelp" style="display:block;margin-top:5px;color:#637997;font-weight:700"></small>';
+      accountLabel.insertAdjacentElement('afterend',field);
+      field.querySelector('#creditCustomer')?.addEventListener('change',(event)=>{
+        selectedCreditCustomerId=String(event.target?.value||'');
+        synchronize().catch(()=>{});
+      });
+    }
+    field.hidden=selectedMethod!=='CREDITO';
+    return field;
+  }
+
+  function populateCreditCustomers(){
+    const field=ensureCreditField();
+    const select=field?.querySelector('#creditCustomer');
+    const help=field?.querySelector('#creditCustomerHelp');
+    if(!select) return;
+    const previous=selectedCreditCustomerId||select.value||'';
+    select.innerHTML='<option value="">Selecciona un cliente</option>'+customers.map((row)=>{
+      const id=String(row.id||'');
+      const label=String(row.nombre||row.razonSocial||row.identificacion||'Cliente');
+      const doc=String(row.identificacion||'').trim();
+      return '<option value="'+id+'">'+label+(doc?' · '+doc:'')+'</option>';
+    }).join('');
+    if(customers.some((row)=>String(row.id)===previous)){
+      select.value=previous;
+      selectedCreditCustomerId=previous;
+    }else{
+      selectedCreditCustomerId='';
+    }
+    const selected=customers.find((row)=>String(row.id)===selectedCreditCustomerId)||null;
+    if(help){
+      if(!customers.length) help.textContent='No hay clientes identificados activos. Créalo primero en Clientes / Proveedores.';
+      else if(selected) help.textContent='Plazo: '+Number(selected.diasPlazo||0)+' día(s) · cupo configurado: '+Number(selected.cupoCredito||0).toLocaleString('es-CO');
+      else help.textContent='El crédito se registrará como cuenta por cobrar y no moverá Caja/Banco.';
+    }
+  }
+
+  function setTipMode(){
+    const tip=$('#tip');
+    if(!tip) return;
+    if(selectedMethod==='CREDITO'){
+      tip.value='0';
+      tip.disabled=true;
+      tip.title='La propina debe cobrarse por un medio de contado.';
+    }else{
+      tip.disabled=false;
+      tip.removeAttribute('title');
+    }
   }
 
   async function synchronize({forceAccounts=false}={}){
@@ -106,13 +178,39 @@ const runtime = String.raw`
     let select=$('#paymentAccount');
     let label=$('#accountLabel');
     let received=$('#cashReceivedRow');
-    let confirm=$('#closeTable');
-    let buttons=$$('[data-cash-method]');
+    const confirm=$('#closeTable');
+    const buttons=$$('[data-cash-method]');
     if(!select||!label||!confirm||!buttons.length) return;
 
-    markCreditUnavailable();
-    if(!['EFECTIVO','BANCO'].includes(selectedMethod)) selectedMethod='EFECTIVO';
+    if(!['EFECTIVO','BANCO','CREDITO'].includes(selectedMethod)) selectedMethod=detectedMethod();
+    if(!['EFECTIVO','BANCO','CREDITO'].includes(selectedMethod)) selectedMethod='EFECTIVO';
     applyMethodVisual(selectedMethod);
+    ensureCreditField();
+    setTipMode();
+
+    if(selectedMethod==='CREDITO'){
+      label.hidden=true;
+      label.classList.add('hidden');
+      if(received) received.hidden=true;
+      try{await loadCustomers(forceAccounts)}catch(error){
+        if(token!==syncToken) return;
+        setConfirmState('No fue posible cargar los clientes: '+error.message);
+        return;
+      }
+      if(token!==syncToken) return;
+      populateCreditCustomers();
+      const field=$('#creditCustomerField');
+      if(field) field.hidden=false;
+      setConfirmState(selectedCreditCustomerId?'':'Selecciona el cliente que recibirá el crédito.');
+      document.documentElement.dataset.paymentChainV43='CREDITO:'+(selectedCreditCustomerId||'NO_CUSTOMER');
+      return;
+    }
+
+    const creditField=$('#creditCustomerField');
+    if(creditField) creditField.hidden=true;
+    label.hidden=false;
+    label.classList.remove('hidden');
+    if(received) received.hidden=selectedMethod!=='EFECTIVO';
 
     try{await loadAccounts(forceAccounts)}catch(error){
       if(token!==syncToken) return;
@@ -123,14 +221,10 @@ const runtime = String.raw`
     }
     if(token!==syncToken) return;
 
-    // El panel de Caja puede reconstruirse mientras esperamos el fetch. Nunca usar
-    // referencias DOM capturadas antes del await: volvemos a tomar el panel actual.
     select=$('#paymentAccount');
     label=$('#accountLabel');
     received=$('#cashReceivedRow');
-    confirm=$('#closeTable');
-    buttons=$$('[data-cash-method]');
-    if(!select||!label||!confirm||!buttons.length) return;
+    if(!select||!label||!$('#closeTable')) return;
 
     applyMethodVisual(selectedMethod);
     const wanted=methodAccountType(selectedMethod);
@@ -140,8 +234,6 @@ const runtime = String.raw`
     if(rows.some((row)=>row.id===preferred)) select.value=preferred;
     if(select.value) selectedAccountByMethod[selectedMethod]=select.value;
 
-    label.classList.remove('hidden');
-    label.hidden=false;
     if(label.childNodes?.[0]) label.childNodes[0].textContent=selectedMethod==='EFECTIVO'?'Caja de efectivo':'Banco / billetera';
     if(received) received.hidden=selectedMethod!=='EFECTIVO';
 
@@ -153,10 +245,6 @@ const runtime = String.raw`
     document.documentElement.dataset.paymentChainV43=selectedMethod+':'+(select.value||'NO_ACCOUNT');
   }
 
-  function schedule(forceAccounts=false){
-    queueMicrotask(()=>synchronize({forceAccounts}).catch(()=>{}));
-  }
-
   function stabilizeSelection(forceAccounts=false){
     [0,25,70,140,260,480,800].forEach((delay)=>{
       setTimeout(()=>{
@@ -166,19 +254,27 @@ const runtime = String.raw`
     });
   }
 
+  window.fetch=(input,init={})=>{
+    const url=typeof input==='string'?input:String(input?.url||'');
+    const method=String(init?.method||'GET').toUpperCase();
+    if(method==='POST'&&/\/api\/v1\/restaurante\/mesas\/[^/]+\/cerrar(?:\?.*)?$/.test(url)&&typeof init?.body==='string'){
+      try{
+        const payload=JSON.parse(init.body);
+        if(String(payload?.formaPago||'').toUpperCase()==='CREDITO'){
+          payload.terceroId=selectedCreditCustomerId||null;
+          init={...init,body:JSON.stringify(payload)};
+        }
+      }catch{}
+    }
+    return nativeFetch(input,init);
+  };
+
   document.addEventListener('click',(event)=>{
     const method=event.target?.closest?.('[data-cash-method]');
     if(method){
-      if(method.dataset.cashMethod==='CREDITO'){
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        alert('El crédito requiere seleccionar un cliente. No se puede enviar a Caja General ni a un banco.');
-        return;
-      }
       if(method.disabled) return;
-      selectedMethod=method.dataset.cashMethod==='BANCO'?'BANCO':'EFECTIVO';
-      // La selección se aplica en captura antes de cualquier capa que pueda repintar Caja.
-      // Los reintentos posteriores la restauran si el panel fue reconstruido.
+      const own=String(method.dataset.cashMethod||'').toUpperCase();
+      selectedMethod=own==='BANCO'?'BANCO':own==='CREDITO'?'CREDITO':'EFECTIVO';
       applyMethodVisual(selectedMethod);
       stabilizeSelection(false);
       return;
@@ -186,6 +282,21 @@ const runtime = String.raw`
 
     const confirm=event.target?.closest?.('#closeTable');
     if(confirm){
+      if(selectedMethod==='CREDITO'){
+        if(!selectedCreditCustomerId){
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          alert('Selecciona el cliente que recibirá el crédito.');
+          return;
+        }
+        const tipValue=Number($('#tip')?.value||0);
+        if(tipValue>0){
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          alert('La propina debe cobrarse por un medio de contado.');
+        }
+        return;
+      }
       const select=$('#paymentAccount');
       const account=accounts.find((row)=>row.id===select?.value)||null;
       const wanted=methodAccountType(selectedMethod);
@@ -197,14 +308,19 @@ const runtime = String.raw`
       return;
     }
 
-    if(event.target?.closest?.('[data-cash-table],[data-tab="caja"],[data-cc-tab="caja"]')){
+    if(event.target?.closest?.('[data-cash-table],[data-tab="caja"],[data-cc-tab="caja"],[data-cash-metric],[data-cash-metric-back]')){
       stabilizeSelection(false);
     }
   },true);
 
   document.addEventListener('change',(event)=>{
-    const select=event.target?.closest?.('#paymentAccount');
-    if(select?.value) selectedAccountByMethod[selectedMethod]=select.value;
+    const account=event.target?.closest?.('#paymentAccount');
+    if(account?.value) selectedAccountByMethod[selectedMethod]=account.value;
+    const customer=event.target?.closest?.('#creditCustomer');
+    if(customer){
+      selectedCreditCustomerId=String(customer.value||'');
+      synchronize().catch(()=>{});
+    }
   },true);
 
   window.addEventListener('vantix:tenant-realtime',()=>stabilizeSelection(true));
@@ -225,7 +341,7 @@ function installRestaurantPaymentChainV43(req, res, next) {
       const patched = `${source}\n;${runtime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
-    res.set('X-VantixGC-Restaurant-Payment-Chain', 'v43.1-method-stick-account-treasury');
+    res.set('X-VantixGC-Restaurant-Payment-Chain', 'v43.2-credit-customer-cxc');
     return originalSend(body);
   };
   return next();
