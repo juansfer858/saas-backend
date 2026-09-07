@@ -9,7 +9,26 @@ function tokenHash(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');
 }
 
-async function createLocalAccessGrant(tenantId, user, edgeAgentId) {
+function safeLocalOrigin(installation, requestedOrigin) {
+  const fallback = `http://${installation.lanHost}:${installation.lanPort}`;
+  if (!requestedOrigin) return fallback;
+  let parsed;
+  try { parsed = new URL(String(requestedOrigin)); } catch { return fallback; }
+  if (parsed.protocol !== 'http:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) return fallback;
+  const requestedPort = Number(parsed.port || 80);
+  if (requestedPort !== Number(installation.lanPort)) return fallback;
+  const host = String(parsed.hostname || '').toLowerCase();
+  const allowedHosts = new Set([
+    String(installation.lanHost || '').toLowerCase(),
+    '127.0.0.1',
+    'localhost',
+    '::1'
+  ].filter(Boolean));
+  if (!allowedHosts.has(host)) return fallback;
+  return parsed.origin;
+}
+
+async function createLocalAccessGrant(tenantId, user, edgeAgentId, options = {}) {
   if (!user?.id) throw new AppError(401, 'Usuario requerido', 'EDGE_LOCAL_USER_REQUIRED');
   const [tenant, agent, installation] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId } }),
@@ -39,7 +58,7 @@ async function createLocalAccessGrant(tenantId, user, edgeAgentId) {
     data: { tenantId, edgeAgentId: agent.id, userId: user.id, tokenHash: tokenHash(token), snapshot, expiresAt }
   });
 
-  const localOrigin = `http://${installation.lanHost}:${installation.lanPort}`;
+  const localOrigin = safeLocalOrigin(installation, options.returnOrigin);
   return {
     token,
     expiresAt,
@@ -69,4 +88,4 @@ async function consumeLocalAccessGrant(agent, token) {
   });
 }
 
-module.exports = { createLocalAccessGrant, consumeLocalAccessGrant };
+module.exports = { createLocalAccessGrant, consumeLocalAccessGrant, safeLocalOrigin };
