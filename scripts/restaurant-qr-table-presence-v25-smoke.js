@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const realtime = require('../src/modules/realtime/tenant-realtime.service');
 const { topicsForPath, responseRefs } = require('../src/modules/realtime/tenant-realtime.routes');
 const presence = require('../src/modules/restaurant/restaurant-qr-presence-realtime.public.routes');
+const { publicTopics, publicResponseRefs, paymentClosedTable } = require('../src/modules/restaurant/restaurant-public-realtime-publisher');
 
 const tableId = '11111111-1111-4111-8111-111111111111';
 const sessionId = '22222222-2222-4222-8222-222222222222';
@@ -44,6 +45,47 @@ assert.equal(
   'un cambio genérico no debe despertar todas las mesas'
 );
 
+// Pago electrónico confirmado: si el finalizador dejó la visita cerrada, el mismo response
+// debe despertar inmediatamente el stream de presencia de esa mesa. Un pago sólo reportado
+// o todavía parcial nunca puede liberar la mesa.
+const confirmPaymentPath = '/api/public/restaurante/mesero-dispositivo/pagos-electronicos/report-1/confirmar';
+const closedPaymentResponse = {
+  confirmed:true,
+  tableId,
+  sessionId,
+  paymentSummary:{ closed:true, remaining:'0.00' }
+};
+assert.equal(paymentClosedTable(confirmPaymentPath, closedPaymentResponse), true);
+const paymentTopics = publicTopics(confirmPaymentPath, closedPaymentResponse);
+assert.ok(paymentTopics.includes('restaurant.account'));
+assert.ok(paymentTopics.includes('treasury'));
+assert.ok(paymentTopics.includes('restaurant.table'), 'pago final debe publicar cierre de mesa en tiempo real');
+const paymentRefs = publicResponseRefs(confirmPaymentPath, closedPaymentResponse);
+assert.equal(paymentRefs.tableId, tableId);
+assert.equal(paymentRefs.sessionId, sessionId);
+const paymentCloseEvent = realtime._makeEventForTest(
+  tenantId,
+  paymentTopics,
+  paymentRefs,
+  { source:'qa-final-payment', method:'POST', path:confirmPaymentPath }
+);
+assert.equal(
+  presence.matchesTablePresence(paymentCloseEvent, { id:tableId }, sessionId),
+  true,
+  'el QR exacto debe reaccionar inmediatamente cuando el pago final cierra la mesa'
+);
+const partialTopics = publicTopics(confirmPaymentPath, {
+  confirmed:true,
+  tableId,
+  sessionId,
+  paymentSummary:{ closed:false, remaining:'25000.00' }
+});
+assert.ok(!partialTopics.includes('restaurant.table'), 'pago parcial no debe liberar la mesa');
+const reportOnlyTopics = publicTopics('/api/public/restaurante/qr/token/pago-electronico/reportar', {
+  state:'REPORTED', tableId, sessionId
+});
+assert.ok(!reportOnlyTopics.includes('restaurant.table'), 'reportar pago no debe liberar la mesa');
+
 assert.equal(typeof realtime.ensureListenerReady, 'function');
 assert.equal(presence.PRESENCE_RECONCILE_MS, 3000);
 
@@ -73,7 +115,7 @@ const restaurantRoutes = fs.readFileSync('src/modules/restaurant/restaurant.rout
 assert.match(restaurantRoutes, /router\.post\('\/mesas\/:id\/abrir'/);
 assert.match(restaurantRoutes, /service\.openTable\(req\.tenantId, req\.user, req\.params\.id/);
 
-console.log('RESTAURANT QR TABLE PRESENCE REALTIME V25 SMOKE OK');
+console.log('RESTAURANT QR TABLE PRESENCE REALTIME V25 + FINAL PAYMENT CLOSE SMOKE OK');
 console.log(JSON.stringify({
   realOpenRouteClassifiedAsTable:true,
   tableAndSessionRefsPreserved:true,
@@ -81,5 +123,8 @@ console.log(JSON.stringify({
   immediateSseNotifyPath:true,
   canonicalReconcileGuardMs:presence.PRESENCE_RECONCILE_MS,
   qrListensBeforeVisitAuthorization:true,
+  finalPaymentPublishesTableClose:true,
+  partialPaymentKeepsTableOpen:true,
+  paymentReportKeepsTableOpen:true,
   manualRefreshRequired:false
 }, null, 2));

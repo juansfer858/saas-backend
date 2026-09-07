@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const { prisma } = require('../src/config/prisma');
 const visitPayments = require('../src/modules/restaurant/restaurant-visit-payments.service');
 const settlementFinalizer = require('../src/modules/restaurant/restaurant-settlement-finalizer.service');
+const { publicTopics, publicResponseRefs, paymentClosedTable } = require('../src/modules/restaurant/restaurant-public-realtime-publisher');
 
 function hash(value) { return crypto.createHash('sha256').update(String(value)).digest('hex'); }
 
@@ -53,6 +54,10 @@ async function main() {
   assert.equal(Number(reported.amount), 73500);
   assert.equal(reported.reference, '4821');
   assert.equal(reported.destination.id, bank.id);
+  const reportTopics = publicTopics('/api/public/restaurante/qr/token/pago-electronico/reportar', reported);
+  assert.ok(reportTopics.includes('restaurant.account'));
+  assert.ok(reportTopics.includes('treasury'));
+  assert.ok(!reportTopics.includes('restaurant.table'), 'reporting a payment must not close or free the table');
 
   const primary = await electronic.waiterReportsSnapshot(tenant.id, waiter1.id);
   const secondaryBefore = await electronic.waiterReportsSnapshot(tenant.id, waiter2.id);
@@ -67,6 +72,9 @@ async function main() {
 
   const confirmed = await electronic.confirmPayment(tenant.id, waiter2.id, reported.reportId);
   assert.equal(confirmed.confirmed, true);
+  assert.equal(confirmed.paymentSummary.closed, true, 'full confirmed payment must report the visit as closed');
+  assert.equal(confirmed.tableId, table.id);
+  assert.equal(confirmed.sessionId, session.id);
   assert.equal(financeCalls.length, 2);
   assert.equal(financeCalls[0].type, 'prepare');
   assert.equal(financeCalls[0].input.mode, 'TOGETHER');
@@ -75,13 +83,23 @@ async function main() {
   assert.equal(financeCalls[1].input.cajaBancoId, bank.id);
   assert.equal(financeCalls[1].input.referencia, '4821');
 
+  const confirmPath = `/api/public/restaurante/mesero-dispositivo/pagos-electronicos/${reported.reportId}/confirmar`;
+  assert.equal(paymentClosedTable(confirmPath, confirmed), true);
+  const confirmTopics = publicTopics(confirmPath, confirmed);
+  assert.ok(confirmTopics.includes('restaurant.account'));
+  assert.ok(confirmTopics.includes('treasury'));
+  assert.ok(confirmTopics.includes('restaurant.table'), 'final payment must immediately publish table closure');
+  const confirmRefs = publicResponseRefs(confirmPath, confirmed);
+  assert.equal(confirmRefs.tableId, table.id);
+  assert.equal(confirmRefs.sessionId, session.id);
+
   const status = await electronic.reportStatusById(tenant.id, reported.reportId);
   assert.equal(status.state, 'CONFIRMED');
   assert.equal(status.confirmed, true);
   const after = await electronic.waiterReportsSnapshot(tenant.id, waiter1.id);
   assert.equal(after.length, 0, 'confirmed report disappears from waiter queue');
 
-  console.log('RESTAURANT QR ELECTRONIC PAYMENT + WAITER CONFIRMATION SMOKE OK');
+  console.log('RESTAURANT QR ELECTRONIC PAYMENT + WAITER CONFIRMATION + TABLE REALTIME CLOSE SMOKE OK');
   console.log(JSON.stringify({
     asksPaymentMethod:true,
     cashGoesToCashier:true,
@@ -91,7 +109,11 @@ async function main() {
     escalatesToAll:true,
     waiterConfirmationRequired:true,
     transferRecordedOnlyAfterConfirmation:true,
-    duplicateWaiterAlertCleared:true
+    duplicateWaiterAlertCleared:true,
+    fullPaymentClosesVisit:true,
+    tableRealtimeTopicOnFinalPayment:true,
+    tableRealtimeRefs:true,
+    partialOrReportedPaymentDoesNotFreeTable:true
   }, null, 2));
 
   visitPayments.paymentSummary = originalSummary;
