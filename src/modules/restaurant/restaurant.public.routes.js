@@ -32,6 +32,7 @@ const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-
 const { restaurantCompanyAdminAdvancedPublicRouter, installCompanyAdminAdvancedAsset } = require('./restaurant-company-admin-advanced.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
 const { installRestaurantPaymentChainV43 } = require('./restaurant-payment-chain-v43.public.routes');
+const { installRestaurantCreditCheckoutV47 } = require('./restaurant-credit-checkout-v47.public.routes');
 const { installRestaurantCashCloseBreakdownV45 } = require('./restaurant-cash-close-breakdown-v45.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
@@ -90,6 +91,9 @@ router.use(installCashCompactRuntime);
 router.use(installCashCollectDialogRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installRestaurantPaymentChainV43);
+// Se monta después de V43 para que su runtime quede antes de V43 en el asset final:
+// remapea la lectura de clientes al endpoint acotado y hace autoritativo Crédito.
+router.use(installRestaurantCreditCheckoutV47);
 router.use(installRestaurantCashCloseBreakdownV45);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);

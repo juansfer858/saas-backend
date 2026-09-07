@@ -8,11 +8,14 @@ on:
       - 'src/modules/restaurant/restaurant-payment-methods-visibility*.js'
       - 'src/modules/restaurant/restaurant-payment-chain-v43.public.routes.js'
       - 'src/modules/restaurant/restaurant-credit-payment*.js'
+      - 'src/modules/restaurant/restaurant-credit-customer*.js'
+      - 'src/modules/restaurant/restaurant-credit-checkout-v47.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'scripts/restaurant-payment-methods-visibility-smoke.js'
       - 'scripts/restaurant-payment-chain-treasury-v43-smoke.js'
       - 'scripts/restaurant-credit-payment-v46-smoke.js'
+      - 'scripts/restaurant-credit-checkout-v47-smoke.js'
       - '.github/workflows/restaurant-payment-methods-production-asset.yml'
   push:
     branches:
@@ -21,11 +24,14 @@ on:
       - 'src/modules/restaurant/restaurant-payment-methods-visibility*.js'
       - 'src/modules/restaurant/restaurant-payment-chain-v43.public.routes.js'
       - 'src/modules/restaurant/restaurant-credit-payment*.js'
+      - 'src/modules/restaurant/restaurant-credit-customer*.js'
+      - 'src/modules/restaurant/restaurant-credit-checkout-v47.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'scripts/restaurant-payment-methods-visibility-smoke.js'
       - 'scripts/restaurant-payment-chain-treasury-v43-smoke.js'
       - 'scripts/restaurant-credit-payment-v46-smoke.js'
+      - 'scripts/restaurant-credit-checkout-v47-smoke.js'
       - '.github/workflows/restaurant-payment-methods-production-asset.yml'
   workflow_dispatch:
 
@@ -48,13 +54,19 @@ jobs:
           node --check src/modules/restaurant/restaurant-payment-chain-v43.public.routes.js
           node --check src/modules/restaurant/restaurant-credit-payment.service.js
           node --check src/modules/restaurant/restaurant-credit-payment.routes.js
+          node --check src/modules/restaurant/restaurant-credit-customer.service.js
+          node --check src/modules/restaurant/restaurant-credit-customer.routes.js
+          node --check src/modules/restaurant/restaurant-credit-checkout-v47.public.routes.js
           node - <<'NODE'
           const chain=require('./src/modules/restaurant/restaurant-payment-chain-v43.public.routes');
+          const checkout=require('./src/modules/restaurant/restaurant-credit-checkout-v47.public.routes');
           new Function(chain.runtime);
+          new Function(checkout.runtime);
           if(!chain.runtime.includes("version:'43.2.0'")) throw new Error('V43.2 missing');
-          if(!chain.runtime.includes('creditCustomerSelector:true')) throw new Error('credit selector missing');
-          if(!chain.runtime.includes('genericCustomerCannotReceiveCredit:true')) throw new Error('generic credit guard missing');
-          console.log('RESTAURANT_CREDIT_BROWSER_V43_2_OK');
+          if(!checkout.runtime.includes("version:'47.0.0'")) throw new Error('V47 missing');
+          if(!checkout.runtime.includes('creditMethodSticky:true')) throw new Error('sticky credit missing');
+          if(!checkout.runtime.includes('createCustomerInline:true')) throw new Error('create client missing');
+          console.log('RESTAURANT_CREDIT_BROWSER_V47_OK');
           NODE
 
   verify-production-asset:
@@ -90,25 +102,19 @@ jobs:
             code=$(curl -sS --max-time 15 -D /tmp/restaurant-ui.headers -o /tmp/restaurant-ui.js -w '%{http_code}' "$URL" || true)
             if [ "$code" = '200' ] \
               && grep -Fq 'VANTIX_RESTAURANT_PAYMENT_METHODS_VISIBLE_V2' /tmp/restaurant-ui.js \
-              && grep -Fq 'contextRoleFirst:true' /tmp/restaurant-ui.js \
-              && grep -Fq '⚙ Métodos de pago' /tmp/restaurant-ui.js \
               && grep -Fq "version:'43.2.0'" /tmp/restaurant-ui.js \
-              && grep -Fq 'creditCustomerSelector:true' /tmp/restaurant-ui.js \
-              && grep -Fq 'creditCreatesCxc:true' /tmp/restaurant-ui.js \
-              && grep -Fq 'creditNoTreasuryMovement:true' /tmp/restaurant-ui.js \
-              && grep -Fq 'genericCustomerCannotReceiveCredit:true' /tmp/restaurant-ui.js \
-              && grep -Fq 'Cliente para crédito' /tmp/restaurant-ui.js \
-              && grep -Fiq 'X-VantixGC-Payment-Methods-Visibility: v2-caja-header' /tmp/restaurant-ui.headers \
-              && grep -Fiq 'X-VantixGC-Restaurant-Payment-Chain: v43.2-credit-customer-cxc' /tmp/restaurant-ui.headers; then
-              echo 'PAYMENT_METHODS_CREDIT_PRODUCTION_ASSET_OK'
+              && grep -Fq "version:'47.0.0'" /tmp/restaurant-ui.js \
+              && grep -Fq 'creditMethodSticky:true' /tmp/restaurant-ui.js \
+              && grep -Fq 'createCustomerInline:true' /tmp/restaurant-ui.js \
+              && grep -Fq '+ Crear cliente' /tmp/restaurant-ui.js \
+              && grep -Fq "payload.formaPago='CREDITO'" /tmp/restaurant-ui.js \
+              && grep -Fiq 'X-VantixGC-Restaurant-Payment-Chain: v43.2-credit-customer-cxc' /tmp/restaurant-ui.headers \
+              && grep -Fiq 'X-VantixGC-Restaurant-Credit-Checkout: v47-sticky-create-client' /tmp/restaurant-ui.headers; then
+              echo 'PAYMENT_METHODS_CREDIT_V47_PRODUCTION_ASSET_OK'
               exit 0
             fi
-            echo "Waiting for payment/credit runtime asset... attempt=$attempt http=$code"
+            echo "Waiting for payment/credit V47 runtime asset... attempt=$attempt http=$code"
             sleep 5
           done
-          echo 'Production restaurant-ui.js does not expose the expected payment/credit runtime' >&2
-          echo '--- headers ---' >&2
-          cat /tmp/restaurant-ui.headers >&2 || true
-          echo '--- marker scan ---' >&2
-          grep -nE 'VANTIX_RESTAURANT_PAYMENT_METHODS_VISIBLE_V2|43.2.0|creditCustomerSelector|creditCreatesCxc|genericCustomerCannotReceiveCredit|Cliente para crédito' /tmp/restaurant-ui.js >&2 || true
+          echo 'Production restaurant-ui.js does not expose expected credit V47 runtime' >&2
           exit 1

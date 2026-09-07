@@ -13,6 +13,7 @@ on:
       - fix/restaurant-payment-chain-treasury-v43
       - fix/restaurant-cash-close-breakdown-v45
       - fix/restaurant-credit-payment-v46
+      - fix/restaurant-credit-method-sticky-create-client-v47
 
 jobs:
   validate:
@@ -66,3 +67,5 @@ jobs:
         run: node scripts/restaurant-cash-close-breakdown-v45-smoke.js
       - name: Validate real Restaurant credit close to receivables V46
         run: node scripts/restaurant-credit-payment-v46-smoke.js
+      - name: Validate sticky credit method and create-customer checkout V47
+        run: node scripts/restaurant-credit-checkout-v47-smoke.js

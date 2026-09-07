@@ -25,6 +25,7 @@ const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaur
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantCreditPaymentRouter, restaurantCreditRollbackMiddleware } = require('../modules/restaurant/restaurant-credit-payment.routes');
+const { restaurantCreditCustomerRouter } = require('../modules/restaurant/restaurant-credit-customer.routes');
 const { restaurantMenuImportRouter } = require('../modules/restaurant/restaurant-menu-import.routes');
 const { restaurantWaiterCallUnifiedRouter } = require('../modules/restaurant/restaurant-waiter-call-unified.routes');
 const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant-waiter-call.routes');
@@ -65,6 +66,9 @@ router.use('/notificaciones', notificationsRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
+// Checkout de crédito: permite al cajero listar/crear únicamente clientes para
+// la operación de cartera, sin otorgar acceso administrativo completo a Terceros.
+router.use('/restaurante', restaurantCreditCustomerRouter);
 // Debe ejecutarse antes del router base: para crédito enlaza cliente/plazo/cupo
 // al borrador y luego deja que la ruta canónica /mesas/:id/cerrar haga emisión,
 // inventario, contabilidad, cartera, cierre de mesa e impresión.
