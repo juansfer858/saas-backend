@@ -20,6 +20,7 @@ const { installRestaurantIndividualCashV49 } = require('./restaurant-individual-
 const { installRestaurantHybridLocalOriginV53 } = require('./restaurant-hybrid-local-origin-v53.public.routes');
 const { restaurantQrDirectTestV54PublicRouter, installRestaurantQrDirectTestV54 } = require('./restaurant-qr-direct-test-v54.public.routes');
 const { restaurantTableEnableV55PublicRouter, installRestaurantTableEnableV55 } = require('./restaurant-table-enable-v55.public.routes');
+const { installRestaurantTableEnableV56 } = require('./restaurant-table-enable-v56.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -77,6 +78,10 @@ function installCashCompactRuntime(req, res, next) {
 router.use(publicInstallerRouter);
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
+// V56 must wrap the public/operator assets before any specialized Restaurant router
+// can answer them. The customer may browse and build the cart while the table is free;
+// only the final order confirmation creates the staff enable request.
+router.use(installRestaurantTableEnableV56);
 // Company identity is an Administration concern. This layer wraps only Configuración avanzada.
 router.use(installCompanyAdminAdvancedAsset);
 router.use(restaurantCompanyAdminAdvancedPublicRouter);
@@ -113,8 +118,8 @@ router.use(installRestaurantCreditCheckoutV47);
 router.use(installRestaurantCashCloseBreakdownV45);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);
-// V55 envuelve las superficies antes de V54: así el cliente espera la habilitación
-// y, una vez abierta la mesa, V54 entrega el pase del teléfono sin PIN y el pedido continúa.
+// V55 remains as a compatibility wrapper for paths that reach this late point. V56 is
+// authoritative for the actual QR/Staff assets because it is mounted before surface routers.
 router.use(installRestaurantTableEnableV55);
 router.use(installPrintTemplateEditorRuntime);
 router.use(installPosReceiptImmediateRuntime);
@@ -125,8 +130,7 @@ router.use(restaurantWaiterCallUnifiedPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
 router.use(restaurantTableEnableV55PublicRouter);
-// V54 queda como autorización automática del teléfono DESPUÉS de que V55 haya exigido
-// una sesión de mesa aprobada por personal. No vuelve el PIN de cuatro dígitos.
+// V54 remains the no-PIN phone authorization endpoint used by V56 after staff enables the table.
 router.use(installRestaurantQrDirectTestV54);
 router.use(restaurantQrDirectTestV54PublicRouter);
 router.use(restaurantVisitPublicRouter);
