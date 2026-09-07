@@ -1,0 +1,35 @@
+name: Restaurant Edge Workspace PC Waiter V59 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'edge/agent/workspace-entry-v59.js'
+      - 'edge/agent/restaurant-entry-v2.js'
+      - 'edge/version.json'
+      - 'scripts/edge-workspace-pc-waiter-v59-smoke.js'
+      - '.github/workflows/restaurant-edge-workspace-pc-waiter-v59-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'edge/agent/workspace-entry-v59.js'
+      - 'edge/agent/restaurant-entry-v2.js'
+      - 'edge/version.json'
+      - 'scripts/edge-workspace-pc-waiter-v59-smoke.js'
+      - '.github/workflows/restaurant-edge-workspace-pc-waiter-v59-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check V59 wrapper
+        run: node --check edge/agent/workspace-entry-v59.js
+      - name: Validate PC waiter local-first contract
+        run: node scripts/edge-workspace-pc-waiter-v59-smoke.js

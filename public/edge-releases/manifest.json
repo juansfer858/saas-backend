@@ -18,6 +18,12 @@
       "sha256": "98f8bc624f6181409976a5787a9a3e4764649f94116bb888525ad3f22a2456d4",
       "sourceCommit": "1cdc27b25e5385134065a9f489dce2111400a76c"
     },
+    "2.1.13-pc-waiter.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.13-pc-waiter.1.zip",
+      "sha256": "8942709c6eaba3bc5ef8e71f29cc9c53b82934073699b6c9689c2b3b16a08c76",
+      "sourceCommit": "c5bcb315f612d66b1049cc1e49f22c58bcc18a83"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
