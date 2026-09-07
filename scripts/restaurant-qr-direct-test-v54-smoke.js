@@ -12,7 +12,10 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const service = read('src/modules/restaurant/restaurant-qr-direct-test-v54.service.js');
 const publicLayer = read('src/modules/restaurant/restaurant-qr-direct-test-v54.public.routes.js');
 const composition = read('src/modules/restaurant/restaurant.public.routes.js');
-const edgePatch = read('edge/agent/offline-qr-self-order-v54.js');
+const activeEdgePatchPath = fs.existsSync(path.join(root, 'edge/agent/offline-qr-self-order-v61.js'))
+  ? 'edge/agent/offline-qr-self-order-v61.js'
+  : 'edge/agent/offline-qr-self-order-v54.js';
+const edgePatch = read(activeEdgePatchPath);
 const edgeBase = read('edge/agent/offline-qr-self-order.js');
 const edgeEntry = read('edge/agent/restaurant-entry-v2.js');
 const edgeVersion = JSON.parse(read('edge/version.json'));
@@ -21,7 +24,7 @@ for (const file of [
   'src/modules/restaurant/restaurant-qr-direct-test-v54.service.js',
   'src/modules/restaurant/restaurant-qr-direct-test-v54.public.routes.js',
   'src/modules/restaurant/restaurant.public.routes.js',
-  'edge/agent/offline-qr-self-order-v54.js',
+  activeEdgePatchPath,
   'edge/agent/restaurant-entry-v2.js'
 ]) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
@@ -54,13 +57,14 @@ assert.ok(
 );
 
 // Reversible: the original 4-digit implementation remains untouched in source.
+// Later wrappers (V61+) may carry the V54 no-PIN contract forward.
 assert.match(edgeBase, /El código debe tener 4 dígitos/);
 assert.match(edgeBase, /safeEqual\(session\.visitCode, code\)/);
 assert.match(edgePatch, /VANTIX_EDGE_QR_DIRECT_TEST_V54/);
 assert.match(edgePatch, /false && !safeEqual\(session\.visitCode, code\)/);
 assert.match(edgePatch, /autopedido directo no depende del PIN sincronizado/);
 assert.match(edgePatch, /\/autorizar/);
-assert.match(edgeEntry, /require\('\.\/offline-qr-self-order-v54'\)/);
+assert.match(edgeEntry, /require\('\.\/offline-qr-self-order-v(?:54|61)'\)/);
 assert.doesNotMatch(edgeEntry, /require\('\.\/offline-qr-self-order'\);/);
 
 // V54 is a detachable feature contract, not an Edge release number. Later Edge
@@ -70,10 +74,11 @@ assert.ok(['PILOT', 'STABLE'].includes(edgeVersion.channel));
 assert.equal(edgeVersion.product, 'VantixGC Restaurantes');
 assert.equal(edgeVersion.runtime, 'Edge Workspace');
 
-// Execute the detachable source patch against the real base file. This catches drift
-// in the exact anchors and proves the patched offline module compiles at runtime.
+// Execute the active versioned patch against the real base file. This catches drift
+// in the exact anchors while allowing V61+ to preserve the V54 no-PIN behavior.
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'vantix-v54-'));
-const patchRun = spawnSync(process.execPath, ['-e', "const m=require('./edge/agent/offline-qr-self-order-v54'); console.log(m.marker||'PATCH_OK')"], {
+const requirePath = './' + activeEdgePatchPath.replaceAll('\\', '/').replace(/\.js$/, '');
+const patchRun = spawnSync(process.execPath, ['-e', `const m=require('${requirePath}'); console.log(m.marker||'PATCH_OK')`], {
   cwd: root,
   encoding: 'utf8',
   env: {
@@ -83,8 +88,8 @@ const patchRun = spawnSync(process.execPath, ['-e', "const m=require('./edge/age
     EDGE_LOCAL_ENCRYPTION_KEY: 'qr-direct-test-v54-local-key-1234567890'
   }
 });
-assert.equal(patchRun.status, 0, `El patch Edge V54 no pudo cargarse: ${patchRun.stderr}`);
+assert.equal(patchRun.status, 0, `El patch Edge activo no pudo cargarse: ${patchRun.stderr}`);
 assert.match(patchRun.stdout, /EDGE_RESTAURANT_QR_OFFLINE_LAN_V1|PATCH_OK/);
 fs.rmSync(temp, { recursive: true, force: true });
 
-console.log('RESTAURANT QR DIRECT TEST V54 CLOUD + EDGE OK', JSON.stringify({ edgeVersion:edgeVersion.version, versionIndependent:true }));
+console.log('RESTAURANT QR DIRECT TEST V54 CLOUD + EDGE OK', JSON.stringify({ edgeVersion:edgeVersion.version, activeEdgePatchPath, versionIndependent:true }));

@@ -23,6 +23,7 @@ const { restaurantTableEnableV55PublicRouter, installRestaurantTableEnableV55 } 
 const { installRestaurantTableEnableV56 } = require('./restaurant-table-enable-v56.public.routes');
 const { installRestaurantGlobalProductSearchV57 } = require('./restaurant-global-product-search-v57.public.routes');
 const { installRestaurantAccountAttentionV58 } = require('./restaurant-account-attention-v58.public.routes');
+const { installRestaurantQrProductNotesV61 } = require('./restaurant-qr-product-notes-v61.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -80,6 +81,9 @@ function installCashCompactRuntime(req, res, next) {
 router.use(publicInstallerRouter);
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
+// V61 is the outermost QR asset layer: after V57/V56 finish composing the client
+// menu, it adds an optional note per selected product without changing order totals.
+router.use(installRestaurantQrProductNotesV61);
 // V58 is outermost for the staff assets. Response wrappers unwind in reverse order,
 // so this layer sees the final V57/V56/Menu Surfaces asset and only adds account-attention UI.
 router.use(installRestaurantAccountAttentionV58);

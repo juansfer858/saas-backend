@@ -1,0 +1,82 @@
+name: Restaurant QR Product Notes V61 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-qr-product-notes-v61.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'edge/agent/offline-qr-self-order-v61.js'
+      - 'edge/agent/restaurant-entry-v2.js'
+      - 'edge/version.json'
+      - 'scripts/restaurant-qr-product-notes-v61-smoke.js'
+      - '.github/workflows/restaurant-qr-product-notes-v61-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-qr-product-notes-v61.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'edge/agent/offline-qr-self-order-v61.js'
+      - 'edge/agent/restaurant-entry-v2.js'
+      - 'edge/version.json'
+      - 'scripts/restaurant-qr-product-notes-v61-smoke.js'
+      - '.github/workflows/restaurant-qr-product-notes-v61-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Syntax check V61 layers
+        run: |
+          node --check src/modules/restaurant/restaurant-qr-product-notes-v61.public.routes.js
+          node --check edge/agent/offline-qr-self-order-v61.js
+      - name: Validate QR product notes end-to-end contract
+        run: node scripts/restaurant-qr-product-notes-v61-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V61 commit and QR note surface in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              HDR="$(mktemp)"
+              JS="$(mktemp)"
+              if curl -fsS -D "$HDR" "$BASE/app/restaurant-qr-ui.js?v=product-notes-v61-$GITHUB_SHA" -o "$JS" \
+                && grep -Fqi 'X-VantixGC-QR-Product-Notes: v61-item-notes' "$HDR" \
+                && grep -Fq 'VANTIX_RESTAURANT_QR_PRODUCT_NOTES_V61' "$JS" \
+                && grep -Fq 'Nota para cocina (opcional)' "$JS" \
+                && grep -Fq 'data-order-note' "$JS" \
+                && grep -Fq 'notes:String(qrProductNotes.get(menuItemId)' "$JS" \
+                && grep -Fq 'VANTIX_RESTAURANT_GLOBAL_PRODUCT_SEARCH_V57' "$JS" \
+                && grep -Fq 'VANTIX_RESTAURANT_TABLE_ENABLE_V56' "$JS"; then
+                echo "V61 exact commit and QR product-note surface are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V61 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
