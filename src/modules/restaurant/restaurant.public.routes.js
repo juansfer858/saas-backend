@@ -1,7 +1,6 @@
 'use strict';
-
-const express = require('express');
 require('./restaurant-pos-operational-mode');
+const express = require('express');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
 const { restaurantEdgeManagedPublicRouter } = require('./restaurant-edge-managed.public.routes');
@@ -31,6 +30,7 @@ const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-wo
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
 const { restaurantCompanyAdminAdvancedPublicRouter, installCompanyAdminAdvancedAsset } = require('./restaurant-company-admin-advanced.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
+const { installPaymentTreasuryChainV27Runtime } = require('./restaurant-payment-treasury-chain.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
 const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
@@ -83,6 +83,9 @@ router.use(restaurantPublicRealtimePublisher);
 router.use(restaurantQrPresenceRealtimePublicRouter);
 router.use(restaurantQrOrderWaiterAlertPublicRouter);
 router.use(restaurantWaiterDevicePersistencePublicRouter);
+// Mounted before the existing Caja wrappers so V27 is appended last and becomes the visible,
+// fail-closed cashier contract while the legacy engines remain available underneath for rollback.
+router.use(installPaymentTreasuryChainV27Runtime);
 router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
 router.use(installCashCollectDialogRuntime);

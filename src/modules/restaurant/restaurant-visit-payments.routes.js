@@ -57,6 +57,7 @@ const itemSplit = z.object({
 const noneSplit = z.object({ mode: z.literal('NONE') });
 const closeWithMethodSchema = z.object({
   paymentMethodId: z.string().uuid(),
+  terceroId: z.string().uuid().optional().nullable(),
   reference: z.string().trim().max(160).optional().nullable(),
   tipAmount: z.coerce.number().min(0).max(100000000).optional().default(0),
   split: z.union([equalSplit, itemSplit, noneSplit]).optional().nullable()
@@ -65,6 +66,11 @@ const cashCloseSchema = z.object({ saldoFinal: z.coerce.number().min(0).max(1000
 
 router.get('/metodos-pago', requirePermission('TESORERIA.VER'), async (req, res, next) => {
   try { res.json({ ok: true, data: await paymentMethods.listMethods(req.tenantId) }); }
+  catch (error) { next(error); }
+});
+
+router.get('/clientes-credito', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await paymentMethods.listCreditCustomers(req.tenantId) }); }
   catch (error) { next(error); }
 });
 

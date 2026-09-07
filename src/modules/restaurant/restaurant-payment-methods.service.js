@@ -40,7 +40,6 @@ async function defaultMethods(tenantId, client = prisma) {
   const rows = [];
   if (cash) rows.push({ id: crypto.randomUUID(), name: 'Efectivo', kind: 'EFECTIVO', cajaBancoId: cash.id, active: true, sortOrder: 10 });
   banks.forEach((bank, index) => rows.push({ id: crypto.randomUUID(), name: bank.nombre, kind: 'TRANSFERENCIA', cajaBancoId: bank.id, active: true, sortOrder: 20 + index * 10 }));
-  // Crédito necesita tercero/cartera; se deja disponible para configurar, pero nunca activo por defecto.
   rows.push({ id: crypto.randomUUID(), name: 'Crédito', kind: 'CREDITO', cajaBancoId: null, active: false, sortOrder: 900 });
   return rows;
 }
@@ -56,6 +55,34 @@ async function listMethods(tenantId, client = prisma) {
   const accounts = accountIds.length ? await client.cajaBanco.findMany({ where: { tenantId, id: { in: accountIds } }, select: { id: true, tipo: true, nombre: true, banco: true, numeroCuenta: true, activo: true } }) : [];
   const byId = new Map(accounts.map((row) => [row.id, row]));
   return rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'es')).map((row) => ({ ...row, account: row.cajaBancoId ? byId.get(row.cajaBancoId) || null : null }));
+}
+
+async function listCreditCustomers(tenantId) {
+  const customers = await prisma.tercero.findMany({
+    where: { tenantId, activo: true, tipo: { in: ['CLIENTE', 'CLIENTE_PROVEEDOR'] } },
+    select: { id: true, nombre: true, razonSocial: true, identificacion: true, cupoCredito: true, diasPlazo: true },
+    orderBy: { nombre: 'asc' },
+    take: 500
+  });
+  if (!customers.length) return [];
+  const ids = customers.map((row) => row.id);
+  const debt = await prisma.cartera.groupBy({
+    by: ['terceroId'],
+    where: { tenantId, terceroId: { in: ids }, tipo: 'CXC', estado: { in: ['PENDIENTE', 'PARCIAL'] } },
+    _sum: { saldo: true }
+  });
+  const debtById = new Map(debt.map((row) => [row.terceroId, Number(row._sum.saldo || 0)]));
+  return customers.map((customer) => {
+    const limit = Number(customer.cupoCredito || 0);
+    const used = debtById.get(customer.id) || 0;
+    return {
+      ...customer,
+      cupoCredito: limit,
+      saldoCartera: used,
+      disponible: Math.max(limit - used, 0),
+      habilitadoCredito: limit > 0 && used < limit
+    };
+  });
 }
 
 async function saveMethod(tenantId, methodId, input) {
@@ -100,11 +127,52 @@ function formaPagoForKind(kind) {
   return 'BANCO';
 }
 
+function dueDate(days) {
+  const value = new Date();
+  value.setHours(23, 59, 59, 999);
+  value.setDate(value.getDate() + Math.max(Number(days) || 0, 0));
+  return value;
+}
+
+async function prepareCredit(tenantId, terceroId, sale) {
+  const id = String(terceroId || '').trim();
+  if (!id) throw new AppError(400, 'Seleccione el cliente para la venta a crédito', 'RESTAURANT_CREDIT_CUSTOMER_REQUIRED');
+  const customer = await prisma.tercero.findFirst({
+    where: { id, tenantId, activo: true, tipo: { in: ['CLIENTE', 'CLIENTE_PROVEEDOR'] } }
+  });
+  if (!customer) throw new AppError(400, 'Cliente de crédito no disponible', 'RESTAURANT_CREDIT_CUSTOMER_INVALID');
+  const creditLimit = Number(customer.cupoCredito || 0);
+  if (!(creditLimit > 0)) throw new AppError(409, 'El cliente no tiene cupo de crédito configurado', 'RESTAURANT_CREDIT_LIMIT_REQUIRED');
+  const aggregate = await prisma.cartera.aggregate({
+    where: { tenantId, terceroId: customer.id, tipo: 'CXC', estado: { in: ['PENDIENTE', 'PARCIAL'] } },
+    _sum: { saldo: true }
+  });
+  const outstanding = Number(aggregate._sum.saldo || 0);
+  const saleTotal = Number(sale.total || 0);
+  const availableBefore = Math.max(creditLimit - outstanding, 0);
+  if (saleTotal - availableBefore > 0.005) {
+    throw new AppError(409, `Cupo insuficiente. Disponible: ${availableBefore.toFixed(2)}`, 'RESTAURANT_CREDIT_LIMIT_EXCEEDED', {
+      customerId: customer.id,
+      creditLimit,
+      outstanding,
+      available: availableBefore,
+      requested: saleTotal
+    });
+  }
+  return {
+    customer,
+    creditLimit,
+    outstandingBefore: outstanding,
+    availableBefore,
+    availableAfter: Math.max(availableBefore - saleTotal, 0),
+    fechaVencimiento: dueDate(customer.diasPlazo)
+  };
+}
+
 async function closeTableWithMethod(tenantId, user, tableId, input) {
   const methods = await listMethods(tenantId);
   const method = methods.find((row) => row.id === input.paymentMethodId && row.active);
   if (!method) throw new AppError(400, 'Seleccione un método de pago activo', 'RESTAURANT_PAYMENT_METHOD_REQUIRED');
-  if (method.kind === 'CREDITO') throw new AppError(409, 'El crédito requiere identificar al cliente y generar cartera. Actívalo desde el flujo de crédito cuando esté configurado.', 'RESTAURANT_CREDIT_CUSTOMER_REQUIRED');
   await validateAccount(tenantId, method.kind, method.cajaBancoId || null);
 
   const session = await prisma.restaurantTableSession.findFirst({
@@ -112,6 +180,14 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
     orderBy: { openedAt: 'desc' }
   });
   if (!session) throw new AppError(404, 'No hay cuenta abierta para esta mesa', 'RESTAURANT_SESSION_NOT_FOUND');
+  const sale = await prisma.comprobanteComercial.findFirst({
+    where: { id: session.saleId, tenantId, estado: 'BORRADOR' },
+    select: { id: true, total: true, terceroId: true, fechaVencimiento: true }
+  });
+  if (!sale) throw new AppError(409, 'La venta de la mesa ya no está disponible como borrador', 'RESTAURANT_SALE_NOT_DRAFT');
+
+  const credit = method.kind === 'CREDITO' ? await prepareCredit(tenantId, input.terceroId, sale) : null;
+  if (credit && Number(input.tipAmount || 0) > 0) throw new AppError(409, 'La propina debe cobrarse de contado', 'RESTAURANT_TIP_CREDIT_NOT_ALLOWED');
 
   const openShift = await prisma.aperturaCierreCaja.findFirst({
     where: { tenantId, userId: user.id, estado: 'ABIERTA' },
@@ -138,6 +214,12 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
       paymentReference: reference
     }
   });
+  if (credit) {
+    await prisma.comprobanteComercial.update({
+      where: { id: sale.id },
+      data: { terceroId: credit.customer.id, fechaVencimiento: credit.fechaVencimiento }
+    });
+  }
 
   try {
     const result = await identity.closeTableGuarded(tenantId, user, tableId, {
@@ -157,12 +239,30 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
         paymentReference: reference
       }
     });
-    return { ...result, session: refreshed, paymentMethod: method };
+    return {
+      ...result,
+      session: refreshed,
+      paymentMethod: method,
+      credit: credit ? {
+        customer: { id: credit.customer.id, nombre: credit.customer.nombre, identificacion: credit.customer.identificacion },
+        creditLimit: credit.creditLimit,
+        outstandingBefore: credit.outstandingBefore,
+        availableBefore: credit.availableBefore,
+        availableAfter: credit.availableAfter,
+        dueDate: credit.fechaVencimiento
+      } : null
+    };
   } catch (error) {
     await prisma.restaurantTableSession.updateMany({
       where: { id: session.id, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
       data: previous
     }).catch(() => {});
+    if (credit) {
+      await prisma.comprobanteComercial.updateMany({
+        where: { id: sale.id, tenantId, estado: 'BORRADOR' },
+        data: { terceroId: sale.terceroId || null, fechaVencimiento: sale.fechaVencimiento || null }
+      }).catch(() => {});
+    }
     throw error;
   }
 }
@@ -170,8 +270,10 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
 module.exports = {
   KINDS,
   listMethods,
+  listCreditCustomers,
   saveMethod,
   deactivateMethod,
   closeTableWithMethod,
-  formaPagoForKind
+  formaPagoForKind,
+  prepareCredit
 };

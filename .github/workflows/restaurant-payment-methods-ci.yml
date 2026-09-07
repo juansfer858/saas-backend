@@ -6,6 +6,7 @@ on:
       - main
   push:
     branches:
+      - main
       - feature/restaurant-payment-methods-cash-report
       - hotfix/restaurant-control-center-timeout
       - hotfix/restaurant-payment-schema-gate
@@ -51,9 +52,56 @@ jobs:
         run: npx prisma db push
       - name: Validate configurable payment methods and cash close report
         run: node scripts/restaurant-payment-methods-smoke.js
+      - name: Validate payment to Treasury canonical chain V27
+        run: node scripts/restaurant-payment-treasury-chain-v27-smoke.js
       - name: Validate Centro de control resilience against stalled Restaurant API
         run: node scripts/restaurant-control-center-resilience-smoke.js
       - name: Validate payment schema startup gate and self-heal
         run: node scripts/restaurant-payment-schema-gate-smoke.js
       - name: Validate Caja payment methods visibility
         run: node scripts/restaurant-payment-methods-visibility-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for exact Core commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo PRODUCTION_EXACT_COMMIT_OK
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit $GITHUB_SHA attempt=$attempt"
+            sleep 10
+          done
+          exit 1
+      - name: Verify configured cashier chain in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/restaurant.headers -o /tmp/restaurant.js 'https://core.vantixgc.com/app/restaurant-ui.js?v=payment-treasury-v27'
+          grep -qi '^X-VantixGC-Payment-Treasury-Chain: v27-configured-method-destination' /tmp/restaurant.headers
+          grep -q 'VANTIX_RESTAURANT_PAYMENT_TREASURY_CHAIN_V27' /tmp/restaurant.js
+          grep -q 'authoritativeCashierChain:true' /tmp/restaurant.js
+          grep -q 'legacyGenericAccountSelector:false' /tmp/restaurant.js
+          grep -q 'failClosedOnConfigurationError:true' /tmp/restaurant.js
+          grep -q '/cerrar-con-metodo' /tmp/restaurant.js
+          echo PRODUCTION_PAYMENT_CHAIN_V27_OK
+      - name: Verify Treasury recent collections surface in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -D /tmp/panel.headers -o /tmp/panel.js 'https://core.vantixgc.com/app/panel-integration-extras-core.js?v=payment-treasury-v27'
+          grep -qi '^X-VantixGC-Treasury-Recent-Collections: v27-movements' /tmp/panel.headers
+          grep -q 'VANTIX_TREASURY_RECENT_COLLECTIONS_V27' /tmp/panel.js
+          grep -q '/api/v1/tesoreria/recaudos-recientes?limit=50' /tmp/panel.js
+          grep -q 'Cuenta destino' /tmp/panel.js
+          echo PRODUCTION_TREASURY_COLLECTIONS_V27_OK

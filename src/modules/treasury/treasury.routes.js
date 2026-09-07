@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('./treasury.controller');
+const recentCollections = require('./treasury-recent-collections.service');
 
 const router = express.Router();
 
@@ -14,6 +15,11 @@ router.get('/cartera', controller.listCartera);
 router.get('/cartera/antiguedad', controller.carteraAging);
 router.get('/cartera/conciliacion-contable', controller.carteraAccountingReconciliation);
 router.get('/cartera/terceros/:terceroId', controller.carteraThirdPartyDetail);
+router.get('/recaudos-recientes', async (req, res, next) => {
+  try {
+    res.json({ ok: true, data: await recentCollections.listRecentCollections(req.tenantId, { limit: req.query.limit }) });
+  } catch (error) { next(error); }
+});
 router.get('/pagos', controller.listPayments);
 router.post('/pagos', controller.registerPayment);
 router.post('/pagos/aplicar-multiples', controller.registerPaymentBatch);
