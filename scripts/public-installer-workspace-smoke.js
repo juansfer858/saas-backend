@@ -68,6 +68,13 @@ for (const ps of [genericPs, claimPs]) {
   assert.match(ps, /\$StableChecks = 0/);
   assert.match(ps, /\$StableChecks -lt 3/);
   assert.match(ps, /no se mantuvo estable/);
+  assert.match(ps, /normalizacion de activacion Edge anterior/);
+  assert.match(ps, /\$ManagedCurrent = Join-Path \$InstallDir 'current'/);
+  assert.match(ps, /\$PendingActivation = Join-Path \$InstallDir 'data\\update-pending\.json'/);
+  assert.match(ps, /Stop-ScheduledTask -TaskName 'VantixGC Edge Supervisor'/);
+  assert.match(ps, /Remove-Item -LiteralPath \$ManagedCurrent -Recurse -Force -ErrorAction Stop/);
+  assert.match(ps, /Remove-Item -LiteralPath \$PendingActivation -Force -ErrorAction SilentlyContinue/);
+  assert.match(ps, /Restableciendo runtime base verificado antes de reinstalar/);
 }
 
 assert.match(genericPs, /EDGE_AGENT_ID/);
@@ -107,4 +114,5 @@ assert.match(installerSource, /splatting posicional inseguro/);
 assert.match(installerSource, /ruta canónica de instalación/);
 assert.match(installerSource, /Edge V28 corregido/);
 assert.match(installerSource, /validación V28 de estabilidad/);
-console.log('PUBLIC INSTALLER WINDOWS V50 + PLATFORM PANEL CONTRACT OK');
+assert.match(installerSource, /activación Edge anterior antes de reinstalar/);
+console.log('PUBLIC INSTALLER WINDOWS V51 STALE CURRENT RECOVERY + PLATFORM PANEL CONTRACT OK');
