@@ -24,6 +24,7 @@ const { installRestaurantTableEnableV56 } = require('./restaurant-table-enable-v
 const { installRestaurantGlobalProductSearchV57 } = require('./restaurant-global-product-search-v57.public.routes');
 const { installRestaurantAccountAttentionV58 } = require('./restaurant-account-attention-v58.public.routes');
 const { installRestaurantQrProductNotesV61 } = require('./restaurant-qr-product-notes-v61.public.routes');
+const { installRestaurantCashCloseMethodsV62 } = require('./restaurant-cash-close-methods-v62.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -81,6 +82,9 @@ function installCashCompactRuntime(req, res, next) {
 router.use(publicInstallerRouter);
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
+// V62 is outermost for Caja: it sees the final V45/V43 payment composition and
+// separates Transferencia/QR, Tarjeta, Efectivo and Crédito in the shift close summary.
+router.use(installRestaurantCashCloseMethodsV62);
 // V61 is the outermost QR asset layer: after V57/V56 finish composing the client
 // menu, it adds an optional note per selected product without changing order totals.
 router.use(installRestaurantQrProductNotesV61);
