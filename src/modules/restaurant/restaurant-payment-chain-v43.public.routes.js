@@ -8,7 +8,7 @@ const runtime = String.raw`
   const MARKER='VANTIX_RESTAURANT_PAYMENT_CHAIN_V43';
   if(window[MARKER]) return;
   window[MARKER]=Object.freeze({
-    version:'43.2.0',
+    version:'43.3.0',
     cashOnlyToCashAccount:true,
     bankOnlyToBankAccount:true,
     creditRequiresCustomer:true,
@@ -16,6 +16,9 @@ const runtime = String.raw`
     creditCreatesCxc:true,
     creditNoTreasuryMovement:true,
     genericCustomerCannotReceiveCredit:true,
+    creditSelectionSticky:true,
+    creditChangeIsolation:true,
+    quickCustomerCreate:true,
     invalidCombinationBlocked:true,
     treasurySource:'MOVIMIENTO_TESORERIA',
     selectionSurvivesRerender:true,
@@ -24,6 +27,7 @@ const runtime = String.raw`
 
   const SESSION_KEY='vantixgc_core_session_v1';
   const GENERIC_CUSTOMER_IDENTIFICATION='222222222222';
+  const QUICK_DIALOG_ID='creditQuickCustomerDialogV47';
   let session=null;
   try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
   if(!session?.token) return;
@@ -40,18 +44,46 @@ const runtime = String.raw`
 
   const $=(q,r=document)=>r.querySelector(q);
   const $$=(q,r=document)=>[...r.querySelectorAll(q)];
+  const esc=(v)=>String(v??'').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+
+  function currentPanel(){return $('#view .cash-fast-panel.cash-collect-dialog-v40')||$('#view .cash-fast-panel')}
+
+  function authoritativeMethod(){
+    const stored=currentPanel()?.dataset?.paymentMethodAuthoritative;
+    if(['EFECTIVO','BANCO','CREDITO'].includes(stored)) return stored;
+    return selectedMethod;
+  }
+
+  function setSelectedMethod(method){
+    selectedMethod=['EFECTIVO','BANCO','CREDITO'].includes(method)?method:'EFECTIVO';
+    const panel=currentPanel();
+    if(panel) panel.dataset.paymentMethodAuthoritative=selectedMethod;
+    applyMethodVisual(selectedMethod);
+    return selectedMethod;
+  }
+
+  async function authenticatedJson(path,opts={}){
+    const response=await nativeFetch(path,{
+      ...opts,
+      cache:'no-store',
+      headers:{
+        Authorization:'Bearer '+session.token,
+        'x-tenant-subdomain':session.subdomain,
+        ...(opts.body?{'Content-Type':'application/json'}:{}),
+        ...(opts.headers||{})
+      }
+    });
+    let body={};
+    try{body=await response.json()}catch{}
+    if(!response.ok) throw new Error(body?.error?.message||body?.message||('HTTP '+response.status));
+    return body.data;
+  }
 
   async function loadAccounts(force=false){
     if(loadPromise&&!force) return loadPromise;
     loadPromise=(async()=>{
-      const response=await nativeFetch('/api/v1/tesoreria/cajas-bancos',{
-        cache:'no-store',
-        headers:{Authorization:'Bearer '+session.token,'x-tenant-subdomain':session.subdomain}
-      });
-      let body={};
-      try{body=await response.json()}catch{}
-      if(!response.ok) throw new Error(body?.error?.message||body?.message||('HTTP '+response.status));
-      accounts=Array.isArray(body.data)?body.data:[];
+      accounts=await authenticatedJson('/api/v1/tesoreria/cajas-bancos');
+      if(!Array.isArray(accounts)) accounts=[];
       return accounts;
     })().finally(()=>{loadPromise=null});
     return loadPromise;
@@ -60,14 +92,8 @@ const runtime = String.raw`
   async function loadCustomers(force=false){
     if(customerLoadPromise&&!force) return customerLoadPromise;
     customerLoadPromise=(async()=>{
-      const response=await nativeFetch('/api/v1/terceros?activo=true&limit=500',{
-        cache:'no-store',
-        headers:{Authorization:'Bearer '+session.token,'x-tenant-subdomain':session.subdomain}
-      });
-      let body={};
-      try{body=await response.json()}catch{}
-      if(!response.ok) throw new Error(body?.error?.message||body?.message||('HTTP '+response.status));
-      customers=(Array.isArray(body.data)?body.data:[]).filter((row)=>
+      const rows=await authenticatedJson('/api/v1/terceros?activo=true&limit=500');
+      customers=(Array.isArray(rows)?rows:[]).filter((row)=>
         row&&row.activo!==false&&
         (row.tipo==='CLIENTE'||row.tipo==='CLIENTE_PROVEEDOR')&&
         String(row.identificacion||'').trim()!==GENERIC_CUSTOMER_IDENTIFICATION
@@ -78,6 +104,8 @@ const runtime = String.raw`
   }
 
   function detectedMethod(){
+    const stored=authoritativeMethod();
+    if(['EFECTIVO','BANCO','CREDITO'].includes(stored)) return stored;
     return $$('[data-cash-method]').find((button)=>button.classList.contains('active'))?.dataset.cashMethod||'EFECTIVO';
   }
 
@@ -91,13 +119,15 @@ const runtime = String.raw`
     const buttons=$$('[data-cash-method]');
     if(!buttons.length) return;
     buttons.forEach((button)=>{
-      const own=button.dataset.cashMethod;
+      const own=String(button.dataset.cashMethod||'').toUpperCase();
       if(own==='CREDITO'){
         button.disabled=false;
-        button.title='Venta a crédito: selecciona el cliente que quedará en cartera.';
+        button.title='Venta a crédito: selecciona o crea el cliente que quedará en cartera.';
         button.dataset.creditRequiresCustomer='true';
       }
       button.classList.toggle('active',own===method);
+      if(own===method) button.setAttribute('aria-pressed','true');
+      else button.setAttribute('aria-pressed','false');
     });
   }
 
@@ -115,35 +145,90 @@ const runtime = String.raw`
     }
   }
 
+  function ensureQuickCustomerDialog(){
+    let dialog=$('#'+QUICK_DIALOG_ID);
+    if(dialog) return dialog;
+    dialog=document.createElement('dialog');
+    dialog.id=QUICK_DIALOG_ID;
+    dialog.className='ri-card';
+    dialog.style.cssText='width:min(620px,calc(100vw - 24px));max-height:90dvh;border:0;border-radius:16px;padding:0;box-shadow:0 30px 90px rgba(15,23,42,.35);overflow:auto;z-index:1300';
+    dialog.innerHTML='<form id="creditQuickCustomerFormV47" style="padding:18px;display:grid;gap:12px"><div style="display:flex;align-items:center;gap:10px"><div><h2 style="margin:0">Crear cliente</h2><p style="margin:4px 0 0;color:#64748b;font-size:12px">Se crea como cliente activo y queda seleccionado para este crédito.</p></div><button type="button" class="ri-btn small" data-credit-quick-close style="margin-left:auto">Cerrar</button></div><div style="display:grid;grid-template-columns:1fr 1.2fr;gap:10px"><label class="ri-label">Tipo de documento<select id="creditQuickDocTypeV47" class="ri-select"><option value="CC">CC</option><option value="NIT">NIT</option><option value="CE">CE</option><option value="PASAPORTE">Pasaporte</option></select></label><label class="ri-label">Identificación<input id="creditQuickIdentificationV47" class="ri-input" required minlength="3" maxlength="40"></label></div><label class="ri-label">Nombre / razón social<input id="creditQuickNameV47" class="ri-input" required minlength="2" maxlength="160"></label><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="ri-label">Teléfono<input id="creditQuickPhoneV47" class="ri-input" maxlength="50"></label><label class="ri-label">Correo<input id="creditQuickEmailV47" class="ri-input" type="email" maxlength="254"></label></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="ri-label">Cupo de crédito<input id="creditQuickLimitV47" class="ri-input" type="number" min="0" value="0"><small style="font-weight:600;color:#64748b">0 = sin tope configurado</small></label><label class="ri-label">Plazo en días<input id="creditQuickDaysV47" class="ri-input" type="number" min="0" max="3650" value="0"></label></div><div id="creditQuickMessageV47"></div><button type="submit" class="ri-btn primary">Crear y seleccionar cliente</button></form>';
+    document.body.appendChild(dialog);
+    $('[data-credit-quick-close]',dialog)?.addEventListener('click',()=>dialog.close?.());
+    dialog.addEventListener('click',(event)=>{if(event.target===dialog)dialog.close?.()});
+    $('#creditQuickCustomerFormV47',dialog)?.addEventListener('submit',async(event)=>{
+      event.preventDefault();
+      const message=$('#creditQuickMessageV47',dialog);
+      const submit=event.submitter||$('button[type="submit"]',dialog);
+      if(submit) submit.disabled=true;
+      if(message) message.innerHTML='';
+      try{
+        const created=await authenticatedJson('/api/v1/restaurante/credito/clientes',{
+          method:'POST',
+          body:JSON.stringify({
+            tipoDocumento:$('#creditQuickDocTypeV47',dialog)?.value||'CC',
+            identificacion:$('#creditQuickIdentificationV47',dialog)?.value?.trim()||'',
+            nombre:$('#creditQuickNameV47',dialog)?.value?.trim()||'',
+            telefono:$('#creditQuickPhoneV47',dialog)?.value?.trim()||null,
+            email:$('#creditQuickEmailV47',dialog)?.value?.trim()||null,
+            cupoCredito:Number($('#creditQuickLimitV47',dialog)?.value||0),
+            diasPlazo:Number($('#creditQuickDaysV47',dialog)?.value||0)
+          })
+        });
+        setSelectedMethod('CREDITO');
+        selectedCreditCustomerId=String(created?.id||'');
+        await loadCustomers(true);
+        dialog.close?.();
+        event.target.reset?.();
+        setSelectedMethod('CREDITO');
+        await synchronize({forceAccounts:false});
+      }catch(error){
+        if(message) message.innerHTML='<div class="ri-error">'+esc(error.message)+'</div>';
+      }finally{
+        if(submit) submit.disabled=false;
+      }
+    });
+    return dialog;
+  }
+
+  function openQuickCustomerDialog(){
+    setSelectedMethod('CREDITO');
+    const dialog=ensureQuickCustomerDialog();
+    if(typeof dialog.showModal==='function'&&!dialog.open) dialog.showModal();
+    else dialog.setAttribute('open','');
+    setTimeout(()=>$('#creditQuickIdentificationV47',dialog)?.focus(),0);
+  }
+
   function ensureCreditField(){
     const accountLabel=$('#accountLabel');
     if(!accountLabel) return null;
     let field=$('#creditCustomerField');
     if(!field){
-      field=document.createElement('label');
+      field=document.createElement('div');
       field.id='creditCustomerField';
-      field.className='ri-label cash-credit-customer-field';
-      field.innerHTML='Cliente para crédito<select id="creditCustomer" class="ri-select"><option value="">Selecciona un cliente</option></select><small id="creditCustomerHelp" style="display:block;margin-top:5px;color:#637997;font-weight:700"></small>';
+      field.className='cash-credit-customer-field';
+      field.innerHTML='<label class="ri-label">Cliente para crédito<select id="creditCustomer" class="ri-select"><option value="">Selecciona un cliente</option></select></label><button type="button" id="createCreditCustomerV47" class="ri-btn" style="margin-top:8px;width:100%">+ Crear cliente</button><small id="creditCustomerHelp" style="display:block;margin-top:6px;color:#637997;font-weight:700"></small>';
       accountLabel.insertAdjacentElement('afterend',field);
-      field.querySelector('#creditCustomer')?.addEventListener('change',(event)=>{
-        selectedCreditCustomerId=String(event.target?.value||'');
-        synchronize().catch(()=>{});
+      $('#createCreditCustomerV47',field)?.addEventListener('click',(event)=>{
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openQuickCustomerDialog();
       });
     }
-    field.hidden=selectedMethod!=='CREDITO';
+    field.hidden=authoritativeMethod()!=='CREDITO';
     return field;
   }
 
   function populateCreditCustomers(){
     const field=ensureCreditField();
-    const select=field?.querySelector('#creditCustomer');
-    const help=field?.querySelector('#creditCustomerHelp');
+    const select=$('#creditCustomer',field);
+    const help=$('#creditCustomerHelp',field);
     if(!select) return;
     const previous=selectedCreditCustomerId||select.value||'';
     select.innerHTML='<option value="">Selecciona un cliente</option>'+customers.map((row)=>{
-      const id=String(row.id||'');
-      const label=String(row.nombre||row.razonSocial||row.identificacion||'Cliente');
-      const doc=String(row.identificacion||'').trim();
+      const id=esc(row.id||'');
+      const label=esc(row.nombre||row.razonSocial||row.identificacion||'Cliente');
+      const doc=esc(String(row.identificacion||'').trim());
       return '<option value="'+id+'">'+label+(doc?' · '+doc:'')+'</option>';
     }).join('');
     if(customers.some((row)=>String(row.id)===previous)){
@@ -154,16 +239,16 @@ const runtime = String.raw`
     }
     const selected=customers.find((row)=>String(row.id)===selectedCreditCustomerId)||null;
     if(help){
-      if(!customers.length) help.textContent='No hay clientes identificados activos. Créalo primero en Clientes / Proveedores.';
+      if(!customers.length) help.textContent='No hay clientes identificados. Usa “+ Crear cliente”.';
       else if(selected) help.textContent='Plazo: '+Number(selected.diasPlazo||0)+' día(s) · cupo configurado: '+Number(selected.cupoCredito||0).toLocaleString('es-CO');
-      else help.textContent='El crédito se registrará como cuenta por cobrar y no moverá Caja/Banco.';
+      else help.textContent='Selecciona un cliente o créalo aquí. El crédito irá a Cartera y no moverá Caja/Banco.';
     }
   }
 
   function setTipMode(){
     const tip=$('#tip');
     if(!tip) return;
-    if(selectedMethod==='CREDITO'){
+    if(authoritativeMethod()==='CREDITO'){
       tip.value='0';
       tip.disabled=true;
       tip.title='La propina debe cobrarse por un medio de contado.';
@@ -182,9 +267,10 @@ const runtime = String.raw`
     const buttons=$$('[data-cash-method]');
     if(!select||!label||!confirm||!buttons.length) return;
 
-    if(!['EFECTIVO','BANCO','CREDITO'].includes(selectedMethod)) selectedMethod=detectedMethod();
-    if(!['EFECTIVO','BANCO','CREDITO'].includes(selectedMethod)) selectedMethod='EFECTIVO';
-    applyMethodVisual(selectedMethod);
+    const stateMethod=authoritativeMethod();
+    if(['EFECTIVO','BANCO','CREDITO'].includes(stateMethod)) selectedMethod=stateMethod;
+    else selectedMethod=detectedMethod();
+    setSelectedMethod(selectedMethod);
     ensureCreditField();
     setTipMode();
 
@@ -198,10 +284,11 @@ const runtime = String.raw`
         return;
       }
       if(token!==syncToken) return;
+      setSelectedMethod('CREDITO');
       populateCreditCustomers();
       const field=$('#creditCustomerField');
       if(field) field.hidden=false;
-      setConfirmState(selectedCreditCustomerId?'':'Selecciona el cliente que recibirá el crédito.');
+      setConfirmState(selectedCreditCustomerId?'':'Selecciona o crea el cliente que recibirá el crédito.');
       document.documentElement.dataset.paymentChainV43='CREDITO:'+(selectedCreditCustomerId||'NO_CUSTOMER');
       return;
     }
@@ -226,11 +313,11 @@ const runtime = String.raw`
     received=$('#cashReceivedRow');
     if(!select||!label||!$('#closeTable')) return;
 
-    applyMethodVisual(selectedMethod);
+    setSelectedMethod(selectedMethod);
     const wanted=methodAccountType(selectedMethod);
     const rows=accounts.filter((row)=>row.activo&&row.tipo===wanted);
     const preferred=selectedAccountByMethod[selectedMethod]||select.value;
-    select.innerHTML=rows.map((row)=>'<option value="'+row.id+'">'+String(row.nombre||row.tipo)+'</option>').join('');
+    select.innerHTML=rows.map((row)=>'<option value="'+esc(row.id)+'">'+esc(row.nombre||row.tipo)+'</option>').join('');
     if(rows.some((row)=>row.id===preferred)) select.value=preferred;
     if(select.value) selectedAccountByMethod[selectedMethod]=select.value;
 
@@ -248,7 +335,7 @@ const runtime = String.raw`
   function stabilizeSelection(forceAccounts=false){
     [0,25,70,140,260,480,800].forEach((delay)=>{
       setTimeout(()=>{
-        applyMethodVisual(selectedMethod);
+        setSelectedMethod(authoritativeMethod());
         synchronize({forceAccounts:forceAccounts&&delay===0}).catch(()=>{});
       },delay);
     });
@@ -260,7 +347,9 @@ const runtime = String.raw`
     if(method==='POST'&&/\/api\/v1\/restaurante\/mesas\/[^/]+\/cerrar(?:\?.*)?$/.test(url)&&typeof init?.body==='string'){
       try{
         const payload=JSON.parse(init.body);
-        if(String(payload?.formaPago||'').toUpperCase()==='CREDITO'){
+        if(authoritativeMethod()==='CREDITO'||String(payload?.formaPago||'').toUpperCase()==='CREDITO'){
+          payload.formaPago='CREDITO';
+          payload.cajaBancoId=null;
           payload.terceroId=selectedCreditCustomerId||null;
           init={...init,body:JSON.stringify(payload)};
         }
@@ -274,19 +363,32 @@ const runtime = String.raw`
     if(method){
       if(method.disabled) return;
       const own=String(method.dataset.cashMethod||'').toUpperCase();
-      selectedMethod=own==='BANCO'?'BANCO':own==='CREDITO'?'CREDITO':'EFECTIVO';
-      applyMethodVisual(selectedMethod);
+      const next=own==='BANCO'?'BANCO':own==='CREDITO'?'CREDITO':'EFECTIVO';
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setSelectedMethod(next);
       stabilizeSelection(false);
+      return;
+    }
+
+    const quickCreate=event.target?.closest?.('#createCreditCustomerV47');
+    if(quickCreate){
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setSelectedMethod('CREDITO');
+      openQuickCustomerDialog();
       return;
     }
 
     const confirm=event.target?.closest?.('#closeTable');
     if(confirm){
-      if(selectedMethod==='CREDITO'){
+      const method=authoritativeMethod();
+      if(method==='CREDITO'){
+        setSelectedMethod('CREDITO');
         if(!selectedCreditCustomerId){
           event.preventDefault();
           event.stopImmediatePropagation();
-          alert('Selecciona el cliente que recibirá el crédito.');
+          alert('Selecciona o crea el cliente que recibirá el crédito.');
           return;
         }
         const tipValue=Number($('#tip')?.value||0);
@@ -299,11 +401,11 @@ const runtime = String.raw`
       }
       const select=$('#paymentAccount');
       const account=accounts.find((row)=>row.id===select?.value)||null;
-      const wanted=methodAccountType(selectedMethod);
+      const wanted=methodAccountType(method);
       if(!wanted||!account||account.tipo!==wanted){
         event.preventDefault();
         event.stopImmediatePropagation();
-        alert(selectedMethod==='EFECTIVO'?'Selecciona una cuenta tipo CAJA para efectivo.':'Selecciona una cuenta tipo BANCO para Tarjeta / QR.');
+        alert(method==='EFECTIVO'?'Selecciona una cuenta tipo CAJA para efectivo.':'Selecciona una cuenta tipo BANCO para Tarjeta / QR.');
       }
       return;
     }
@@ -314,13 +416,18 @@ const runtime = String.raw`
   },true);
 
   document.addEventListener('change',(event)=>{
-    const account=event.target?.closest?.('#paymentAccount');
-    if(account?.value) selectedAccountByMethod[selectedMethod]=account.value;
     const customer=event.target?.closest?.('#creditCustomer');
     if(customer){
+      event.stopImmediatePropagation();
       selectedCreditCustomerId=String(customer.value||'');
-      synchronize().catch(()=>{});
+      setSelectedMethod('CREDITO');
+      setTipMode();
+      setConfirmState(selectedCreditCustomerId?'':'Selecciona o crea el cliente que recibirá el crédito.');
+      stabilizeSelection(false);
+      return;
     }
+    const account=event.target?.closest?.('#paymentAccount');
+    if(account?.value) selectedAccountByMethod[authoritativeMethod()]=account.value;
   },true);
 
   window.addEventListener('vantix:tenant-realtime',()=>stabilizeSelection(true));
@@ -341,7 +448,7 @@ function installRestaurantPaymentChainV43(req, res, next) {
       const patched = `${source}\n;${runtime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
-    res.set('X-VantixGC-Restaurant-Payment-Chain', 'v43.2-credit-customer-cxc');
+    res.set('X-VantixGC-Restaurant-Payment-Chain', 'v43.3-credit-sticky-quick-customer');
     return originalSend(body);
   };
   return next();
