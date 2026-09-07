@@ -31,6 +31,7 @@ const { restaurantEmployeeWorkPublicRouter } = require('./restaurant-employee-wo
 const { restaurantControlCenterResiliencePublicRouter } = require('./restaurant-control-center-resilience.public.routes');
 const { restaurantCompanyAdminAdvancedPublicRouter, installCompanyAdminAdvancedAsset } = require('./restaurant-company-admin-advanced.public.routes');
 const { installPaymentMethodsVisibilityRuntime } = require('./restaurant-payment-methods-visibility-browser.public.routes');
+const { installRestaurantPaymentChainV43 } = require('./restaurant-payment-chain-v43.public.routes');
 const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-recovery.public.routes');
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
 const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
@@ -87,6 +88,7 @@ router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
 router.use(installCashCollectDialogRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
+router.use(installRestaurantPaymentChainV43);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);
 router.use(installPrintTemplateEditorRuntime);
