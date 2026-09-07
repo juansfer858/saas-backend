@@ -69,6 +69,11 @@ router.get('/metodos-pago', requirePermission('TESORERIA.VER'), async (req, res,
   catch (error) { next(error); }
 });
 
+router.get('/clientes-credito', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await paymentMethods.listCreditCustomers(req.tenantId) }); }
+  catch (error) { next(error); }
+});
+
 router.post('/metodos-pago', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.status(201).json({ ok: true, data: await paymentMethods.saveMethod(req.tenantId, null, parse(paymentMethodSchema, req.body || {})) }); }
   catch (error) { next(error); }
