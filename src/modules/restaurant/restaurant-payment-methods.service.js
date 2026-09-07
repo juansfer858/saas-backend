@@ -40,7 +40,6 @@ async function defaultMethods(tenantId, client = prisma) {
   const rows = [];
   if (cash) rows.push({ id: crypto.randomUUID(), name: 'Efectivo', kind: 'EFECTIVO', cajaBancoId: cash.id, active: true, sortOrder: 10 });
   banks.forEach((bank, index) => rows.push({ id: crypto.randomUUID(), name: bank.nombre, kind: 'TRANSFERENCIA', cajaBancoId: bank.id, active: true, sortOrder: 20 + index * 10 }));
-  // Crédito requiere cliente con cupo; se configura explícitamente por tenant.
   rows.push({ id: crypto.randomUUID(), name: 'Crédito', kind: 'CREDITO', cajaBancoId: null, active: false, sortOrder: 900 });
   return rows;
 }
@@ -56,6 +55,34 @@ async function listMethods(tenantId, client = prisma) {
   const accounts = accountIds.length ? await client.cajaBanco.findMany({ where: { tenantId, id: { in: accountIds } }, select: { id: true, tipo: true, nombre: true, banco: true, numeroCuenta: true, activo: true } }) : [];
   const byId = new Map(accounts.map((row) => [row.id, row]));
   return rows.sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'es')).map((row) => ({ ...row, account: row.cajaBancoId ? byId.get(row.cajaBancoId) || null : null }));
+}
+
+async function listCreditCustomers(tenantId) {
+  const customers = await prisma.tercero.findMany({
+    where: { tenantId, activo: true, tipo: { in: ['CLIENTE', 'CLIENTE_PROVEEDOR'] } },
+    select: { id: true, nombre: true, razonSocial: true, identificacion: true, cupoCredito: true, diasPlazo: true },
+    orderBy: { nombre: 'asc' },
+    take: 500
+  });
+  if (!customers.length) return [];
+  const ids = customers.map((row) => row.id);
+  const debt = await prisma.cartera.groupBy({
+    by: ['terceroId'],
+    where: { tenantId, terceroId: { in: ids }, tipo: 'CXC', estado: { in: ['PENDIENTE', 'PARCIAL'] } },
+    _sum: { saldo: true }
+  });
+  const debtById = new Map(debt.map((row) => [row.terceroId, Number(row._sum.saldo || 0)]));
+  return customers.map((customer) => {
+    const limit = Number(customer.cupoCredito || 0);
+    const used = debtById.get(customer.id) || 0;
+    return {
+      ...customer,
+      cupoCredito: limit,
+      saldoCartera: used,
+      disponible: Math.max(limit - used, 0),
+      habilitadoCredito: limit > 0 && used < limit
+    };
+  });
 }
 
 async function saveMethod(tenantId, methodId, input) {
@@ -217,11 +244,7 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
       session: refreshed,
       paymentMethod: method,
       credit: credit ? {
-        customer: {
-          id: credit.customer.id,
-          nombre: credit.customer.nombre,
-          identificacion: credit.customer.identificacion
-        },
+        customer: { id: credit.customer.id, nombre: credit.customer.nombre, identificacion: credit.customer.identificacion },
         creditLimit: credit.creditLimit,
         outstandingBefore: credit.outstandingBefore,
         availableBefore: credit.availableBefore,
@@ -247,6 +270,7 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
 module.exports = {
   KINDS,
   listMethods,
+  listCreditCustomers,
   saveMethod,
   deactivateMethod,
   closeTableWithMethod,
