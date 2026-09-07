@@ -7,7 +7,7 @@ const runtime = String.raw`
   'use strict';
   const MARKER='VANTIX_RESTAURANT_INDIVIDUAL_CASH_V49';
   if(window[MARKER]) return;
-  window[MARKER]=Object.freeze({version:'49.0.0',individualBillingAware:true,equalSplitHidden:true,bySeatPreferred:true});
+  window[MARKER]=Object.freeze({version:'49.0.1',individualBillingAware:true,equalSplitHidden:true,bySeatPreferred:true,realtimeSafe:true});
 
   const SESSION_KEY='vantixgc_core_session_v1';
   let session=null;
@@ -19,6 +19,7 @@ const runtime = String.raw`
   let busy=false;
   let lastTableId='';
   let individual=false;
+  let refreshToken=0;
 
   async function api(path){
     const response=await nativeFetch(path,{cache:'no-store',headers:{Authorization:'Bearer '+session.token,'x-tenant-subdomain':session.subdomain}});
@@ -35,6 +36,15 @@ const runtime = String.raw`
     style.id='individualCashV49Style';
     style.textContent='.cash-individual-note-v49{margin:10px 0;padding:11px 12px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4;color:#166534;font-size:12px;line-height:1.4}.cash-individual-note-v49 b{display:block;margin-bottom:2px}.cash-individual-mode-v49 #restaurantSplitEntry{background:#0d6b43!important;border-color:#0d6b43!important;color:#fff!important}.cash-individual-mode-v49 #closeTable{background:#fff!important;border-color:#cbd5e1!important;color:#334155!important;box-shadow:none!important}';
     document.head.appendChild(style);
+  }
+
+  function clearIndividualPresentation(){
+    const panel=$('.cash-fast-panel');
+    panel?.classList.remove('cash-individual-mode-v49');
+    $('#cashIndividualNoteV49',panel||document)?.remove();
+    const parts=$('#parts',panel||document);
+    const partsLabel=parts?.closest('label');
+    if(partsLabel) partsLabel.hidden=false;
   }
 
   function applyIndividualPresentation(){
@@ -98,7 +108,12 @@ const runtime = String.raw`
   async function refresh(){
     if(busy) return;
     const tableId=selectedTableId();
-    if(!tableId){lastTableId='';individual=false;$('#restaurantSplitPaymentDialog')?.removeAttribute('data-individual-v49');return;}
+    if(!tableId){
+      lastTableId=''; individual=false;
+      $('#restaurantSplitPaymentDialog')?.removeAttribute('data-individual-v49');
+      clearIndividualPresentation();
+      return;
+    }
     if(tableId!==lastTableId){
       $('#restaurantSplitPaymentDialog')?.removeAttribute('data-individual-v49');
       busy=true;
@@ -111,14 +126,26 @@ const runtime = String.raw`
       finally{busy=false;}
     }
     if(individual){applyIndividualPresentation();tuneSplitDialog();}
+    else clearIndividualPresentation();
   }
 
-  const observer=new MutationObserver(()=>queueMicrotask(()=>refresh().catch(()=>{})));
-  if(document.body) observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','open']});
+  function scheduleRefresh(){
+    const token=++refreshToken;
+    const delays=[0,40,120,300,700];
+    delays.forEach((delay)=>setTimeout(()=>{
+      if(token!==refreshToken) return;
+      refresh().catch(()=>{});
+    },delay));
+  }
+
   document.addEventListener('click',(event)=>{
-    if(event.target?.closest?.('[data-cash-table],#restaurantSplitEntry,[data-split-mode]')) setTimeout(()=>refresh().catch(()=>{}),0);
+    if(event.target?.closest?.('[data-tab],[data-cash-table],#restaurantSplitEntry,[data-split-mode]')) scheduleRefresh();
   },true);
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>refresh().catch(()=>{}),{once:true}); else refresh().catch(()=>{});
+  document.addEventListener('change',(event)=>{
+    if(event.target?.closest?.('[data-cash-table],#cashTable')) scheduleRefresh();
+  },true);
+  window.addEventListener('vantix:tenant-realtime',scheduleRefresh);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',scheduleRefresh,{once:true}); else scheduleRefresh();
 })();
 `;
 
