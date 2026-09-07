@@ -14,7 +14,9 @@ function paymentTreasuryChainBrowserRuntime() {
     configuredMethodOwnsDestination:true,
     legacyGenericAccountSelector:false,
     creditRequiresCustomerPortfolio:true,
-    failClosedOnConfigurationError:true
+    failClosedOnConfigurationError:true,
+    eventDrivenMount:true,
+    noMutationObserver:true
   });
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
@@ -26,6 +28,7 @@ function paymentTreasuryChainBrowserRuntime() {
   let loadingMethods = null;
   let selectedMethodId = null;
   let scanBusy = false;
+  let scanTimer = null;
   let renderKey = '';
 
   const $ = (query, root = document) => root.querySelector(query);
@@ -77,9 +80,16 @@ function paymentTreasuryChainBrowserRuntime() {
     return $('[data-cash-table].selected')?.dataset.cashTable || null;
   }
 
+  function parseMoneyText(value) {
+    const normalized = String(value || '').replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   function selectedAmount() {
-    const selected = $('[data-cash-table].selected');
-    return Number(selected?.dataset.total || selected?.dataset.cashTotal || 0);
+    const seeded = Number($('#cashReceived')?.defaultValue || 0);
+    if (Number.isFinite(seeded) && seeded >= 0) return seeded;
+    return parseMoneyText($('.cash-due-row.selected .cash-due-total b')?.textContent || '0');
   }
 
   function isOperational(method) {
@@ -270,6 +280,14 @@ function paymentTreasuryChainBrowserRuntime() {
     }
   }
 
+  function scheduleScan(force = false, delay = 0) {
+    if (scanTimer) clearTimeout(scanTimer);
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      scan(force).catch(() => {});
+    }, delay);
+  }
+
   window.addEventListener('click', (event) => {
     const methodButton = event.target?.closest?.('[data-v27-payment-method]');
     if (methodButton) {
@@ -287,6 +305,11 @@ function paymentTreasuryChainBrowserRuntime() {
       event.stopPropagation();
       event.stopImmediatePropagation();
       closeSelectedTable(close).catch((error) => { setMessage(error.message, true); close.disabled = false; });
+      return;
+    }
+    if (event.target?.closest?.('[data-cash-table],[data-tab="caja"],.cash-collect-close-v40')) {
+      scheduleScan(false, 0);
+      setTimeout(() => scheduleScan(false, 0), 120);
     }
   }, true);
 
@@ -294,20 +317,20 @@ function paymentTreasuryChainBrowserRuntime() {
     if (['cashReceived','tip','parts'].includes(event.target?.id)) queueMicrotask(refreshAmounts);
   }, true);
 
+  window.addEventListener('pageshow', () => scheduleScan(false, 0));
+  window.addEventListener('focus', () => scheduleScan(false, 0));
   window.addEventListener('vantix:tenant-realtime', (event) => {
     const topics = event.detail?.topics || event.detail?.event?.topics || [];
     if (!Array.isArray(topics) || (!topics.includes('treasury') && !topics.includes('restaurant.account'))) return;
     if (!$('.cash-fast-panel')) return;
     methods = null;
     renderKey = '';
-    scan(true).catch(() => {});
+    scheduleScan(true, 0);
   });
 
   ensureStyle();
-  const observer = new MutationObserver(() => queueMicrotask(() => scan().catch(() => {})));
-  if (document.body) observer.observe(document.body, { childList:true, subtree:true, attributes:true, attributeFilter:['class','hidden'] });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => scan().catch(() => {}), { once:true });
-  else scan().catch(() => {});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => scheduleScan(false, 0), { once:true });
+  else scheduleScan(false, 0);
 }
 
 const paymentTreasuryChainRuntime = `;(${paymentTreasuryChainBrowserRuntime.toString()})();`;
