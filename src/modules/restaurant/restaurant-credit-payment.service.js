@@ -72,6 +72,12 @@ async function prepareCreditClose(tenantId, tableId, terceroId) {
       });
     }
 
+    const previous = {
+      terceroId: sale.terceroId || null,
+      formaPago: sale.formaPago || null,
+      cajaBancoId: sale.cajaBancoId || null,
+      fechaVencimiento: sale.fechaVencimiento || null
+    };
     const dueDate = dueDateFrom(sale.fecha, customer.diasPlazo || 0);
     await tx.comprobanteComercial.update({
       where: { id: sale.id },
@@ -86,6 +92,7 @@ async function prepareCreditClose(tenantId, tableId, terceroId) {
     return {
       sessionId: session.id,
       saleId: sale.id,
+      previous,
       customer: {
         id: customer.id,
         nombre: customer.nombre,
@@ -104,9 +111,28 @@ async function prepareCreditClose(tenantId, tableId, terceroId) {
   });
 }
 
+async function restorePreparedCredit(tenantId, prepared) {
+  if (!prepared?.saleId || !prepared?.previous) return false;
+  const result = await prisma.comprobanteComercial.updateMany({
+    where: {
+      id: prepared.saleId,
+      tenantId,
+      estado: 'BORRADOR'
+    },
+    data: {
+      terceroId: prepared.previous.terceroId,
+      formaPago: prepared.previous.formaPago,
+      cajaBancoId: prepared.previous.cajaBancoId,
+      fechaVencimiento: prepared.previous.fechaVencimiento
+    }
+  });
+  return result.count > 0;
+}
+
 module.exports = {
   CUSTOMER_TYPES,
   GENERIC_CUSTOMER_IDENTIFICATION,
   dueDateFrom,
-  prepareCreditClose
+  prepareCreditClose,
+  restorePreparedCredit
 };
