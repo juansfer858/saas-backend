@@ -11,9 +11,17 @@ const paymentChain = require('../src/modules/restaurant/restaurant-payment-chain
 async function main() {
   assert.equal(paymentChain.MARKER, 'VANTIX_RESTAURANT_PAYMENT_CHAIN_V43');
   new Function(paymentChain.runtime);
+  assert.match(paymentChain.runtime, /version:'43\.1\.0'/);
   assert.match(paymentChain.runtime, /cashOnlyToCashAccount:true/);
   assert.match(paymentChain.runtime, /bankOnlyToBankAccount:true/);
   assert.match(paymentChain.runtime, /creditRequiresCustomer:true/);
+  assert.match(paymentChain.runtime, /selectionSurvivesRerender:true/);
+  assert.match(paymentChain.runtime, /methodSelectionAuthoritative:true/);
+  assert.match(paymentChain.runtime, /let selectedMethod='EFECTIVO'/);
+  assert.match(paymentChain.runtime, /selectedMethod=method\.dataset\.cashMethod==='BANCO'\?'BANCO':'EFECTIVO'/);
+  assert.match(paymentChain.runtime, /applyMethodVisual\(selectedMethod\)/);
+  assert.match(paymentChain.runtime, /const preferred=selectedAccountByMethod\[selectedMethod\]\|\|select\.value/);
+  assert.match(paymentChain.runtime, /El panel de Caja puede reconstruirse mientras esperamos el fetch/);
   assert.match(paymentChain.runtime, /row\.tipo===wanted/);
   assert.match(paymentChain.runtime, /\[data-cash-method="CREDITO"\]/);
   assert.match(paymentChain.runtime, /El crédito requiere seleccionar un cliente/);
@@ -83,11 +91,13 @@ async function main() {
   assert.equal(recent.paymentLabel({ cajaBanco:{ tipo:'CAJA' } }), 'EFECTIVO');
   assert.equal(recent.paymentLabel({ cajaBanco:{ tipo:'BANCO' } }), 'TARJETA / QR');
 
-  console.log('RESTAURANT PAYMENT CHAIN + TREASURY V43 SMOKE OK');
+  console.log('RESTAURANT PAYMENT CHAIN + TREASURY V43.1 SMOKE OK');
   console.log(JSON.stringify({
     cashToCashAccountOnly:true,
     bankToBankAccountOnly:true,
     creditRequiresCustomer:true,
+    selectionSurvivesRerender:true,
+    methodSelectionAuthoritative:true,
     posMovementCanonicalSource:true,
     legacyPagoTableNotRequiredForImmediatePos:true,
     treasuryRecentShowsCash:true,
