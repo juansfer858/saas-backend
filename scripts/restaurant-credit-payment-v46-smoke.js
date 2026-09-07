@@ -59,7 +59,7 @@ async function main() {
   }));
   await prisma.consumptionRecipe.create({
     data:{ tenantId:tenant.id, code:`REC-CREDIT-${stamp}`, name:'Receta Crédito QA', outputProductId:dish.id, active:true,
-      items:{ create:[{ tenantId:tenant.id, ingredientProductId:ingredient.id, quantity:1, unitLabel:'UND' }] } }
+      items:{ create:[{ tenantId:tenant.id, ingredientProductId:ingredient.id, quantity:1, unitLabel:'UND' }] }
   });
   const menuItem = await restaurant.saveMenuItem(tenant.id, null, {
     productId:dish.id, category:'FUERTES', station:'COCINA', requiresRecipe:true, active:true, sortOrder:10
@@ -105,6 +105,9 @@ async function main() {
   assert.ok(closeEnough(cargo.saldoNuevo, 10000));
 
   const blockedTable = await createSaleTable(tenant.id, user, menuItem.id, 'CR2');
+  const blockedBefore = await prisma.comprobanteComercial.findUnique({ where:{ id:blockedTable.opened.sale.id } });
+  assert.ok(blockedBefore.terceroId, 'la venta POS nace con el cliente genérico canónico');
+  assert.notEqual(blockedBefore.terceroId, lowLimitCustomer.id);
   let limitError = null;
   try {
     await credit.prepareCreditClose(tenant.id, blockedTable.table.id, lowLimitCustomer.id);
@@ -114,7 +117,9 @@ async function main() {
   assert.equal(limitError?.code, 'RESTAURANT_CREDIT_LIMIT_EXCEEDED');
   const blockedSale = await prisma.comprobanteComercial.findUnique({ where:{ id:blockedTable.opened.sale.id } });
   assert.equal(blockedSale.estado, 'BORRADOR');
-  assert.equal(blockedSale.terceroId, null, 'si supera cupo no debe asociar ni emitir la venta');
+  assert.equal(blockedSale.terceroId, blockedBefore.terceroId, 'si supera cupo debe conservar el cliente genérico previo');
+  assert.notEqual(blockedSale.terceroId, lowLimitCustomer.id, 'el cliente rechazado no puede quedar asociado');
+  assert.notEqual(blockedSale.formaPago, 'CREDITO', 'si supera cupo no debe dejar la venta marcada a crédito');
 
   console.log('RESTAURANT CREDIT PAYMENT V46 SMOKE OK');
   console.log(JSON.stringify({
@@ -122,6 +127,7 @@ async function main() {
     customerRequired:true,
     dueDaysApplied:true,
     creditLimitEnforced:true,
+    rejectedCreditLeavesDraftUntouched:true,
     cxcCreated:true,
     carteraChargeCreated:true,
     tableClosedAndFreed:true,
