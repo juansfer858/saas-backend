@@ -5,6 +5,7 @@ const { AppError } = require('../../utils/app-error');
 const { money } = require('../../utils/decimal');
 
 const CUSTOMER_TYPES = Object.freeze(['CLIENTE', 'CLIENTE_PROVEEDOR']);
+const GENERIC_CUSTOMER_IDENTIFICATION = '222222222222';
 
 function dueDateFrom(saleDate, days) {
   const due = new Date(saleDate || Date.now());
@@ -39,8 +40,8 @@ async function prepareCreditClose(tenantId, tableId, terceroId) {
         tipo: { in: CUSTOMER_TYPES }
       }
     });
-    if (!customer) {
-      throw new AppError(400, 'El cliente seleccionado no está activo o no es un cliente válido', 'RESTAURANT_CREDIT_CUSTOMER_INVALID');
+    if (!customer || String(customer.identificacion || '').trim() === GENERIC_CUSTOMER_IDENTIFICATION) {
+      throw new AppError(400, 'El crédito requiere un cliente identificado y activo', 'RESTAURANT_CREDIT_CUSTOMER_INVALID');
     }
 
     const receivables = await tx.cartera.aggregate({
@@ -105,6 +106,7 @@ async function prepareCreditClose(tenantId, tableId, terceroId) {
 
 module.exports = {
   CUSTOMER_TYPES,
+  GENERIC_CUSTOMER_IDENTIFICATION,
   dueDateFrom,
   prepareCreditClose
 };
