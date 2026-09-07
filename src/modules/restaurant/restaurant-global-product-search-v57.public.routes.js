@@ -5,7 +5,10 @@ const HEADER_VALUE = 'v57-all-menu';
 
 function requiredReplace(source, needle, replacement, label) {
   if (!source.includes(needle)) throw new Error(`${MARKER}_${label}_TARGET_NOT_FOUND`);
-  return source.replace(needle, replacement);
+  // String.replace interpreta `$$` dentro de un replacement string como un solo `$`.
+  // Usar callback conserva el replacement literalmente; esto es crítico porque el
+  // helper de selección múltiple del Centro es `$$`, mientras `$` devuelve un solo nodo.
+  return source.replace(needle, () => replacement);
 }
 
 function replaceRange(source, startNeedle, endNeedle, replacement, label) {
