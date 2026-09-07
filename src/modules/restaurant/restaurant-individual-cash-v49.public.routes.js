@@ -16,7 +16,6 @@ const runtime = String.raw`
 
   const nativeFetch=window.fetch.bind(window);
   const $=(q,r=document)=>r.querySelector(q);
-  const $$=(q,r=document)=>[...r.querySelectorAll(q)];
   let busy=false;
   let lastTableId='';
   let individual=false;
@@ -34,7 +33,7 @@ const runtime = String.raw`
     if($('#individualCashV49Style')) return;
     const style=document.createElement('style');
     style.id='individualCashV49Style';
-    style.textContent='.cash-individual-note-v49{margin:10px 0;padding:11px 12px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4;color:#166534;font-size:12px;line-height:1.4}.cash-individual-note-v49 b{display:block;margin-bottom:2px}.cash-individual-mode-v49 #restaurantSplitEntry{order:2}.cash-individual-mode-v49 #closeTable{order:3}.cash-individual-mode-v49 #restaurantSplitEntry{background:#0d6b43!important;border-color:#0d6b43!important;color:#fff!important}.cash-individual-mode-v49 #closeTable{background:#fff!important;border-color:#cbd5e1!important;color:#334155!important;box-shadow:none!important}';
+    style.textContent='.cash-individual-note-v49{margin:10px 0;padding:11px 12px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4;color:#166534;font-size:12px;line-height:1.4}.cash-individual-note-v49 b{display:block;margin-bottom:2px}.cash-individual-mode-v49 #restaurantSplitEntry{background:#0d6b43!important;border-color:#0d6b43!important;color:#fff!important}.cash-individual-mode-v49 #closeTable{background:#fff!important;border-color:#cbd5e1!important;color:#334155!important;box-shadow:none!important}';
     document.head.appendChild(style);
   }
 
@@ -99,8 +98,9 @@ const runtime = String.raw`
   async function refresh(){
     if(busy) return;
     const tableId=selectedTableId();
-    if(!tableId){lastTableId='';individual=false;return;}
+    if(!tableId){lastTableId='';individual=false;$('#restaurantSplitPaymentDialog')?.removeAttribute('data-individual-v49');return;}
     if(tableId!==lastTableId){
+      $('#restaurantSplitPaymentDialog')?.removeAttribute('data-individual-v49');
       busy=true;
       try{
         const rows=await api('/api/v1/restaurante/mesas');
