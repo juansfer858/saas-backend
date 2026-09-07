@@ -64,7 +64,7 @@ jobs:
               done
               OP="$(mktemp)"
               curl -fsS "$BASE/app/restaurant-ui.js?v=v58-compose-$GITHUB_SHA" -o "$OP" || ok=0
-              grep -Fq 'COBRAR ${esc(String(table.name' "$OP" || ok=0
+              grep -Fq 'Cuenta solicitada · abrir Caja' "$OP" || ok=0
               grep -Fq "setTab('caja')" "$OP" || ok=0
               grep -Fq 'VANTIX_RESTAURANT_GLOBAL_PRODUCT_SEARCH_V57' "$OP" || ok=0
               if [ "$ok" -eq 1 ]; then
