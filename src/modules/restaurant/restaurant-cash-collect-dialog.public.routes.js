@@ -1,18 +1,48 @@
 'use strict';
 
 const MARKER = 'VANTIX_RESTAURANT_CASH_COLLECT_DIALOG_V40';
+const SPLIT_STATIC_MARKER = 'VANTIX_RESTAURANT_SPLIT_STATIC_ENTRY_V76_2';
+const SPLIT_BRIDGE_MARKER = 'VANTIX_RESTAURANT_SPLIT_BRIDGE_V76_2';
+
+function patchStaticSplitEntry(source) {
+  if (typeof source !== 'string') return source;
+  let patched = source;
+
+  // Put the split entry directly in the real Cobrar Mesa template. This is a
+  // source-level composition performed on the server; it does not depend on a
+  // MutationObserver, polling or loading another script after the page opens.
+  const cashDetailsAnchor = '<details class="cash-more-options"><summary>Propina y división de cuenta</summary>';
+  if (!patched.includes(SPLIT_STATIC_MARKER) && patched.includes(cashDetailsAnchor)) {
+    const staticEntry = `<button id="restaurantSplitEntry" data-vantix-split-static="${SPLIT_STATIC_MARKER}" data-table-id="\${selected.id}" type="button" class="rvp-split-entry">DIVIDIR CUENTA · PRODUCTOS / PERSONAS</button>\n          `;
+    patched = patched.replace(cashDetailsAnchor, `${staticEntry}${cashDetailsAnchor}`);
+  }
+
+  // The existing payment engine already owns the split dialog and all
+  // transactional endpoints. Expose only its open function so the static Caja
+  // button can call the canonical implementation without duplicating payment
+  // logic or dynamically reloading restaurant-visit-payments-ui.js.
+  const bridgeAnchor = '  ensureStyles();\n  const observer =';
+  if (!patched.includes(SPLIT_BRIDGE_MARKER) && patched.includes(bridgeAnchor)) {
+    const bridge = `  window.VantixRestaurantSplitPayments=Object.freeze({marker:'${SPLIT_BRIDGE_MARKER}',open:openSplitDialog});\n\n`;
+    patched = patched.replace(bridgeAnchor, `${bridge}${bridgeAnchor}`);
+  }
+
+  return patched;
+}
 
 const runtime = String.raw`
 ;(()=>{
   'use strict';
   const MARKER='VANTIX_RESTAURANT_CASH_COLLECT_DIALOG_V40';
   if(window[MARKER]) return;
-  window[MARKER]=Object.freeze({version:'40.0.0',directCollectDialog:true,noScrollDependency:true,rerenderSafe:true,orphanBackdropGuard:true});
+  window[MARKER]=Object.freeze({version:'40.1.0',directCollectDialog:true,noScrollDependency:true,rerenderSafe:true,orphanBackdropGuard:true,staticSplitEntryBridge:true});
 
   const STYLE_ID='vantix-cash-collect-dialog-v40-style';
   const BACKDROP_ID='vantixCashCollectBackdropV40';
   const DIALOG_CLASS='cash-collect-dialog-v40';
   const CLOSE_CLASS='cash-collect-close-v40';
+  const SPLIT_STATIC_MARKER='VANTIX_RESTAURANT_SPLIT_STATIC_ENTRY_V76_2';
+  const SPLIT_BRIDGE_MARKER='VANTIX_RESTAURANT_SPLIT_BRIDGE_V76_2';
   let activeTableId=null;
   let restoreScrollY=0;
   let stabilityToken=0;
@@ -149,6 +179,18 @@ const runtime = String.raw`
   }
 
   document.addEventListener('click',(event)=>{
+    const split=event.target?.closest?.('#restaurantSplitEntry[data-vantix-split-static="'+SPLIT_STATIC_MARKER+'"]');
+    if(split){
+      const tableId=split.dataset.tableId||[...document.querySelectorAll('[data-cash-table].selected')][0]?.dataset.cashTable||null;
+      const bridge=window.VantixRestaurantSplitPayments;
+      if(tableId&&bridge?.marker===SPLIT_BRIDGE_MARKER&&typeof bridge.open==='function'){
+        bridge.open(tableId);
+      }else{
+        console.error('RESTAURANT_SPLIT_BRIDGE_UNAVAILABLE_V76_2');
+      }
+      return;
+    }
+
     const row=event.target?.closest?.('[data-cash-table]');
     if(row?.dataset.cashTable){
       beginOpen(row.dataset.cashTable);
@@ -168,8 +210,9 @@ function installCashCollectDialogRuntime(req, res, next) {
   res.send = (body) => {
     const isBuffer = Buffer.isBuffer(body);
     const source = isBuffer ? body.toString('utf8') : (typeof body === 'string' ? body : null);
-    if (source && !source.includes(MARKER)) {
-      const patched = `${source}\n;${runtime}\n`;
+    if (source) {
+      let patched = patchStaticSplitEntry(source);
+      if (!patched.includes(MARKER)) patched = `${patched}\n;${runtime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
     res.set('X-VantixGC-Cash-Collect', 'v40-rerender-safe-dialog');
@@ -178,4 +221,11 @@ function installCashCollectDialogRuntime(req, res, next) {
   return next();
 }
 
-module.exports = { MARKER, runtime, installCashCollectDialogRuntime };
+module.exports = {
+  MARKER,
+  SPLIT_STATIC_MARKER,
+  SPLIT_BRIDGE_MARKER,
+  runtime,
+  patchStaticSplitEntry,
+  installCashCollectDialogRuntime
+};
