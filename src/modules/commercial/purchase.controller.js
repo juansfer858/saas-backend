@@ -1,13 +1,14 @@
 const service = require('./purchase.service');
 const cancelService = require('./purchase-cancel.service');
 const commercialService = require('./commercial.service');
+const thirdPartyService = require('../third-parties/third-party.service');
 const { commercialDocumentSchema } = require('./commercial.schemas');
-const { purchaseDraftSchema, purchaseUpdateSchema, purchaseCancelSchema } = require('./purchase.schemas');
+const { purchaseDraftSchema, purchaseUpdateSchema, purchaseCancelSchema, quickSupplierSchema } = require('./purchase.schemas');
 const { AppError } = require('../../utils/app-error');
 
-function parse(schema, value) {
+function parse(schema, value, message = 'Datos de compra inválidos') {
   const result = schema.safeParse(value);
-  if (!result.success) throw new AppError(400, 'Datos de compra inválidos', 'VALIDATION_ERROR', result.error.flatten());
+  if (!result.success) throw new AppError(400, message, 'VALIDATION_ERROR', result.error.flatten());
   return result.data;
 }
 
@@ -33,6 +34,34 @@ async function list(req, res, next) {
       pageSize: req.query.pageSize || req.query.limit
     });
     res.json({ ok: true, data: result.items, meta: result.meta });
+  } catch (error) { next(error); }
+}
+
+async function listSuppliers(req, res, next) {
+  try {
+    // Endpoint acotado al flujo de Compras. Un usuario con permiso de Compras puede
+    // seleccionar proveedores sin recibir acceso administrativo al módulo Terceros.
+    const [suppliers, dual] = await Promise.all([
+      thirdPartyService.list(req.tenantId, { tipo: 'PROVEEDOR', activo: true, limit: 500 }),
+      thirdPartyService.list(req.tenantId, { tipo: 'CLIENTE_PROVEEDOR', activo: true, limit: 500 })
+    ]);
+    const data = [...suppliers, ...dual].sort((a, b) =>
+      String(a.razonSocial || a.nombre || '').localeCompare(String(b.razonSocial || b.nombre || ''), 'es')
+    );
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+}
+
+async function createQuickSupplier(req, res, next) {
+  try {
+    const input = parse(quickSupplierSchema, req.body, 'Datos de proveedor inválidos');
+    const data = await thirdPartyService.create(req.tenantId, {
+      tipo: 'PROVEEDOR',
+      ...input,
+      cupoCredito: 0,
+      activo: true
+    });
+    res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
 }
 
@@ -80,4 +109,13 @@ async function cancel(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, get, createDraft, updateDraft, emit, cancel };
+module.exports = {
+  list,
+  listSuppliers,
+  createQuickSupplier,
+  get,
+  createDraft,
+  updateDraft,
+  emit,
+  cancel
+};
