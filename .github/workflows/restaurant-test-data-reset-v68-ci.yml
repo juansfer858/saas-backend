@@ -1,0 +1,77 @@
+name: Restaurant Test Data Reset V68 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-test-data-reset-v68.service.js'
+      - 'src/modules/restaurant/restaurant-test-data-reset-v68.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
+      - 'scripts/restaurant-test-data-reset-v68-smoke.js'
+      - '.github/workflows/restaurant-test-data-reset-v68-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-test-data-reset-v68.service.js'
+      - 'src/modules/restaurant/restaurant-test-data-reset-v68.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
+      - 'scripts/restaurant-test-data-reset-v68-smoke.js'
+      - '.github/workflows/restaurant-test-data-reset-v68-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Validate syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-test-data-reset-v68.service.js
+          node --check src/modules/restaurant/restaurant-test-data-reset-v68.routes.js
+          node --check src/web/restaurant-company-admin-advanced.js
+          node --check src/routes/core.routes.js
+      - name: Validate universal reset contract
+        run: node scripts/restaurant-test-data-reset-v68-smoke.js
+      - name: Load application graph
+        run: node -e "require('./src/app')"
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact V68 commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              JS="$(curl -fsS "$BASE/app/restaurant-company-admin-advanced.js?v=v68-$GITHUB_SHA" 2>/dev/null || true)"
+              if echo "$JS" | grep -Fq 'VANTIX_RESTAURANT_TEST_DATA_RESET_V68' \
+                && echo "$JS" | grep -Fq '/api/v1/restaurante/limpieza-pruebas/v68/resumen' \
+                && echo "$JS" | grep -Fq 'Disponible para todos los tenants del nicho'; then
+                echo "V68 universal reset is live for exact commit $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V68 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
