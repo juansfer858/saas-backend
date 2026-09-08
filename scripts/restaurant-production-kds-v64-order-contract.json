@@ -1,0 +1,14 @@
+{
+  "version": "64.0.0",
+  "surface": "/app/produccion",
+  "operatorNameVisible": false,
+  "ageVisible": true,
+  "productNameFontPx": 18,
+  "preserve": [
+    "TOMAR",
+    "MARCAR_LISTO",
+    "MARCAR_ENTREGADO",
+    "NOTAS_PRODUCTO",
+    "VINCULACION_TABLET_V63"
+  ]
+}
