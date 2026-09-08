@@ -26,6 +26,7 @@ const { installRestaurantAccountAttentionV58 } = require('./restaurant-account-a
 const { installRestaurantQrProductNotesV61 } = require('./restaurant-qr-product-notes-v61.public.routes');
 const { installRestaurantCashCloseMethodsV62 } = require('./restaurant-cash-close-methods-v62.public.routes');
 const { restaurantPushV65PublicRouter, installRestaurantPushV65 } = require('./restaurant-push-v65.public.routes');
+const { installRestaurantTableLiveDetailV67 } = require('./restaurant-table-live-detail-v67.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -87,6 +88,9 @@ router.use(platformEdgeRolloutPublicRouter);
 // tenant filtering and device registration stay under /api/v1/notificaciones/push-v65.
 router.use(restaurantPushV65PublicRouter);
 router.use(installRestaurantPushV65);
+// V67 wraps the final Centro de Control asset and turns each table into a live
+// operational detail: ordered, preparing, ready, delivered and empty-opening cancel.
+router.use(installRestaurantTableLiveDetailV67);
 // V62 is outermost for Caja: it sees the final V45/V43 payment composition and
 // separates Transferencia/QR, Tarjeta, Efectivo and Crédito in the shift close summary.
 router.use(installRestaurantCashCloseMethodsV62);

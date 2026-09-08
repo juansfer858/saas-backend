@@ -1,0 +1,87 @@
+name: Restaurant Table Live Detail V67 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.service.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.routes.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'scripts/restaurant-table-live-detail-v67-smoke.js'
+      - '.github/workflows/restaurant-table-live-detail-v67-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.service.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.routes.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'scripts/restaurant-table-live-detail-v67-smoke.js'
+      - '.github/workflows/restaurant-table-live-detail-v67-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vantix_v67_ci
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Validate syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-table-live-detail-v67.service.js
+          node --check src/modules/restaurant/restaurant-table-live-detail-v67.routes.js
+          node --check src/modules/restaurant/restaurant-table-live-detail-v67.public.routes.js
+          node --check src/modules/restaurant/restaurant.public.routes.js
+          node --check src/routes/core.routes.js
+      - name: Validate live table contract
+        run: node scripts/restaurant-table-live-detail-v67-smoke.js
+      - name: Load application graph
+        run: node -e "require('./src/app'); console.log('V67_APP_GRAPH_OK')"
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK $GITHUB_SHA"
+                break
+              fi
+            fi
+            if [ "$attempt" = 60 ]; then exit 1; fi
+            sleep 10
+          done
+      - name: Verify V67 asset in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -D /tmp/v67.headers -o /tmp/v67.js "https://core.vantixgc.com/app/restaurant-ui.js?v=table-live-v67-${GITHUB_SHA}"
+          grep -qi 'x-vantixgc-restaurant-table-live-detail: v67-live-detail' /tmp/v67.headers
+          grep -q 'VANTIX_RESTAURANT_TABLE_LIVE_DETAIL_V67' /tmp/v67.js
+          grep -q 'Falta entregar' /tmp/v67.js
+          grep -q 'Cerrar mesa abierta por error' /tmp/v67.js
+          echo 'PRODUCTION_TABLE_LIVE_DETAIL_V67_OK'

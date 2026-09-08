@@ -35,6 +35,7 @@ const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaura
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
 const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaurant-employee-work.routes');
 const { restaurantTestDataResetV66Router } = require('../modules/restaurant/restaurant-test-data-reset-v66.routes');
+const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/restaurant-table-live-detail-v67.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -88,6 +89,9 @@ router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
+// V67 agrega lectura operativa completa por mesa y permite descartar únicamente
+// una apertura totalmente vacía. No reutiliza el cierre de venta/cobro.
+router.use('/restaurante', restaurantTableLiveDetailV67Router);
 // V66 sólo existe para el tenant de demostración y requiere permiso de Administración.
 // Se monta antes del router base para que la limpieza destructiva quede aislada y reversible.
 router.use('/restaurante', restaurantTestDataResetV66Router);
