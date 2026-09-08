@@ -8,18 +8,15 @@ const runtime = String.raw`
   const MARKER='VANTIX_RESTAURANT_PERSON_PRODUCT_SPLIT_V76';
   if(window[MARKER]) return;
   window[MARKER]=Object.freeze({
-    version:'76.1.0',
+    version:'76.0.1',
     cashPersonProductSplit:true,
     preservesEqualSplit:true,
     reusesSplitPaymentEngine:true,
     independentPartPayments:true,
-    selfHealingSplitEntry:true,
-    verifiesVisibleEntry:true
+    mutationStable:true
   });
 
   const SESSION_KEY='vantixgc_core_session_v1';
-  const FALLBACK_ID='restaurantSplitFallbackV761';
-  const RECOVERY_SCRIPT_ID='restaurantSplitRecoveryScriptV761';
   let session=null;
   try{session=JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{}
   if(!session?.token||!session?.subdomain) return;
@@ -31,13 +28,14 @@ const runtime = String.raw`
   let preferProductMode=false;
   let enrichBusy=false;
   let enrichKey='';
-  let recoveryPromise=null;
-  let recoveryTableId='';
 
   async function api(path){
     const response=await nativeFetch(path,{
       cache:'no-store',
-      headers:{Authorization:'Bearer '+session.token,'x-tenant-subdomain':session.subdomain}
+      headers:{
+        Authorization:'Bearer '+session.token,
+        'x-tenant-subdomain':session.subdomain
+      }
     });
     let body={};
     try{body=await response.json()}catch{}
@@ -71,7 +69,7 @@ const runtime = String.raw`
     if($('#restaurantPersonProductSplitV76Style')) return;
     const style=document.createElement('style');
     style.id='restaurantPersonProductSplitV76Style';
-    style.textContent='\n      .cash-person-product-entry-v76{width:100%;margin:12px 0 4px!important;min-height:58px!important;border:2px solid #0d6b43!important;border-radius:13px!important;background:#0d6b43!important;color:#fff!important;font-weight:900!important;font-size:14px!important;box-shadow:0 8px 18px rgba(13,107,67,.14);cursor:pointer}\n      .cash-person-product-entry-v76[disabled]{opacity:.65;cursor:wait}\n      .cash-split-hint-v76{margin:0 0 10px;padding:0 2px;color:#667178;font-size:11px;line-height:1.4}\n      .cash-equal-help-v76{display:block;margin-top:4px;color:#667178;font-size:10px;font-weight:600;line-height:1.3}\n      .rvp-people-v76{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:12px;align-items:end;margin-top:12px;padding:12px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4}\n      .rvp-people-v76 b{display:block;color:#166534;font-size:13px}.rvp-people-v76 span{display:block;margin-top:3px;color:#667178;font-size:11px;line-height:1.35}\n      .rvp-people-v76 label{display:grid;gap:5px;font-size:11px;font-weight:850;color:#334155}.rvp-people-v76 input{min-height:44px;width:100%;border:1px solid #b9c8c0;border-radius:9px;background:#fff;padding:0 10px;font-weight:900;font-size:16px}\n      .rvp-products-v76{margin-top:5px;color:#475569;font-size:11px;line-height:1.4}\n      @media(max-width:640px){.rvp-people-v76{grid-template-columns:1fr}}\n    ';
+    style.textContent='\n      .cash-person-product-entry-v76{margin:12px 0 4px!important;min-height:58px!important;background:#0d6b43!important;color:#fff!important;border-color:#0d6b43!important;box-shadow:0 8px 18px rgba(13,107,67,.14)}\n      .cash-split-hint-v76{margin:0 0 10px;padding:0 2px;color:#667178;font-size:11px;line-height:1.4}\n      .cash-equal-help-v76{display:block;margin-top:4px;color:#667178;font-size:10px;font-weight:600;line-height:1.3}\n      .rvp-people-v76{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:12px;align-items:end;margin-top:12px;padding:12px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4}\n      .rvp-people-v76 b{display:block;color:#166534;font-size:13px}.rvp-people-v76 span{display:block;margin-top:3px;color:#667178;font-size:11px;line-height:1.35}\n      .rvp-people-v76 label{display:grid;gap:5px;font-size:11px;font-weight:850;color:#334155}.rvp-people-v76 input{min-height:44px;width:100%;border:1px solid #b9c8c0;border-radius:9px;background:#fff;padding:0 10px;font-weight:900;font-size:16px}\n      .rvp-products-v76{margin-top:5px;color:#475569;font-size:11px;line-height:1.4}\n      .rvp-products-v76 strong{display:inline!important;font-size:11px!important;color:#334155}\n      @media(max-width:640px){.rvp-people-v76{grid-template-columns:1fr}}\n    ';
     document.head.appendChild(style);
   }
 
@@ -79,116 +77,20 @@ const runtime = String.raw`
     const parts=$('#parts',panel);
     const label=parts?.closest('label');
     if(!label) return;
-    if(!label.dataset.personSplitV761){
-      label.dataset.personSplitV761='1';
-      const textNode=[...label.childNodes].find((node)=>node.nodeType===Node.TEXT_NODE&&/Dividir en partes iguales|Partes iguales/i.test(node.nodeValue||''));
+    if(!label.dataset.personSplitV76){
+      label.dataset.personSplitV76='1';
+      const textNode=[...label.childNodes].find((node)=>node.nodeType===Node.TEXT_NODE&&/Dividir en partes iguales/i.test(node.nodeValue||''));
       if(textNode) textNode.nodeValue='Partes iguales (opcional)';
-      if(!$('.cash-equal-help-v76',label)){
-        const help=document.createElement('span');
-        help.className='cash-equal-help-v76';
-        help.textContent='Sólo reparte el valor total por igual. Para separar lo que consumió cada persona usa el botón verde.';
-        label.appendChild(help);
-      }
+      const help=document.createElement('span');
+      help.className='cash-equal-help-v76';
+      help.textContent='Sólo reparte el valor total por igual. Para separar lo que consumió cada persona usa el botón verde.';
+      label.appendChild(help);
     }
-  }
-
-  function canonicalEntry(tableId){
-    const entry=$('#restaurantSplitEntry',cashPanel()||document);
-    return entry&&(!tableId||entry.dataset.tableId===tableId)?entry:null;
-  }
-
-  function waitForCanonicalEntry(tableId,timeoutMs=3500){
-    return new Promise((resolve)=>{
-      const started=Date.now();
-      const tick=()=>{
-        const entry=canonicalEntry(tableId);
-        if(entry) return resolve(entry);
-        if(Date.now()-started>=timeoutMs) return resolve(null);
-        setTimeout(tick,60);
-      };
-      tick();
-    });
-  }
-
-  function wakeCanonicalObserver(panel){
-    if(!panel) return;
-    const probe=document.createElement('span');
-    probe.hidden=true;
-    probe.setAttribute('data-v76-split-wakeup','1');
-    panel.appendChild(probe);
-    queueMicrotask(()=>probe.remove());
-  }
-
-  function loadCanonicalSplitUi(tableId){
-    const existing=canonicalEntry(tableId);
-    if(existing) return Promise.resolve(existing);
-    if(recoveryPromise&&recoveryTableId===tableId) return recoveryPromise;
-    recoveryTableId=tableId;
-    recoveryPromise=(async()=>{
-      const panel=cashPanel();
-      wakeCanonicalObserver(panel);
-      await new Promise((resolve)=>setTimeout(resolve,120));
-      let entry=canonicalEntry(tableId);
-      if(entry) return entry;
-
-      let script=$('#'+RECOVERY_SCRIPT_ID);
-      if(!script){
-        script=document.createElement('script');
-        script.id=RECOVERY_SCRIPT_ID;
-        script.src='/app/restaurant-visit-payments-ui.js?v=v76-1-recovery';
-        script.async=true;
-        document.head.appendChild(script);
-      }
-      await new Promise((resolve,reject)=>{
-        if(script.dataset.loaded==='1') return resolve();
-        const done=()=>{script.dataset.loaded='1';resolve();};
-        const fail=()=>reject(new Error('No se pudo cargar el motor visual de cuenta separada.'));
-        script.addEventListener('load',done,{once:true});
-        script.addEventListener('error',fail,{once:true});
-      });
-      wakeCanonicalObserver(cashPanel());
-      entry=await waitForCanonicalEntry(tableId,3500);
-      if(!entry) throw new Error('La división de cuenta no pudo montarse en Caja.');
-      return entry;
-    })().finally(()=>{recoveryPromise=null;});
-    return recoveryPromise;
-  }
-
-  function placeFallbackEntry(panel,tableId,details){
-    if(!panel||!tableId||isIndividualCash()) return;
-    let fallback=$('#'+FALLBACK_ID,panel);
-    if(!fallback){
-      fallback=document.createElement('button');
-      fallback.id=FALLBACK_ID;
-      fallback.type='button';
-      fallback.className='cash-person-product-entry-v76';
-      fallback.textContent='DIVIDIR CUENTA · PRODUCTOS / PERSONAS';
-      fallback.addEventListener('click',async()=>{
-        const currentTable=selectedTableId();
-        if(!currentTable) return;
-        preferProductMode=true;
-        fallback.disabled=true;
-        fallback.textContent='ABRIENDO DIVISIÓN…';
-        try{
-          const entry=await loadCanonicalSplitUi(currentTable);
-          fallback.remove();
-          entry.click();
-          schedule();
-        }catch(error){
-          alert(error.message||'No fue posible abrir la división de cuenta.');
-          fallback.disabled=false;
-          fallback.textContent='DIVIDIR CUENTA · PRODUCTOS / PERSONAS';
-        }
-      });
-    }
-    fallback.dataset.tableId=tableId;
-    if(details&&fallback.nextElementSibling!==details) details.insertAdjacentElement('beforebegin',fallback);
   }
 
   function placeCashEntry(){
     const panel=cashPanel();
-    const tableId=selectedTableId();
-    if(!panel||!tableId) return;
+    if(!panel) return;
     ensureStyles();
     equalLabelPresentation(panel);
 
@@ -198,14 +100,9 @@ const runtime = String.raw`
       if(summary&&summary.textContent!=='Propina y partes iguales (opcional)') summary.textContent='Propina y partes iguales (opcional)';
     }
 
-    const entry=canonicalEntry(tableId);
-    if(!entry){
-      placeFallbackEntry(panel,tableId,details);
-      loadCanonicalSplitUi(tableId).then(()=>schedule()).catch(()=>{});
-      return;
-    }
+    const entry=$('#restaurantSplitEntry',panel);
+    if(!entry) return;
 
-    $('#'+FALLBACK_ID,panel)?.remove();
     if(isIndividualCash()){
       entry.classList.remove('cash-person-product-entry-v76');
       $('#cashSplitHintV76',panel)?.remove();
@@ -213,12 +110,16 @@ const runtime = String.raw`
     }
 
     const liveText=entry.textContent||'';
-    if(!/PENDIENTE|PAGADA|Cuenta separada activa/i.test(liveText)) entry.textContent='DIVIDIR CUENTA · PRODUCTOS / PERSONAS';
+    if(!/PENDIENTE|PAGADA|Cuenta separada activa/i.test(liveText)){
+      entry.textContent='DIVIDIR CUENTA · PRODUCTOS / PERSONAS';
+    }
     entry.classList.add('cash-person-product-entry-v76');
 
-    const next=entry.nextElementSibling;
-    const placementOk=Boolean(details&&entry.parentElement===details.parentElement&&(next===details||next?.id==='cashSplitHintV76'));
-    if(details&&!placementOk) details.insertAdjacentElement('beforebegin',entry);
+    const currentNext=entry.nextElementSibling;
+    const placementOk=Boolean(details&&entry.parentElement===details.parentElement&&(currentNext===details||currentNext?.id==='cashSplitHintV76'));
+    if(details&&!placementOk){
+      details.insertAdjacentElement('beforebegin',entry);
+    }
 
     let hint=$('#cashSplitHintV76',panel);
     if(!hint&&!/PENDIENTE|PAGADA/i.test(liveText)){
@@ -245,7 +146,9 @@ const runtime = String.raw`
       const current=Math.max(1,Math.min(count,Number(select.value||1)));
       if(select.dataset.peopleV76===String(count)&&select.options.length===count) return;
       let html='';
-      for(let seat=1;seat<=count;seat+=1) html+='<option value="'+seat+'"'+(seat===current?' selected':'')+'>Persona '+seat+'</option>';
+      for(let seat=1;seat<=count;seat+=1){
+        html+='<option value="'+seat+'"'+(seat===current?' selected':'')+'>Persona '+seat+'</option>';
+      }
       select.innerHTML=html;
       select.value=String(current);
       select.dataset.peopleV76=String(count);
@@ -292,8 +195,8 @@ const runtime = String.raw`
     if(control) control.hidden=!productSelected;
     if(productSelected) ensurePeopleControl(dialog);
 
-    if(preferProductMode&&!isIndividualCash()&&byItem&&!dialog.dataset.productAutoV761){
-      dialog.dataset.productAutoV761='1';
+    if(preferProductMode&&!isIndividualCash()&&byItem&&!dialog.dataset.productAutoV76){
+      dialog.dataset.productAutoV76='1';
       preferProductMode=false;
       setTimeout(()=>{
         if(dialog.open&&byItem.isConnected){
@@ -314,7 +217,7 @@ const runtime = String.raw`
     try{
       const summary=await api('/api/v1/restaurante/mesas/'+encodeURIComponent(tableId)+'/pagos-divididos');
       if(!summary?.prepared||!['BY_ITEM','BY_SEAT'].includes(String(summary.mode||''))) return;
-      const signature=tableId+'|'+summary.sessionId+'|'+summary.parts.map((part)=>part.key+':'+(part.paid?'1':'0')).join(',');
+      const signature=tableId+'|'+summary.sessionId+'|'+summary.parts.map((p)=>p.key+':'+(p.paid?'1':'0')).join(',');
       if(enrichKey===signature&&rows.every((row)=>row.querySelector('.rvp-products-v76'))) return;
       const service=await api('/api/v1/restaurante/sesiones/'+encodeURIComponent(summary.sessionId));
       const details=service?.sale?.detalles||[];
@@ -340,7 +243,7 @@ const runtime = String.raw`
       if(h2) h2.textContent='Cobrar por persona';
       enrichKey=signature;
     }catch(error){
-      console.warn('[V76.1] No fue posible enriquecer productos por persona',error);
+      console.warn('[V76] No fue posible enriquecer productos por persona',error);
     }finally{
       enrichBusy=false;
     }
@@ -378,15 +281,17 @@ const runtime = String.raw`
     scheduled=true;
     queueMicrotask(()=>{
       scheduled=false;
-      try{placeCashEntry();tuneDialog();}catch(error){console.warn('[V76.1] UI',error)}
+      try{placeCashEntry();tuneDialog();}catch(error){console.warn('[V76] UI',error)}
     });
   }
 
   document.addEventListener('click',(event)=>{
     validateProductSplitBeforePrepare(event);
     const entry=event.target?.closest?.('#restaurantSplitEntry');
-    if(entry&&!isIndividualCash()&&!/PENDIENTE|PAGADA/i.test(entry.textContent||'')) preferProductMode=true;
-    if(event.target?.closest?.('[data-cash-table],[data-split-mode],#restaurantSplitEntry,#'+FALLBACK_ID+',#rvpPrepare,[data-pay-part]')) schedule();
+    if(entry&&!isIndividualCash()&&!/PENDIENTE|PAGADA/i.test(entry.textContent||'')){
+      preferProductMode=true;
+    }
+    if(event.target?.closest?.('[data-cash-table],[data-split-mode],#restaurantSplitEntry,#rvpPrepare,[data-pay-part]')) schedule();
   },true);
 
   document.addEventListener('change',(event)=>{
@@ -410,7 +315,7 @@ function installRestaurantPersonProductSplitV76(req, res, next) {
       const patched = `${source}\n;${runtime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
-    res.set('X-VantixGC-Person-Product-Split', 'v76.1-visible-entry-recovery');
+    res.set('X-VantixGC-Person-Product-Split', 'v76-cash-person-products');
     return originalSend(body);
   };
   return next();

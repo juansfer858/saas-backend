@@ -8,7 +8,6 @@ on:
     branches:
       - main
       - feat/restaurant-person-product-split-v76
-      - fix/restaurant-split-entry-v76-1
   workflow_dispatch:
 
 jobs:
@@ -28,7 +27,7 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run build
-      - name: Validate visible person/product split in Caja
+      - name: Validate person/product split in Caja
         run: node scripts/restaurant-person-product-split-v76-smoke.js
       - name: Preserve prior joint split waiter contract
         run: node scripts/restaurant-joint-split-v73-smoke.js
@@ -57,19 +56,16 @@ jobs:
           done
           exit 1
 
-      - name: Verify production visible person/product split runtime
+      - name: Verify production person/product split runtime
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://core.vantixgc.com"
           curl -fsSL --max-time 15 -D /tmp/restaurant-ui.headers -o /tmp/restaurant-ui.js "$BASE/app/restaurant-ui.js"
-          grep -qi '^x-vantixgc-person-product-split: v76.1-visible-entry-recovery' /tmp/restaurant-ui.headers
+          grep -qi '^x-vantixgc-person-product-split: v76-cash-person-products' /tmp/restaurant-ui.headers
           grep -q 'VANTIX_RESTAURANT_PERSON_PRODUCT_SPLIT_V76' /tmp/restaurant-ui.js
-          grep -q "version:'76.1.0'" /tmp/restaurant-ui.js
-          grep -q 'restaurantSplitFallbackV761' /tmp/restaurant-ui.js
-          grep -q 'restaurant-visit-payments-ui.js?v=v76-1-recovery' /tmp/restaurant-ui.js
           grep -q 'DIVIDIR CUENTA · PRODUCTOS / PERSONAS' /tmp/restaurant-ui.js
           grep -q 'rvpPeopleCountV76' /tmp/restaurant-ui.js
           grep -q 'Asigna productos al menos a 2 personas' /tmp/restaurant-ui.js
           grep -q 'VANTIX_RESTAURANT_INDIVIDUAL_CASH_V49' /tmp/restaurant-ui.js
-          echo "PRODUCTION_RESTAURANT_PERSON_PRODUCT_SPLIT_V76_1_OK"
+          echo "PRODUCTION_RESTAURANT_PERSON_PRODUCT_SPLIT_V76_OK"
