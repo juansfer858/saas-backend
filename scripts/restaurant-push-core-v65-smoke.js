@@ -40,7 +40,8 @@ assert.match(schema, /tokenCiphertext\s+String/);
 assert.match(schema, /model NotificationPushDelivery/);
 assert.match(schema, /@@index\(\[tenantId, role, state\]\)/);
 
-assert.match(provider, /firebase\.googleapis\.com\/v1\/projects/);
+// Endpoint oficial de Firebase Cloud Messaging HTTP v1.
+assert.match(provider, /fcm\.googleapis\.com\/v1\/projects/);
 assert.match(provider, /firebase\.messaging/);
 assert.match(provider, /oauth2\.googleapis\.com\/token/);
 assert.match(provider, /RS256/);
