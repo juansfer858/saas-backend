@@ -66,7 +66,11 @@ assert.match(pub, /notificationclick/);
 assert.match(pub, /restaurant-waiter-runtime-v7\.js/);
 assert.match(pub, /\/app\/produccion/);
 assert.doesNotMatch(pub, /restaurant-qr-ui\.js/);
-assert.ok(composition.indexOf('restaurantPushV65PublicRouter') < composition.indexOf('installRestaurantCashCloseMethodsV62'));
+const pushMount = composition.indexOf('router.use(restaurantPushV65PublicRouter);');
+const pushWrapper = composition.indexOf('router.use(installRestaurantPushV65);');
+const cashMount = composition.indexOf('router.use(installRestaurantCashCloseMethodsV62);');
+assert.ok(pushMount >= 0 && pushWrapper >= 0 && cashMount >= 0, 'Los montajes V65/V62 deben existir');
+assert.ok(pushMount < pushWrapper && pushWrapper < cashMount, 'V65 debe montar router + wrapper antes de V62');
 
 assert.match(client, /Notification\.requestPermission\(\)/);
 assert.match(client, /messaging\.getToken/);
