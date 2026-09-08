@@ -49,6 +49,21 @@ assert.match(panelRuntime, /Selecciona un producto con control de inventario act
 assert.match(panelRuntime, /\/api\/v1\/inventario\/ajustes/);
 assert.match(panelRuntime, /installInventoryAdjustmentLibrary\(\)/);
 
+// V70.1: Agregar producto debe vivir en el loader base que ya sirve el Panel.
+// No puede depender de que el bundle opcional Realtime/Core/Printing termine de cargar.
+assert.match(panelRuntime, /VANTIX_INVENTORY_PRODUCT_CREATE_V70_BASE/);
+assert.match(panelRuntime, /installInventoryProductCreatorV70/);
+assert.match(panelRuntime, /inventoryAddProductButton/);
+assert.match(panelRuntime, /\+ Agregar producto/);
+assert.match(panelRuntime, /openInventoryProductFormV70/);
+assert.match(panelRuntime, /\/api\/v1\/inventario\/productos/);
+assert.match(panelRuntime, /stockActual:0/);
+assert.match(panelRuntime, /costoPromedio:0/);
+const creatorInstall = panelRuntime.indexOf('installInventoryProductCreatorV70();');
+const optionalRuntimeFetch = panelRuntime.indexOf('await Promise.all');
+assert.ok(creatorInstall >= 0 && optionalRuntimeFetch >= 0 && creatorInstall < optionalRuntimeFetch,
+  'Agregar producto debe instalarse antes de cargar runtimes opcionales');
+
 const productCreator = fs.readFileSync('src/web/inventory-product-create-v70.js', 'utf8');
 new Function(productCreator);
 assert.match(productCreator, /VANTIX_INVENTORY_PRODUCT_CREATE_V70/);
@@ -76,6 +91,7 @@ console.log(JSON.stringify({
   remoteProductSearch:true,
   nonInventoryProductsVisibleButDisabled:true,
   inventoryAddProductButton:true,
+  inventoryCreatorBaseIndependent:true,
   inventoryProductCreateEndpoint:'/api/v1/inventario/productos',
   initialStockAccountingSafe:true
 }, null, 2));
