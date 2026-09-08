@@ -53,6 +53,7 @@ const { installCashShiftRecoveryRuntime } = require('./restaurant-cash-shift-rec
 const { installCashCollectDialogRuntime } = require('./restaurant-cash-collect-dialog.public.routes');
 const { installWaiterVisitCodeRuntime } = require('./restaurant-waiter-visit-code.public.routes');
 const { installPrintTemplateEditorRuntime } = require('./restaurant-print-template-ui.public.routes');
+const { installRestaurantPosPrintChoiceV75 } = require('./restaurant-pos-print-choice-v75.public.routes');
 const { installPosReceiptImmediateRuntime } = require('./restaurant-pos-receipt-immediate.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
@@ -156,6 +157,10 @@ router.use(installWaiterCallPcRuntime);
 // authoritative for the actual QR/Staff assets because it is mounted before surface routers.
 router.use(installRestaurantTableEnableV55);
 router.use(installPrintTemplateEditorRuntime);
+// V75 must wrap the final V38 asset. Response wrappers unwind in reverse order: V38
+// installs the Edge print trigger first and V75 replaces only that post-payment trigger
+// with the explicit Imprimir / No imprimir choice. Payment registration is untouched.
+router.use(installRestaurantPosPrintChoiceV75);
 router.use(installPosReceiptImmediateRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
