@@ -1,5 +1,7 @@
 'use strict';
 
+const { MARKER: PERSON_PRODUCT_SPLIT_V76_MARKER, runtime: personProductSplitV76Runtime } = require('./restaurant-person-product-split-v76.public.routes');
+
 const MARKER = 'VANTIX_RESTAURANT_INDIVIDUAL_CASH_V49';
 
 const runtime = String.raw`
@@ -155,11 +157,14 @@ function installRestaurantIndividualCashV49(req, res, next) {
   res.send = (body) => {
     const isBuffer = Buffer.isBuffer(body);
     const source = isBuffer ? body.toString('utf8') : (typeof body === 'string' ? body : null);
-    if (source && !source.includes(MARKER)) {
-      const patched = `${source}\n;${runtime}\n`;
+    if (source) {
+      let patched = source;
+      if (!patched.includes(MARKER)) patched = `${patched}\n;${runtime}\n`;
+      if (!patched.includes(PERSON_PRODUCT_SPLIT_V76_MARKER)) patched = `${patched}\n;${personProductSplitV76Runtime}\n`;
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
     res.set('X-VantixGC-Restaurant-Individual-Cash', 'v49-by-seat');
+    res.set('X-VantixGC-Person-Product-Split', 'v76-cash-person-products');
     return originalSend(body);
   };
   return next();
