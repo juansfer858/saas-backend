@@ -5,6 +5,7 @@ const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-waiter-device.service');
+const { restaurantProductionDeviceV63Router } = require('./restaurant-production-device-v63.routes');
 
 const router = express.Router();
 
@@ -18,6 +19,10 @@ const pairingSchema = z.object({
   userId: z.string().uuid(),
   deviceName: z.string().trim().max(80).optional().nullable()
 });
+
+// V63 comparte el mismo punto de montaje autenticado que los dispositivos Mesero,
+// pero conserva almacenamiento, authType y revocación independientes.
+router.use(restaurantProductionDeviceV63Router);
 
 router.get('/dispositivos-mesero', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listDevices(req.tenantId) }); } catch (error) { next(error); }
