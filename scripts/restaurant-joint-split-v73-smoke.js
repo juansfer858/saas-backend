@@ -26,10 +26,10 @@ assert.match(identity, /RESTAURANT_SEAT_INVALID/);
 
 const payments = fs.readFileSync(path.join(__dirname, '../src/modules/restaurant/restaurant-visit-payments.service.js'), 'utf8');
 assert.match(payments, /BY_SEAT/);
-assert.match(payments, /BY_ITEMS/);
+assert.match(payments, /BY_ITEM/);
 
 const routes = fs.readFileSync(path.join(__dirname, '../src/modules/restaurant/restaurant.routes.js'), 'utf8');
 assert.match(routes, /\/sesiones\/:sessionId\/items\/:itemId/);
-assert.match(routes, /requirePermission\('PEDIDOS', 'CREAR'\)/);
+assert.match(routes, /requirePermission\('PEDIDOS\.CREAR'\)/);
 
 console.log('RESTAURANT JOINT SPLIT V73 SMOKE OK');
