@@ -1,0 +1,81 @@
+name: Restaurant Production PWA V71 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feat/restaurant-production-pwa-v71
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate production PWA contract
+        run: node scripts/restaurant-production-pwa-v71-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA" >&2
+          exit 1
+
+      - name: Verify production installable KDS PWA
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://core.vantixgc.com"
+
+          curl -fsSL --max-time 15 -D /tmp/kds.headers -o /tmp/kds.html "$BASE/app/produccion"
+          grep -qi '^x-vantixgc-production-pwa: v71-installable' /tmp/kds.headers
+          grep -q '/app/produccion/manifest.webmanifest' /tmp/kds.html
+          grep -q '/app/produccion/pwa-v71.js' /tmp/kds.html
+          grep -q 'apple-mobile-web-app-capable' /tmp/kds.html
+
+          curl -fsSL --max-time 15 -o /tmp/manifest.json "$BASE/app/produccion/manifest.webmanifest"
+          node -e "const m=require('/tmp/manifest.json'); if(m.id!=='/app/produccion'||m.start_url!=='/app/produccion?pwa=1'||m.scope!=='/app/produccion'||m.display!=='standalone'||!Array.isArray(m.icons)||m.icons.length<2) process.exit(1)"
+
+          curl -fsSL --max-time 15 -D /tmp/sw.headers -o /tmp/sw.js "$BASE/app/produccion/sw.js"
+          grep -qi '^service-worker-allowed: /app/produccion' /tmp/sw.headers
+          grep -q 'VANTIX_RESTAURANT_PRODUCTION_PWA_V71' /tmp/sw.js
+          grep -q "url.pathname.startsWith('/api/')" /tmp/sw.js
+          grep -q "url.pathname === '/app/produccion/conectar'" /tmp/sw.js
+          grep -q "url.searchParams.has('t')" /tmp/sw.js
+
+          curl -fsSL --max-time 15 -o /tmp/pwa.js "$BASE/app/produccion/pwa-v71.js"
+          grep -q 'beforeinstallprompt' /tmp/pwa.js
+          grep -q "navigator.serviceWorker.register('/app/produccion/sw.js'" /tmp/pwa.js
+          grep -q 'Instalar ${roleLabel()}' /tmp/pwa.js
+
+          icon192=$(curl -fsSI --max-time 15 "$BASE/app/produccion/icon-192.png" | tr -d '\r' | grep -i '^content-type:' || true)
+          icon512=$(curl -fsSI --max-time 15 "$BASE/app/produccion/icon-512.png" | tr -d '\r' | grep -i '^content-type:' || true)
+          echo "$icon192" | grep -qi 'image/png'
+          echo "$icon512" | grep -qi 'image/png'
+
+          echo "PRODUCTION_RESTAURANT_PRODUCTION_PWA_V71_OK"
