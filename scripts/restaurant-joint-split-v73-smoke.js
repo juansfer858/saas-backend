@@ -22,7 +22,7 @@ assert.match(flex, /targetMode === 'INDIVIDUAL' \? 1 : null/);
 
 const identity = fs.readFileSync(path.join(__dirname, '../src/modules/restaurant/restaurant-identity.service.js'), 'utf8');
 assert.match(identity, /seatNumber/);
-assert.match(identity, /RESTAURANT_SEAT_NUMBER_INVALID/);
+assert.match(identity, /RESTAURANT_SEAT_INVALID/);
 
 const payments = fs.readFileSync(path.join(__dirname, '../src/modules/restaurant/restaurant-visit-payments.service.js'), 'utf8');
 assert.match(payments, /BY_SEAT/);
