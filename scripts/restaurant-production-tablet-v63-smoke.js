@@ -60,7 +60,7 @@ assert.match(publicRoutes, /restaurant-production-device-admin-v63\.js/);
 assert.match(publicRoutes, /X-VantixGC-Production-Device/);
 
 assert.match(admin, /VANTIX_RESTAURANT_PRODUCTION_DEVICE_ADMIN_V63/);
-assert.match(admin, /data\.productionConnect/);
+assert.match(admin, /dataset\.productionConnect/);
 assert.match(admin, /dispositivos-produccion\/vinculo/);
 assert.match(admin, /Conectar tablet/);
 
