@@ -8,11 +8,12 @@ const runtime = String.raw`
   const MARKER='VANTIX_RESTAURANT_PERSON_PRODUCT_SPLIT_V76';
   if(window[MARKER]) return;
   window[MARKER]=Object.freeze({
-    version:'76.0.0',
+    version:'76.0.1',
     cashPersonProductSplit:true,
     preservesEqualSplit:true,
     reusesSplitPaymentEngine:true,
-    independentPartPayments:true
+    independentPartPayments:true,
+    mutationStable:true
   });
 
   const SESSION_KEY='vantixgc_core_session_v1';
@@ -51,7 +52,10 @@ const runtime = String.raw`
   }
 
   function isIndividualCash(){
-    return cashPanel()?.classList.contains('cash-individual-mode-v49')||false;
+    const panel=cashPanel();
+    if(!panel) return false;
+    if(panel.classList.contains('cash-individual-mode-v49')||$('#cashIndividualNoteV49',panel)) return true;
+    return /COBRAR POR PERSONA · CADA UNO PAGA LO SUYO/i.test($('#restaurantSplitEntry',panel)?.textContent||'');
   }
 
   function guestCountFromCash(){
@@ -111,7 +115,9 @@ const runtime = String.raw`
     }
     entry.classList.add('cash-person-product-entry-v76');
 
-    if(details&&entry.nextElementSibling!==details){
+    const currentNext=entry.nextElementSibling;
+    const placementOk=Boolean(details&&entry.parentElement===details.parentElement&&(currentNext===details||currentNext?.id==='cashSplitHintV76'));
+    if(details&&!placementOk){
       details.insertAdjacentElement('beforebegin',entry);
     }
 
@@ -138,15 +144,14 @@ const runtime = String.raw`
     const count=peopleCount();
     $$('.rvp-manual-row select',dialog).forEach((select)=>{
       const current=Math.max(1,Math.min(count,Number(select.value||1)));
+      if(select.dataset.peopleV76===String(count)&&select.options.length===count) return;
       let html='';
       for(let seat=1;seat<=count;seat+=1){
         html+='<option value="'+seat+'"'+(seat===current?' selected':'')+'>Persona '+seat+'</option>';
       }
-      if(select.dataset.peopleV76!==String(count)||select.options.length!==count){
-        select.innerHTML=html;
-        select.value=String(current);
-        select.dataset.peopleV76=String(count);
-      }
+      select.innerHTML=html;
+      select.value=String(current);
+      select.dataset.peopleV76=String(count);
     });
   }
 
@@ -249,7 +254,10 @@ const runtime = String.raw`
     if(!dialog?.open) return;
     if(isIndividualCash()) return;
     const choice=tuneChoiceScreen(dialog);
-    if(!choice) enrichPaymentParts(dialog);
+    if(!choice){
+      preferProductMode=false;
+      enrichPaymentParts(dialog);
+    }
   }
 
   function validateProductSplitBeforePrepare(event){
