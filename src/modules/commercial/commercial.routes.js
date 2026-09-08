@@ -68,6 +68,10 @@ router.post('/ventas/:id/reemplazar', controller.replaceDocument);
 
 router.get('/compras', purchaseController.list);
 router.post('/compras', purchaseController.createDraft);
+// V69: proveedores visibles/creables desde Compras con los permisos del propio
+// módulo, sin abrir el CRUD administrativo de Terceros. Deben ir antes de :id.
+router.get('/compras/proveedores', purchaseController.listSuppliers);
+router.post('/compras/proveedores-rapido', purchaseController.createQuickSupplier);
 router.get('/compras/:id', purchaseController.get);
 router.patch('/compras/:id', purchaseController.updateDraft);
 router.put('/compras/:id', purchaseController.updateDraft);
