@@ -1,0 +1,85 @@
+name: Restaurant Push Core V65 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'prisma/notifications-push-v65.prisma'
+      - 'src/modules/notifications/push-v65.provider.js'
+      - 'src/modules/notifications/push-v65.service.js'
+      - 'src/modules/notifications/push-v65.routes.js'
+      - 'src/modules/restaurant/restaurant-push-v65.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-push-v65.js'
+      - 'scripts/restaurant-push-core-v65-smoke.js'
+      - '.github/workflows/restaurant-push-core-v65-ci.yml'
+      - '.env.example'
+  push:
+    branches: [main]
+    paths:
+      - 'prisma/notifications-push-v65.prisma'
+      - 'src/modules/notifications/push-v65.provider.js'
+      - 'src/modules/notifications/push-v65.service.js'
+      - 'src/modules/notifications/push-v65.routes.js'
+      - 'src/modules/restaurant/restaurant-push-v65.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-push-v65.js'
+      - 'scripts/restaurant-push-core-v65-smoke.js'
+      - '.github/workflows/restaurant-push-core-v65-ci.yml'
+      - '.env.example'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma validate
+      - name: Validate Push Core contract
+        run: node scripts/restaurant-push-core-v65-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V65 commit and Push public surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              CLIENT="$(mktemp)"
+              SW="$(mktemp)"
+              CFG="$(mktemp)"
+              if curl -fsS "$BASE/app/restaurant-push-v65.js?v=$GITHUB_SHA" -o "$CLIENT" \
+                && curl -fsS "$BASE/app/push-v65-sw.js?v=$GITHUB_SHA" -o "$SW" \
+                && curl -fsS "$BASE/api/public/restaurante/push-v65/config?v=$GITHUB_SHA" -o "$CFG" \
+                && grep -Fq 'VANTIX_RESTAURANT_PUSH_CLIENT_V65' "$CLIENT" \
+                && grep -Fq 'VANTIX_RESTAURANT_PUSH_SW_V65' "$SW" \
+                && grep -Fq 'VANTIX_RESTAURANT_PUSH_CORE_V65' "$CFG"; then
+                echo "V65 exact commit and Push public surfaces are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V65 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1

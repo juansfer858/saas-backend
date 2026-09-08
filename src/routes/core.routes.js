@@ -20,6 +20,7 @@ const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { edgeTenantUpdateGuard } = require('../modules/edge/edge-tenant-update-guard');
 const { edgeHybridLocalOriginV53Router } = require('../modules/edge/edge-hybrid-local-origin-v53.routes');
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
+const { notificationPushV65Router } = require('../modules/notifications/push-v65.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
 const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaurant-print-template.routes');
@@ -65,6 +66,9 @@ router.use('/seguridad', rbacRouter);
 // exactamente el origen local autorizado (127.0.0.1/localhost o la IP LAN reportada).
 router.use('/edge', edgeHybridLocalOriginV53Router);
 router.use('/edge', edgeTenantUpdateGuard, edgeTenantRouter);
+// V65 extiende el Core de Notificaciones con dispositivos Push. Se monta antes
+// del router histórico WhatsApp/SMS para mantener el canal FCM aislado y reversible.
+router.use('/notificaciones/push-v65', notificationPushV65Router);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
