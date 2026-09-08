@@ -28,6 +28,7 @@ const { installRestaurantCashCloseMethodsV62 } = require('./restaurant-cash-clos
 const { restaurantPushV65PublicRouter, installRestaurantPushV65 } = require('./restaurant-push-v65.public.routes');
 const { installRestaurantTableLiveDetailV67 } = require('./restaurant-table-live-detail-v67.public.routes');
 const { installRestaurantJointSplitV73 } = require('./restaurant-joint-split-v73.public.routes');
+const { installRestaurantWaiterCloseEmptyV74 } = require('./restaurant-waiter-close-empty-v74.public.routes');
 const { restaurantKdsReliabilityPublicRouter, installKdsReliabilityRuntime } = require('./restaurant-kds-reliability.public.routes');
 const { restaurantKdsWindowsPrinterAssetPublicRouter, installKdsWindowsPrinterAsset } = require('./restaurant-kds-windows-printer-asset.public.routes');
 const { restaurantTenantRealtimePublicRouter } = require('./restaurant-tenant-realtime.public.routes');
@@ -95,6 +96,9 @@ router.use(installRestaurantTableLiveDetailV67);
 // V73 exposes redistribution by person for every existing line after a joint table
 // switches to Individual. It never changes product quantity, price or kitchen state.
 router.use(installRestaurantJointSplitV73);
+// V74 wraps only the Mesero tablet runtime. It exposes the existing safe empty-opening
+// cancellation only to the waiter who originally opened that table.
+router.use(installRestaurantWaiterCloseEmptyV74);
 // V62 is outermost for Caja: it sees the final V45/V43 payment composition and
 // separates Transferencia/QR, Tarjeta, Efectivo and Crédito in the shift close summary.
 router.use(installRestaurantCashCloseMethodsV62);
