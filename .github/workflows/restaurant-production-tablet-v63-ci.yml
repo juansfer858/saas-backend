@@ -1,0 +1,88 @@
+name: Restaurant Production Tablet V63 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-production-device-v63.service.js'
+      - 'src/modules/restaurant/restaurant-production-device-v63.routes.js'
+      - 'src/modules/restaurant/restaurant-waiter-device.routes.js'
+      - 'src/modules/restaurant/restaurant-employees.public.routes.js'
+      - 'src/middleware/auth-middleware.js'
+      - 'src/web/restaurant-production-device-admin-v63.js'
+      - 'src/web/restaurant-production-pair-v63.html'
+      - 'src/web/restaurant-production-kds-v63.html'
+      - 'src/web/restaurant-production-v63.webmanifest'
+      - 'scripts/restaurant-production-tablet-v63-smoke.js'
+      - '.github/workflows/restaurant-production-tablet-v63-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-production-device-v63.service.js'
+      - 'src/modules/restaurant/restaurant-production-device-v63.routes.js'
+      - 'src/modules/restaurant/restaurant-waiter-device.routes.js'
+      - 'src/modules/restaurant/restaurant-employees.public.routes.js'
+      - 'src/middleware/auth-middleware.js'
+      - 'src/web/restaurant-production-device-admin-v63.js'
+      - 'src/web/restaurant-production-pair-v63.html'
+      - 'src/web/restaurant-production-kds-v63.html'
+      - 'src/web/restaurant-production-v63.webmanifest'
+      - 'scripts/restaurant-production-tablet-v63-smoke.js'
+      - '.github/workflows/restaurant-production-tablet-v63-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Validate dedicated production tablet contract
+        run: node scripts/restaurant-production-tablet-v63-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V63 commit and production tablet surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              KDS_HDR="$(mktemp)"
+              KDS="$(mktemp)"
+              EMP_HDR="$(mktemp)"
+              EMP="$(mktemp)"
+              if curl -fsS -D "$KDS_HDR" "$BASE/app/produccion?v=v63-$GITHUB_SHA" -o "$KDS" \
+                && grep -Fqi 'X-VantixGC-Production-Device: v63-kds' "$KDS_HDR" \
+                && grep -Fq 'VANTIX_RESTAURANT_PRODUCTION_TABLET_V63' "$KDS" \
+                && grep -Fq 'vantixgc_restaurant_production_device_v63' "$KDS" \
+                && grep -Fq 'MARCAR LISTO' "$KDS" \
+                && curl -fsS -D "$EMP_HDR" "$BASE/app/restaurant-employees-ui.js?v=v63-$GITHUB_SHA" -o "$EMP" \
+                && grep -Fqi 'X-VantixGC-Production-Device: v63-admin' "$EMP_HDR" \
+                && grep -Fq 'VANTIX_RESTAURANT_PRODUCTION_DEVICE_ADMIN_V63' "$EMP" \
+                && grep -Fq 'Conectar tablet' "$EMP"; then
+                echo "V63 exact commit and production-tablet surfaces are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V63 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
