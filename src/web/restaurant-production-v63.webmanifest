@@ -1,0 +1,11 @@
+{
+  "name": "VantixGC Producción",
+  "short_name": "Vantix Producción",
+  "start_url": "/app/produccion",
+  "scope": "/app/produccion",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0f172a",
+  "lang": "es-CO",
+  "description": "KDS dedicado para Cocina, Barra o Postres en VantixGC Restaurantes"
+}

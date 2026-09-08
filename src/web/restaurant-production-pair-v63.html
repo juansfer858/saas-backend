@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>VantixGC · Vincular tablet de producción</title>
+<style>
+:root{--bg:#eef2f6;--card:#fff;--text:#10233f;--muted:#64748b;--line:#d7dee8;--green:#137a53;--green2:#168454;--red:#b42318}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:18px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:linear-gradient(145deg,#e8edf2,#f8fafc);color:var(--text)}.card{width:min(560px,100%);background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:0 22px 60px rgba(15,23,42,.14)}.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.mark{width:46px;height:46px;border-radius:13px;background:var(--green);display:grid;place-items:center;color:#fff;font-weight:950}.brand b{display:block;font-size:18px}.brand small{color:var(--muted)}.eyebrow{font-size:10px;font-weight:900;letter-spacing:.12em;color:var(--green);text-transform:uppercase}.station{margin:7px 0 4px;font-size:31px;font-weight:950}.muted{color:var(--muted);line-height:1.45}.summary{margin:18px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:#f8fafc;display:grid;gap:8px}.summary div{display:flex;justify-content:space-between;gap:14px}.summary span{color:var(--muted)}.summary b{text-align:right}.btn{width:100%;min-height:58px;border:0;border-radius:13px;background:var(--green);color:#fff;font:inherit;font-weight:900;font-size:16px;cursor:pointer}.btn:disabled{opacity:.55;cursor:not-allowed}.msg{margin-top:14px;padding:12px;border-radius:11px;background:#f1f5f9;color:#334155}.msg.error{background:#fff1f0;color:var(--red)}.hidden{display:none}.fine{margin-top:14px;font-size:11px;color:var(--muted);line-height:1.45;text-align:center}
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand"><div class="mark">V</div><div><b>VantixGC Restaurantes</b><small>Tablet de producción</small></div></div>
+  <div id="loading"><div class="eyebrow">Vinculación segura</div><h1 class="station">Comprobando…</h1><p class="muted">Validando el QR de esta tablet.</p></div>
+  <section id="ready" class="hidden">
+    <div class="eyebrow">Vincular tablet</div><h1 class="station" id="station">PRODUCCIÓN</h1><p class="muted">Esta tablet quedará dedicada únicamente a esta estación. No abrirá Mesas, Caja ni Administración.</p>
+    <div class="summary"><div><span>Restaurante</span><b id="restaurant">—</b></div><div><span>Empleado</span><b id="employee">—</b></div><div><span>Dispositivo</span><b id="device">—</b></div></div>
+    <button type="button" class="btn" id="claim">VINCULAR ESTA TABLET</button>
+    <div id="message"></div>
+    <div class="fine">El acceso permanece activo en este dispositivo hasta que Administración lo desautorice.</div>
+  </section>
+  <section id="failed" class="hidden"><div class="eyebrow">Vínculo no disponible</div><h1 class="station">QR vencido</h1><p class="muted" id="failedText">Genera un QR nuevo desde Administración → Empleados.</p></section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const MARKER='VANTIX_RESTAURANT_PRODUCTION_PAIR_V63';
+  const STORAGE_KEY='vantixgc_restaurant_production_device_v63';
+  const token=new URLSearchParams(location.search).get('t')||'';
+  const $=(id)=>document.getElementById(id);
+  const roleLabel=(role)=>role==='COCINA'?'COCINA':role==='BARRA'?'BARRA':role==='POSTRES'?'POSTRES':'PRODUCCIÓN';
+  let pairing=null;
+  function fail(text){$('loading').classList.add('hidden');$('ready').classList.add('hidden');$('failed').classList.remove('hidden');$('failedText').textContent=text||'Genera un QR nuevo desde Administración → Empleados.'}
+  async function load(){
+    if(!token)return fail('Falta el código de vinculación. Genera un QR nuevo desde Administración → Empleados.');
+    try{
+      const response=await fetch('/api/public/restaurante/produccion-dispositivo/vinculo?t='+encodeURIComponent(token),{cache:'no-store'});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body?.error?.message||body?.message||'Este QR ya no es válido.');
+      pairing=body.data;
+      $('station').textContent=roleLabel(pairing.station);
+      $('restaurant').textContent=pairing.tenant?.nombreEmpresa||'Restaurante';
+      $('employee').textContent=pairing.user?.nombre||roleLabel(pairing.station);
+      $('device').textContent=pairing.deviceName||('Tablet '+roleLabel(pairing.station));
+      $('loading').classList.add('hidden');$('ready').classList.remove('hidden');
+    }catch(error){fail(error.message)}
+  }
+  $('claim').addEventListener('click',async()=>{
+    const button=$('claim');button.disabled=true;button.textContent='VINCULANDO…';$('message').innerHTML='';
+    try{
+      const response=await fetch('/api/public/restaurante/produccion-dispositivo/vincular',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,deviceName:pairing?.deviceName||null})});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(body?.error?.message||body?.message||'No fue posible vincular esta tablet.');
+      const session=body?.data?.session;
+      if(!session?.token||!session?.subdomain)throw new Error('La sesión de producción no fue creada correctamente.');
+      localStorage.setItem(STORAGE_KEY,JSON.stringify({...session,deviceId:body.data.deviceId,station:body.data.station,persistent:true}));
+      $('message').innerHTML='<div class="msg">Tablet vinculada. Abriendo producción…</div>';
+      setTimeout(()=>location.replace('/app/produccion'),350);
+    }catch(error){$('message').innerHTML='<div class="msg error">'+String(error.message||error).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))+'</div>';button.disabled=false;button.textContent='VINCULAR ESTA TABLET'}
+  });
+  document.documentElement.dataset.productionPairV63=MARKER;
+  load();
+})();
+</script>
+</body>
+</html>
