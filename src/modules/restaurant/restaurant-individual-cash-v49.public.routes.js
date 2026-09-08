@@ -164,7 +164,7 @@ function installRestaurantIndividualCashV49(req, res, next) {
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
     }
     res.set('X-VantixGC-Restaurant-Individual-Cash', 'v49-by-seat');
-    res.set('X-VantixGC-Person-Product-Split', 'v76-cash-person-products');
+    res.set('X-VantixGC-Person-Product-Split', 'v76.1-visible-entry-recovery');
     return originalSend(body);
   };
   return next();
