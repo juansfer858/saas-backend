@@ -1,0 +1,57 @@
+name: Restaurant Production KDS V64 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-production-kds-v63.html'
+      - 'scripts/restaurant-production-kds-v64-smoke.js'
+      - '.github/workflows/restaurant-production-kds-v64-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-production-kds-v63.html'
+      - 'scripts/restaurant-production-kds-v64-smoke.js'
+      - '.github/workflows/restaurant-production-kds-v64-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate KDS visual readability contract
+        run: node scripts/restaurant-production-kds-v64-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait exact V64 commit and KDS surface in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              KDS="$(mktemp)"
+              if curl -fsS "$BASE/app/produccion?v=v64-$GITHUB_SHA" -o "$KDS" \
+                && grep -Fq 'VANTIX_RESTAURANT_PRODUCTION_KDS_V64' "$KDS" \
+                && grep -Fq '.product-name{font-size:18px;' "$KDS" \
+                && ! grep -Fq 'command.waiter?.nombre' "$KDS" \
+                && grep -Fq 'MARCAR LISTO' "$KDS"; then
+                echo "V64 exact commit and KDS readability surface are live: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "V64 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
