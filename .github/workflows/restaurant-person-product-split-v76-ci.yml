@@ -1,0 +1,71 @@
+name: Restaurant Person Product Split V76 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feat/restaurant-person-product-split-v76
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vantix_ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate person/product split in Caja
+        run: node scripts/restaurant-person-product-split-v76-smoke.js
+      - name: Preserve prior joint split waiter contract
+        run: node scripts/restaurant-joint-split-v73-smoke.js
+      - name: Preserve individual cash contract
+        run: node scripts/restaurant-individual-cash-v49-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          exit 1
+
+      - name: Verify production person/product split runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://core.vantixgc.com"
+          curl -fsSL --max-time 15 -D /tmp/restaurant-ui.headers -o /tmp/restaurant-ui.js "$BASE/app/restaurant-ui.js"
+          grep -qi '^x-vantixgc-person-product-split: v76-cash-person-products' /tmp/restaurant-ui.headers
+          grep -q 'VANTIX_RESTAURANT_PERSON_PRODUCT_SPLIT_V76' /tmp/restaurant-ui.js
+          grep -q 'DIVIDIR CUENTA · PRODUCTOS / PERSONAS' /tmp/restaurant-ui.js
+          grep -q 'rvpPeopleCountV76' /tmp/restaurant-ui.js
+          grep -q 'Asigna productos al menos a 2 personas' /tmp/restaurant-ui.js
+          grep -q 'VANTIX_RESTAURANT_INDIVIDUAL_CASH_V49' /tmp/restaurant-ui.js
+          echo "PRODUCTION_RESTAURANT_PERSON_PRODUCT_SPLIT_V76_OK"
