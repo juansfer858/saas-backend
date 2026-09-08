@@ -6,6 +6,8 @@
   // y deja diagnóstico visible/console cuando un endpoint falla.
   const REQUEST_TIMEOUT_MS = 15000;
   const resourceErrors = Object.create(null);
+  const VANTIX_ACCOUNTING_TRIAL_OPENING_V72 = 'VANTIX_ACCOUNTING_TRIAL_OPENING_V72';
+  window.__VANTIX_ACCOUNTING_TRIAL_OPENING_V72__ = VANTIX_ACCOUNTING_TRIAL_OPENING_V72;
 
   const resources = {
     accounts: {
@@ -182,6 +184,28 @@
       throw new Error('No hay cuentas auxiliares disponibles para consultar el Libro Mayor.');
     }
     return originalRenderMayor();
+  };
+
+  const originalRenderTrial = renderTrial;
+  renderTrial = function renderTrialWithOpeningBalance(data) {
+    try {
+      const accounts = data?.cuentas || [];
+      const rows = accounts.map((item) => {
+        const opening = Number(item.saldoAnterior || 0);
+        const period = Number(item.saldo || 0);
+        const closing = item.saldoFinal === undefined || item.saldoFinal === null
+          ? opening + period
+          : Number(item.saldoFinal || 0);
+        return `<tr><td>${esc(item.cuenta.codigo)}</td><td>${esc(item.cuenta.nombre)}</td><td class="money">${money(opening)}</td><td class="money">${money(item.debito)}</td><td class="money">${money(item.credito)}</td><td class="money"><strong>${money(closing)}</strong></td></tr>`;
+      });
+      const openingNote = data?.desde
+        ? `<p class="smallnote">Saldo anterior: movimientos acumulados antes de ${date(data.desde)}.</p>`
+        : '<p class="smallnote">Sin fecha Desde, el saldo anterior se presenta en cero.</p>';
+      $('#reportResult').innerHTML = `<div class="report-section"><h3>Balance de Prueba</h3>${openingNote}${table(['Código','Cuenta','Saldo anterior','Débito','Crédito','Saldo final'],rows)}<p>Débitos: <strong>${money(data.totalDebito)}</strong> · Créditos: <strong>${money(data.totalCredito)}</strong> · Diferencia: <strong>${money(data.diferencia)}</strong> · <span class="badge ${data.cuadra?'b-ok':'b-danger'}">${data.cuadra?'CUADRA':'NO CUADRA'}</span></p>${data.comparativo?`<p class="smallnote">Comparativo: variación débito ${money(data.comparativo.totalDebito.variacion)}.</p>`:''}</div>`;
+    } catch (error) {
+      console.error('[VantixGC Accounting] Balance de Prueba V72', error);
+      return originalRenderTrial(data);
+    }
   };
 
   // La implementación anterior retornaba promesas dentro del try sin await;

@@ -110,9 +110,52 @@ function aggregateByAccount(rows) {
   })).sort((a, b) => a.cuenta.codigo.localeCompare(b.cuenta.codigo));
 }
 
+function mergeTrialAccounts(periodAccounts = [], openingAccounts = []) {
+  const map = new Map();
+  for (const opening of openingAccounts) {
+    map.set(opening.cuenta.id, {
+      cuenta: opening.cuenta,
+      saldoAnterior: money(opening.saldo),
+      debito: money(0),
+      credito: money(0),
+      saldo: money(0)
+    });
+  }
+  for (const current of periodAccounts) {
+    const existing = map.get(current.cuenta.id) || {
+      cuenta: current.cuenta,
+      saldoAnterior: money(0),
+      debito: money(0),
+      credito: money(0),
+      saldo: money(0)
+    };
+    existing.cuenta = current.cuenta;
+    existing.debito = money(current.debito);
+    existing.credito = money(current.credito);
+    existing.saldo = money(current.saldo);
+    map.set(current.cuenta.id, existing);
+  }
+  return [...map.values()].map((x) => ({
+    ...x,
+    saldoFinal: money(decimal(x.saldoAnterior).plus(x.saldo))
+  })).sort((a, b) => a.cuenta.codigo.localeCompare(b.cuenta.codigo));
+}
+
 async function trialBalance(tenantId, filters = {}) {
   const rows = await loadDetailRows(tenantId, { desde: filters.desde, hasta: filters.hasta });
-  const cuentas = aggregateByAccount(rows);
+  const periodAccounts = aggregateByAccount(rows);
+  let openingAccounts = [];
+  let saldoAnteriorCorte = null;
+
+  if (filters.desde) {
+    const start = parseDate(filters.desde, false);
+    const cutoff = new Date(start.getTime() - 1);
+    saldoAnteriorCorte = cutoff.toISOString();
+    const openingRows = await loadDetailRows(tenantId, { corte: saldoAnteriorCorte });
+    openingAccounts = aggregateByAccount(openingRows);
+  }
+
+  const cuentas = mergeTrialAccounts(periodAccounts, openingAccounts);
   let totalDebito = decimal(0);
   let totalCredito = decimal(0);
   for (const row of rows) {
@@ -122,6 +165,7 @@ async function trialBalance(tenantId, filters = {}) {
   const result = {
     desde: filters.desde || null,
     hasta: filters.hasta || null,
+    saldoAnteriorCorte,
     cuentas,
     totalDebito: money(totalDebito),
     totalCredito: money(totalCredito),
@@ -300,6 +344,7 @@ module.exports = {
   normalBalance,
   statementBalance,
   aggregateByAccount,
+  mergeTrialAccounts,
   loadDetailRows,
   trialBalance,
   profitAndLoss,

@@ -1,0 +1,69 @@
+name: Accounting Trial Opening Balance V72 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feat/accounting-trial-opening-balance-v72
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vantix_ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate opening balance contract
+        run: node scripts/accounting-trial-opening-balance-v72-smoke.js
+      - name: Preserve accounting report column contracts
+        run: node scripts/accounting-report-columns-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA" >&2
+          exit 1
+
+      - name: Verify production accounting opening-balance UI layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://core.vantixgc.com"
+          curl -fsSL --max-time 15 -o /tmp/accounting.html "$BASE/app/contabilidad"
+          grep -q '/app/accounting-runtime-guard.js' /tmp/accounting.html
+          curl -fsSL --max-time 15 -o /tmp/accounting-guard.js "$BASE/app/accounting-runtime-guard.js"
+          grep -q 'VANTIX_ACCOUNTING_TRIAL_OPENING_V72' /tmp/accounting-guard.js
+          grep -q 'Saldo anterior' /tmp/accounting-guard.js
+          grep -q 'Saldo final' /tmp/accounting-guard.js
+          echo "PRODUCTION_ACCOUNTING_TRIAL_OPENING_BALANCE_V72_OK"
