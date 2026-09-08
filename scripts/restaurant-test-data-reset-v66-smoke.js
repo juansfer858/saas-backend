@@ -77,7 +77,7 @@ assert.match(ui, /VANTIX_RESTAURANT_TEST_DATA_RESET_V66/);
 assert.match(ui, /Limpieza de pruebas/);
 assert.match(ui, /Eliminar facturas, comandas y transacciones de prueba/);
 assert.match(ui, /No toca los maestros/);
-assert.match(ui, /Productos y sus existencias actuales/);
+assert.match(ui, /productos y sus existencias actuales/i);
 assert.match(ui, /demo-restaurante/);
 assert.match(ui, /ELIMINAR PRUEBAS/);
 assert.match(ui, /\/api\/v1\/restaurante\/limpieza-pruebas\/v66\/resumen/);
