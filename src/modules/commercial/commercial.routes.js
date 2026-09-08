@@ -12,6 +12,7 @@ const webRoot = path.join(__dirname, '../../web');
 router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, next) => {
   try {
     let source = await fs.promises.readFile(path.join(webRoot, 'panel-integration-extras-core.js'), 'utf8');
+    const inventoryProductCreator = await fs.promises.readFile(path.join(webRoot, 'inventory-product-create-v70.js'), 'utf8');
     source = source.replace(
       "api('/api/v1/tesoreria/pagos')",
       "api('/api/v1/tesoreria/recaudos-recientes')"
@@ -19,9 +20,13 @@ router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, nex
     if (!source.includes("api('/api/v1/tesoreria/recaudos-recientes')")) {
       throw new Error('No fue posible aplicar el origen canónico de recaudos en Tesorería');
     }
+    if (!inventoryProductCreator.includes('VANTIX_INVENTORY_PRODUCT_CREATE_V70')) {
+      throw new Error('No fue posible montar el creador de productos de Inventario V70');
+    }
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Treasury-Recent-Receipts', 'v43-movimiento-tesoreria');
-    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}`);
+    res.set('X-VantixGC-Inventory-Product-Creator', 'v70');
+    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}\n/* VANTIX_INVENTORY_PRODUCT_CREATE_V70 */\n${inventoryProductCreator}`);
   } catch (error) { next(error); }
 });
 
