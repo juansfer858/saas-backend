@@ -3,6 +3,7 @@ const { AppError } = require('../utils/app-error');
 const { verifyAccessToken } = require('../utils/jwt');
 
 const RESTAURANT_SHARED_WAITER_ROLE = 'MESERO_OPERATIVO_COMPARTIDO';
+const RESTAURANT_PRODUCTION_ROLES = new Set(['COCINA', 'BARRA', 'POSTRES']);
 
 function isRestaurantOperationalRequest(req) {
   const url = String(req.originalUrl || req.url || '').split('?')[0];
@@ -31,6 +32,11 @@ function runtimeUserForRequest(req, user) {
  * atención iniciada por otro. La identidad y los permisos de seguridad siguen
  * siendo MESERO mediante req.userRole. El resto de módulos conserva el rol
  * original sin cambios.
+ *
+ * V63 agrega PRODUCTION_DEVICE: tablets persistentes ligadas a COCINA/BARRA/
+ * POSTRES. El JWT no basta: en cada request se comprueba que el dispositivo siga
+ * ACTIVE, que no haya sido revocado y que el rol actual coincida con la estación
+ * con la que fue vinculado.
  */
 async function authMiddleware(req, _res, next) {
   try {
@@ -92,12 +98,21 @@ async function authMiddleware(req, _res, next) {
       await assertActiveDevice(payload.deviceId, req.tenantId, user.id);
     }
 
+    if (payload.authType === 'PRODUCTION_DEVICE') {
+      if (!payload.deviceId || !RESTAURANT_PRODUCTION_ROLES.has(user.rol)) {
+        throw new AppError(401, 'La autorización de esta tablet de producción ya no es válida', 'RESTAURANT_PRODUCTION_DEVICE_INVALID');
+      }
+      const { assertActiveDevice } = require('../modules/restaurant/restaurant-production-device-v63.service');
+      await assertActiveDevice(payload.deviceId, req.tenantId, user.id, user.rol);
+    }
+
     req.userId = user.id;
     req.userRole = user.rol;
     req.user = runtimeUserForRequest(req, user);
     req.authType = payload.authType || 'USER';
     req.deviceId = payload.deviceId || null;
     req.restaurantWaiterSharedFloor = req.user.rol === RESTAURANT_SHARED_WAITER_ROLE;
+    req.restaurantProductionDevice = payload.authType === 'PRODUCTION_DEVICE';
 
     next();
   } catch (error) {
@@ -107,6 +122,7 @@ async function authMiddleware(req, _res, next) {
 
 module.exports = {
   RESTAURANT_SHARED_WAITER_ROLE,
+  RESTAURANT_PRODUCTION_ROLES,
   isRestaurantOperationalRequest,
   runtimeUserForRequest,
   authMiddleware
