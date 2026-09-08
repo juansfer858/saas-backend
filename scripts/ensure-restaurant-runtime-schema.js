@@ -108,6 +108,8 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantCompanyProfile"')::text AS "companyProfile",
       to_regclass('public."PrintTenantConfig"')::text AS "printTenantConfig",
       to_regclass('public."PrinterEndpoint"')::text AS "printerEndpoint",
+      to_regclass('public."NotificationPushDevice"')::text AS "notificationPushDevice",
+      to_regclass('public."NotificationPushDelivery"')::text AS "notificationPushDelivery",
       EXISTS (
         SELECT 1
         FROM pg_type t
@@ -125,7 +127,8 @@ async function readRestaurantSchemaState() {
     'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
     'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile', 'companyProfile',
-    'printTenantConfig', 'printerEndpoint', 'printerTransportWindows'
+    'printTenantConfig', 'printerEndpoint', 'notificationPushDevice', 'notificationPushDelivery',
+    'printerTransportWindows'
   ];
   const ready = required.every((key) => Boolean(state[key]));
   return { ready, state };
