@@ -49,7 +49,24 @@ assert.match(panelRuntime, /Selecciona un producto con control de inventario act
 assert.match(panelRuntime, /\/api\/v1\/inventario\/ajustes/);
 assert.match(panelRuntime, /installInventoryAdjustmentLibrary\(\)/);
 
-console.log('CORE ADMIN PWA + INVENTORY ADJUSTMENT LIBRARY SMOKE OK');
+const productCreator = fs.readFileSync('src/web/inventory-product-create-v70.js', 'utf8');
+new Function(productCreator);
+assert.match(productCreator, /VANTIX_INVENTORY_PRODUCT_CREATE_V70/);
+assert.match(productCreator, /location\.pathname === '\/app\/inventario'/);
+assert.match(productCreator, /inventoryAddProductButton/);
+assert.match(productCreator, /\+ Agregar producto/);
+assert.match(productCreator, /openInventoryProductForm/);
+assert.match(productCreator, /\/api\/v1\/inventario\/productos/);
+assert.match(productCreator, /stockActual:0/);
+assert.match(productCreator, /costoPromedio:0/);
+assert.match(productCreator, /Compras o Ajuste de inventario/);
+
+const commercialRoutes = fs.readFileSync('src/modules/commercial/commercial.routes.js', 'utf8');
+assert.match(commercialRoutes, /inventory-product-create-v70\.js/);
+assert.match(commercialRoutes, /X-VantixGC-Inventory-Product-Creator/);
+assert.match(commercialRoutes, /VANTIX_INVENTORY_PRODUCT_CREATE_V70/);
+
+console.log('CORE ADMIN PWA + INVENTORY ADJUSTMENT + PRODUCT CREATOR SMOKE OK');
 console.log(JSON.stringify({
   adminPwaInstallable:true,
   manifestScope:'/app/',
@@ -57,5 +74,8 @@ console.log(JSON.stringify({
   authenticatedApiCache:false,
   inventoryProductLibrary:true,
   remoteProductSearch:true,
-  nonInventoryProductsVisibleButDisabled:true
+  nonInventoryProductsVisibleButDisabled:true,
+  inventoryAddProductButton:true,
+  inventoryProductCreateEndpoint:'/api/v1/inventario/productos',
+  initialStockAccountingSafe:true
 }, null, 2));
