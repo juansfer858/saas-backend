@@ -16,10 +16,11 @@ const files = {
   client:'src/web/restaurant-push-v65.js',
   core:'src/routes/core.routes.js',
   composition:'src/modules/restaurant/restaurant.public.routes.js',
+  runtimeSchema:'scripts/ensure-restaurant-runtime-schema.js',
   env:'.env.example'
 };
 
-for (const file of [files.provider, files.service, files.routes, files.public, files.client, files.core, files.composition]) {
+for (const file of [files.provider, files.service, files.routes, files.public, files.client, files.core, files.composition, files.runtimeSchema]) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding:'utf8' });
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
@@ -32,6 +33,7 @@ const pub = read(files.public);
 const client = read(files.client);
 const core = read(files.core);
 const composition = read(files.composition);
+const runtimeSchema = read(files.runtimeSchema);
 const env = read(files.env);
 
 assert.match(schema, /model NotificationPushDevice/);
@@ -80,6 +82,15 @@ assert.match(client, /vantixgc_restaurant_production_device_v63/);
 assert.match(client, /Push activo/);
 assert.match(client, /push-v65\/prueba/);
 
+// V65.1: las tablas Push deben formar parte del gate de esquema de runtime.
+// Si faltan en una instalación existente, el arranque debe ejecutar prisma db push
+// antes de publicar HTTP; de lo contrario el primer registro real cae en HTTP 500.
+assert.match(runtimeSchema, /NotificationPushDevice/);
+assert.match(runtimeSchema, /NotificationPushDelivery/);
+assert.match(runtimeSchema, /notificationPushDevice/);
+assert.match(runtimeSchema, /notificationPushDelivery/);
+assert.match(runtimeSchema, /runPrismaDbPush\(\)/);
+
 for (const key of ['FCM_SERVICE_ACCOUNT_JSON','FCM_WEB_API_KEY','FCM_WEB_PROJECT_ID','FCM_WEB_MESSAGING_SENDER_ID','FCM_WEB_APP_ID','FCM_WEB_VAPID_KEY']) {
   assert.match(env, new RegExp(`${key}=`));
 }
@@ -88,6 +99,7 @@ console.log('RESTAURANT PUSH CORE V65 OK', JSON.stringify({
   provider:'FCM_HTTP_V1',
   encryptedTokens:true,
   tenantScoped:true,
+  runtimeSchemaGate:true,
   selfTest:true,
   surfaces:['CENTRO_CONTROL','MESERO','PRODUCCION'],
   qrClientDeferredToV68:true
