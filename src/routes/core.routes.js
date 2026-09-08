@@ -34,6 +34,7 @@ const { restaurantWaiterCallRouter } = require('../modules/restaurant/restaurant
 const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaurant-waiter-device.routes');
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
 const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaurant-employee-work.routes');
+const { restaurantTestDataResetV66Router } = require('../modules/restaurant/restaurant-test-data-reset-v66.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -87,6 +88,9 @@ router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
+// V66 sólo existe para el tenant de demostración y requiere permiso de Administración.
+// Se monta antes del router base para que la limpieza destructiva quede aislada y reversible.
+router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);
 // Sólo procesa errores de un cierre a crédito previamente preparado. Si el cierre
 // canónico falló, restaura el BORRADOR antes de continuar al error handler global.
