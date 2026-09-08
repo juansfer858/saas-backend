@@ -1,0 +1,54 @@
+enum NotificationPushDeviceState {
+  ACTIVE
+  REVOKED
+  INVALID
+}
+
+model NotificationPushDevice {
+  id              String                      @id @default(uuid())
+  tenantId        String
+  userId          String
+  authType        String                      @default("USER")
+  authDeviceId    String?
+  role            String
+  platform        String                      @default("WEB")
+  deviceLabel     String?
+  tokenHash       String                      @unique
+  tokenCiphertext String
+  permission      String                      @default("granted")
+  state           NotificationPushDeviceState @default(ACTIVE)
+  userAgent       String?
+  lastSeenAt      DateTime                    @default(now())
+  revokedAt       DateTime?
+  invalidAt       DateTime?
+  creadoEn        DateTime                    @default(now())
+  actualizadoEn   DateTime                    @updatedAt
+
+  @@index([tenantId, userId, state])
+  @@index([tenantId, role, state])
+  @@index([tenantId, authType, authDeviceId, state])
+}
+
+model NotificationPushDelivery {
+  id                String   @id @default(uuid())
+  tenantId          String
+  pushDeviceId      String
+  eventCode         String?
+  title             String
+  body              String
+  deepLink          String?
+  state             String   @default("QUEUED")
+  providerMessageId String?
+  retryCount        Int      @default(0)
+  nextRetryAt       DateTime? @default(now())
+  lastError         String?
+  queuedAt          DateTime @default(now())
+  sentAt            DateTime?
+  failedAt          DateTime?
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  @@index([tenantId, state, nextRetryAt])
+  @@index([tenantId, pushDeviceId, creadoEn])
+  @@index([tenantId, eventCode, creadoEn])
+}
