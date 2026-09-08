@@ -13,6 +13,7 @@ const coreRoutes = read('src/routes/core.routes.js');
 const ui = read('src/web/restaurant-company-admin-advanced.js');
 
 assert.match(service, /VANTIX_RESTAURANT_TEST_DATA_RESET_V68/);
+assert.match(service, /version: '68\.1\.0'/);
 assert.match(service, /RESTAURANT_NICHES = Object\.freeze\(\['RESTAURANTE', 'RESTAURANT'\]\)/);
 assert.match(service, /RESTAURANT_TEST_RESET_RESTAURANT_ONLY/);
 assert.doesNotMatch(service, /DEMO_SUBDOMAIN/);
@@ -21,6 +22,16 @@ assert.match(service, /confirmationFor\(tenant\)/);
 assert.match(service, /ELIMINAR PRUEBAS/);
 assert.match(service, /environment: 'PRODUCCION'/);
 assert.match(service, /RESTAURANT_TEST_RESET_REAL_DIAN_BLOCK/);
+
+// V68.1 regression guard: the summary must not fan out all counters with Promise.all.
+assert.match(service, /SCHEMA_DRIFT_CODES = new Set\(\['P2021', 'P2022'\]\)/);
+assert.match(service, /RESTAURANT_TEST_RESET_COUNT_FAILED/);
+assert.match(service, /RESTAURANT_TEST_RESET_EXECUTION_FAILED/);
+assert.match(service, /async function isSchemaDriftError|function isSchemaDriftError/);
+assert.match(service, /const sessions = await count\(/);
+assert.match(service, /const pushDeliveries = await count\(/);
+assert.doesNotMatch(service, /Promise\.all\(\[/);
+assert.match(service, /removed\.schemaWarnings/);
 
 for (const delegate of [
   'restaurantTableSession', 'restaurantOrder', 'restaurantOrderItem', 'restaurantCommand',
@@ -67,11 +78,14 @@ assert.match(ui, /if \(!tabs\.querySelector\('\[data-restaurant-test-reset-tab\]
 assert.doesNotMatch(ui, /if \(isDemoTenant\(\)/);
 assert.match(ui, /data-reset-confirmation/);
 
-console.log('RESTAURANT TEST DATA RESET V68 OK', JSON.stringify({
+console.log('RESTAURANT TEST DATA RESET V68.1 OK', JSON.stringify({
   wholeRestaurantNiche:true,
   adminPermission:true,
   tenantSpecificTypedConfirmation:true,
   blocksProductionDian:true,
   preservesMasterData:true,
+  sequentialCounts:true,
+  schemaDriftGuard:true,
+  rollbackMessage:true,
   legacyV66Kept:true
 }));
