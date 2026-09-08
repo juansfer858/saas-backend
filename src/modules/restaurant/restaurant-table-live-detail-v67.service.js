@@ -12,6 +12,11 @@ function assertTableAccess(user, table) {
   }
 }
 
+function canCancelForUser(user, session) {
+  if (user?.rol === 'MESERO') return Boolean(session?.openedByUserId && session.openedByUserId === user.id);
+  return true;
+}
+
 function itemState(order, item) {
   const orderState = String(order?.state || '').toUpperCase();
   if (orderState === 'BORRADOR') return 'POR_ENVIAR';
@@ -100,7 +105,8 @@ async function liveDetail(tenantId, user, tableId) {
   const draftQuantity = items.filter((row) => row.state === 'POR_ENVIAR').reduce((sum, row) => sum + numeric(row.quantity), 0);
   const hasRealOrder = orders.some((order) => order.state !== 'BORRADOR') || items.length > 0;
   const canCancelOpening = Boolean(
-    sale?.estado === 'BORRADOR'
+    canCancelForUser(user, session)
+    && sale?.estado === 'BORRADOR'
     && numeric(sale?.total) === 0
     && !hasRealOrder
     && payments === 0
@@ -134,6 +140,10 @@ async function cancelEmptyOpening(tenantId, user, tableId) {
   return prisma.$transaction(async (tx) => {
     const { table, session } = await loadTableAndSession(tenantId, user, tableId, tx);
     if (!session) return { cancelled: false, alreadyFree: true, table };
+
+    if (!canCancelForUser(user, session)) {
+      throw new AppError(403, 'Solo el mesero que abrió la mesa puede cerrarla como apertura por error.', 'RESTAURANT_TABLE_OPENING_NOT_OWNER');
+    }
 
     const [sale, orders, payments, fiscalDocuments, activeQrDevices] = await Promise.all([
       tx.comprobanteComercial.findFirst({
@@ -171,4 +181,4 @@ async function cancelEmptyOpening(tenantId, user, tableId) {
   });
 }
 
-module.exports = { MARKER, liveDetail, cancelEmptyOpening, itemState };
+module.exports = { MARKER, liveDetail, cancelEmptyOpening, itemState, canCancelForUser };
