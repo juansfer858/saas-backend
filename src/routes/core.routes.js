@@ -35,6 +35,7 @@ const { restaurantWaiterDeviceRouter } = require('../modules/restaurant/restaura
 const { restaurantDeliveryRouter } = require('../modules/restaurant/restaurant-delivery.routes');
 const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaurant-employee-work.routes');
 const { restaurantTestDataResetV66Router } = require('../modules/restaurant/restaurant-test-data-reset-v66.routes');
+const { restaurantTestDataResetV68Router } = require('../modules/restaurant/restaurant-test-data-reset-v68.routes');
 const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/restaurant-table-live-detail-v67.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
@@ -92,8 +93,11 @@ router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 // V67 agrega lectura operativa completa por mesa y permite descartar únicamente
 // una apertura totalmente vacía. No reutiliza el cierre de venta/cobro.
 router.use('/restaurante', restaurantTableLiveDetailV67Router);
-// V66 sólo existe para el tenant de demostración y requiere permiso de Administración.
-// Se monta antes del router base para que la limpieza destructiva quede aislada y reversible.
+// V68 habilita el reinicio de datos de prueba para cualquier tenant del nicho
+// Restaurante. Conserva maestros, exige permiso admin + confirmación del subdominio
+// y bloquea la operación cuando ya existen documentos DIAN de PRODUCCIÓN.
+router.use('/restaurante', restaurantTestDataResetV68Router);
+// V66 se conserva como compatibilidad histórica únicamente para demo-restaurante.
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);
 // Sólo procesa errores de un cierre a crédito previamente preparado. Si el cierre

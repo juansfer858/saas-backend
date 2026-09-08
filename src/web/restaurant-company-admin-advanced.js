@@ -2,13 +2,25 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V3';
-  const RESET_MARKER = 'VANTIX_RESTAURANT_TEST_DATA_RESET_V66';
+  const RESET_MARKER = 'VANTIX_RESTAURANT_TEST_DATA_RESET_V68';
   const RESET_CONFIRMATION = 'ELIMINAR PRUEBAS';
+  // Compatibilidad histórica V66. El flujo activo usa V68 para todo el nicho Restaurante.
+  const LEGACY_RESET_MARKER = 'VANTIX_RESTAURANT_TEST_DATA_RESET_V66';
+  const LEGACY_RESET_ENDPOINTS = Object.freeze({
+    summary:'/api/v1/restaurante/limpieza-pruebas/v66/resumen',
+    execute:'/api/v1/restaurante/limpieza-pruebas/v66/ejecutar',
+    demoSubdomain:'demo-restaurante'
+  });
+  const RESET_ENDPOINTS = Object.freeze({
+    summary:'/api/v1/restaurante/limpieza-pruebas/v68/resumen',
+    execute:'/api/v1/restaurante/limpieza-pruebas/v68/ejecutar'
+  });
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const PAGE_PATH = '/app/configuracion-avanzada';
   if (window[MARKER] || location.pathname !== PAGE_PATH) return;
   window[MARKER] = Object.freeze({ version:'3.0.0', surface:'ADMIN_ADVANCED', source:'TRIAL_COMPANY_AND_POS_RECEIPT' });
-  window[RESET_MARKER] = Object.freeze({ version:'66.0.0', surface:'ADMIN_ADVANCED', scope:'DEMO_TRANSACTION_RESET' });
+  window[LEGACY_RESET_MARKER] = Object.freeze({ version:'66.0.0', surface:'ADMIN_ADVANCED', scope:'DEMO_TRANSACTION_RESET_LEGACY' });
+  window[RESET_MARKER] = Object.freeze({ version:'68.0.0', surface:'ADMIN_ADVANCED', scope:'RESTAURANT_NICHE_TRANSACTION_RESET' });
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
@@ -23,10 +35,6 @@
     const niche = String(session()?.tenant?.nicho || '').toUpperCase();
     return ['RESTAURANTE','RESTAURANT'].includes(niche)
       || document.documentElement.dataset.coreRestaurantAccess === '1';
-  }
-
-  function isDemoTenant() {
-    return String(session()?.subdomain || '').trim().toLowerCase() === 'demo-restaurante';
   }
 
   async function api(path, options = {}) {
@@ -116,10 +124,11 @@
   function cleanupMarkup(data = {}, message = '') {
     const counts = data.counts || {};
     const blocked = Number(data.productionDianDocuments || 0) > 0 || data.allowed === false;
-    return `<div class="panel" data-restaurant-test-reset="${RESET_MARKER}">
+    const confirmation = String(data.confirmation || `${RESET_CONFIRMATION} ${session()?.subdomain || ''}`).trim();
+    return `<div class="panel" data-restaurant-test-reset="${RESET_MARKER}" data-reset-confirmation="${esc(confirmation)}">
       <div class="ph">
         <div><strong>Limpieza de datos de prueba</strong><div class="muted" style="font-size:12px;margin-top:4px">Deja la operación, la contabilidad y la administración transaccional listas para comenzar desde cero.</div></div>
-        <span class="badge ${blocked ? '' : 'ok'}">${blocked ? 'BLOQUEADO' : 'DEMO · V66'}</span>
+        <span class="badge ${blocked ? '' : 'ok'}">${blocked ? 'BLOQUEADO' : 'RESTAURANTE · V68'}</span>
       </div>
       <div class="pb">
         <div class="rca-reset-warning"><strong>Esta acción es destructiva.</strong> Elimina facturas y documentos internos de prueba, pedidos, comandas, sesiones de mesa, cobros, cartera, movimientos de tesorería e inventario, asientos contables, turnos de caja, domicilios de prueba y registros de notificación generados por esas pruebas.</div>
@@ -139,7 +148,7 @@
           <button class="btn rca-reset-button" type="button" id="rcaResetButton" ${blocked ? 'disabled' : ''}>Eliminar facturas, comandas y transacciones de prueba</button>
           <span class="rca-reset-result ${message ? 'ok' : ''}" id="rcaResetStatus">${esc(message)}</span>
         </div>
-        <div class="muted" style="font-size:11px;margin-top:12px">Protección adicional: esta herramienta sólo funciona en <strong>demo-restaurante</strong>, exige permiso de Administración y requiere escribir “${RESET_CONFIRMATION}”.</div>
+        <div class="muted" style="font-size:11px;margin-top:12px">Disponible para todos los tenants del nicho <strong>Restaurante</strong>. Exige permiso de Administración y, para evitar borrados accidentales, debes escribir exactamente “${esc(confirmation)}”. Si existen documentos DIAN de PRODUCCIÓN, la limpieza queda bloqueada.</div>
       </div>
     </div>`;
   }
@@ -162,7 +171,7 @@
     if (!view) return;
     view.innerHTML = '<div class="panel"><div class="pb">Revisando documentos y transacciones de prueba…</div></div>';
     try {
-      const data = await api('/api/v1/restaurante/limpieza-pruebas/v66/resumen');
+      const data = await api(RESET_ENDPOINTS.summary);
       view.innerHTML = cleanupMarkup(data || {}, message);
       document.getElementById('rcaResetButton')?.addEventListener('click', executeCleanup);
     } catch (error) {
@@ -207,18 +216,22 @@
   async function executeCleanup() {
     const button = document.getElementById('rcaResetButton');
     const status = document.getElementById('rcaResetStatus');
-    if (!window.confirm('Se eliminarán definitivamente las facturas, comandas y transacciones de prueba de demo-restaurante. Los productos y demás maestros se conservarán. ¿Continuar?')) return;
-    const typed = window.prompt(`Para confirmar, escribe exactamente: ${RESET_CONFIRMATION}`) || '';
-    if (typed.trim().toUpperCase() !== RESET_CONFIRMATION) {
-      if (status) { status.className = 'rca-reset-result bad'; status.textContent = `No se borró nada. Debes escribir ${RESET_CONFIRMATION}.`; }
+    const current = session();
+    const restaurantName = current?.tenant?.nombreEmpresa || current?.subdomain || 'este restaurante';
+    const panel = document.querySelector('[data-restaurant-test-reset]');
+    const expected = String(panel?.dataset?.resetConfirmation || `${RESET_CONFIRMATION} ${current?.subdomain || ''}`).trim();
+    if (!window.confirm(`Se eliminarán definitivamente las facturas, comandas y transacciones de prueba de ${restaurantName}. Los productos y demás maestros se conservarán. ¿Continuar?`)) return;
+    const typed = window.prompt(`Para confirmar, escribe exactamente: ${expected}`) || '';
+    if (typed.trim().toUpperCase() !== expected.toUpperCase()) {
+      if (status) { status.className = 'rca-reset-result bad'; status.textContent = `No se borró nada. Debes escribir ${expected}.`; }
       return;
     }
     if (button) button.disabled = true;
     if (status) { status.className = 'rca-reset-result'; status.textContent = 'Limpiando datos de prueba…'; }
     try {
-      const result = await api('/api/v1/restaurante/limpieza-pruebas/v66/ejecutar', {
+      const result = await api(RESET_ENDPOINTS.execute, {
         method:'POST',
-        body:JSON.stringify({ confirmation:RESET_CONFIRMATION })
+        body:JSON.stringify({ confirmation:expected })
       });
       const removed = Object.values(result?.removed || {}).reduce((sum, value) => sum + Number(value || 0), 0);
       await loadCleanup(`Limpieza completada: ${n(removed)} registros transaccionales eliminados. Productos y configuración conservados.`);
@@ -263,16 +276,19 @@
       tabs.prepend(button);
     }
 
-    if (isDemoTenant() && !tabs.querySelector('[data-restaurant-test-reset-tab]')) {
+    if (!tabs.querySelector('[data-restaurant-test-reset-tab]')) {
       const cleanupButton = document.createElement('button');
       cleanupButton.type = 'button';
       cleanupButton.className = 'tab';
-      cleanupButton.dataset.restaurantTestResetTab = 'v66';
+      cleanupButton.dataset.restaurantTestResetTab = 'v68';
       cleanupButton.textContent = 'Limpieza de pruebas';
       cleanupButton.addEventListener('click', () => activateCleanupTab(cleanupButton));
       button.insertAdjacentElement('afterend', cleanupButton);
     }
   }
+
+  // Mantiene referencias legacy para que despliegues anteriores V66 no rompan contratos.
+  void LEGACY_RESET_ENDPOINTS;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => installTab(), { once:true });
   else installTab();
