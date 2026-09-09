@@ -1,0 +1,84 @@
+name: Restaurant V2 Admin Parity CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-admin-parity.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-admin-parity.*'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-admin-parity-db-smoke.js'
+      - '.github/workflows/restaurant-v2-admin-parity-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-admin-parity.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-admin-parity.*'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-admin-parity-db-smoke.js'
+      - '.github/workflows/restaurant-v2-admin-parity-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - name: Create ephemeral test secrets
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_DEVICE_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_QR_VISIT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-admin-parity-db-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-admin-parity.public.routes.js
+      - run: node --check src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js
+      - run: node --check src/web/restaurant-v2-admin-parity.js
+      - run: node --check src/web/restaurant-v2-control-center-bridge.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact QR/device V2 parity in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              HQ="$(mktemp)"; Q="$(mktemp)"; HD="$(mktemp)"; D="$(mktemp)"; J="$(mktemp)"; B="$(mktemp)"
+              curl -fsS -D "$HQ" "$BASE/app/restaurante-v2/qrs?v=$GITHUB_SHA" -o "$Q"
+              curl -fsS -D "$HD" "$BASE/app/restaurante-v2/dispositivos?v=$GITHUB_SHA" -o "$D"
+              curl -fsS "$BASE/app/restaurant-v2-admin-parity.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$B"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Admin-Parity: qr-devices-parity-v1' "$HQ"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Admin-Parity: qr-devices-parity-v1' "$HD"
+              grep -Fq 'QR DE MESAS' "$Q"
+              grep -Fq 'DISPOSITIVOS' "$D"
+              grep -Fq 'VANTIX_RESTAURANT_V2_ADMIN_PARITY_V1' "$J"
+              grep -Fq '/api/v1/restaurante/qrs' "$J"
+              grep -Fq "qrs: '/app/restaurante-v2/qrs'" "$B"
+              grep -Fq "devices: '/app/restaurante-v2/dispositivos'" "$B"
+              echo "Restaurant V2 QR/device parity live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

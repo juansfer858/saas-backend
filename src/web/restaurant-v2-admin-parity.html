@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0D6B43">
+  <title>VantixGC Restaurante · QR y dispositivos V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-admin-parity.css">
+</head>
+<body>
+  <header class="admin-top">
+    <div>
+      <span class="eyebrow">RESTAURANTE V2 · PARIDAD FINAL</span>
+      <h1 id="pageTitle">QR de mesas</h1>
+      <p id="tenantLine">Cargando administración operativa…</p>
+    </div>
+    <div class="admin-top-actions">
+      <a class="rv2-btn" href="/app/centro-de-control">Centro de control</a>
+      <button class="rv2-btn" id="refresh" type="button">Actualizar</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <section id="notice" class="admin-notice">Cargando…</section>
+
+    <nav class="admin-tabs" aria-label="Administración V2">
+      <button type="button" data-admin-tab="qrs">QR DE MESAS</button>
+      <button type="button" data-admin-tab="devices">DISPOSITIVOS</button>
+    </nav>
+
+    <section id="qrsPanel" class="admin-panel" hidden>
+      <div class="rv2-panel panel-head">
+        <div>
+          <small>QR FÍSICOS PERMANENTES</small>
+          <h2>Mesas</h2>
+          <p>Estos QR conservan los tokens actuales. Verlos o imprimirlos no cambia ningún código.</p>
+        </div>
+        <div class="panel-actions">
+          <select id="qrZoneFilter" class="admin-select" aria-label="Filtrar zona"></select>
+          <button class="rv2-btn" id="printVisibleQrs" type="button">Imprimir visibles</button>
+          <button class="rv2-btn rv2-btn-primary" id="printAllQrs" type="button">Imprimir todos</button>
+        </div>
+      </div>
+      <div id="qrSummary" class="summary-grid"></div>
+      <div id="qrGrid" class="qr-grid"></div>
+    </section>
+
+    <section id="devicesPanel" class="admin-panel" hidden>
+      <div class="rv2-panel panel-head">
+        <div>
+          <small>VINCULACIÓN PERSISTENTE</small>
+          <h2>Dispositivos</h2>
+          <p>Genera un QR de vinculación temporal. Una vez escaneado, el dispositivo queda autorizado hasta que Administración lo desautorice.</p>
+        </div>
+        <div class="device-kind-tabs">
+          <button type="button" data-device-kind="waiter">MESEROS</button>
+          <button type="button" data-device-kind="production">PRODUCCIÓN</button>
+        </div>
+      </div>
+      <div id="deviceSummary" class="summary-grid"></div>
+      <div id="staffGrid" class="staff-grid"></div>
+      <section class="rv2-panel devices-list-panel">
+        <div class="section-row"><div><small>DISPOSITIVOS REGISTRADOS</small><h2>Autorizaciones</h2></div><button class="rv2-btn" id="refreshDevices" type="button">Actualizar dispositivos</button></div>
+        <div id="deviceList" class="device-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="pairingDialog" class="pairing-dialog">
+    <div class="pairing-dialog-head">
+      <div><small>VINCULAR DISPOSITIVO</small><h2 id="pairingTitle">Nuevo vínculo</h2></div>
+      <button class="rv2-btn" type="button" data-close-dialog>Cerrar</button>
+    </div>
+    <div class="pairing-dialog-body">
+      <div id="pairingSetup">
+        <label class="admin-label" for="deviceName">Nombre del dispositivo</label>
+        <input id="deviceName" class="admin-input" maxlength="80" placeholder="Ej.: Tablet salón 1">
+        <button id="generatePairing" class="rv2-btn rv2-btn-primary full" type="button">GENERAR QR DE VINCULACIÓN</button>
+      </div>
+      <div id="pairingResult" hidden>
+        <div id="pairingQr" class="pairing-qr"></div>
+        <div class="pairing-copy">
+          <b id="pairingDeviceName">—</b>
+          <span id="pairingExpiry">—</span>
+          <a id="pairingLink" class="rv2-btn" target="_blank" rel="noopener">Abrir enlace de vinculación</a>
+        </div>
+        <p class="pairing-note">Este QR sólo sirve para vincular este dispositivo y vence en aproximadamente 10 minutos. No es el QR físico de una mesa.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-admin-parity.js"></script>
+</body>
+</html>

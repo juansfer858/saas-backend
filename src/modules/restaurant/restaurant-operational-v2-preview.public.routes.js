@@ -10,6 +10,7 @@ const { restaurantV2SplitPublicRouter } = require('./restaurant-v2-split.public.
 const { restaurantV2KdsPublicRouter } = require('./restaurant-v2-kds.public.routes');
 const { restaurantV2ClientQrPublicRouter } = require('./restaurant-v2-client-qr.public.routes');
 const { restaurantV2PilotPublicRouter } = require('./restaurant-v2-pilot.public.routes');
+const { restaurantV2AdminParityPublicRouter } = require('./restaurant-v2-admin-parity.public.routes');
 
 const MARKER = 'VANTIX_RESTAURANT_OPERATIONAL_UI_V2_P1';
 const DESIGN_MARKER = 'VANTIX_RESTAURANT_V2_DESIGN_SYSTEM_V1';
@@ -27,6 +28,9 @@ restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OrdersPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2CashPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2SplitPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2KdsPublicRouter);
+// Final admin parity reuses the proven QR/device APIs without rotating tokens or
+// introducing a second pairing model.
+restaurantOperationalV2PreviewPublicRouter.use(restaurantV2AdminParityPublicRouter);
 // P9 is a control-plane surface only; it never rewrites canonical V1 routes.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2PilotPublicRouter);
 // P7 owns the existing permanent physical QR path before V1. If this router is
