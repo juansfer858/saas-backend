@@ -12,11 +12,13 @@ const { V2_OPTIONS }=require('../src/modules/restaurant/restaurant-v2-orders.rou
 async function main(){
   const routeSource=fs.readFileSync('src/modules/restaurant/restaurant-v2-orders.routes.js','utf8');
   const uiSource=fs.readFileSync('src/web/restaurant-v2-orders.js','utf8');
+  const htmlSource=fs.readFileSync('src/web/restaurant-v2-orders.html','utf8');
   const coreSource=fs.readFileSync('src/routes/core.routes.js','utf8');
   assert.match(routeSource,/sharedFloor:true,optionalSeat:true/);
   assert.doesNotMatch(routeSource,/billingMode\s*:/);
-  assert.match(uiSource,/REVISAR PEDIDO/);
-  assert.match(uiSource,/CONFIRMAR Y ENVIAR A COCINA \/ BARRA/);
+  assert.match(htmlSource,/REVISAR PEDIDO/);
+  assert.match(htmlSource,/CONFIRMAR Y ENVIAR A COCINA \/ BARRA/);
+  assert.match(uiSource,/\/pedido\/enviar/);
   assert.doesNotMatch(uiSource,/MutationObserver|setInterval|\.replace\(/);
   assert.match(coreSource,/restaurantV2OrdersRouter/);
 
