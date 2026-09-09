@@ -26,8 +26,9 @@ async function staticContract() {
   assert.doesNotMatch(routesSource, /tableUpdateSchema[\s\S]{0,400}qrToken/);
   assert.match(routesSource, /post\('\/mesas\/:id\/qr\/regenerar', requirePermission\('RESTAURANTE\.ADMINISTRAR'\)/);
   assert.match(guardSource, /BEFORE UPDATE OF "qrToken"/);
-  assert.match(guardSource, /current_setting\('vantix\.restaurant_qr_regenerate', true\)/);
-  assert.match(guardSource, /set_config\('vantix\.restaurant_qr_regenerate', 'allowed', true\)/);
+  assert.match(guardSource, /QR_REGEN_SETTING = 'vantix\.restaurant_qr_regenerate'/);
+  assert.match(guardSource, /current_setting\('\$\{QR_REGEN_SETTING\}', true\)/);
+  assert.match(guardSource, /set_config\('\$\{QR_REGEN_SETTING\}', 'allowed', true\)/);
   assert.match(qrSource, /authorizeQrTokenRegeneration\(tx\)[\s\S]{0,250}restaurantTable\.update/);
   assert.match(runtimeSource, /qrTokenGuard/);
   assert.match(runtimeSource, /ensureQrTokenGuard\(prisma\)/);
