@@ -7,7 +7,7 @@ const { prisma }=require('../src/config/prisma');
 const { ensureRestaurantDemoTenant }=require('./ensure-restaurant-demo-tenant');
 const base=require('../src/modules/restaurant/restaurant.service');
 const identity=require('../src/modules/restaurant/restaurant-identity.service');
-const { V2_OPTIONS }=require('../src/modules/restaurant/restaurant-v2-orders.routes');
+const { V2_OPTIONS,listTablesV2 }=require('../src/modules/restaurant/restaurant-v2-orders.routes');
 
 async function main(){
   const routeSource=fs.readFileSync('src/modules/restaurant/restaurant-v2-orders.routes.js','utf8');
@@ -16,6 +16,9 @@ async function main(){
   const coreSource=fs.readFileSync('src/routes/core.routes.js','utf8');
   assert.match(routeSource,/sharedFloor:true,optionalSeat:true/);
   assert.doesNotMatch(routeSource,/billingMode\s*:/);
+  assert.doesNotMatch(routeSource,/actualizadoEn/,'Pedidos V2 no puede consultar campos inexistentes de ComprobanteComercial');
+  assert.match(routeSource,/listTablesV2/);
+  assert.match(routeSource,/creadoEn:true/);
   assert.match(htmlSource,/REVISAR PEDIDO/);
   assert.match(htmlSource,/CONFIRMAR Y ENVIAR A COCINA \/ BARRA/);
   assert.match(uiSource,/\/pedido\/enviar/);
@@ -32,7 +35,7 @@ async function main(){
   try{
     const v1Tables=await identity.listTablesLive(demo.tenantId,waiter);
     assert.equal(v1Tables.some(x=>x.id===table.id),false,'V1 debe conservar el alcance original del mesero');
-    const v2Tables=await identity.listTablesLive(demo.tenantId,waiter,V2_OPTIONS);
+    const v2Tables=await listTablesV2(demo.tenantId,waiter);
     assert.equal(v2Tables.some(x=>x.id===table.id),true,'V2 permite refuerzo de piso compartido');
 
     let v1Denied=false;
@@ -42,6 +45,17 @@ async function main(){
     const opened=await base.openTable(demo.tenantId,waiter,table.id,{guestCount:1},V2_OPTIONS);
     sessionId=opened.session.id;saleId=opened.sale.id;
     assert.equal(opened.session.billingMode,'CONJUNTA','V2 abre servicio sin preguntar forma de división');
+
+    // Regression real observada en piloto: /v2/mesas debe poder decorar una mesa OCUPADA
+    // con su venta activa. Antes intentaba seleccionar ComprobanteComercial.actualizadoEn,
+    // campo inexistente en Prisma, por lo que el endpoint devolvía 500 sólo con sesiones abiertas.
+    const occupiedTables=await listTablesV2(demo.tenantId,waiter);
+    const occupied=occupiedTables.find(x=>x.id===table.id);
+    assert.ok(occupied?.activeSession,'la mesa ocupada debe seguir visible en Pedidos V2');
+    assert.equal(occupied.activeSession.id,sessionId);
+    assert.equal(occupied.activeSession.sale?.id,saleId,'la venta activa debe decorarse sin 500');
+    assert.equal(occupied.activeSession.sale?.numero,opened.sale.numero);
+    assert.ok(occupied.activeSession.sale?.creadoEn instanceof Date,'la fecha real disponible debe venir de creadoEn');
 
     await identity.updateTableServiceSetup(demo.tenantId,waiter,sessionId,{guestCount:2},V2_OPTIONS);
     const menu=await base.listMenu(demo.tenantId);
@@ -68,7 +82,7 @@ async function main(){
     assert.ok(sent.commands.length>=1,'confirmar crea comandas reales');
     assert.ok(Number((await prisma.comprobanteComercial.findUnique({where:{id:saleId}})).total)>0,'venta borrador conserva total real');
 
-    console.log(JSON.stringify({ok:true,module:'PEDIDOS_V2_P3',v1IsolationPreserved:true,sharedFloorOptIn:true,noBillingQuestion:true,optionalPersons:true,reviewBeforeSend:true,commandsOnlyAfterConfirm:true}));
+    console.log(JSON.stringify({ok:true,module:'PEDIDOS_V2_P3',occupiedTableRegressionCovered:true,v1IsolationPreserved:true,sharedFloorOptIn:true,noBillingQuestion:true,optionalPersons:true,reviewBeforeSend:true,commandsOnlyAfterConfirm:true}));
   }finally{
     if(sessionId){
       const orderIds=(await prisma.restaurantOrder.findMany({where:{tenantId:demo.tenantId,sessionId},select:{id:true}})).map(x=>x.id);
