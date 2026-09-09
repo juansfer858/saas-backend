@@ -1,9 +1,10 @@
 name: Temporary P0 Core UI Patcher
 on:
   push:
-    branches: [fix/core-ui-runtime-isolation-p0]
+    branches:
+      - fix/core-ui-runtime-isolation-p0
     paths:
-      - '.github/workflows/tmp-p0-core-ui-patcher.yml'
+      - .github/workflows/tmp-p0-core-ui-patcher.yml
 permissions:
   contents: write
 jobs:
@@ -15,8 +16,8 @@ jobs:
           ref: fix/core-ui-runtime-isolation-p0
           fetch-depth: 0
       - name: Apply isolation patch
-        shell: python
         run: |
+          python - <<'PY'
           from pathlib import Path
           import re
 
@@ -34,59 +35,53 @@ jobs:
           text = loader.read_text()
           start = text.index('  async function start() {')
           end = text.index('\n  start();', start)
-          replacement = r'''  async function loadRuntimeIsolated(path, name, errorCode) {
-    try {
-      const source = await fetchRuntime(path);
-      executeSource(source, name);
-      return true;
-    } catch (error) {
-      console.error(errorCode, error);
-      return false;
-    }
-  }
+          replacement = '''  async function loadRuntimeIsolated(path, name, errorCode) {
+            try {
+              const source = await fetchRuntime(path);
+              executeSource(source, name);
+              return true;
+            } catch (error) {
+              console.error(errorCode, error);
+              return false;
+            }
+          }
 
-  async function start() {
-    installAdminPwa();
-    installInventoryProductCreatorV70();
+          async function start() {
+            installAdminPwa();
+            installInventoryProductCreatorV70();
 
-    // P0: Accounting/Core is critical and must never depend on Restaurant,
-    // realtime or printing runtimes. Load it first and independently.
-    const accountingReady = await loadRuntimeIsolated(
-      '/api/v1/comercial/ui-runtime/panel-integration-extras-core.js',
-      'panel-integration-extras-core.js',
-      'SUPER_CORE_ACCOUNTING_RUNTIME_ERROR'
-    );
+            const accountingReady = await loadRuntimeIsolated(
+              '/api/v1/comercial/ui-runtime/panel-integration-extras-core.js',
+              'panel-integration-extras-core.js',
+              'SUPER_CORE_ACCOUNTING_RUNTIME_ERROR'
+            );
 
-    // Optional runtimes fail independently; one outage cannot suppress Accounting.
-    await Promise.all([
-      loadRuntimeIsolated('/app/vantix-tenant-realtime.js?v=tenant-realtime-v1', 'vantix-tenant-realtime.js', 'SUPER_CORE_REALTIME_RUNTIME_ERROR'),
-      loadRuntimeIsolated('/app/core-realtime-panel-ui.js?v=core-realtime-v1', 'core-realtime-panel-ui.js', 'SUPER_CORE_REALTIME_PANEL_RUNTIME_ERROR'),
-      loadRuntimeIsolated('/api/v1/comercial/ui-runtime/panel-printing-config.js', 'panel-printing-config.js', 'SUPER_CORE_PRINTING_RUNTIME_ERROR')
-    ]);
+            await Promise.all([
+              loadRuntimeIsolated('/app/vantix-tenant-realtime.js?v=tenant-realtime-v1', 'vantix-tenant-realtime.js', 'SUPER_CORE_REALTIME_RUNTIME_ERROR'),
+              loadRuntimeIsolated('/app/core-realtime-panel-ui.js?v=core-realtime-v1', 'core-realtime-panel-ui.js', 'SUPER_CORE_REALTIME_PANEL_RUNTIME_ERROR'),
+              loadRuntimeIsolated('/api/v1/comercial/ui-runtime/panel-printing-config.js', 'panel-printing-config.js', 'SUPER_CORE_PRINTING_RUNTIME_ERROR')
+            ]);
 
-    installInventoryAdjustmentLibrary();
-    ensureInstallButton();
-    window.VantixGCCoreRuntimeIsolationP0 = Object.freeze({
-      version: '1.0.0',
-      accountingIndependent: true,
-      accountingReady,
-      optionalRuntimesIsolated: true
-    });
+            installInventoryAdjustmentLibrary();
+            ensureInstallButton();
+            window.VantixGCCoreRuntimeIsolationP0 = Object.freeze({
+              version: '1.0.0', accountingIndependent: true, accountingReady, optionalRuntimesIsolated: true
+            });
 
-    if (location.pathname === '/app/configuracion' && typeof window.render === 'function') {
-      if (!accountingReady) {
-        window.viewConfig = function viewAccountingRuntimeUnavailable() {
-          return '<div class="pagehead"><div><h1>Parametrización Contable</h1><p>El módulo contable no pudo cargar su runtime. No se mostrará Configuración de empresa como sustituto.</p></div></div><div class="error">No fue posible cargar Parametrización Contable. Recarga la página o contacta soporte.</div>';
-        };
-      }
-      await window.render();
-      requestAnimationFrame(() => {
-        const target = location.hash ? document.querySelector(location.hash) : null;
-        target?.scrollIntoView?.({ block: 'start' });
-      });
-    }
-  }
-'''
+            if (location.pathname === '/app/configuracion' && typeof window.render === 'function') {
+              if (!accountingReady) {
+                window.viewConfig = function viewAccountingRuntimeUnavailable() {
+                  return '<div class="pagehead"><div><h1>Parametrización Contable</h1><p>El módulo contable no pudo cargar su runtime. No se mostrará Configuración de empresa como sustituto.</p></div></div><div class="error">No fue posible cargar Parametrización Contable. Recarga la página o contacta soporte.</div>';
+                };
+              }
+              await window.render();
+              requestAnimationFrame(() => {
+                const target = location.hash ? document.querySelector(location.hash) : null;
+                target?.scrollIntoView?.({ block: 'start' });
+              });
+            }
+          }
+          '''
           text = text[:start] + replacement + text[end:]
           loader.write_text(text)
 
@@ -97,10 +92,11 @@ jobs:
           if old not in text:
               raise SystemExit('accounting heading owner target not found')
           core.write_text(text.replace(old, new, 1))
+          PY
       - name: Commit patch
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name github-actions-bot
+          git config user.email 41898282+github-actions-bot@users.noreply.github.com
           git add src/web/panel-restaurant-entry.js src/web/panel-integration-extras.js src/web/panel-integration-extras-core.js
-          git commit -m '[p0-auto] isolate Accounting runtime from Restaurant UI'
+          git commit -m "[p0-auto] isolate Accounting runtime from Restaurant UI"
           git push origin HEAD:fix/core-ui-runtime-isolation-p0
