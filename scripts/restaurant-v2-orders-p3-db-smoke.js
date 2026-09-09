@@ -19,7 +19,7 @@ async function main(){
   assert.match(htmlSource,/REVISAR PEDIDO/);
   assert.match(htmlSource,/CONFIRMAR Y ENVIAR A COCINA \/ BARRA/);
   assert.match(uiSource,/\/pedido\/enviar/);
-  assert.doesNotMatch(uiSource,/MutationObserver|setInterval|\.replace\(/);
+  assert.doesNotMatch(uiSource,/MutationObserver|setInterval|originalSend|res\.send\s*=/);
   assert.match(coreSource,/restaurantV2OrdersRouter/);
 
   const demo=await ensureRestaurantDemoTenant();
