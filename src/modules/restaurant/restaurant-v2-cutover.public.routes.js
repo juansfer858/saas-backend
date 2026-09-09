@@ -14,6 +14,7 @@ const WAITER_RUNTIME_QUERY_V23 = 'restaurant-waiter-runtime-v7.js?v=waiter-runti
 const WAITER_CALL_QUERY_V21 = 'restaurant-waiter-call-ui.js?v=waiter-call-v21-account-request';
 const WAITER_PAYMENT_QUERY_V22 = 'restaurant-waiter-electronic-payment-ui.js?v=waiter-electronic-v22';
 const TENANT_REALTIME_QUERY_V1 = 'vantix-tenant-realtime.js?v=tenant-realtime-v1';
+const WAITER_QR_ORDER_QUERY_V25 = 'restaurant-waiter-qr-order-alert-ui.js?v=waiter-qr-order-alert-v25';
 const LEGACY_RUNTIME_REFERENCE = 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14';
 
 function noStore(res) {
@@ -40,13 +41,14 @@ function renderWaiterV1(html) {
   const v14Html = waiterPwaV11(html);
   return v14Html
     .replace(LEGACY_RUNTIME_REFERENCE, WAITER_RUNTIME_QUERY_V23)
-    .replace('</body>', `<script src="/app/${WAITER_CALL_QUERY_V21}"></script><script src="/app/${WAITER_PAYMENT_QUERY_V22}"></script><script src="/app/${TENANT_REALTIME_QUERY_V1}"></script><!-- legacy-runtime-contract:${LEGACY_RUNTIME_REFERENCE} --></body>`);
+    .replace('</body>', `<script src="/app/${WAITER_CALL_QUERY_V21}"></script><script src="/app/${WAITER_PAYMENT_QUERY_V22}"></script><script src="/app/${TENANT_REALTIME_QUERY_V1}"></script><script src="/app/${WAITER_QR_ORDER_QUERY_V25}"></script><!-- legacy-runtime-contract:${LEGACY_RUNTIME_REFERENCE} --></body>`);
 }
 function setWaiterCompatibilityHeaders(res) {
   res.set('X-VantixGC-Waiter-PWA', 'v14-review-hard-gate-persistent');
   res.set('X-VantixGC-Waiter-Call', 'v21-account-request');
   res.set('X-VantixGC-Waiter-Payment', 'v22-electronic');
   res.set('X-VantixGC-Waiter-Realtime', 'v23-tenant');
+  res.set('X-VantixGC-Waiter-QR-Order', 'v25-realtime');
 }
 function renderProductionV1(html) {
   return html
