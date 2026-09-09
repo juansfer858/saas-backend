@@ -2,14 +2,20 @@ name: Restaurant V2 V1 Overlay Isolation CI
 
 on:
   pull_request:
+    branches: [main]
     paths:
       - 'src/web/restaurant-v2-control-center-bridge.js'
       - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+      - '.github/workflows/restaurant-v2-v1-overlay-isolation-ci.yml'
   push:
     branches: [main]
     paths:
       - 'src/web/restaurant-v2-control-center-bridge.js'
       - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+      - '.github/workflows/restaurant-v2-v1-overlay-isolation-ci.yml'
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -28,15 +34,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Verify exact production SHA and overlay isolation marker
-        env:
-          EXPECTED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
-            LIVE_SHA="$(curl -fsS https://core.vantixgc.com/api/health | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log(j.commit||j.sha||j.gitSha||j.version||'')}catch{}})")"
-            BRIDGE="$(curl -fsS https://core.vantixgc.com/app/restaurant-v2-control-center-bridge.js || true)"
-            if [ "$LIVE_SHA" = "$EXPECTED_SHA" ] && printf '%s' "$BRIDGE" | grep -q 'suppressLegacyOperationalOverlays' && printf '%s' "$BRIDGE" | grep -q 'restaurantAccountAttentionDock'; then
-              echo "Production exact SHA and V1 overlay isolation verified: $EXPECTED_SHA"
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              BRIDGE="$(mktemp)"
+              curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$BRIDGE"
+              grep -Fq 'suppressLegacyOperationalOverlays' "$BRIDGE"
+              grep -Fq '#restaurantAccountAttentionDock' "$BRIDGE"
+              grep -Fq "dataset.restaurantV2Workspace = '1'" "$BRIDGE"
+              echo "Production exact SHA and V1 overlay isolation verified: $GITHUB_SHA"
               exit 0
             fi
             sleep 10
