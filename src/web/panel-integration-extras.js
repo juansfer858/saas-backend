@@ -342,39 +342,52 @@
     else ensureInventoryProductButton();
   }
 
-  async function start() {
-    installAdminPwa();
-    // V70.1: el botón Agregar producto vive en la capa base que ya carga el panel.
-    // Así no depende de que Realtime/Core/Printing terminen de cargar para aparecer.
-    installInventoryProductCreatorV70();
-    try {
-      const [realtime, realtimePanel, core, printing] = await Promise.all([
-        fetchRuntime('/app/vantix-tenant-realtime.js?v=tenant-realtime-v1'),
-        fetchRuntime('/app/core-realtime-panel-ui.js?v=core-realtime-v1'),
-        fetchRuntime('/api/v1/comercial/ui-runtime/panel-integration-extras-core.js'),
-        fetchRuntime('/api/v1/comercial/ui-runtime/panel-printing-config.js')
-      ]);
-      executeSource(realtime, 'vantix-tenant-realtime.js');
-      executeSource(realtimePanel, 'core-realtime-panel-ui.js');
-      executeSource(core, 'panel-integration-extras-core.js');
-      executeSource(printing, 'panel-printing-config.js');
-      installInventoryAdjustmentLibrary();
-      ensureInstallButton();
-
-      // El Core hace su primer render antes de que la capa de impresoras/estaciones
-      // pueda extender viewConfig. Si estamos entrando directamente a Configuración,
-      // renderizamos una vez más para que la sección operativa sea visible de inmediato.
-      if (location.pathname === '/app/configuracion' && typeof window.render === 'function') {
-        await window.render();
-        requestAnimationFrame(() => {
-          const target = location.hash ? document.querySelector(location.hash) : null;
-          target?.scrollIntoView?.({ block: 'start' });
-        });
-      }
-    } catch (error) {
-      console.error('SUPER_CORE_INTEGRATION_RUNTIME_ERROR', error);
-    }
+  async function loadRuntimeIsolated(path, name, errorCode) {
+  try {
+    const source = await fetchRuntime(path);
+    executeSource(source, name);
+    return true;
+  } catch (error) {
+    console.error(errorCode, error);
+    return false;
   }
+}
+
+async function start() {
+  installAdminPwa();
+  installInventoryProductCreatorV70();
+
+  const accountingReady = await loadRuntimeIsolated(
+    '/api/v1/comercial/ui-runtime/panel-integration-extras-core.js',
+    'panel-integration-extras-core.js',
+    'SUPER_CORE_ACCOUNTING_RUNTIME_ERROR'
+  );
+
+  await Promise.all([
+    loadRuntimeIsolated('/app/vantix-tenant-realtime.js?v=tenant-realtime-v1', 'vantix-tenant-realtime.js', 'SUPER_CORE_REALTIME_RUNTIME_ERROR'),
+    loadRuntimeIsolated('/app/core-realtime-panel-ui.js?v=core-realtime-v1', 'core-realtime-panel-ui.js', 'SUPER_CORE_REALTIME_PANEL_RUNTIME_ERROR'),
+    loadRuntimeIsolated('/api/v1/comercial/ui-runtime/panel-printing-config.js', 'panel-printing-config.js', 'SUPER_CORE_PRINTING_RUNTIME_ERROR')
+  ]);
+
+  installInventoryAdjustmentLibrary();
+  ensureInstallButton();
+  window.VantixGCCoreRuntimeIsolationP0 = Object.freeze({
+    version: '1.0.0', accountingIndependent: true, accountingReady, optionalRuntimesIsolated: true
+  });
+
+  if (location.pathname === '/app/configuracion' && typeof window.render === 'function') {
+    if (!accountingReady) {
+      window.viewConfig = function viewAccountingRuntimeUnavailable() {
+        return '<div class="pagehead"><div><h1>Parametrización Contable</h1><p>El módulo contable no pudo cargar su runtime. No se mostrará Configuración de empresa como sustituto.</p></div></div><div class="error">No fue posible cargar Parametrización Contable. Recarga la página o contacta soporte.</div>';
+      };
+    }
+    await window.render();
+    requestAnimationFrame(() => {
+      const target = location.hash ? document.querySelector(location.hash) : null;
+      target?.scrollIntoView?.({ block: 'start' });
+    });
+  }
+}
 
   start();
 })();

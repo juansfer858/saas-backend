@@ -66,7 +66,7 @@
 
   window.viewConfig = function viewConfigIntegrated() {
     setTimeout(hydrateAccountingConfig, 0);
-    return `<div class="pagehead"><div><h1>Configuración</h1><p>Parametrización contable única para Ventas, Compras, Inventario, Tesorería y Cartera.</p></div></div><div id="accountingReadiness"><div class="loading">Cargando parametrización contable…</div></div><div id="accountingMappings"></div><div id="bankMappings"></div><div class="panel"><div class="panel-head"><h2>Método de costeo</h2></div><div class="audit-body"><strong>Promedio ponderado</strong><p class="muted">El Kardex actual calcula costo promedio ponderado transaccional. La opción PEPS requiere capas de costo y no se habilita hasta que el motor PEPS esté validado para reversos y devoluciones.</p></div></div>`;
+    return `<div class="pagehead"><div><h1>Parametrización Contable</h1><p>Parametrización contable única para Ventas, Compras, Inventario, Tesorería y Cartera.</p></div></div><div id="accountingReadiness"><div class="loading">Cargando parametrización contable…</div></div><div id="accountingMappings"></div><div id="bankMappings"></div><div class="panel"><div class="panel-head"><h2>Método de costeo</h2></div><div class="audit-body"><strong>Promedio ponderado</strong><p class="muted">El Kardex actual calcula costo promedio ponderado transaccional. La opción PEPS requiere capas de costo y no se habilita hasta que el motor PEPS esté validado para reversos y devoluciones.</p></div></div>`;
   };
 
   window.openConfigMetric = function openConfigMetric(moduleKey) {
