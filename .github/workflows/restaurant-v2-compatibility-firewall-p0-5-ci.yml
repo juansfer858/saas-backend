@@ -60,7 +60,7 @@ jobs:
       - name: Validate QR compatibility firewall against PostgreSQL
         run: node scripts/restaurant-v2-compatibility-firewall-p0-5-smoke.js
       - name: Validate runtime readiness includes QR guard
-        run: node -e "require('./scripts/ensure-restaurant-runtime-schema').ensureRestaurantRuntimeSchema().then(x=>{if(!x.ready)process.exit(1)}).finally(()=>require('./src/config/prisma').prisma.$disconnect())"
+        run: node -e 'require("./scripts/ensure-restaurant-runtime-schema").ensureRestaurantRuntimeSchema().then(x=>{if(!x.ready)process.exit(1)}).finally(()=>require("./src/config/prisma").prisma.$disconnect())'
 
   verify-production:
     if: github.event_name == 'push'
