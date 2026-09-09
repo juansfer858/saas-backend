@@ -1,0 +1,86 @@
+name: Restaurant V2 Cash P4 CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-cash.*'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
+      - 'src/modules/restaurant/restaurant-credit-payment.service.js'
+      - 'src/modules/restaurant/restaurant-credit-customer.service.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-cash.*'
+      - 'scripts/restaurant-v2-cash-p4-db-smoke.js'
+      - '.github/workflows/restaurant-v2-cash-p4-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-cash.*'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
+      - 'src/modules/restaurant/restaurant-credit-payment.service.js'
+      - 'src/modules/restaurant/restaurant-credit-customer.service.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-cash.*'
+      - 'scripts/restaurant-v2-cash-p4-db-smoke.js'
+      - '.github/workflows/restaurant-v2-cash-p4-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: vantixgc.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-cash-p4-db-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-cash.service.js
+      - run: node --check src/modules/restaurant/restaurant-v2-cash.routes.js
+      - run: node --check src/modules/restaurant/restaurant-v2-cash.public.routes.js
+      - run: node --check src/web/restaurant-v2-cash.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact Caja V2 P4 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"
+              curl -fsS -D "$H" "$BASE/app/restaurante-v2/caja?v=$GITHUB_SHA" -o "$P"
+              curl -fsS "$BASE/app/restaurant-v2-cash.js?v=$GITHUB_SHA" -o "$J"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Cash: p4-cash-independent' "$H"
+              grep -Fq 'RESTAURANTE V2 · CAJA P4' "$P"
+              grep -Fq 'COBRAR CUENTA COMPLETA' "$P"
+              grep -Fq 'DIAN no es requisito' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_V2_CASH_P4' "$J"
+              grep -Fq '/v2/caja/mesas/' "$J"
+              if grep -Eq 'MutationObserver|setInterval' "$J"; then exit 1; fi
+              echo "Caja V2 P4 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
