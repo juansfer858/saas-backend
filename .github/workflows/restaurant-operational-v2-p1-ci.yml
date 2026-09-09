@@ -1,0 +1,65 @@
+name: Restaurant Operational UI V2 P1 CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-operational-v2-preview.*'
+      - 'src/web/restaurant-v2-design-system.css'
+      - 'src/web/restaurant-v2-sdk.js'
+      - 'scripts/restaurant-operational-v2-p1-smoke.js'
+      - '.github/workflows/restaurant-operational-v2-p1-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-operational-v2-preview.*'
+      - 'src/web/restaurant-v2-design-system.css'
+      - 'src/web/restaurant-v2-sdk.js'
+      - 'scripts/restaurant-operational-v2-p1-smoke.js'
+      - '.github/workflows/restaurant-operational-v2-p1-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node scripts/restaurant-operational-v2-p1-smoke.js
+      - name: Validate server source syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js
+          node --check src/modules/restaurant/restaurant.public.routes.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact isolated V2 P1 foundation in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              H="$(mktemp)"; J="$(mktemp)"; P="$(mktemp)"; D="$(mktemp)"; S="$(mktemp)"
+              curl -fsS -D "$H" "$BASE/app/restaurante-v2-preview?v=$GITHUB_SHA" -o "$P"
+              curl -fsS "$BASE/app/restaurant-operational-v2-preview.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-design-system.css?v=$GITHUB_SHA" -o "$D"
+              curl -fsS "$BASE/app/restaurant-v2-sdk.js?v=$GITHUB_SHA" -o "$S"
+              grep -Fqi 'X-VantixGC-Restaurant-V2: p1-isolated-foundation-preview' "$H"
+              grep -Fq 'P1 · FOUNDATION · SOLO LECTURA' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_OPERATIONAL_UI_V2_P1' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_DESIGN_SYSTEM_V1' "$D"
+              grep -Fq 'VANTIX_RESTAURANT_V2_SDK_V1' "$S"
+              grep -Fq 'legacyUiPatched:false' "$J"
+              echo "Restaurant V2 P1 foundation live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

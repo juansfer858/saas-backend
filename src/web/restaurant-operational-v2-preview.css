@@ -1,0 +1,15 @@
+/* VANTIX_RESTAURANT_OPERATIONAL_UI_V2_P1 */
+.top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;padding:28px clamp(18px,4vw,56px);background:var(--rv2-surface);border-bottom:1px solid var(--rv2-line)}
+.eyebrow{font-size:12px;font-weight:900;letter-spacing:.12em;color:var(--rv2-primary)}
+.top h1{margin:5px 0 2px;font-size:30px}.top p{margin:0;color:var(--rv2-muted)}
+.badge{background:var(--rv2-primary-soft);color:var(--rv2-primary-hover)}
+main{padding:22px clamp(18px,4vw,56px);max-width:1500px;margin:auto}
+.tabs{display:flex;gap:8px;margin-bottom:18px;overflow:auto}.tabs .rv2-btn{white-space:nowrap}.tabs .active{background:var(--rv2-primary);border-color:var(--rv2-primary);color:#fff}
+.status{padding:12px 14px;border-radius:var(--rv2-radius-sm);background:#eef3f8;color:#415466;margin-bottom:18px}.status.error{background:var(--rv2-danger-soft);color:#991b1b}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:12px;margin-bottom:18px}.metric{background:var(--rv2-surface);border:1px solid var(--rv2-line);border-radius:var(--rv2-radius);padding:14px}.metric small{display:block;color:var(--rv2-muted)}.metric strong{font-size:24px}
+.panel{padding:18px}.panel h2{margin:0 0 5px}.panel>p{margin:0 0 16px;color:var(--rv2-muted)}
+.table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}.table-card{padding:15px;border:1px solid var(--rv2-line);border-radius:var(--rv2-radius);min-height:142px}.table-card header{display:flex;justify-content:space-between;gap:10px}.table-card h3{margin:0}.table-card .state{font-size:11px;font-weight:900;padding:5px 8px;border-radius:999px;border:1px solid currentColor}.table-card dl{display:grid;grid-template-columns:1fr auto;gap:6px;margin:14px 0 0;font-size:13px}.table-card dt{opacity:.82}.table-card dd{margin:0;font-weight:850}
+.table-card.rv2-table-occupied .state,.table-card.rv2-table-account-requested .state{background:rgba(255,255,255,.14)}
+.placeholder{padding:40px 18px;text-align:center;background:var(--rv2-surface);border:1px dashed var(--rv2-line);border-radius:var(--rv2-radius);color:var(--rv2-muted)}
+@media(max-width:720px){.top{align-items:flex-start;flex-direction:column}.metrics{grid-template-columns:repeat(2,1fr)}main{padding:16px}.table-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.table-card{min-height:152px}}
+@media(max-width:430px){.table-grid{grid-template-columns:1fr}}

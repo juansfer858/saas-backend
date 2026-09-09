@@ -2,6 +2,7 @@
 
 const express = require('express');
 require('./restaurant-pos-operational-mode');
+const { restaurantOperationalV2PreviewPublicRouter } = require('./restaurant-operational-v2-preview.public.routes');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { publicInstallerRouter } = require('../public-installer/public-installer.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
@@ -60,10 +61,10 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
-// Canonical Restaurant public surfaces remain owned by the established shell:
-// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
-// restaurant-control-center.css · restaurant-control-center.js
-// Administrative company identity belongs to /app/configuracion-avanzada, not to Centro de control.
+// V2 is handled before every legacy response wrapper. If this router answers,
+// the request never enters source-rewriting layers from Restaurant V1.
+router.use(restaurantOperationalV2PreviewPublicRouter);
+
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
@@ -80,44 +81,19 @@ function installCashCompactRuntime(req, res, next) {
   return next();
 }
 
-// This root-mounted public router is evaluated before the generic /app HTML fallback.
-// Keep the Super Core PWA manifest/service worker public and free of tenant/session data.
-// Installer V50 is public by design: it only serves the bootstrap. Tenant credentials
-// are still requested/provisioned separately by the installer and are never embedded here.
 router.use(publicInstallerRouter);
 router.use(coreAdminPwaPublicRouter);
 router.use(platformEdgeRolloutPublicRouter);
-// V65 exposes only public Firebase web metadata/client assets here. Authentication,
-// tenant filtering and device registration stay under /api/v1/notificaciones/push-v65.
 router.use(restaurantPushV65PublicRouter);
 router.use(installRestaurantPushV65);
-// V67 wraps the final Centro de Control asset and turns each table into a live
-// operational detail: ordered, preparing, ready, delivered and empty-opening cancel.
 router.use(installRestaurantTableLiveDetailV67);
-// V73 exposes redistribution by person for every existing line after a joint table
-// switches to Individual. It never changes product quantity, price or kitchen state.
 router.use(installRestaurantJointSplitV73);
-// V74 wraps only the Mesero tablet runtime. It exposes the existing safe empty-opening
-// cancellation only to the waiter who originally opened that table.
 router.use(installRestaurantWaiterCloseEmptyV74);
-// V62 is outermost for Caja: it sees the final V45/V43 payment composition and
-// separates Transferencia/QR, Tarjeta, Efectivo and Crédito in the shift close summary.
 router.use(installRestaurantCashCloseMethodsV62);
-// V61 is the outermost QR asset layer: after V57/V56 finish composing the client
-// menu, it adds an optional note per selected product without changing order totals.
 router.use(installRestaurantQrProductNotesV61);
-// V58 is outermost for the staff assets. Response wrappers unwind in reverse order,
-// so this layer sees the final V57/V56/Menu Surfaces asset and only adds account-attention UI.
 router.use(installRestaurantAccountAttentionV58);
-// V57 wraps the same three product-selection assets before V56 and all other Restaurant
-// layers. Because response wrappers unwind in reverse order, V57 receives the final V56
-// QR asset and makes search global across the whole active menu instead of one category.
 router.use(installRestaurantGlobalProductSearchV57);
-// V56 must wrap the public/operator assets before any specialized Restaurant router
-// can answer them. The customer may browse and build the cart while the table is free;
-// only the final order confirmation creates the staff enable request.
 router.use(installRestaurantTableEnableV56);
-// Company identity is an Administration concern. This layer wraps only Configuración avanzada.
 router.use(installCompanyAdminAdvancedAsset);
 router.use(restaurantCompanyAdminAdvancedPublicRouter);
 router.use(restaurantEdgeManagedPublicRouter);
@@ -138,28 +114,17 @@ router.use(restaurantQrOrderWaiterAlertPublicRouter);
 router.use(restaurantWaiterDevicePersistencePublicRouter);
 router.use(installCashShiftRecoveryRuntime);
 router.use(installCashCompactRuntime);
-// V53 se instala sobre el asset Cloud antes de que el DOMContentLoaded del Centro
-// de Control cree el pase local, para conservar el mismo origen que inició el flujo.
 router.use(installRestaurantHybridLocalOriginV53);
 router.use(installCashCollectDialogRuntime);
 router.use(installPaymentMethodsVisibilityRuntime);
 router.use(installRestaurantPaymentChainV43);
-// V49 queda después de V43 y antes de V47 en la cadena de montaje para que su
-// presentación por persona sea la última capa visual sobre el cobro individual.
 router.use(installRestaurantIndividualCashV49);
-// Se monta después de V43 para que su runtime quede antes de V43 en el asset final:
-// remapea la lectura de clientes al endpoint acotado y hace autoritativo Crédito.
 router.use(installRestaurantCreditCheckoutV47);
 router.use(installRestaurantCashCloseBreakdownV45);
 router.use(installWaiterVisitCodeRuntime);
 router.use(installWaiterCallPcRuntime);
-// V55 remains as a compatibility wrapper for paths that reach this late point. V56 is
-// authoritative for the actual QR/Staff assets because it is mounted before surface routers.
 router.use(installRestaurantTableEnableV55);
 router.use(installPrintTemplateEditorRuntime);
-// V75 must wrap the final V38 asset. Response wrappers unwind in reverse order: V38
-// installs the Edge print trigger first and V75 replaces only that post-payment trigger
-// with the explicit Imprimir / No imprimir choice. Payment registration is untouched.
 router.use(installRestaurantPosPrintChoiceV75);
 router.use(installPosReceiptImmediateRuntime);
 router.use(restaurantTenantRealtimePublicRouter);
@@ -169,7 +134,6 @@ router.use(restaurantWaiterCallUnifiedPublicRouter);
 router.use(restaurantWaiterCallPublicRouter);
 router.use(restaurantMenuImportPublicRouter);
 router.use(restaurantTableEnableV55PublicRouter);
-// V54 remains the no-PIN phone authorization endpoint used by V56 after staff enables the table.
 router.use(installRestaurantQrDirectTestV54);
 router.use(restaurantQrDirectTestV54PublicRouter);
 router.use(restaurantVisitPublicRouter);

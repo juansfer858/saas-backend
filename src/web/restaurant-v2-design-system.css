@@ -1,0 +1,53 @@
+/* VANTIX_RESTAURANT_V2_DESIGN_SYSTEM_V1 */
+:root{
+  --rv2-primary:#ea580c;
+  --rv2-primary-hover:#c2410c;
+  --rv2-primary-soft:#fff7ed;
+  --rv2-success:#16a34a;
+  --rv2-success-soft:#dcfce7;
+  --rv2-warning:#f59e0b;
+  --rv2-warning-soft:#fef3c7;
+  --rv2-danger:#dc2626;
+  --rv2-danger-soft:#fee2e2;
+  --rv2-ink:#0f172a;
+  --rv2-muted:#64748b;
+  --rv2-line:#cbd5e1;
+  --rv2-surface:#ffffff;
+  --rv2-bg:#f8fafc;
+  --rv2-table-occupied:#c2410c;
+  --rv2-table-account:#dc2626;
+  --rv2-radius-sm:10px;
+  --rv2-radius:14px;
+  --rv2-radius-lg:18px;
+  --rv2-shadow:0 10px 28px rgba(15,23,42,.10);
+  --rv2-font:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-family:var(--rv2-font);
+  color:var(--rv2-ink);
+  background:var(--rv2-bg);
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--rv2-bg);color:var(--rv2-ink);font-family:var(--rv2-font)}
+button,input,select,textarea{font:inherit}
+.rv2-btn{min-height:44px;padding:10px 15px;border:1px solid var(--rv2-line);border-radius:var(--rv2-radius-sm);background:var(--rv2-surface);color:var(--rv2-ink);font-weight:850;cursor:pointer;touch-action:manipulation}
+.rv2-btn:hover{border-color:var(--rv2-primary)}
+.rv2-btn-primary{background:var(--rv2-primary);border-color:var(--rv2-primary);color:#fff}
+.rv2-btn-primary:hover{background:var(--rv2-primary-hover);border-color:var(--rv2-primary-hover)}
+.rv2-btn-success{background:var(--rv2-success);border-color:var(--rv2-success);color:#fff}
+.rv2-btn-danger{background:var(--rv2-danger);border-color:var(--rv2-danger);color:#fff}
+.rv2-panel{background:var(--rv2-surface);border:1px solid var(--rv2-line);border-radius:var(--rv2-radius);box-shadow:var(--rv2-shadow)}
+.rv2-input{width:100%;min-height:44px;border:1px solid var(--rv2-line);border-radius:var(--rv2-radius-sm);background:#fff;color:var(--rv2-ink);padding:10px 12px}
+.rv2-input:focus{outline:0;border-color:var(--rv2-primary);box-shadow:0 0 0 3px rgba(234,88,12,.14)}
+.rv2-status-success{background:var(--rv2-success-soft);color:#166534}
+.rv2-status-warning{background:var(--rv2-warning-soft);color:#92400e}
+.rv2-status-danger{background:var(--rv2-danger-soft);color:#991b1b}
+.rv2-table{transition:transform .14s ease,box-shadow .14s ease,background .14s ease,border-color .14s ease}
+.rv2-table-free{background:var(--rv2-surface);color:var(--rv2-ink);border-color:var(--rv2-line)}
+.rv2-table-occupied{background:var(--rv2-table-occupied);color:#fff;border-color:var(--rv2-table-occupied);box-shadow:0 12px 26px rgba(194,65,12,.24)}
+.rv2-table-occupied .rv2-muted{color:#ffedd5}
+.rv2-table-account-requested{background:var(--rv2-table-account);color:#fff;border-color:var(--rv2-table-account);animation:rv2AccountPulse 1.05s ease-in-out infinite;box-shadow:0 12px 30px rgba(220,38,38,.34)}
+.rv2-table-account-requested .rv2-muted{color:#fee2e2}
+@keyframes rv2AccountPulse{0%,100%{background:#dc2626;transform:scale(1);box-shadow:0 10px 24px rgba(220,38,38,.26)}50%{background:#ea580c;transform:scale(1.018);box-shadow:0 18px 38px rgba(234,88,12,.38)}}
+.rv2-muted{color:var(--rv2-muted)}
+.rv2-badge{display:inline-flex;align-items:center;min-height:28px;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;border:1px solid currentColor}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}.rv2-table-account-requested{background:var(--rv2-table-account)!important;outline:4px solid var(--rv2-warning)}}
+@media(max-width:720px){.rv2-btn{min-height:46px}.rv2-input{min-height:46px;font-size:16px}}
