@@ -18,7 +18,8 @@ router.get('/app/centro-de-control', async (_req, res, next) => {
     res.set('Cache-Control', 'no-store, max-age=0');
     res.set('X-VantixGC-Restaurant-Control', 'operational-shell-v1');
     res.set('X-VantixGC-Restaurant-Control-V2', HEADER_VALUE);
-    res.set('X-VantixGC-Restaurant-Control-Engine', 'restaurant-ui-v1+v2-navigation');
+    res.set('X-VantixGC-Restaurant-Control-Engine', 'restaurant-ui-v1');
+    res.set('X-VantixGC-Restaurant-Control-V2-Engine', 'embedded-independent-modules');
     res.set('X-VantixGC-Restaurant-Control-Fallback', '/app/restaurante');
     res.type('html').send(rendered);
   } catch (error) { next(error); }
