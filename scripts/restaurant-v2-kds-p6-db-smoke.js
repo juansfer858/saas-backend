@@ -39,6 +39,8 @@ async function main() {
   assert.match(service, /NEXT_STATE/);
   assert.match(pushService, /RESTAURANT_COMMAND_NEW_V2/);
   assert.match(pushService, /notificationPushDelivery/);
+  assert.match(pushService, /flexibleSupport/);
+  assert.match(pushService, /restaurantEmployeeWorkProfile/);
   assert.match(p3Routes, /void kdsPush\.notifyLatestRound/);
   assert.match(p3Routes, /sharedFloor:true,optionalSeat:true/);
   assert.match(html, /COCINA\/KDS\/PUSH P6/);
@@ -63,27 +65,32 @@ async function main() {
   assert.ok(admin && waiter && cook, 'el demo necesita ADMIN, MESERO y COCINA');
 
   const suffix = crypto.randomBytes(4).toString('hex');
-  const [zone, menuItem] = await Promise.all([
+  const [zone, kitchenMenuItem, barMenuItem] = await Promise.all([
     prisma.restaurantZone.create({ data:{ tenantId:demo.tenantId, name:`KDS P6 ${suffix}`, sortOrder:995 } }),
-    prisma.restaurantMenuItem.findFirst({ where:{ tenantId:demo.tenantId, active:true, station:'COCINA' }, orderBy:{ sortOrder:'asc' } })
+    prisma.restaurantMenuItem.findFirst({ where:{ tenantId:demo.tenantId, active:true, station:'COCINA' }, orderBy:{ sortOrder:'asc' } }),
+    prisma.restaurantMenuItem.findFirst({ where:{ tenantId:demo.tenantId, active:true, station:'BARRA' }, orderBy:{ sortOrder:'asc' } })
   ]);
-  assert.ok(menuItem, 'el demo necesita un producto real de COCINA');
+  assert.ok(kitchenMenuItem && barMenuItem, 'el demo necesita productos reales de COCINA y BARRA');
   const table = await prisma.restaurantTable.create({
     data:{ tenantId:demo.tenantId, zoneId:zone.id, code:`P6-${suffix}`, name:`Mesa KDS P6 ${suffix}`, seats:4, assignedWaiterId:waiter.id }
   });
 
-  const manualStation = await printingStations.createStation(demo.tenantId, admin.id, {
-    name:`Cocina principal P6 ${suffix}`,
-    queue:'COCINA',
-    mode:'KDS',
-    active:true,
-    sortOrder:10
-  });
-  assert.equal(manualStation.mode, 'KDS');
+  const [manualKitchen, manualBar] = await Promise.all([
+    printingStations.createStation(demo.tenantId, admin.id, {
+      name:`Cocina principal P6 ${suffix}`,
+      queue:'COCINA', mode:'KDS', active:true, sortOrder:10
+    }),
+    printingStations.createStation(demo.tenantId, admin.id, {
+      name:`Barra apoyo P6 ${suffix}`,
+      queue:'BARRA', mode:'KDS', active:true, sortOrder:20
+    })
+  ]);
+  assert.equal(manualKitchen.mode, 'KDS');
+  assert.equal(manualBar.mode, 'KDS');
   await work.saveProfile(demo.tenantId, admin.id, cook.id, { stations:['COCINA','BARRA'] });
 
   const opened = await restaurant.openTable(demo.tenantId, waiter, table.id, { guestCount:2 }, V2_OPTIONS);
-  const draft = await identity.setWaiterDraftItem(demo.tenantId, waiter, opened.session.id, menuItem.id, 2, 1, V2_OPTIONS);
+  const draft = await identity.setWaiterDraftItem(demo.tenantId, waiter, opened.session.id, kitchenMenuItem.id, 2, 1, V2_OPTIONS);
   assert.ok(draft?.order?.id, 'P3 debe crear sólo el borrador del pedido');
   assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:draft.order.id } }), 0, 'agregar productos no puede crear comandas');
 
@@ -104,7 +111,7 @@ async function main() {
   assert.equal(workspace.commands.some((row) => row.id === command.id), true, 'KDS P6 debe mostrar la comanda real pendiente');
   const kitchenQueue = workspace.queues.find((row) => row.queue === 'COCINA');
   assert.equal(kitchenQueue.configured, true, 'la estación manual KDS debe ser autoritativa');
-  assert.equal(kitchenQueue.stations.some((row) => row.id === manualStation.id && row.name === manualStation.name), true, 'KDS debe usar el nombre configurado por el restaurante');
+  assert.equal(kitchenQueue.stations.some((row) => row.id === manualKitchen.id && row.name === manualKitchen.name), true, 'KDS debe usar el nombre configurado por el restaurante');
   assert.equal(kitchenQueue.preferred, true, 'la asignación del empleado prioriza su estación');
 
   await assert.rejects(
@@ -150,7 +157,6 @@ async function main() {
   const secondPush = await kdsPush.notifyLatestRound(demo.tenantId, opened.session.id, waiter.id);
   assert.equal(secondPush.attempted, 0, 'reintentar la misma ronda no reenvía al mismo dispositivo');
   assert.equal(secondPush.deduplicated, 1);
-  assert.equal(await prisma.notificationPushDelivery.count({ where:{ tenantId:demo.tenantId, pushDeviceId:pushDevice.id, eventCode:kdsPush.EVENT_CODE } }), 1);
 
   await kds.updateState(demo.tenantId, cook, command.id, 'ENTREGADA');
   state = await prisma.restaurantCommand.findUnique({ where:{ id:command.id } });
@@ -158,6 +164,36 @@ async function main() {
   assert.ok(state.deliveredAt);
   const afterDelivery = await kds.workspace(demo.tenantId, cook, { station:'COCINA' });
   assert.equal(afterDelivery.commands.some((row) => row.id === command.id), false, 'ENTREGADA deja de ocupar el tablero activo');
+
+  // Same employee/device has base role COCINA but BARRA is an assigned flexible module.
+  // A second real round proves both KDS reinforcement and Push targeting by work profile.
+  const barDraft = await identity.setWaiterDraftItem(demo.tenantId, waiter, opened.session.id, barMenuItem.id, 1, null, V2_OPTIONS);
+  assert.ok(barDraft?.order?.id && barDraft.order.id !== sent.order.id, 'una nueva ronda debe usar un nuevo borrador');
+  assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:barDraft.order.id } }), 0);
+  const barSent = await identity.sendWaiterDraft(demo.tenantId, waiter, opened.session.id, V2_OPTIONS);
+  const barCommand = await prisma.restaurantCommand.findFirst({ where:{ tenantId:demo.tenantId, orderId:barSent.order.id, station:'BARRA' } });
+  assert.ok(barCommand && barCommand.state === 'PENDIENTE', 'la segunda ronda debe crear una comanda BARRA real');
+  const barWorkspace = await kds.workspace(demo.tenantId, cook, { station:'BARRA' });
+  assert.equal(barWorkspace.commands.some((row) => row.id === barCommand.id), true, 'COCINA puede reforzar BARRA según el contrato flexible');
+  const barQueue = barWorkspace.queues.find((row) => row.queue === 'BARRA');
+  assert.equal(barQueue.preferred, true, 'BARRA debe figurar como módulo asignado al empleado COCINA');
+  assert.equal(barQueue.stations.some((row) => row.id === manualBar.id), true);
+
+  const flexiblePush = await kdsPush.notifyLatestRound(demo.tenantId, opened.session.id, waiter.id);
+  assert.equal(flexiblePush.orderId, barSent.order.id);
+  assert.equal(flexiblePush.attempted, 1, 'el dispositivo COCINA debe recibir BARRA porque el perfil la tiene asignada');
+  assert.equal(flexiblePush.sent + flexiblePush.failed, 1);
+  assert.equal(await prisma.notificationPushDelivery.count({ where:{ tenantId:demo.tenantId, pushDeviceId:pushDevice.id, eventCode:kdsPush.EVENT_CODE } }), 2, 'cada ronda/estación tiene una entrega durable distinta');
+  const flexibleRetry = await kdsPush.notifyLatestRound(demo.tenantId, opened.session.id, waiter.id);
+  assert.equal(flexibleRetry.attempted, 0);
+  assert.equal(flexibleRetry.deduplicated, 1);
+
+  await kds.updateState(demo.tenantId, cook, barCommand.id, 'EN_PREPARACION');
+  await kds.updateState(demo.tenantId, cook, barCommand.id, 'LISTA');
+  await kds.updateState(demo.tenantId, cook, barCommand.id, 'ENTREGADA');
+  const finalBar = await prisma.restaurantCommand.findUnique({ where:{ id:barCommand.id } });
+  assert.equal(finalBar.state, 'ENTREGADA');
+  assert.ok(finalBar.startedAt && finalBar.readyAt && finalBar.deliveredAt);
 
   console.log(JSON.stringify({
     ok:true,
@@ -167,11 +203,13 @@ async function main() {
     confirmationCreatesCommand:true,
     manualStations:true,
     flexiblePriority:true,
+    flexibleReinforcement:true,
     strictTransitions:true,
     realtimeOnOrderSend:true,
     noPolling:true,
     pushBestEffort:true,
     pushRoleTarget:true,
+    pushFlexibleTarget:true,
     pushDeduplicated:true,
     legacyCommandEngineReused:true
   }));
