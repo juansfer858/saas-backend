@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0D6B43">
+  <title>VantixGC Restaurante · Piloto V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-pilot.css">
+</head>
+<body>
+  <header class="pilot-top">
+    <div>
+      <span class="eyebrow">RESTAURANTE V2 · PILOTO P9</span>
+      <h1>Piloto controlado</h1>
+      <p id="tenantLine">Leyendo configuración del restaurante…</p>
+    </div>
+    <div class="pilot-top-actions">
+      <a class="rv2-btn" href="/app/centro-de-control">Centro de control</a>
+      <button class="rv2-btn" id="refresh" type="button">Actualizar</button>
+    </div>
+  </header>
+
+  <main class="pilot-main">
+    <section id="notice" class="pilot-notice">Cargando estado del piloto…</section>
+
+    <section class="pilot-hero rv2-panel">
+      <div>
+        <small>ESTADO DEL TENANT</small>
+        <div class="pilot-state-row">
+          <strong id="pilotState">—</strong>
+          <span id="pilotBadge" class="pilot-badge">—</span>
+        </div>
+        <p id="pilotMeta">—</p>
+      </div>
+      <div class="pilot-safety">
+        <span>Sin redirección automática</span>
+        <span>V1 permanece disponible</span>
+        <span>Rollback sin borrar datos</span>
+      </div>
+    </section>
+
+    <section class="pilot-grid">
+      <article class="rv2-panel">
+        <div class="section-title"><div><small>GATE REAL</small><h2>Preparación mínima</h2></div><strong id="requiredScore">—</strong></div>
+        <div id="requiredChecks" class="check-list"></div>
+      </article>
+      <article class="rv2-panel">
+        <div class="section-title"><div><small>NO BLOQUEAN</small><h2>Capacidades opcionales</h2></div><strong id="warningCount">—</strong></div>
+        <div id="optionalChecks" class="check-list"></div>
+      </article>
+    </section>
+
+    <section class="rv2-panel">
+      <div class="section-title"><div><small>SUPERFICIES DEL PILOTO</small><h2>Accesos V2</h2></div><span class="pilot-chip">P1 → P8</span></div>
+      <div id="surfaces" class="surface-grid"></div>
+      <p class="qr-note">Cliente QR V2 continúa usando los QR físicos permanentes de cada mesa. Esta fase no genera ni rota códigos.</p>
+    </section>
+
+    <section class="pilot-grid pilot-control-grid">
+      <article class="rv2-panel">
+        <small>CONTROL DEL PILOTO</small>
+        <h2>Activar o regresar</h2>
+        <label class="pilot-label" for="notes">Nota de operación</label>
+        <textarea id="notes" class="pilot-textarea" maxlength="500" placeholder="Ej.: Piloto interno turno noche · Mesa 1 a Mesa 6"></textarea>
+        <div class="pilot-actions">
+          <button id="enablePilot" class="rv2-btn rv2-btn-primary" type="button">ACTIVAR PILOTO V2</button>
+          <button id="disablePilot" class="rv2-btn pilot-danger" type="button">DESACTIVAR / VOLVER A V1</button>
+        </div>
+        <p class="control-note">Desactivar no revierte ventas ni elimina pedidos. Sólo cierra el modo piloto y deja los accesos V1 disponibles.</p>
+      </article>
+      <article class="rv2-panel">
+        <small>REGLAS FIJAS</small>
+        <h2>Lo que P9 no puede bloquear</h2>
+        <div class="guard-list">
+          <div><b>DIAN</b><span>No es gate operativo.</span></div>
+          <div><b>Push</b><span>Es best-effort.</span></div>
+          <div><b>Estaciones manuales</b><span>KDS mantiene rescate operativo.</span></div>
+          <div><b>QR físicos</b><span>No cambian con el piloto.</span></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-pilot.js"></script>
+</body>
+</html>

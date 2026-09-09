@@ -1,0 +1,112 @@
+name: Restaurant V2 Controlled Pilot P9 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-pilot.service.js'
+      - 'src/modules/restaurant/restaurant-v2-pilot.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-pilot.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-pilot.*'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-pilot-p9-db-smoke.js'
+      - '.github/workflows/restaurant-v2-pilot-p9-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-pilot.service.js'
+      - 'src/modules/restaurant/restaurant-v2-pilot.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-pilot.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-pilot.*'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-pilot-p9-db-smoke.js'
+      - '.github/workflows/restaurant-v2-pilot-p9-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_DEVICE_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: vantixgc.com
+      FCM_SERVICE_ACCOUNT_JSON: ''
+      FCM_PROJECT_ID: ''
+      FCM_CLIENT_EMAIL: ''
+      FCM_PRIVATE_KEY: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-pilot-p9-db-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-pilot.service.js
+      - run: node --check src/modules/restaurant/restaurant-v2-pilot.routes.js
+      - run: node --check src/modules/restaurant/restaurant-v2-pilot.public.routes.js
+      - run: node --check src/web/restaurant-v2-pilot.js
+      - run: node --check src/web/restaurant-v2-control-center-bridge.js
+      - run: node --check scripts/restaurant-v2-pilot-p9-db-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact P9 pilot surface in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"; C="$(mktemp)"; B="$(mktemp)"; R="$(mktemp)"; V1="$(mktemp)"
+              curl -fsS -D "$H" "$BASE/app/restaurante-v2/piloto?v=$GITHUB_SHA" -o "$P"
+              curl -fsS "$BASE/app/restaurant-v2-pilot.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-pilot.css?v=$GITHUB_SHA" -o "$C"
+              curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$B"
+              curl -fsS -D "$R" "$BASE/app/restaurante-v1?v=$GITHUB_SHA" -o "$V1"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Pilot: p9-controlled-pilot' "$H"
+              grep -Fq 'RESTAURANTE V2 · PILOTO P9' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_V2_PILOT_P9' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_PILOT_P9' "$C"
+              grep -Fq '/app/restaurante-v2/piloto' "$B"
+              grep -Fq 'canSeePilot' "$B"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Pilot-Rollback: v1-direct-shell' "$R"
+              grep -Fq '<title>VantixGC Restaurante</title>' "$V1"
+              if grep -Fq 'restaurant-v2-control-center-bridge' "$V1"; then exit 1; fi
+              if grep -Eq 'MutationObserver|setInterval|POLL_MS' "$J"; then exit 1; fi
+              curl -fsS "$BASE/app/restaurante-v2/mesas?v=$GITHUB_SHA" >/dev/null
+              curl -fsS "$BASE/app/centro-de-control/mesero-v2/?v=$GITHUB_SHA" >/dev/null
+              curl -fsS "$BASE/app/produccion-v2/?v=$GITHUB_SHA" >/dev/null
+              echo "Restaurant V2 P9 controlled pilot + V1 rollback live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
