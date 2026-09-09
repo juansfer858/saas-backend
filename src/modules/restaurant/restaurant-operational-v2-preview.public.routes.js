@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('node:path');
+const { restaurantV2ControlCenterPublicRouter } = require('./restaurant-v2-control-center.public.routes');
 const { restaurantV2TablesPublicRouter } = require('./restaurant-v2-tables.public.routes');
 const { restaurantV2OrdersPublicRouter } = require('./restaurant-v2-orders.public.routes');
 const { restaurantV2CashPublicRouter } = require('./restaurant-v2-cash.public.routes');
@@ -18,6 +19,7 @@ const restaurantOperationalV2PreviewPublicRouter = express.Router();
 
 // V2 public aggregator. Each operational module owns its own route and assets;
 // all of them are resolved here before any legacy Restaurant response wrapper.
+restaurantOperationalV2PreviewPublicRouter.use(restaurantV2ControlCenterPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2TablesPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OrdersPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2CashPublicRouter);
