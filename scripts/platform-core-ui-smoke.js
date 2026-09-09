@@ -75,8 +75,12 @@ for (const token of [
 ]) assert.ok(panelPrinterUi.includes(token), `Panel de impresoras debe contener ${token}`);
 new Function(panelPrinterUi);
 assert.ok(!panelPrinterUi.includes("callApi('/api/v1/dian"), 'Impresoras operativas no deben invocar DIAN');
-assert.ok(panelLoader.includes("fetchRuntime('/api/v1/comercial/ui-runtime/panel-printing-config.js')"));
-assert.ok(panelLoader.includes("executeSource(printing, 'panel-printing-config.js')"));
+
+// P0: Printing sigue cargándose desde el mismo endpoint, pero su fallo queda
+// aislado y no puede impedir que Parametrización Contable monte su runtime.
+assert.ok(panelLoader.includes("loadRuntimeIsolated('/api/v1/comercial/ui-runtime/panel-printing-config.js', 'panel-printing-config.js', 'SUPER_CORE_PRINTING_RUNTIME_ERROR')"));
+assert.ok(panelLoader.includes('optionalRuntimesIsolated: true'));
+assert.ok(panelLoader.includes('SUPER_CORE_ACCOUNTING_RUNTIME_ERROR'));
 assert.ok(commercialRoutes.includes("router.get('/ui-runtime/panel-printing-config.js'"));
 assert.ok(commercialRoutes.includes("sendFile(path.join(webRoot, 'panel-printing-config.js'))"));
 
@@ -90,4 +94,4 @@ assert.ok(docs.includes('20 mm'));
 assert.ok(docs.includes('no se etiqueta como mínimo legal DIAN verificado'));
 
 console.log('PLATFORM CORE UI + ACTIONABLE DIAN METRICS + RESTAURANT PRINTERS SMOKE OK');
-console.log(JSON.stringify({ tenantAdvancedConfig: true, dianMetricDrilldowns: true, restaurantAdminPrinters: true, printerDianIndependent: true, independentPlatformPanel: true, legalBoundaryDocumented: true }, null, 2));
+console.log(JSON.stringify({ tenantAdvancedConfig: true, dianMetricDrilldowns: true, restaurantAdminPrinters: true, printerDianIndependent: true, independentPlatformPanel: true, legalBoundaryDocumented: true, optionalUiRuntimesIsolated: true }, null, 2));
