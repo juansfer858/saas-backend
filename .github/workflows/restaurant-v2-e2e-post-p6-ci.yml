@@ -1,0 +1,57 @@
+name: Restaurant V2 E2E Post P6 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/**'
+      - 'src/modules/treasury/**'
+      - 'src/modules/accounting/**'
+      - 'src/modules/platform/printing/**'
+      - 'scripts/restaurant-v2-e2e-post-p6-db-smoke.js'
+      - '.github/workflows/restaurant-v2-e2e-post-p6-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/**'
+      - 'src/modules/treasury/**'
+      - 'src/modules/accounting/**'
+      - 'src/modules/platform/printing/**'
+      - 'scripts/restaurant-v2-e2e-post-p6-db-smoke.js'
+      - '.github/workflows/restaurant-v2-e2e-post-p6-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: vantixgc.com
+      FCM_SERVICE_ACCOUNT_JSON: ''
+      FCM_PROJECT_ID: ''
+      FCM_CLIENT_EMAIL: ''
+      FCM_PRIVATE_KEY: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-e2e-post-p6-db-smoke.js
