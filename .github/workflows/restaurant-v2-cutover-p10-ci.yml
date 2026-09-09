@@ -1,0 +1,93 @@
+name: Restaurant V2 Cutover P10 CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-cutover.*'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-cutover.*'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-cutover-p10-db-smoke.js'
+      - '.github/workflows/restaurant-v2-cutover-p10-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-cutover.*'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-cutover.*'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-cutover-p10-db-smoke.js'
+      - '.github/workflows/restaurant-v2-cutover-p10-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - name: Create ephemeral test secrets
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_DEVICE_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_QR_VISIT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-cutover-p10-db-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-cutover.service.js
+      - run: node --check src/modules/restaurant/restaurant-v2-cutover.routes.js
+      - run: node --check src/modules/restaurant/restaurant-v2-cutover.public.routes.js
+      - run: node --check src/web/restaurant-v2-cutover.js
+      - run: node --check src/web/restaurant-v2-cutover-launch.js
+      - run: node --check src/web/restaurant-v2-control-center-bridge.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact P10 cutover assets in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              HM="$(mktemp)"; M="$(mktemp)"; HW="$(mktemp)"; W="$(mktemp)"; HWR="$(mktemp)"; WR="$(mktemp)"; HP="$(mktemp)"; P="$(mktemp)"; HPR="$(mktemp)"; PR="$(mktemp)"; J="$(mktemp)"; B="$(mktemp)"
+              curl -fsS -D "$HM" "$BASE/app/restaurante-v2/migracion?v=$GITHUB_SHA" -o "$M"
+              curl -fsS -D "$HW" "$BASE/app/centro-de-control/mesero?v=$GITHUB_SHA" -o "$W"
+              curl -fsS -D "$HWR" "$BASE/app/centro-de-control/mesero-v1?v=$GITHUB_SHA" -o "$WR"
+              curl -fsS -D "$HP" "$BASE/app/produccion?v=$GITHUB_SHA" -o "$P"
+              curl -fsS -D "$HPR" "$BASE/app/produccion-v1?v=$GITHUB_SHA" -o "$PR"
+              curl -fsS "$BASE/app/restaurant-v2-cutover-launch.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$B"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover: p10-tenant-cutover' "$HM"
+              grep -Fq 'RESTAURANTE V2 · P10' "$M"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover-Launcher: waiter' "$HW"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover-Rollback: waiter-v1-direct' "$HWR"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover-Launcher: production' "$HP"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover-Rollback: production-v1-direct' "$HPR"
+              grep -Fq 'VANTIX_RESTAURANT_V2_CUTOVER_LAUNCH_P10' "$J"
+              grep -Fq "migration: '/app/restaurante-v2/migracion'" "$B"
+              grep -Fq '/api/v1/restaurante/v2/cutover/launch' "$B"
+              curl -fsS "$BASE/app/restaurante-v1?v=$GITHUB_SHA" >/dev/null
+              echo "Restaurant V2 P10 cutover live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

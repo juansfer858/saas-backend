@@ -4,6 +4,7 @@ const express = require('express');
 require('./restaurant-pos-operational-mode');
 const { restaurantOperationalV2PreviewPublicRouter } = require('./restaurant-operational-v2-preview.public.routes');
 const { restaurantV2DevicePwaP8PublicRouter } = require('./restaurant-v2-device-pwa-p8.public.routes');
+const { restaurantV2CutoverPublicRouter } = require('./restaurant-v2-cutover.public.routes');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { publicInstallerRouter } = require('../public-installer/public-installer.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
@@ -71,6 +72,9 @@ router.use(restaurantOperationalV2PreviewPublicRouter);
 // P8 device PWAs are parallel entrypoints with their own service-worker scopes.
 // Pairing/session ownership remains in the proven V1 waiter/production device services.
 router.use(restaurantV2DevicePwaP8PublicRouter);
+// P10 intercepts only the canonical device launch pages with a tenant-aware chooser.
+// Non-migrated tenants resolve to explicit V1 aliases; migrated tenants resolve to P8 V2.
+router.use(restaurantV2CutoverPublicRouter);
 
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();

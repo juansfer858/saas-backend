@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0D6B43">
+  <title>VantixGC Restaurante · Migración V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-cutover.css">
+</head>
+<body>
+  <header class="cut-top">
+    <div><span class="eyebrow">RESTAURANTE V2 · P10</span><h1>Migración controlada</h1><p id="tenantLine">Leyendo tenant…</p></div>
+    <div class="cut-top-actions"><a class="rv2-btn" href="/app/centro-de-control">Centro de control</a><button class="rv2-btn" id="refresh" type="button">Actualizar</button></div>
+  </header>
+  <main class="cut-main">
+    <section id="notice" class="cut-notice">Cargando estado de migración…</section>
+    <section class="rv2-panel cut-hero">
+      <div><small>ENTRADA PRINCIPAL DEL TENANT</small><div class="cut-state-row"><strong id="cutState">—</strong><span id="cutBadge" class="cut-badge">—</span></div><p id="cutMeta">—</p></div>
+      <div class="cut-safety"><span>Corte sólo por tenant</span><span>QR físicos intactos</span><span>DIAN no bloquea</span><span>Rollback V1 disponible</span></div>
+    </section>
+    <section class="cut-grid">
+      <article class="rv2-panel"><div class="section-title"><div><small>REQUISITOS</small><h2>Antes del corte</h2></div><strong id="requiredScore">—</strong></div><div id="requiredChecks" class="check-list"></div></article>
+      <article class="rv2-panel"><div class="section-title"><div><small>PILOTO</small><h2>Estado previo</h2></div><strong id="pilotState">—</strong></div><p id="pilotMeta" class="muted">—</p><div id="blockers" class="blocker-list"></div></article>
+    </section>
+    <section class="rv2-panel"><div class="section-title"><div><small>RUTAS DESPUÉS DEL CORTE</small><h2>Entradas canónicas</h2></div><span class="cut-chip">REVERSIBLE</span></div><div id="routes" class="route-grid"></div></section>
+    <section class="cut-grid">
+      <article class="rv2-panel"><small>CONTROL P10</small><h2>V2 como sistema principal</h2><label for="notes">Nota del corte</label><textarea id="notes" maxlength="500" placeholder="Ej.: Tenant demo · corte V2 después de piloto integral"></textarea><div class="cut-actions"><button id="enable" class="rv2-btn rv2-btn-primary" type="button">ACTIVAR V2 COMO PRINCIPAL</button><button id="disable" class="rv2-btn danger" type="button">VOLVER A V1 COMO PRINCIPAL</button></div><p class="muted">Volver a V1 cambia únicamente la entrada por defecto. No elimina ventas, pedidos, cuentas, QR ni dispositivos.</p></article>
+      <article class="rv2-panel"><small>ROLLBACK DIRECTO</small><h2>Rutas de rescate</h2><div id="rollback" class="rollback-list"></div><p class="muted">Estas rutas permanecen accesibles aunque V2 sea la entrada principal.</p></article>
+    </section>
+  </main>
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-cutover.js"></script>
+</body>
+</html>

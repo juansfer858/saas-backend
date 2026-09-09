@@ -2,6 +2,7 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_V2_CONTROL_CENTER_BRIDGE_P6_5';
+  const CUTOVER_MARKER = 'VANTIX_RESTAURANT_V2_CONTROL_CENTER_CUTOVER_P10';
   const ROUTES = Object.freeze({
     salon: '/app/restaurante-v2/mesas',
     mesero: '/app/restaurante-v2/pedidos',
@@ -11,6 +12,7 @@
     division: '/app/restaurante-v2/division',
     qrs: '/app/restaurante-v2/qrs',
     devices: '/app/restaurante-v2/dispositivos',
+    migration: '/app/restaurante-v2/migracion',
     pilot: '/app/restaurante-v2/piloto'
   });
   const LABELS = Object.freeze({
@@ -22,17 +24,28 @@
     division: 'División de cuenta',
     qrs: 'QR de mesas',
     devices: 'Dispositivos',
+    migration: 'Migración V2',
     pilot: 'Piloto V2'
   });
 
   document.documentElement.dataset.restaurantV2ControlCenter = MARKER;
+  document.documentElement.dataset.restaurantV2CutoverBridge = CUTOVER_MARKER;
 
-  function coreRole() {
-    try { return String(JSON.parse(localStorage.getItem('vantixgc_core_session_v1') || 'null')?.user?.rol || '').toUpperCase(); }
-    catch { return ''; }
+  function readSession() {
+    try { return JSON.parse(localStorage.getItem('vantixgc_core_session_v1') || 'null'); }
+    catch { return null; }
   }
+  function coreRole() { return String(readSession()?.user?.rol || '').toUpperCase(); }
   function canSeePilot(){ return ['ADMIN','SUPER_ADMIN'].includes(coreRole()); }
   function canSeeAdminTools(){ return ['ADMIN','SUPER_ADMIN'].includes(coreRole()); }
+  function defaultModuleForRole() {
+    const role = coreRole();
+    if (role === 'CAJERO') return 'caja';
+    if (role === 'MESERO') return 'mesero';
+    if (['COCINA','BARRA','POSTRES'].includes(role)) return 'kds';
+    if (['ADMIN','SUPER_ADMIN'].includes(role)) return 'salon';
+    return null;
+  }
 
   function installStyles() {
     if (document.getElementById('restaurantV2ControlCenterBridgeStyles')) return;
@@ -46,6 +59,7 @@
       .cc-v2-nav button:hover,.cc-v2-nav button.active{border-color:#f97316;background:#fff7ed;color:#9a3412}
       .cc-v2-nav button[data-v2="division"]{border-style:dashed}
       .cc-v2-nav button[data-v2="qrs"],.cc-v2-nav button[data-v2="devices"]{border-color:#d1ddd7;background:#f7faf8;color:#25523e}
+      .cc-v2-nav button[data-v2="migration"]{border-color:#0d6b43;background:#eef8f2;color:#0d6b43;font-weight:950}
       .cc-v2-nav button[data-v2="pilot"]{border-color:#b7d7c7;background:#f3faf6;color:#0d6b43}
       .cc-v2-badge{display:inline-flex;margin-left:6px;padding:2px 7px;border-radius:999px;background:#111827;color:#fff;font-size:9px;font-weight:900;vertical-align:middle}
       .cc-v2-workspace{display:grid;grid-template-rows:auto minmax(0,1fr);height:calc(100dvh - 24px);min-height:640px;background:#fff;border:1px solid #dbe3ea;border-radius:18px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,.08)}
@@ -92,7 +106,7 @@
     const route = ROUTES[key];
     if (!route) return;
     if (key === 'pilot' && !canSeePilot()) return;
-    if ((key === 'qrs' || key === 'devices') && !canSeeAdminTools()) return;
+    if ((key === 'qrs' || key === 'devices' || key === 'migration') && !canSeeAdminTools()) return;
     const workspace = installWorkspace();
     if (!workspace) return;
     const frame = workspace.querySelector('[data-v2-frame]');
@@ -124,7 +138,7 @@
       ['caja', LABELS.caja],
       ['division', LABELS.division]
     ];
-    if (canSeeAdminTools()) entries.push(['qrs', LABELS.qrs], ['devices', LABELS.devices]);
+    if (canSeeAdminTools()) entries.push(['qrs', LABELS.qrs], ['devices', LABELS.devices], ['migration', LABELS.migration]);
     if (canSeePilot()) entries.push(['pilot', LABELS.pilot]);
     const nav = document.createElement('section');
     nav.className = 'cc-v2-nav';
@@ -150,6 +164,28 @@
     openV2(key);
   }
 
+  async function applyCutoverDefault(initial) {
+    if (initial) return;
+    const session = readSession();
+    if (!session?.token || !session?.subdomain) return;
+    try {
+      const response = await fetch('/api/v1/restaurante/v2/cutover/launch', {
+        cache:'no-store',
+        headers:{ Authorization:`Bearer ${session.token}`, 'x-tenant-subdomain':session.subdomain }
+      });
+      let body = {}; try { body = await response.json(); } catch {}
+      if (!response.ok || !body?.data?.enabled) {
+        document.documentElement.dataset.restaurantV2Cutover = '0';
+        return;
+      }
+      document.documentElement.dataset.restaurantV2Cutover = '1';
+      const key = defaultModuleForRole();
+      if (key) openV2(key);
+    } catch {
+      document.documentElement.dataset.restaurantV2Cutover = 'unknown';
+    }
+  }
+
   function boot() {
     installStyles();
     installWorkspace();
@@ -157,6 +193,7 @@
     document.addEventListener('click', interceptLegacyNav, true);
     const initial = new URLSearchParams(location.search).get('module');
     if (initial && ROUTES[initial]) openV2(initial);
+    applyCutoverDefault(initial).catch(() => {});
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
