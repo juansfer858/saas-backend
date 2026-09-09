@@ -63,6 +63,13 @@ async function createRequest(qrToken) {
   if (open) return { requested:false, open:true, sessionId:open.id, table:{ id:table.id, code:table.code, name:table.name } };
 
   const now = new Date();
+  const existing = await prisma.trackingLink.findUnique({
+    where:{ tenantId_originType_originId:{ tenantId:table.tenantId, originType:ORIGIN_TYPE, originId:table.id } }
+  });
+  if (existing?.active && existing.currentStatus === 'PENDING' && existing.expiresAt > now) {
+    return { ...publicRequest(existing, table), duplicate:false, alreadyPending:true };
+  }
+
   const expiresAt = new Date(now.getTime() + REQUEST_TTL_MS);
   const tokenSeed = crypto.randomBytes(32).toString('base64url');
   const event = {
@@ -98,10 +105,12 @@ async function createRequest(qrToken) {
     if (error?.code !== 'P2002') throw error;
     row = await prisma.trackingLink.findFirst({ where:{ tenantId:table.tenantId, originType:ORIGIN_TYPE, originId:table.id } });
     if (!row) throw error;
+    if (row.active && row.currentStatus === 'PENDING' && row.expiresAt > now) return { ...publicRequest(row, table), duplicate:false, alreadyPending:true };
+    throw error;
   }
 
   await publish(table.tenantId, table.id, row.id, '/solicitar-apertura');
-  return publicRequest(row, table);
+  return { ...publicRequest(row, table), duplicate:false, alreadyPending:false };
 }
 
 async function closeStaleRequests(tenantId, rows) {
