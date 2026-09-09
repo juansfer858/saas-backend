@@ -1,0 +1,18 @@
+{
+  "id": "/app/centro-de-control/mesero-v2/",
+  "name": "VantixGC Mesero V2",
+  "short_name": "Mesero V2",
+  "description": "Mesas y pedidos V2 para tablet o celular del mesero.",
+  "lang": "es-CO",
+  "start_url": "/app/centro-de-control/mesero-v2/",
+  "scope": "/app/centro-de-control/mesero-v2/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#0D6B43",
+  "icons": [
+    {"src":"/app/centro-de-control/waiter-icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"/app/centro-de-control/waiter-icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
