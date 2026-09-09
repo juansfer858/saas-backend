@@ -42,6 +42,7 @@ const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v
 const { restaurantV2CashRouter } = require('../modules/restaurant/restaurant-v2-cash.routes');
 const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2-split.routes');
 const { restaurantV2KdsRouter } = require('../modules/restaurant/restaurant-v2-kds.routes');
+const { restaurantV2PilotRouter } = require('../modules/restaurant/restaurant-v2-pilot.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -100,6 +101,9 @@ router.use('/restaurante', restaurantV2SplitRouter);
 // V2 P6 KDS is push/realtime-driven and reuses the canonical command state machine.
 // It remains opt-in and does not alter legacy KDS/device routes.
 router.use('/restaurante', restaurantV2KdsRouter);
+// P9 controls pilot enrollment per tenant only. It intentionally does not redirect
+// canonical V1 routes; controlled cutover belongs to the migration phase.
+router.use('/restaurante', restaurantV2PilotRouter);
 router.use('/restaurante', restaurantTestDataResetV68Router);
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);
