@@ -78,7 +78,7 @@ async function databaseContract() {
 
     const audit = await prisma.auditoriaContable.findFirst({
       where: { tenantId: tenant.id, entidad: 'RESTAURANT_TABLE_QR', entidadId: table.id, accion: 'REGENERATE' },
-      orderBy: { fecha: 'desc' }
+      orderBy: { creadoEn: 'desc' }
     });
     assert.ok(audit, 'la regeneración debe quedar auditada');
   } finally {
