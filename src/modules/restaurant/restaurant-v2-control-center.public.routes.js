@@ -6,7 +6,8 @@ const path = require('node:path');
 const {
   ASSET_PATH: KDS_WINDOWS_ASSET_PATH,
   ASSET_VERSION: KDS_WINDOWS_ASSET_VERSION,
-  HTML_MARKER: KDS_WINDOWS_HTML_MARKER
+  HTML_MARKER: KDS_WINDOWS_HTML_MARKER,
+  LOADER_HEADER_VALUE: KDS_WINDOWS_LOADER_HEADER_VALUE
 } = require('./restaurant-kds-windows-printer-asset.public.routes');
 
 const router = express.Router();
@@ -29,7 +30,7 @@ router.get('/app/centro-de-control', async (_req, res, next) => {
     res.set('X-VantixGC-Restaurant-Control-Fallback', '/app/restaurante');
     // V2 answers this route before V1 response wrappers, so retain the proven
     // Windows/USB KDS loader explicitly in the canonical Control Center shell.
-    res.set('X-VantixGC-KDS-Windows-Printer-Loader', 'v3-relay-first-asset');
+    res.set('X-VantixGC-KDS-Windows-Printer-Loader', KDS_WINDOWS_LOADER_HEADER_VALUE);
     res.type('html').send(rendered);
   } catch (error) { next(error); }
 });
