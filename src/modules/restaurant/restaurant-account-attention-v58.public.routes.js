@@ -1,6 +1,7 @@
 'use strict';
 
 const MARKER = 'VANTIX_RESTAURANT_ACCOUNT_ATTENTION_V58';
+const DIRECT_CASH_MARKER = 'VANTIX_RESTAURANT_ACCOUNT_ATTENTION_DIRECT_CASH_V58_1';
 const HEADER_VALUE = 'v58-account-attention';
 
 function requiredReplace(source, needle, replacement, label) {
@@ -17,8 +18,29 @@ function patchOperatorSource(source) {
     helperNeedle,
     '',
     `  const ${MARKER}_OPERATOR = true;`,
+    `  const ${DIRECT_CASH_MARKER}_OPERATOR = true;`,
     '  let accountAttentionBusy = false;',
+    '  let accountAttentionChargeTarget = null;',
     "  function accountAttentionActive(table) { return Boolean(table?.activeSession && (String(table.state || '') === 'CUENTA_PEDIDA' || table.activeSession.accountRequestedAt)); }",
+    "  function accountAttentionCashRow(tableId) { return [...document.querySelectorAll('[data-cash-table]')].find((row) => row.dataset.cashTable === tableId) || null; }",
+    '  function accountAttentionContinueCharge() {',
+    '    const tableId = accountAttentionChargeTarget;',
+    "    if (!tableId || S.tab !== 'caja') return;",
+    '    const table = S.tables.find((row) => row.id === tableId);',
+    "    if (!table?.activeSession) { accountAttentionChargeTarget = null; message('La mesa ya fue pagada o cerrada.'); refreshAccountAttentionDock().catch(() => {}); return; }",
+    "    if (!S.cashShiftId) { if (document.getElementById('openShift')) message(`Abre Caja para cobrar ${table.name || 'la mesa'}. Al abrirla continuaremos automáticamente.`); return; }",
+    '    const row = accountAttentionCashRow(tableId);',
+    '    if (!row) return;',
+    '    accountAttentionChargeTarget = null;',
+    '    row.click();',
+    '  }',
+    '  async function accountAttentionChargeNow(table) {',
+    '    if (!table) return;',
+    '    accountAttentionChargeTarget = table.id;',
+    '    S.selectedTableId = table.id;',
+    '    if (table.zoneId) S.selectedZoneId = table.zoneId;',
+    "    try { await setTab('caja'); accountAttentionContinueCharge(); } catch (error) { accountAttentionChargeTarget = null; message(error.message, true); }",
+    '  }',
     '  function ensureAccountAttentionStyles() {',
     "    if (document.getElementById('restaurantAccountAttentionV58Styles')) return;",
     "    const style = document.createElement('style');",
@@ -33,13 +55,11 @@ function patchOperatorSource(source) {
     '    const pending = (Array.isArray(rows) ? rows : []).filter(accountAttentionActive);',
     '    if (!canCharge || !pending.length) { dock?.remove(); return; }',
     "    if (!dock) { dock = document.createElement('aside'); dock.id = 'restaurantAccountAttentionDock'; dock.setAttribute('aria-label','Mesas pendientes de cobro'); document.body.appendChild(dock); }",
-    "    dock.innerHTML = pending.map((table) => '<button type=\"button\" data-account-charge=\"' + esc(table.id) + '\">COBRAR ' + esc(String(table.name || table.code || 'MESA').toUpperCase()) + '<small>Cuenta solicitada · abrir Caja</small></button>').join('');",
+    "    dock.innerHTML = pending.map((table) => '<button type=\"button\" data-account-charge=\"' + esc(table.id) + '\">COBRAR ' + esc(String(table.name || table.code || 'MESA').toUpperCase()) + '<small>Cuenta solicitada · cobrar ahora</small></button>').join('');",
     "    dock.querySelectorAll('[data-account-charge]').forEach((button) => button.addEventListener('click', () => {",
     '      const table = pending.find((row) => row.id === button.dataset.accountCharge);',
     '      if (!table) return;',
-    '      S.selectedTableId = table.id;',
-    '      if (table.zoneId) S.selectedZoneId = table.zoneId;',
-    "      setTab('caja').catch((error) => message(error.message, true));",
+    '      accountAttentionChargeNow(table);',
     '    }));',
     '  }',
     '  async function refreshAccountAttentionDock() {',
@@ -103,12 +123,18 @@ function patchOperatorSource(source) {
   );
   out = requiredReplace(
     out,
+    "    bindCash(cajas, summary, selected);\n  }\n\n  function bindCash(cajas, summary, selected) {",
+    "    bindCash(cajas, summary, selected);\n    accountAttentionContinueCharge();\n  }\n\n  function bindCash(cajas, summary, selected) {",
+    'OP_CASH_CONTINUE'
+  );
+  out = requiredReplace(
+    out,
     "  window.addEventListener('beforeunload', stopPoll);\n  loadContext().then(renderCurrent).catch((error) => message(error.message, true));",
     "  window.addEventListener('beforeunload', stopPoll);\n  loadContext().then(async () => { startAccountAttentionRealtime(); await renderCurrent(); }).catch((error) => message(error.message, true));",
     'OP_START'
   );
 
-  return `/* ${MARKER} · Centro/Mesero · cuenta solicitada visible */\n${out}`;
+  return `/* ${MARKER} · ${DIRECT_CASH_MARKER} · Centro/Mesero · cuenta solicitada visible */\n${out}`;
 }
 
 function patchDedicatedWaiterSource(source) {
@@ -174,4 +200,4 @@ function installRestaurantAccountAttentionV58(req, res, next) {
   return next();
 }
 
-module.exports = { MARKER, HEADER_VALUE, patchOperatorSource, patchDedicatedWaiterSource, patchAsset, installRestaurantAccountAttentionV58 };
+module.exports = { MARKER, DIRECT_CASH_MARKER, HEADER_VALUE, patchOperatorSource, patchDedicatedWaiterSource, patchAsset, installRestaurantAccountAttentionV58 };
