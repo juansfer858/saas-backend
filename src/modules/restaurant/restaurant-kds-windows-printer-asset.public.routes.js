@@ -7,6 +7,7 @@ const router = express.Router();
 const ASSET_PATH = '/app/restaurant-kds-windows-printer.js';
 const ASSET_VERSION = 'windows-printer-v3-relay-first';
 const HTML_MARKER = 'VANTIX_RESTAURANT_KDS_WINDOWS_PRINTER_ASSET_V3';
+const LOADER_HEADER_VALUE = 'v3-relay-first-asset';
 
 const STRICT_ONLINE_BLOCK = `  async function onlineEdge(){
     const rows=await api('/api/v1/edge/installations');
@@ -43,7 +44,7 @@ function installKdsWindowsPrinterAsset(req, res, next) {
       const loader = `<script id="${HTML_MARKER}" src="${ASSET_PATH}?v=${ASSET_VERSION}"></script>`;
       const patched = source.replace('</body>', `  ${loader}\n</body>`);
       body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
-      res.set('X-VantixGC-KDS-Windows-Printer-Loader', 'v3-relay-first-asset');
+      res.set('X-VantixGC-KDS-Windows-Printer-Loader', LOADER_HEADER_VALUE);
     }
     return originalSend(body);
   };
@@ -54,6 +55,7 @@ module.exports = {
   ASSET_PATH,
   ASSET_VERSION,
   HTML_MARKER,
+  LOADER_HEADER_VALUE,
   browserRuntime,
   installKdsWindowsPrinterAsset,
   restaurantKdsWindowsPrinterAssetPublicRouter: router
