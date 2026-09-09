@@ -19,6 +19,17 @@ const updateSchema = z.object({
   notes: z.string().trim().max(500).optional().nullable()
 });
 
+async function restaurantV2CutoverPilotGuard(req, _res, next) {
+  try {
+    if (req.method !== 'PATCH' || req.path !== '/v2/piloto' || req.body?.enabled !== false) return next();
+    const decision = await service.launchDecision(req.tenantId);
+    if (decision.enabled) {
+      throw new AppError(409, 'Primero vuelve a V1 como principal desde Migración V2 y luego desactiva el piloto', 'RESTAURANT_V2_CUTOVER_ACTIVE_PILOT_DISABLE_FORBIDDEN');
+    }
+    return next();
+  } catch (error) { return next(error); }
+}
+
 router.get('/v2/cutover/launch', requirePermission('RESTAURANTE.VER'), async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -41,4 +52,4 @@ router.patch('/v2/cutover', requirePermission('RESTAURANTE.ADMINISTRAR'), async 
   } catch (error) { next(error); }
 });
 
-module.exports = { restaurantV2CutoverRouter: router };
+module.exports = { restaurantV2CutoverRouter: router, restaurantV2CutoverPilotGuard };
