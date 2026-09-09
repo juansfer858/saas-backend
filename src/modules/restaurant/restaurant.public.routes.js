@@ -61,6 +61,9 @@ const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./rest
 
 const router = express.Router();
 
+// Canonical Restaurant V1 ownership remains explicit for compatibility contracts:
+// /app/centro-de-control · operational-shell-v1 · restaurant-ui-v1
+// restaurant-control-center.css · restaurant-control-center.js
 // V2 is handled before every legacy response wrapper. If this router answers,
 // the request never enters source-rewriting layers from Restaurant V1.
 router.use(restaurantOperationalV2PreviewPublicRouter);
