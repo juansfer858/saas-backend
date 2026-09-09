@@ -14,7 +14,7 @@ const router = express.Router();
 const webRoot = path.join(__dirname, '../../web');
 const HEADER_VALUE = 'v2-control-center-bridge-p6-5';
 
-router.get('/app/centro-de-control', async (_req, res, next) => {
+async function sendP10CompatibilityShell(_req, res, next) {
   try {
     const html = await fs.promises.readFile(path.join(webRoot, 'restaurant.html'), 'utf8');
     const kdsWindowsLoader = `<script id="${KDS_WINDOWS_HTML_MARKER}" src="${KDS_WINDOWS_ASSET_PATH}?v=${KDS_WINDOWS_ASSET_VERSION}"></script>`;
@@ -27,13 +27,18 @@ router.get('/app/centro-de-control', async (_req, res, next) => {
     res.set('X-VantixGC-Restaurant-Control-V2', HEADER_VALUE);
     res.set('X-VantixGC-Restaurant-Control-Engine', 'restaurant-ui-v1');
     res.set('X-VantixGC-Restaurant-Control-V2-Engine', 'embedded-independent-modules');
-    res.set('X-VantixGC-Restaurant-Control-Fallback', '/app/restaurante');
-    // V2 answers this route before V1 response wrappers, so retain the proven
-    // Windows/USB KDS loader explicitly in the canonical Control Center shell.
+    res.set('X-VantixGC-Restaurant-Control-P10-Compatibility', 'true');
+    res.set('X-VantixGC-Restaurant-Control-Fallback', '/app/restaurante-v1');
     res.set('X-VantixGC-KDS-Windows-Printer-Loader', KDS_WINDOWS_LOADER_HEADER_VALUE);
     res.type('html').send(rendered);
   } catch (error) { next(error); }
-});
+}
+
+// P11 owns /app/centro-de-control before this router. Keep the old canonical
+// handler as a safe fallback, and expose a dedicated P10 alias for tenants that
+// have not retired V1 yet.
+router.get('/app/centro-de-control', sendP10CompatibilityShell);
+router.get('/app/centro-de-control-p10', sendP10CompatibilityShell);
 
 router.get('/app/restaurant-v2-control-center-bridge.js', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
@@ -42,4 +47,4 @@ router.get('/app/restaurant-v2-control-center-bridge.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-v2-control-center-bridge.js'));
 });
 
-module.exports = { HEADER_VALUE, restaurantV2ControlCenterPublicRouter: router };
+module.exports = { HEADER_VALUE, restaurantV2ControlCenterPublicRouter:router, sendP10CompatibilityShell };
