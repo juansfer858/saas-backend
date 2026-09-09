@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Caja · Restaurante V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-cash.css">
+</head>
+<body>
+  <header class="cash-top">
+    <div>
+      <span>RESTAURANTE V2 · CAJA P4</span>
+      <h1 id="restaurantName">Caja</h1>
+      <p id="tenantLine">Cargando…</p>
+    </div>
+    <nav class="top-actions" aria-label="Navegación Restaurante V2">
+      <a class="rv2-btn" href="/app/restaurante-v2/mesas">Mesas</a>
+      <a class="rv2-btn" href="/app/restaurante-v2/pedidos">Pedidos</a>
+      <button id="refresh" class="rv2-btn" type="button">Actualizar</button>
+    </nav>
+  </header>
+
+  <main class="cash-main">
+    <section id="notice" class="notice">Cargando Caja V2…</section>
+
+    <section id="shiftPanel" class="rv2-panel shift-panel" aria-live="polite"></section>
+
+    <div class="cash-shell">
+      <aside class="rv2-panel queue-panel">
+        <div class="panel-head">
+          <div><small>OPERACIÓN ACTIVA</small><h2>Mesas por cobrar</h2></div>
+          <span id="queueCount" class="count-chip">0</span>
+        </div>
+        <div class="queue-filter">
+          <button class="filter-chip active" data-filter="READY" type="button">Pidieron cuenta</button>
+          <button class="filter-chip" data-filter="ALL" type="button">Todas abiertas</button>
+        </div>
+        <div id="queue" class="cash-queue"></div>
+      </aside>
+
+      <section class="rv2-panel detail-panel">
+        <div id="emptyDetail" class="empty-state">
+          <strong>Selecciona una mesa</strong>
+          <span>Aquí verás la cuenta completa, el método de pago y el registro final POS.</span>
+        </div>
+        <div id="detail" hidden>
+          <div class="detail-head">
+            <div><small id="detailCode">MESA</small><h2 id="detailName">—</h2><p id="detailState">—</p></div>
+            <strong id="detailTotal" class="grand-total">$0</strong>
+          </div>
+
+          <div id="splitWarning" class="split-warning" hidden>
+            <b>Esta cuenta requiere División V2.</b>
+            <span>Caja P4 no altera ni inventa repartos. P5 será el dueño de esa operación.</span>
+          </div>
+
+          <section class="bill-card">
+            <div class="bill-head"><b>Cuenta actual</b><span id="saleNumber">—</span></div>
+            <div id="items" class="bill-items"></div>
+            <div class="totals">
+              <div><span>Subtotal</span><b id="subtotal">$0</b></div>
+              <div><span>IVA</span><b id="iva">$0</b></div>
+              <div><span>Impoconsumo</span><b id="impoconsumo">$0</b></div>
+              <div class="total-line"><span>Total</span><b id="billTotal">$0</b></div>
+            </div>
+          </section>
+
+          <section class="payment-card">
+            <div class="section-title"><div><small>COBRO REAL</small><h3>Método de pago</h3></div><span id="posMode" class="pos-badge">POS INTERNO</span></div>
+            <div id="paymentMethods" class="payment-methods"></div>
+
+            <div id="creditBox" class="credit-box" hidden>
+              <div class="credit-head"><b>Cliente para crédito</b><button id="newCustomer" class="rv2-btn" type="button">+ Crear cliente</button></div>
+              <input id="customerSearch" class="rv2-input" type="search" placeholder="Buscar por nombre, documento o teléfono…" autocomplete="off">
+              <div id="customers" class="customer-results"></div>
+            </div>
+
+            <div class="payment-fields">
+              <label>Propina
+                <input id="tipAmount" class="rv2-input" type="number" min="0" step="100" value="0" inputmode="decimal">
+              </label>
+              <label id="referenceLabel">Referencia / comprobante
+                <input id="paymentReference" class="rv2-input" maxlength="160" placeholder="Opcional">
+              </label>
+            </div>
+
+            <button id="charge" class="rv2-btn rv2-btn-primary charge-btn" type="button" disabled>COBRAR CUENTA COMPLETA</button>
+            <p class="fiscal-note">La venta se registra en POS, Caja/Tesorería y Contabilidad. DIAN no es requisito para este cobro; la integración electrónica queda externa y opcional.</p>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="openShiftDialog">
+    <form id="openShiftForm" class="dialog-form">
+      <div class="dialog-head"><div><small>INICIO DE OPERACIÓN</small><h2>Abrir turno de Caja</h2></div><button class="rv2-btn" type="button" data-close="openShiftDialog">Cerrar</button></div>
+      <label>Caja física<select id="cashAccount" class="rv2-input" required></select></label>
+      <label>Base inicial<input id="initialBalance" class="rv2-input" type="number" min="0" step="100" value="0" required></label>
+      <button class="rv2-btn rv2-btn-primary" type="submit">ABRIR TURNO</button>
+    </form>
+  </dialog>
+
+  <dialog id="closeShiftDialog">
+    <form id="closeShiftForm" class="dialog-form">
+      <div class="dialog-head"><div><small>CIERRE DE TURNO</small><h2>Cuadre de Caja</h2></div><button class="rv2-btn" type="button" data-close="closeShiftDialog">Cerrar</button></div>
+      <div id="shiftSummary" class="shift-summary"></div>
+      <label>Efectivo contado al cierre<input id="finalBalance" class="rv2-input" type="number" min="0" step="100" required></label>
+      <button class="rv2-btn rv2-btn-primary" type="submit">CERRAR TURNO</button>
+    </form>
+  </dialog>
+
+  <dialog id="customerDialog">
+    <form id="customerForm" class="dialog-form customer-form">
+      <div class="dialog-head"><div><small>CRÉDITO</small><h2>Crear cliente</h2></div><button class="rv2-btn" type="button" data-close="customerDialog">Cerrar</button></div>
+      <div class="form-grid">
+        <label>Tipo de documento<select name="tipoDocumento" class="rv2-input"><option value="CC">CC</option><option value="NIT">NIT</option><option value="CE">CE</option><option value="PASAPORTE">Pasaporte</option></select></label>
+        <label>Identificación<input name="identificacion" class="rv2-input" maxlength="40" required></label>
+        <label class="span-2">Nombre<input name="nombre" class="rv2-input" maxlength="160" required></label>
+        <label>Teléfono<input name="telefono" class="rv2-input" maxlength="50"></label>
+        <label>Correo<input name="email" class="rv2-input" type="email" maxlength="254"></label>
+        <label>Cupo de crédito<input name="cupoCredito" class="rv2-input" type="number" min="0" step="1000" value="0"><small>0 = sin límite configurado</small></label>
+        <label>Días de plazo<input name="diasPlazo" class="rv2-input" type="number" min="0" max="3650" value="0"></label>
+      </div>
+      <button class="rv2-btn rv2-btn-primary" type="submit">CREAR Y SELECCIONAR</button>
+    </form>
+  </dialog>
+
+  <dialog id="resultDialog">
+    <div class="dialog-form result-dialog">
+      <div class="result-mark">✓</div>
+      <small>COBRO REGISTRADO</small>
+      <h2 id="resultTitle">Venta POS</h2>
+      <p id="resultText">—</p>
+      <button id="resultClose" class="rv2-btn rv2-btn-primary" type="button">VOLVER A CAJA</button>
+    </div>
+  </dialog>
+
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-cash.js"></script>
+</body>
+</html>
