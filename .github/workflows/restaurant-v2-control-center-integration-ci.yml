@@ -1,0 +1,66 @@
+name: Restaurant V2 Control Center Integration CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-control-center.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'src/web/restaurant-v2-sdk.js'
+      - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+      - '.github/workflows/restaurant-v2-control-center-integration-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-control-center.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'src/web/restaurant-v2-sdk.js'
+      - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+      - '.github/workflows/restaurant-v2-control-center-integration-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/restaurant-v2-control-center-integration-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-control-center.public.routes.js
+      - run: node --check src/web/restaurant-v2-control-center-bridge.js
+      - run: node --check src/web/restaurant-v2-sdk.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact V2 control center in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"; S="$(mktemp)"
+              curl -fsS -D "$H" "$BASE/app/centro-de-control?v=$GITHUB_SHA" -o "$P"
+              curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-sdk.js?v=$GITHUB_SHA" -o "$S"
+              grep -Fqi 'X-VantixGC-Restaurant-Control: v2-control-center-bridge-p6-5' "$H"
+              grep -Fq 'restaurant-v2-control-center-bridge.js' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_V2_CONTROL_CENTER_BRIDGE_P6_5' "$J"
+              grep -Fq '/app/restaurante-v2/mesas' "$J"
+              grep -Fq '/app/restaurante-v2/pedidos' "$J"
+              grep -Fq '/app/restaurante-v2/kds' "$J"
+              grep -Fq '/app/restaurante-v2/caja' "$J"
+              grep -Fq '/app/restaurante-v2/division' "$J"
+              grep -Fq 'mountControlCenterReturn' "$S"
+              echo "Restaurant V2 Control Center live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
