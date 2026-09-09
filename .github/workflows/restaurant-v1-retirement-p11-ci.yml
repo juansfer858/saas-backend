@@ -95,7 +95,7 @@ jobs:
           for i in $(seq 1 60); do
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
-              HC="$(mktemp)"; C="$(mktemp)"; HN="$(mktemp)"; N="$(mktemp)"; HP="$(mktemp)"; P="$(mktemp)"; H10="$(mktemp)"; P10="$(mktemp)"; HR="$(mktemp)"; R="$(mktemp)"; HW="$(mktemp)"; W="$(mktemp)"; HPR="$(mktemp)"; PR="$(mktemp)"
+              HC="$(mktemp)"; C="$(mktemp)"; HN="$(mktemp)"; N="$(mktemp)"; HP="$(mktemp)"; P="$(mktemp)"; H10="$(mktemp)"; P10="$(mktemp)"; HR="$(mktemp)"; R="$(mktemp)"; HW="$(mktemp)"; W="$(mktemp)"; HPR="$(mktemp)"; PR="$(mktemp)"; E="$(mktemp)"; D="$(mktemp)"; NJ="$(mktemp)"
               curl -fsS -D "$HC" "$BASE/app/centro-de-control?v=$GITHUB_SHA" -o "$C"
               curl -fsS -D "$HN" "$BASE/app/centro-de-control-v2?v=$GITHUB_SHA" -o "$N"
               curl -fsS -D "$HP" "$BASE/app/restaurante-v2/retiro-v1?v=$GITHUB_SHA" -o "$P"
@@ -103,6 +103,9 @@ jobs:
               curl -fsS -D "$HR" "$BASE/app/restaurante-v1?v=$GITHUB_SHA" -o "$R"
               curl -fsS -D "$HW" "$BASE/app/centro-de-control/mesero-v1?v=$GITHUB_SHA" -o "$W"
               curl -fsS -D "$HPR" "$BASE/app/produccion-v1?v=$GITHUB_SHA" -o "$PR"
+              curl -fsS "$BASE/app/restaurante-v2/empleados?v=$GITHUB_SHA" -o "$E"
+              curl -fsS "$BASE/app/restaurante-v2/domicilios?v=$GITHUB_SHA" -o "$D"
+              curl -fsS "$BASE/app/restaurant-v2-native-control-p11.js?v=$GITHUB_SHA" -o "$NJ"
               grep -Fqi 'X-VantixGC-Restaurant-V1-Retirement: p11-v1-retirement' "$HC"
               grep -Fq 'data-p11-launch="true"' "$C"
               if grep -Eq 'restaurant-ui\.js|restaurant-control-center\.js|MutationObserver' "$C"; then exit 1; fi
@@ -115,9 +118,9 @@ jobs:
               grep -Fqi 'X-VantixGC-Restaurant-V2-Pilot-Rollback: v1-direct-shell' "$HR"
               grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover-Rollback: waiter-v1-direct' "$HW"
               grep -Fqi 'X-VantixGC-Restaurant-V2-Cutover-Rollback: production-v1-direct' "$HPR"
-              curl -fsS "$BASE/app/restaurante-v2/empleados?v=$GITHUB_SHA" | grep -Fq 'data-p11-module-host="employees"'
-              curl -fsS "$BASE/app/restaurante-v2/domicilios?v=$GITHUB_SHA" | grep -Fq 'data-p11-module-host="delivery"'
-              curl -fsS "$BASE/app/restaurant-v2-native-control-p11.js?v=$GITHUB_SHA" | grep -Fq 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11'
+              grep -Fq 'data-p11-module-host="employees"' "$E"
+              grep -Fq 'data-p11-module-host="delivery"' "$D"
+              grep -Fq 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11' "$NJ"
               echo "Restaurant P11 V1 retirement live at $GITHUB_SHA"
               exit 0
             fi
