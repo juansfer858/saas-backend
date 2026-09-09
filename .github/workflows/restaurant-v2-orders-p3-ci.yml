@@ -1,0 +1,82 @@
+name: Restaurant V2 Orders P3 CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/restaurant/restaurant-v2-orders.*'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-orders.*'
+      - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
+      - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/restaurant/restaurant-v2-orders.*'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-orders.*'
+      - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
+      - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: vantixgc.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-orders-p3-db-smoke.js
+      - run: node --check src/modules/restaurant/restaurant.service.js
+      - run: node --check src/modules/restaurant/restaurant-identity.service.js
+      - run: node --check src/modules/restaurant/restaurant-v2-orders.routes.js
+      - run: node --check src/modules/restaurant/restaurant-v2-orders.public.routes.js
+      - run: node --check src/web/restaurant-v2-orders.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact Pedidos V2 P3 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"
+              curl -fsS -D "$H" "$BASE/app/restaurante-v2/pedidos?v=$GITHUB_SHA" -o "$P"
+              curl -fsS "$BASE/app/restaurant-v2-orders.js?v=$GITHUB_SHA" -o "$J"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Orders: p3-orders-independent' "$H"
+              grep -Fq 'RESTAURANTE V2 · PEDIDOS' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_V2_ORDERS_P3' "$J"
+              grep -Fq 'REVISAR PEDIDO' "$J"
+              grep -Fq '/pedido/enviar' "$J"
+              if grep -Fq 'billingMode:' "$J"; then exit 1; fi
+              echo "Pedidos V2 P3 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
