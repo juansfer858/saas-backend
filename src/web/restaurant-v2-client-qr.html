@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <title>Pedido en mesa · VantixGC</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-client-qr.css?v=p7">
+</head>
+<body>
+  <!-- VANTIX_RESTAURANT_V2_CLIENT_QR_P7 -->
+  <main class="p7-shell" id="p7App" aria-live="polite">
+    <header class="p7-header">
+      <div class="p7-brand-copy">
+        <span class="p7-kicker">PEDIDO EN MESA</span>
+        <h1 id="restaurantName">Restaurante</h1>
+        <div class="p7-table-line"><span id="tableName">Mesa</span><span id="visitBadge" class="p7-badge">Consultando…</span></div>
+      </div>
+      <button id="helpButton" class="p7-icon-button" type="button" aria-label="Ayuda">?</button>
+    </header>
+
+    <section id="availabilityCard" class="p7-availability">
+      <div><b id="availabilityTitle">Consultando la mesa…</b><span id="availabilityText">Estamos verificando la atención actual.</span></div>
+      <span id="seatBadge" class="p7-seat" hidden></span>
+    </section>
+
+    <section id="spotlight" class="p7-spotlight" hidden></section>
+
+    <nav id="categoryNav" class="p7-categories" aria-label="Categorías del menú"></nav>
+
+    <section class="p7-menu-head">
+      <div><span class="p7-kicker">CARTA</span><h2 id="categoryTitle">Todo</h2></div>
+      <button id="trackingButton" class="p7-secondary" type="button" hidden>Mi pedido</button>
+    </section>
+    <section id="menuList" class="p7-menu" aria-label="Productos"></section>
+  </main>
+
+  <footer id="cartBar" class="p7-cartbar" hidden>
+    <button id="cartButton" type="button" class="p7-cart-button">
+      <span id="cartCount" class="p7-cart-count">0</span>
+      <span class="p7-cart-copy"><b>Revisar pedido</b><small>Notas, cantidades y total</small></span>
+      <strong id="cartTotal">$0</strong>
+    </button>
+  </footer>
+
+  <div id="sheetBackdrop" class="p7-backdrop" hidden></div>
+  <section id="sheet" class="p7-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <header><div><span class="p7-kicker" id="sheetKicker">PEDIDO</span><h2 id="sheetTitle">Revisar pedido</h2></div><button id="sheetClose" class="p7-icon-button" type="button" aria-label="Cerrar">×</button></header>
+    <div id="sheetBody" class="p7-sheet-body"></div>
+  </section>
+
+  <div id="toast" class="p7-toast" role="status" hidden></div>
+
+  <script src="/app/restaurant-v2-client-qr.js?v=p7"></script>
+</body>
+</html>
