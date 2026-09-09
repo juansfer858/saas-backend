@@ -25,9 +25,18 @@ function deviceMatchesStation(device, profile, station) {
   return Boolean(profile?.flexibleSupport) && normalizedStations(profile).includes(queue);
 }
 
+// Una ronda ya enviada queda identificada por sus comandas persistidas, no por un
+// texto de estado del pedido. El motor canónico cambia ENVIADO -> EN_PREPARACION ->
+// LISTO -> ENTREGADO conforme avanza KDS, pero la ronda y sus comandas siguen siendo
+// las mismas. Este criterio también excluye borradores porque todavía no tienen comandas.
 async function latestSentOrder(tenantId, sessionId, createdByUserId = null) {
   return prisma.restaurantOrder.findFirst({
-    where:{ tenantId, sessionId, state:'ENVIADO', ...(createdByUserId ? { createdByUserId } : {}) },
+    where:{
+      tenantId,
+      sessionId,
+      ...(createdByUserId ? { createdByUserId } : {}),
+      commands:{ some:{} }
+    },
     orderBy:{ creadoEn:'desc' },
     include:{
       commands:true,
