@@ -22,8 +22,7 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantZone"')::text AS "zone",
       to_regclass('public."RestaurantTable"')::text AS "table",
       EXISTS (
-        SELECT 1
-        FROM information_schema.columns
+        SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public'
           AND table_name = 'RestaurantTable'
           AND column_name = 'zoneId'
@@ -90,6 +89,12 @@ async function readRestaurantSchemaState() {
           AND column_name = 'paymentReference'
       ) AS "sessionPaymentReference",
       to_regclass('public."RestaurantQrVisitDevice"')::text AS "qrVisitDevice",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'RestaurantQrVisitDevice'
+          AND column_name = 'originTableId'
+      ) AS "qrVisitOriginTableId",
       to_regclass('public."RestaurantSessionPayment"')::text AS "sessionPayment",
       to_regclass('public."RestaurantOrder"')::text AS "order",
       EXISTS (
@@ -130,7 +135,7 @@ async function readRestaurantSchemaState() {
     'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
     'sessionPaymentMethodId', 'sessionPaymentMethodLabel', 'sessionPaymentMethodKind',
     'sessionPaymentAccountId', 'sessionPaymentReference',
-    'qrVisitDevice', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
+    'qrVisitDevice', 'qrVisitOriginTableId', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
     'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile', 'companyProfile',
     'printTenantConfig', 'printerEndpoint', 'notificationPushDevice', 'notificationPushDelivery',
