@@ -29,7 +29,7 @@ router.post('/v2/sesiones/:sessionId/pedido/enviar',requirePermission('PEDIDOS.C
     const data=await identity.sendWaiterDraft(req.tenantId,req.user,req.params.sessionId,V2_OPTIONS);
     // Push is deliberately best-effort. The confirmed order and its real commands are
     // authoritative; a missing/invalid FCM device can never roll back or delay the kitchen flow.
-    void kdsPush.notifyLatestRound(req.tenantId,req.params.sessionId,req.user.id).catch(()=>{});
+    void kdsPush.notifyLatestRound(req.tenantId,req.params.sessionId).catch(()=>{});
     res.json({ok:true,data});
   }catch(error){next(error)}
 });
