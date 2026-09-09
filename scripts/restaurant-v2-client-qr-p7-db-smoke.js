@@ -102,7 +102,6 @@ async function main() {
     clientSpotlight:{ active:true, kind:'PLATO_DIA', menuItemId:menuItem.id, label:'Especial P7', description:'Prueba cliente V2' }
   });
 
-  // Un QR fotografiado puede cargar carta y promo sin código y sin crear pedido.
   let ctx = await identity.publicQrContext(sourceQrBefore);
   assert.equal(ctx.table.id, source.id);
   assert.equal(ctx.open, false);
@@ -111,7 +110,6 @@ async function main() {
   assert.equal(ctx.theme.clientSpotlight.menuItemId, menuItem.id);
   assert.equal(await prisma.restaurantOrder.count({ where:{ tenantId:demo.tenantId, session:{ tableId:source.id } } }), 0);
 
-  // Mesa abierta: todavía no hay dispositivo ni pedido hasta autorizar/enviar.
   const opened = await restaurant.openTable(demo.tenantId, waiter, source.id, { guestCount:3 });
   assert.ok(opened.session.qrVisitNonce);
   let described = await visits.describeVisit(sourceQrBefore, '');
@@ -125,7 +123,6 @@ async function main() {
   assert.equal(authorized.guestCount, 3);
   assert.equal(await prisma.restaurantOrder.count({ where:{ tenantId:demo.tenantId, sessionId:opened.session.id } }), 0, 'Autorizar no debe crear pedido');
 
-  // La visita autorizada sigue a la misma cuenta si el personal cambia de mesa.
   const moved = await moveTableVisit(demo.tenantId, waiter, source.id, destination.id);
   assert.equal(moved.sessionId, opened.session.id);
   described = await visits.describeVisit(sourceQrBefore, authorized.visitToken);
@@ -135,7 +132,6 @@ async function main() {
   assert.equal(described.currentTable.id, destination.id);
   assert.equal(described.relocatedToPath, `/r/${encodeURIComponent(destinationQrBefore)}`);
 
-  // El teléfono envía por el QR físico original y el backend resuelve la visita movida.
   const expectedTotal = confirmedLineTotal(menuItem, 1);
   const order = await visits.placeAuthorizedQrOrder(sourceQrBefore, authorized.visitToken, {
     items:[{ menuItemId:menuItem.id, quantity:1, notes:'SIN CEBOLLA P7' }],
@@ -144,13 +140,14 @@ async function main() {
   });
   assert.equal(order.sessionId, opened.session.id);
   assert.equal(order.source, 'QR');
-  assert.ok(order.qrVisitDeviceId);
   assert.equal(Number(order.items[0].seatNumber), 2);
 
-  const [dbItem, commands] = await Promise.all([
+  const [dbOrder, dbItem, commands] = await Promise.all([
+    prisma.restaurantOrder.findUnique({ where:{ id:order.id } }),
     prisma.restaurantOrderItem.findFirst({ where:{ tenantId:demo.tenantId, orderId:order.id } }),
     prisma.restaurantCommand.findMany({ where:{ tenantId:demo.tenantId, orderId:order.id } })
   ]);
+  assert.ok(dbOrder.qrVisitDeviceId, 'La orden persistida debe quedar ligada al dispositivo QR');
   assert.equal(dbItem.notes, 'SIN CEBOLLA P7');
   assert.equal(Number(dbItem.seatNumber), 2);
   assert.ok(commands.length >= 1, 'El pedido QR confirmado debe crear comanda real');
@@ -177,7 +174,6 @@ async function main() {
   assert.equal(presence.publicState.open, true);
   assert.equal(presence.publicState.guestCount, 3);
 
-  // P0.5 contract: neither authorization, move, order, call nor account may rotate a physical QR.
   const [sourceAfter, destinationAfter] = await Promise.all([
     prisma.restaurantTable.findUnique({ where:{ id:source.id } }),
     prisma.restaurantTable.findUnique({ where:{ id:destination.id } })
@@ -186,7 +182,6 @@ async function main() {
   assert.equal(destinationAfter.qrToken, destinationQrBefore);
   assert.equal(new URL(qr.buildPublicTableUrl(sourceAfter.qrToken)).pathname, `/r/${sourceQrBefore}`);
 
-  // Express ownership: the same /r/:token now returns P7 before src/app.js legacy fallback.
   await withServer(async (base) => {
     const [page, asset, context] = await Promise.all([
       fetch(`${base}/r/${encodeURIComponent(sourceQrBefore)}`),
