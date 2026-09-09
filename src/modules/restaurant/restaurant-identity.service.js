@@ -33,8 +33,8 @@ async function uiContext(tenantId, user) {
   };
 }
 
-async function listTablesLive(tenantId, user) {
-  const tables = await base.listTables(tenantId, user);
+async function listTablesLive(tenantId, user, options = {}) {
+  const tables = await base.listTables(tenantId, user, options);
   const sessions = tables.map((x) => x.activeSession).filter(Boolean);
   const saleIds = sessions.map((x) => x.saleId);
   const sales = saleIds.length ? await prisma.comprobanteComercial.findMany({
@@ -55,13 +55,21 @@ async function listTablesLive(tenantId, user) {
   });
 }
 
-function assertWaiterSessionAccess(user, session) {
-  if (user?.rol === 'MESERO' && session?.table?.assignedWaiterId !== user.id) {
+function assertWaiterSessionAccess(user, session, options = {}) {
+  if (user?.rol === 'MESERO' && !options.sharedFloor && session?.table?.assignedWaiterId !== user.id) {
     throw new AppError(403, 'La mesa no está asignada a este mesero', 'RESTAURANT_WAITER_TABLE_FORBIDDEN');
   }
 }
 
-function normalizeSeatNumber(session, seatNumber) {
+function normalizeSeatNumber(session, seatNumber, options = {}) {
+  if (options.optionalSeat) {
+    if (seatNumber === null || seatNumber === undefined || seatNumber === '') return null;
+    const seat = Number(seatNumber);
+    if (!Number.isInteger(seat) || seat < 1 || seat > Number(session.guestCount || 1)) {
+      throw new AppError(400, 'La persona seleccionada no pertenece a esta mesa', 'RESTAURANT_SEAT_INVALID', { seatNumber: seat, guestCount: session.guestCount });
+    }
+    return seat;
+  }
   if (session.billingMode !== 'INDIVIDUAL') return null;
   const seat = Number(seatNumber || 1);
   if (!Number.isInteger(seat) || seat < 1 || seat > Number(session.guestCount || 1)) {
@@ -78,13 +86,13 @@ async function sessionOrderIds(tx, tenantId, sessionId) {
   return rows.map((row) => row.id);
 }
 
-async function ensureDraftContext(tx, tenantId, user, sessionId, create = true) {
+async function ensureDraftContext(tx, tenantId, user, sessionId, create = true, options = {}) {
   const session = await tx.restaurantTableSession.findFirst({
     where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
     include: { table: true }
   });
   if (!session) throw new AppError(404, 'Sesión de mesa abierta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
-  assertWaiterSessionAccess(user, session);
+  assertWaiterSessionAccess(user, session, options);
   const sale = await tx.comprobanteComercial.findFirst({
     where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: 'BORRADOR' },
     include: { detalles: true }
@@ -135,7 +143,7 @@ function serviceItem(item, order) {
   };
 }
 
-async function sessionServiceSummaryInTx(tx, tenantId, session) {
+async function sessionServiceSummaryInTx(tx, tenantId, session, options = {}) {
   const [orders, sale] = await Promise.all([
     tx.restaurantOrder.findMany({
       where: { tenantId, sessionId: session.id, state: { not: 'CANCELADO' } },
@@ -161,11 +169,11 @@ async function sessionServiceSummaryInTx(tx, tenantId, session) {
 
   for (const item of allItems) {
     const seat = Number(item.seatNumber || 0);
-    if (session.billingMode === 'INDIVIDUAL' && Number.isInteger(seat) && seat >= 1 && seat <= guestCount) {
+    if ((session.billingMode === 'INDIVIDUAL' || options.optionalSeat) && Number.isInteger(seat) && seat >= 1 && seat <= guestCount) {
       const group = seats[seat - 1];
       group.items.push(item);
       group.total = money(group.total.plus(item.lineTotal || 0));
-    } else if (session.billingMode === 'INDIVIDUAL') {
+    } else if (session.billingMode === 'INDIVIDUAL' || options.optionalSeat) {
       unassigned.items.push(item);
       unassigned.total = money(unassigned.total.plus(item.lineTotal || 0));
     }
@@ -187,10 +195,10 @@ async function sessionServiceSummaryInTx(tx, tenantId, session) {
   };
 }
 
-async function getWaiterDraft(tenantId, user, sessionId) {
+async function getWaiterDraft(tenantId, user, sessionId, options = {}) {
   return prisma.$transaction(async (tx) => {
-    const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false);
-    const service = await sessionServiceSummaryInTx(tx, tenantId, ctx.session);
+    const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false, options);
+    const service = await sessionServiceSummaryInTx(tx, tenantId, ctx.session, options);
     if (!ctx.order) return { order: null, sale: ctx.sale, session: ctx.session, service };
     const loaded = await loadDraft(tenantId, ctx.order.id, tx);
     return { ...loaded, session: ctx.session, service };
@@ -225,14 +233,14 @@ function detailValues(line) {
   };
 }
 
-async function updateTableServiceSetup(tenantId, user, sessionId, input) {
+async function updateTableServiceSetup(tenantId, user, sessionId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
     const session = await tx.restaurantTableSession.findFirst({
       where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
       include: { table: true }
     });
     if (!session) throw new AppError(404, 'Sesión de mesa abierta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
-    assertWaiterSessionAccess(user, session);
+    assertWaiterSessionAccess(user, session, options);
 
     const orderIds = await sessionOrderIds(tx, tenantId, session.id);
     const existingItem = orderIds.length ? await tx.restaurantOrderItem.findFirst({ where: { tenantId, orderId: { in: orderIds } }, select: { id: true } }) : null;
@@ -258,15 +266,15 @@ async function updateTableServiceSetup(tenantId, user, sessionId, input) {
       },
       include: { table: true }
     });
-    const service = await sessionServiceSummaryInTx(tx, tenantId, updated);
+    const service = await sessionServiceSummaryInTx(tx, tenantId, updated, options);
     return { session: updated, service };
   });
 }
 
-async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantity, seatNumber = null) {
+async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantity, seatNumber = null, options = {}) {
   return prisma.$transaction(async (tx) => {
-    const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, true);
-    const seat = normalizeSeatNumber(ctx.session, seatNumber);
+    const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, true, options);
+    const seat = normalizeSeatNumber(ctx.session, seatNumber, options);
     const requestedQty = qty(quantity);
     const existing = await tx.restaurantOrderItem.findFirst({
       where: { tenantId, orderId: ctx.order.id, menuItemId, seatNumber: seat }
@@ -353,14 +361,14 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
   });
 }
 
-async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input) {
+async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
     const session = await tx.restaurantTableSession.findFirst({
       where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
       include: { table: true }
     });
     if (!session) throw new AppError(404, 'Sesión de mesa abierta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
-    assertWaiterSessionAccess(user, session);
+    assertWaiterSessionAccess(user, session, options);
     const item = await tx.restaurantOrderItem.findFirst({
       where: { id: itemId, tenantId },
       include: { order: true }
@@ -368,7 +376,7 @@ async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input) {
     if (!item || item.order.sessionId !== session.id) throw new AppError(404, 'Ítem del pedido no encontrado en esta mesa', 'RESTAURANT_ORDER_ITEM_NOT_FOUND');
 
     const data = {};
-    if (Object.prototype.hasOwnProperty.call(input, 'seatNumber')) data.seatNumber = normalizeSeatNumber(session, input.seatNumber);
+    if (Object.prototype.hasOwnProperty.call(input, 'seatNumber')) data.seatNumber = normalizeSeatNumber(session, input.seatNumber, options);
     if (Object.prototype.hasOwnProperty.call(input, 'notes')) {
       if (item.order.state !== 'BORRADOR') {
         throw new AppError(409, 'Las notas de cocina sólo pueden editarse antes de enviar la ronda.', 'RESTAURANT_SENT_ITEM_NOTES_LOCKED');
@@ -376,14 +384,14 @@ async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input) {
       data.notes = input.notes ? String(input.notes).trim() : null;
     }
     const updated = await tx.restaurantOrderItem.update({ where: { id: item.id }, data });
-    const service = await sessionServiceSummaryInTx(tx, tenantId, session);
+    const service = await sessionServiceSummaryInTx(tx, tenantId, session, options);
     return { item: updated, service };
   });
 }
 
-async function sendWaiterDraft(tenantId, user, sessionId) {
+async function sendWaiterDraft(tenantId, user, sessionId, options = {}) {
   return prisma.$transaction(async (tx) => {
-    const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false);
+    const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false, options);
     if (!ctx.order) throw new AppError(409, 'No hay pedido en curso para enviar', 'RESTAURANT_DRAFT_ORDER_NOT_FOUND');
     const items = await tx.restaurantOrderItem.findMany({ where: { tenantId, orderId: ctx.order.id }, orderBy: { creadoEn: 'asc' } });
     if (!items.length) throw new AppError(409, 'Agregue al menos un ítem antes de enviar', 'RESTAURANT_DRAFT_ORDER_EMPTY');
