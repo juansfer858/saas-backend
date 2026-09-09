@@ -45,10 +45,9 @@ jobs:
           for i in $(seq 1 60); do
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
-              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"; S="$(mktemp)"
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"
               curl -fsS -D "$H" "$BASE/app/centro-de-control?v=$GITHUB_SHA" -o "$P"
               curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$J"
-              curl -fsS "$BASE/app/restaurant-v2-sdk.js?v=$GITHUB_SHA" -o "$S"
               grep -Fqi 'X-VantixGC-Restaurant-Control: v2-control-center-bridge-p6-5' "$H"
               grep -Fq 'restaurant-v2-control-center-bridge.js' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_CONTROL_CENTER_BRIDGE_P6_5' "$J"
@@ -57,7 +56,9 @@ jobs:
               grep -Fq '/app/restaurante-v2/kds' "$J"
               grep -Fq '/app/restaurante-v2/caja' "$J"
               grep -Fq '/app/restaurante-v2/division' "$J"
-              grep -Fq 'mountControlCenterReturn' "$S"
+              grep -Fq 'data-v2-workspace' "$J"
+              grep -Fq 'data-v2-frame' "$J"
+              grep -Fq '← Centro de control' "$J"
               echo "Restaurant V2 Control Center live at $GITHUB_SHA"
               exit 0
             fi
