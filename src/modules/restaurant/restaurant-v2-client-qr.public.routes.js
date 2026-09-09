@@ -20,6 +20,7 @@ function send(res, file, type) {
 // src/app.js' existing /r/:token handler the automatic legacy fallback again.
 router.get('/r/:token', (_req, res) => send(res, 'restaurant-v2-client-qr.html', 'html'));
 router.get('/app/restaurant-v2-client-qr.js', (_req, res) => send(res, 'restaurant-v2-client-qr.js', 'application/javascript; charset=utf-8'));
+router.get('/app/restaurant-v2-client-qr-open-request.js', (_req, res) => send(res, 'restaurant-v2-client-qr-open-request.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-client-qr.css', (_req, res) => send(res, 'restaurant-v2-client-qr.css', 'text/css; charset=utf-8'));
 
 module.exports = {

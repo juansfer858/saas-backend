@@ -1,0 +1,121 @@
+name: Restaurant V2 Pilot Blockers P10 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-table-open-request.*'
+      - 'src/modules/restaurant/restaurant-visit.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-client-qr*'
+      - 'src/web/restaurant-v2-tables*'
+      - 'src/web/restaurant-v2-orders*'
+      - 'src/web/restaurant-v2-device-sdk-p8.js'
+      - 'src/web/restaurant-v2-device-realtime-p8.js'
+      - 'src/web/restaurant-v2-waiter-p8.html'
+      - 'src/web/restaurant-v2-waiter-sw-p8.js'
+      - 'scripts/restaurant-v2-pilot-blockers-p10-db-smoke.js'
+      - '.github/workflows/restaurant-v2-pilot-blockers-p10-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-table-open-request.*'
+      - 'src/modules/restaurant/restaurant-visit.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-client-qr*'
+      - 'src/web/restaurant-v2-tables*'
+      - 'src/web/restaurant-v2-orders*'
+      - 'src/web/restaurant-v2-device-sdk-p8.js'
+      - 'src/web/restaurant-v2-device-realtime-p8.js'
+      - 'src/web/restaurant-v2-waiter-p8.html'
+      - 'src/web/restaurant-v2-waiter-sw-p8.js'
+      - 'scripts/restaurant-v2-pilot-blockers-p10-db-smoke.js'
+      - '.github/workflows/restaurant-v2-pilot-blockers-p10-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+      FCM_SERVICE_ACCOUNT_JSON: ''
+      FCM_PROJECT_ID: ''
+      FCM_CLIENT_EMAIL: ''
+      FCM_PRIVATE_KEY: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Create ephemeral test secrets
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_DEVICE_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_QR_VISIT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - run: node scripts/restaurant-v2-pilot-blockers-p10-db-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-table-open-request.service.js
+      - run: node --check src/modules/restaurant/restaurant-v2-table-open-request.routes.js
+      - run: node --check src/modules/restaurant/restaurant-visit.public.routes.js
+      - run: node --check src/web/restaurant-v2-client-qr-open-request.js
+      - run: node --check src/web/restaurant-v2-tables.js
+      - run: node --check src/web/restaurant-v2-orders.js
+      - run: node --check src/web/restaurant-v2-device-sdk-p8.js
+      - run: node --check src/web/restaurant-v2-waiter-sw-p8.js
+      - run: node --check scripts/restaurant-v2-pilot-blockers-p10-db-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact QR/waiter blockers fix in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              QR="$(mktemp)"; SDK="$(mktemp)"; TABLES="$(mktemp)"; ORDERS="$(mktemp)"; WAITER="$(mktemp)"; SW="$(mktemp)"
+              curl -fsS "$BASE/app/restaurant-v2-client-qr-open-request.js?v=$GITHUB_SHA" -o "$QR"
+              curl -fsS "$BASE/app/restaurant-v2-device-sdk-p8.js?v=$GITHUB_SHA" -o "$SDK"
+              curl -fsS "$BASE/app/restaurant-v2-tables.js?v=$GITHUB_SHA" -o "$TABLES"
+              curl -fsS "$BASE/app/restaurant-v2-orders.js?v=$GITHUB_SHA" -o "$ORDERS"
+              curl -fsS "$BASE/app/centro-de-control/mesero-v2/?v=$GITHUB_SHA" -o "$WAITER"
+              curl -fsS "$BASE/app/centro-de-control/mesero-v2/sw.js?v=$GITHUB_SHA" -o "$SW"
+              grep -Fq 'VANTIX_RESTAURANT_V2_CLIENT_QR_OPEN_REQUEST_P10_FIX' "$QR"
+              grep -Fq '/solicitar-apertura' "$QR"
+              grep -Fq 'opensTableAutomatically:false' "$QR"
+              grep -Fq 'VANTIX_RESTAURANT_V2_DEVICE_PERSISTENCE_P10_FIX' "$SDK"
+              grep -Fq 'sessionPreservedOnForbidden:true' "$SDK"
+              grep -Fq 'explicitRevocationOnly:true' "$SDK"
+              grep -Fq 'SOLICITA APERTURA' "$TABLES"
+              grep -Fq 'ABRIR MESA · CLIENTE ESPERANDO' "$ORDERS"
+              grep -Fq 'restaurant-v2-device-realtime-p8.js' "$WAITER"
+              grep -Fq 'restaurant-v2-device-realtime-p8.js' "$SW"
+              if grep -Eq 'MutationObserver|setInterval|POLL_MS' "$QR" "$TABLES" "$ORDERS" "$SDK"; then exit 1; fi
+              curl -fsS "$BASE/app/restaurante-v1?v=$GITHUB_SHA" >/dev/null
+              echo "Restaurant V2 pilot blockers fixed in production at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

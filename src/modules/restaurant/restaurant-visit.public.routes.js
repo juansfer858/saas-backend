@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { z } = require('zod');
 const visitPayments = require('./restaurant-visit-payments.service');
+const tableOpenRequests = require('./restaurant-v2-table-open-request.service');
 const edgeIngress = require('../edge/edge-restaurant-ingress.service');
 const notifications = require('../notifications/notifications.service');
 const { AppError } = require('../../utils/app-error');
@@ -116,6 +117,15 @@ router.get('/api/public/restaurante/qr/:token/visita', async (req, res, next) =>
         localFallbackUrl: localModeRequired ? ingress.localFallbackUrl || null : null
       }
     });
+  } catch (error) { next(error); }
+});
+
+// El QR físico nunca abre una mesa por sí solo. Si el cliente intenta enviar mientras
+// está libre, crea una solicitud idempotente que Mesas/Mesero V2 debe aceptar.
+router.post('/api/public/restaurante/qr/:token/solicitar-apertura', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.status(202).json({ ok:true, data:await tableOpenRequests.createRequest(req.params.token) });
   } catch (error) { next(error); }
 });
 
