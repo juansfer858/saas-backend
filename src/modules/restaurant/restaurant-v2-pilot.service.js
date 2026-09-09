@@ -6,7 +6,7 @@ const { AppError } = require('../../utils/app-error');
 const MARKER = 'VANTIX_RESTAURANT_V2_PILOT_P9';
 const PILOT_KEY = 'restaurantV2Pilot';
 const TARGET_VERSION = 'P1-P8';
-const ROLLBACK_PATH = '/app/restaurante';
+const ROLLBACK_PATH = '/app/restaurante-v1';
 const PRODUCTION_ROLES = Object.freeze(['COCINA', 'BARRA', 'POSTRES']);
 const SURFACES = Object.freeze({
   controlCenter: Object.freeze({ label: 'Centro de control V2', url: '/app/centro-de-control' }),
@@ -20,9 +20,7 @@ const SURFACES = Object.freeze({
   clientQr: Object.freeze({ label: 'Cliente QR V2', url: '/r/<qrToken>' })
 });
 
-function objectValue(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-}
+function objectValue(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
 function cleanNotes(value) {
   if (value === undefined) return undefined;
   const text = String(value || '').trim().replace(/\s+/g, ' ');
@@ -104,9 +102,7 @@ async function readiness(tenantId, client = prisma) {
     rule: 'DIAN_PUSH_IMPRESORA_ESTACIONES_Y_DISPOSITIVOS_NO_BLOQUEAN_ACTIVACION'
   };
 }
-async function currentConfig(tenantId, client = prisma) {
-  return client.restaurantConfig.upsert({ where: { tenantId }, create: { tenantId }, update: {} });
-}
+async function currentConfig(tenantId, client = prisma) { return client.restaurantConfig.upsert({ where: { tenantId }, create: { tenantId }, update: {} }); }
 async function getPilot(tenantId, client = prisma) {
   const config = await currentConfig(tenantId, client);
   const checks = await readiness(tenantId, client);
@@ -122,7 +118,7 @@ async function getPilot(tenantId, client = prisma) {
       requiresDian: false,
       requiresPush: false,
       requiresPrinter: false,
-      rollback: 'Desactivar el piloto; V1 permanece disponible y no se eliminan datos.'
+      rollback: `Desactivar el piloto y abrir ${ROLLBACK_PATH}; no se eliminan datos.`
     }
   };
 }
@@ -157,9 +153,7 @@ async function setPilot(tenantId, userId, input = {}, client = prisma) {
     delete nextPilot.surfaces;
     await tx.restaurantConfig.update({ where: { tenantId }, data: { themeData: { ...themeData, [PILOT_KEY]: nextPilot } } });
     const after = normalizedPilot(nextPilot);
-    await tx.auditoriaContable.create({
-      data: { tenantId, userId, entidad: 'RESTAURANT_V2_PILOT', entidadId: tenantId, accion: 'UPDATE', metadata: { before, after, readiness: { ready: checks.ready, blockers: checks.blockers, warnings: checks.warnings }, marker: MARKER } }
-    });
+    await tx.auditoriaContable.create({ data: { tenantId, userId, entidad: 'RESTAURANT_V2_PILOT', entidadId: tenantId, accion: 'UPDATE', metadata: { before, after, readiness: { ready: checks.ready, blockers: checks.blockers, warnings: checks.warnings }, marker: MARKER } } });
     return { marker: MARKER, pilot: after, readiness: checks };
   });
 }
