@@ -15,8 +15,8 @@ function topicsForPath(path) {
   const topics = new Set();
   if (value.includes('/restaurante/')) {
     topics.add('restaurant');
-    if (value.includes('/comandas')) topics.add('restaurant.command');
-    if (value.includes('/pedidos') || value.includes('/borrador')) topics.add('restaurant.order');
+    if (value.includes('/comandas') || value.includes('/pedido/enviar')) topics.add('restaurant.command');
+    if (value.includes('/pedidos') || value.includes('/pedido/') || value.endsWith('/pedido') || value.includes('/borrador')) topics.add('restaurant.order');
     if (value.includes('/mesas') || value.includes('/sesiones') || value.includes('/zonas')) topics.add('restaurant.table');
     if (value.includes('cuenta') || value.includes('/caja') || value.includes('pago')) topics.add('restaurant.account');
     if (value.includes('/caja') || value.includes('pago') || value.includes('cerrar')) topics.add('treasury');
