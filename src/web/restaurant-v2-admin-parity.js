@@ -58,7 +58,7 @@
   }
   function printMaterials(rows,title){
     if(!rows?.length){notice('No hay QR para imprimir.','error');return}
-    const popup=window.open('','_blank','noopener,noreferrer');if(!popup){notice('El navegador bloqueó la ventana de impresión. Habilita ventanas emergentes para este sitio.','error');return}
+    const popup=window.open('','_blank');if(!popup){notice('El navegador bloqueó la ventana de impresión. Habilita ventanas emergentes para este sitio.','error');return}popup.opener=null;
     const cards=rows.map(row=>`<article><div class="name">${esc(row.tableName)}</div><div class="zone">${esc(row.zoneName||'Sin zona')}</div><div class="qr">${row.svg||''}</div><div class="hint">Escanea para ver la carta y pedir desde esta mesa</div></article>`).join('');
     popup.document.open();popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111}.sheet{display:grid;grid-template-columns:repeat(2,1fr);gap:10mm}article{break-inside:avoid;border:1px solid #bbb;border-radius:10px;padding:8mm;text-align:center}.name{font-size:22px;font-weight:800}.zone{margin-top:3px;font-size:12px;color:#555}.qr{display:grid;place-items:center;margin:5mm auto}.qr svg{width:58mm;height:58mm}.hint{font-size:11px;color:#444}@media(max-width:700px){.sheet{grid-template-columns:1fr}}@media print{button{display:none}}</style></head><body><div class="sheet">${cards}</div><script>window.addEventListener('load',()=>setTimeout(()=>window.print(),80));<\/script></body></html>`);popup.document.close();
   }
@@ -76,7 +76,7 @@
   function currentDevices(){return S.deviceKind==='waiter'?S.waiterDevices:S.productionDevices}
   function renderDevices(){
     $$('[data-device-kind]').forEach(btn=>btn.classList.toggle('active',btn.dataset.deviceKind===S.deviceKind));
-    const staff=currentStaff(),devices=currentDevices(),active=devices.filter(d=>d.active).length,pending=devices.filter(d=>d.status==='PAIRING'&&d.active).length;
+    const staff=currentStaff(),devices=currentDevices(),active=devices.filter(d=>d.active).length,pending=devices.filter(d=>d.status==='PAIRING').length;
     $('#deviceSummary').innerHTML=[['Personal activo',staff.length,S.deviceKind==='waiter'?'Meseros':'Cocina / Barra / Postres'],['Dispositivos activos',active,'Vinculación persistente'],['Vínculos pendientes',pending,'QR temporal aún vigente'],['Historial',devices.length,'Activos, pendientes y revocados']].map(([a,b,c])=>`<div class="summary-card"><small>${esc(a)}</small><strong>${esc(b)}</strong><span>${esc(c)}</span></div>`).join('');
     $('#staffGrid').innerHTML=staff.length?staff.map(user=>{const linked=devices.filter(d=>(d.waiter?.id||d.user?.id)===user.id&&d.active).length;return `<article class="staff-card"><div class="staff-card-head"><div><h3>${esc(user.nombre)}</h3><p>${esc(user.email||'')}</p></div><span class="role-chip">${esc(roleLabel(user.rol))}</span></div><div class="staff-meta">${linked} dispositivo(s) activo(s)</div><button class="rv2-btn rv2-btn-primary" type="button" data-pair-user="${esc(user.id)}">GENERAR QR DE VINCULACIÓN</button></article>`}).join(''):'<div class="empty">No hay personal activo para este tipo de dispositivo.</div>';
     $$('[data-pair-user]').forEach(btn=>btn.addEventListener('click',()=>{const user=S.users.find(u=>u.id===btn.dataset.pairUser);if(user)openPairing(user)}));
