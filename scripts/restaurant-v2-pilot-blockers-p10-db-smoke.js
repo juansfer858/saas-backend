@@ -6,11 +6,12 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const { prisma } = require('../src/config/prisma');
 const { app } = require('../src/app');
-const { ensureRestaurantDemoTenant, SUBDOMAIN } = require('./ensure-restaurant-demo-tenant');
+const { ensureRestaurantDemoTenant } = require('./ensure-restaurant-demo-tenant');
 const restaurant = require('../src/modules/restaurant/restaurant.service');
 const visits = require('../src/modules/restaurant/restaurant-visit-payments.service');
 const openRequests = require('../src/modules/restaurant/restaurant-v2-table-open-request.service');
 const waiterDevices = require('../src/modules/restaurant/restaurant-waiter-device.service');
+const { decimal, money, pct, qty } = require('../src/utils/decimal');
 
 function rawPairToken(url) {
   const token = new URL(url).searchParams.get('t');
@@ -23,6 +24,15 @@ function visitCode(session) {
   assert.ok(secret.length >= 32, 'Se requiere secreto de visita QR');
   const digest = crypto.createHmac('sha256', secret).update(`restaurant-visit|${session.id}|${session.qrVisitNonce}`).digest();
   return String(digest.readUInt32BE(0) % 10000).padStart(4, '0');
+}
+
+function confirmedLineTotal(menuItem, quantity) {
+  const q = qty(quantity);
+  const price = money(menuItem.product.precio1 || 0);
+  const subtotal = money(q.mul(price));
+  const iva = money(subtotal.mul(pct(menuItem.product.ivaPct || 0)).div(100));
+  const impoconsumo = money(subtotal.mul(pct(menuItem.product.impoconsumoPct || 0)).div(100));
+  return money(decimal(subtotal).plus(iva).plus(impoconsumo));
 }
 
 async function withServer(run) {
@@ -169,23 +179,23 @@ async function main() {
     const afterOpen = await json(base, '/api/v1/restaurante/v2/solicitudes-apertura', waiterSession);
     assert.equal(afterOpen.requests.some(row => row.id === request1.id), false, 'Solicitud debe desaparecer al abrir');
 
-    // Un forbidden de negocio real no revoca el dispositivo. MESERO puede leer KDS,
-    // pero no escribir estados de producción.
-    const kds = await fetch(`${base}/api/v1/restaurante/v2/kds?station=COCINA`, { headers:{ Authorization:`Bearer ${waiterSession.token}`, 'x-tenant-subdomain':waiterSession.subdomain } });
-    assert.equal(kds.status, 200);
-    const floorStillValid = await json(base, '/api/v1/restaurante/v2/mesas', waiterSession);
-    assert.ok(floorStillValid.some(row => row.id === table.id), 'Vínculo Mesero sigue válido');
-
     const session = await prisma.restaurantTableSession.findFirst({ where:{ tenantId:demo.tenantId, tableId:table.id, state:'ABIERTA' } });
     assert.ok(session?.id);
     const auth = await visits.authorizeVisit(qrBefore, visitCode(session), 1);
+    const expectedTotal = confirmedLineTotal(menuItem, 1);
     const order = await visits.placeAuthorizedQrOrder(qrBefore, auth.visitToken, {
       items:[{ menuItemId:menuItem.id, quantity:1, notes:'P10 FIX QR' }],
-      confirmedTotal:Number(menuItem.product.precio1 || 0),
+      confirmedTotal:Number(expectedTotal.toString()),
       externalRequestId:`P10-FIX-${suffix}`
     });
     const commands = await prisma.restaurantCommand.findMany({ where:{ tenantId:demo.tenantId, orderId:order.id } });
     assert.ok(commands.length >= 1, 'Pedido QR autorizado debe crear comanda real');
+
+    // Reproduce el 403 real que antes hacía que el browser P8 borrara su localStorage:
+    // Mesero puede leer las comandas pero no cambiar el estado de Producción.
+    await json(base, `/api/v1/restaurante/v2/kds/comandas/${encodeURIComponent(commands[0].id)}`, waiterSession, { method:'PATCH', body:{ state:'LISTA' }, status:403 });
+    const floorStillValid = await json(base, '/api/v1/restaurante/v2/mesas', waiterSession);
+    assert.ok(floorStillValid.some(row => row.id === table.id), 'El mismo vínculo Mesero debe seguir válido después del 403');
   });
 
   const tableAfter = await prisma.restaurantTable.findUnique({ where:{ id:table.id } });
