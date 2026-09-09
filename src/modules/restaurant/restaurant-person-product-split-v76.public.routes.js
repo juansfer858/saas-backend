@@ -8,12 +8,14 @@ const runtime = String.raw`
   const MARKER='VANTIX_RESTAURANT_PERSON_PRODUCT_SPLIT_V76';
   if(window[MARKER]) return;
   window[MARKER]=Object.freeze({
-    version:'76.0.1',
+    version:'76.0.2',
     cashPersonProductSplit:true,
     preservesEqualSplit:true,
     reusesSplitPaymentEngine:true,
     independentPartPayments:true,
-    mutationStable:true
+    mutationStable:true,
+    eventDriven:true,
+    domObserver:false
   });
 
   const SESSION_KEY='vantixgc_core_session_v1';
@@ -25,6 +27,7 @@ const runtime = String.raw`
   const $=(q,r=document)=>r.querySelector(q);
   const $$=(q,r=document)=>[...r.querySelectorAll(q)];
   let scheduled=false;
+  let burstToken=0;
   let preferProductMode=false;
   let enrichBusy=false;
   let enrichKey='';
@@ -285,23 +288,33 @@ const runtime = String.raw`
     });
   }
 
+  function scheduleBurst(){
+    const token=++burstToken;
+    [0,30,80,160,300,600,1000,1600].forEach((delay)=>{
+      setTimeout(()=>{
+        if(token!==burstToken) return;
+        schedule();
+      },delay);
+    });
+  }
+
   document.addEventListener('click',(event)=>{
     validateProductSplitBeforePrepare(event);
     const entry=event.target?.closest?.('#restaurantSplitEntry');
     if(entry&&!isIndividualCash()&&!/PENDIENTE|PAGADA/i.test(entry.textContent||'')){
       preferProductMode=true;
     }
-    if(event.target?.closest?.('[data-cash-table],[data-split-mode],#restaurantSplitEntry,#rvpPrepare,[data-pay-part]')) schedule();
+    if(event.target?.closest?.('[data-cash-table],[data-split-mode],#restaurantSplitEntry,#rvpPrepare,[data-pay-part]')) scheduleBurst();
   },true);
 
   document.addEventListener('change',(event)=>{
-    if(event.target?.matches?.('#rvpPeopleCountV76,.rvp-manual-row select')) schedule();
+    if(event.target?.matches?.('#rvpPeopleCountV76,.rvp-manual-row select')) scheduleBurst();
   },true);
 
-  const observer=new MutationObserver(schedule);
-  if(document.body) observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','open','hidden']});
-  window.addEventListener('vantix:tenant-realtime',schedule);
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',schedule,{once:true}); else schedule();
+  window.addEventListener('vantix:tenant-realtime',scheduleBurst);
+  window.addEventListener('vantix:tenant-realtime-ready',scheduleBurst);
+  window.addEventListener('pageshow',scheduleBurst);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',scheduleBurst,{once:true}); else scheduleBurst();
 })();
 `;
 
