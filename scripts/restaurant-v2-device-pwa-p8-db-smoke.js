@@ -33,6 +33,7 @@ async function main(){
   const sdk=read('src/web/restaurant-v2-device-sdk-p8.js');
   const realtime=read('src/web/restaurant-v2-device-realtime-p8.js');
   const pwa=read('src/web/restaurant-v2-device-pwa-p8.js');
+  const push=read('src/web/restaurant-push-v65.js');
   const waiterHtml=read('src/web/restaurant-v2-waiter-p8.html');
   const productionHtml=read('src/web/restaurant-v2-production-p8.html');
   const waiterSw=read('src/web/restaurant-v2-waiter-sw-p8.js');
@@ -41,8 +42,9 @@ async function main(){
   const productionManifest=JSON.parse(read('src/web/restaurant-v2-production-p8.webmanifest'));
 
   assert.match(publicRoot,/restaurantV2DevicePwaP8PublicRouter/);
-  assert.match(p8Router,/\/app\/centro-de-control\/mesero-v2\//);
-  assert.match(p8Router,/\/app\/produccion-v2\//);
+  assert.match(p8Router,/\/app\/centro-de-control\/mesero-v2/);
+  assert.match(p8Router,/\/app\/produccion-v2/);
+  assert.doesNotMatch(p8Router,/redirect\(308/);
   assert.equal(waiterManifest.scope,'/app/centro-de-control/mesero-v2/');
   assert.equal(waiterManifest.start_url,'/app/centro-de-control/mesero-v2/');
   assert.equal(productionManifest.scope,'/app/produccion-v2/');
@@ -61,9 +63,11 @@ async function main(){
   assert.match(sdk,/COCINA/);
   assert.match(realtime,/SSE\+PG_NOTIFY/);
   assert.match(realtime,/RestaurantV2\?\.readSession/);
+  assert.match(push,/VANTIX_RESTAURANT_V2_DEVICE_SDK_P8/);
+  assert.match(push,/p8\.readSession\(\)/);
   for(const source of [sdk,realtime,pwa]){assert.doesNotMatch(source,/MutationObserver|setInterval|POLL_MS/)}
   for(const sw of [waiterSw,productionSw]){assert.match(sw,/url\.pathname\.startsWith\('\/api\/'\)\)return/);assert.doesNotMatch(sw,/request\.method\s*!==\s*'GET'.*(POST|PUT|PATCH|DELETE)/s)}
-  new Function(sdk);new Function(realtime);new Function(pwa);new Function(waiterSw);new Function(productionSw);
+  new Function(sdk);new Function(realtime);new Function(pwa);new Function(waiterSw);new Function(productionSw);new Function(push);
 
   const seeded=await ensureRestaurantDemoTenant();
   const tenant=await prisma.tenant.findUnique({where:{subdomain:SUBDOMAIN}});assert.ok(tenant?.id);
@@ -121,7 +125,8 @@ async function main(){
     await requestJson(baseUrl,`/api/v1/restaurante/v2/kds/comandas/${command.id}`,productionSession,{method:'PATCH',body:{state:'EN_PREPARACION'}});
 
     const productionFloor=await requestJson(baseUrl,'/api/v1/restaurante/v2/mesas',productionSession,{status:403});assert.equal(productionFloor.response.status,403,'Producción no debe adquirir el piso de Mesero');
-    const waiterKds=await requestJson(baseUrl,'/api/v1/restaurante/v2/kds?station=COCINA',waiterSession,{status:403});assert.equal(waiterKds.response.status,403,'Mesero no debe adquirir edición KDS');
+    const waiterKds=await requestJson(baseUrl,'/api/v1/restaurante/v2/kds?station=COCINA',waiterSession);assert.ok(Array.isArray(waiterKds.data?.commands),'Mesero conserva COMANDAS.VER canónico');
+    await requestJson(baseUrl,`/api/v1/restaurante/v2/kds/comandas/${command.id}`,waiterSession,{method:'PATCH',body:{state:'LISTA'},status:403});
 
     await productionDevices.revokeDevice(tenant.id,admin.id,productionPair.deviceId);
     await requestJson(baseUrl,'/api/v1/restaurante/v2/kds?station=COCINA',productionSession,{status:401});
@@ -129,7 +134,7 @@ async function main(){
     await requestJson(baseUrl,'/api/v1/restaurante/v2/mesas',waiterSession,{status:401});
   });
 
-  console.log(JSON.stringify({ok:true,phase:'P8_DEVICE_PWA',tenant:seeded.subdomain,waiterDeviceReuse:true,productionDeviceReuse:true,waiterEngine:'P3',productionEngine:'P6',realtime:'SSE+PG_NOTIFY',parallelScopes:true,v1Fallback:true,serverRevocation:true,crossRoleEscalation:false},null,2));
+  console.log(JSON.stringify({ok:true,phase:'P8_DEVICE_PWA',tenant:seeded.subdomain,waiterDeviceReuse:true,productionDeviceReuse:true,waiterEngine:'P3',productionEngine:'P6',realtime:'SSE+PG_NOTIFY',parallelScopes:true,v1Fallback:true,serverRevocation:true,waiterCommandRead:true,crossRoleWriteEscalation:false,pushUsesPairedP8Identity:true},null,2));
 }
 
 main().catch(error=>{console.error(error);process.exitCode=1}).finally(async()=>prisma.$disconnect());
