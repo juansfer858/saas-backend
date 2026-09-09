@@ -21,20 +21,13 @@ async function withServer(run) {
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
 function sessionFor(user, tenant) {
-  return {
-    token: signAccessToken({ userId: user.id, tenantId: tenant.id, rol: user.rol }),
-    subdomain: tenant.subdomain
-  };
+  return { token: signAccessToken({ userId: user.id, tenantId: tenant.id, rol: user.rol }), subdomain: tenant.subdomain };
 }
 async function api(base, url, session, { method = 'GET', body = null, status = 200 } = {}) {
   const response = await fetch(`${base}${url}`, {
     method,
     cache: 'no-store',
-    headers: {
-      Authorization: `Bearer ${session.token}`,
-      'x-tenant-subdomain': session.subdomain,
-      ...(body ? { 'Content-Type': 'application/json' } : {})
-    },
+    headers: { Authorization: `Bearer ${session.token}`, 'x-tenant-subdomain': session.subdomain, ...(body ? { 'Content-Type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
   let payload = {};
@@ -57,13 +50,16 @@ async function main() {
   const html = read('src/web/restaurant-v2-pilot.html');
   const js = read('src/web/restaurant-v2-pilot.js');
   const css = read('src/web/restaurant-v2-pilot.css');
+  const bridge = read('src/web/restaurant-v2-control-center-bridge.js');
   const core = read('src/routes/core.routes.js');
   const aggregator = read('src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js');
 
   assert.match(serviceSource, /VANTIX_RESTAURANT_V2_PILOT_P9/);
   assert.match(serviceSource, /restaurantV2Pilot/);
   assert.match(serviceSource, /PARALLEL_NO_REDIRECT/);
-  assert.match(serviceSource, /DIAN_PUSH_Y_ESTACIONES_MANUALES_NO_BLOQUEAN_OPERACION/);
+  assert.match(serviceSource, /DIAN_PUSH_IMPRESORA_ESTACIONES_Y_DISPOSITIVOS_NO_BLOQUEAN_ACTIVACION/);
+  assert.match(serviceSource, /cashiers/);
+  assert.match(serviceSource, /cashAccounts/);
   assert.match(serviceSource, /RESTAURANT_V2_PILOT/);
   assert.doesNotMatch(serviceSource, /qrToken\s*:/);
   assert.match(routeSource, /requireRoles\('ADMIN', 'SUPER_ADMIN'\)/);
@@ -71,15 +67,17 @@ async function main() {
   assert.match(publicSource, /\/app\/restaurante-v2\/piloto/);
   assert.match(core, /restaurantV2PilotRouter/);
   assert.match(aggregator, /restaurantV2PilotPublicRouter/);
+  assert.match(bridge, /pilot:\s*'\/app\/restaurante-v2\/piloto'/);
+  assert.match(bridge, /canSeePilot/);
+  assert.match(bridge, /ADMIN/);
   assert.match(html, /RESTAURANTE V2 · PILOTO P9/);
   assert.match(html, /ACTIVAR PILOTO V2/);
   assert.match(html, /DESACTIVAR \/ VOLVER A V1/);
   assert.match(js, /VANTIX_RESTAURANT_V2_PILOT_P9/);
   assert.match(css, /VANTIX_RESTAURANT_V2_PILOT_P9/);
-  for (const source of [js, serviceSource, routeSource, publicSource]) {
-    assert.doesNotMatch(source, /MutationObserver|setInterval|POLL_MS/);
-  }
+  for (const source of [js, serviceSource, routeSource, publicSource]) assert.doesNotMatch(source, /MutationObserver|setInterval|POLL_MS/);
   new Function(js);
+  new Function(bridge);
 
   const seeded = await ensureRestaurantDemoTenant();
   const tenant = await prisma.tenant.findUnique({ where: { subdomain: SUBDOMAIN } });
@@ -93,13 +91,7 @@ async function main() {
   const config = await prisma.restaurantConfig.upsert({ where: { tenantId: tenant.id }, create: { tenantId: tenant.id }, update: {} });
   const priorTheme = config.themeData && typeof config.themeData === 'object' && !Array.isArray(config.themeData) ? config.themeData : {};
   const sentinel = { preserved: true, value: 'P9_THEME_SENTINEL' };
-  await prisma.restaurantConfig.update({
-    where: { tenantId: tenant.id },
-    data: {
-      dianRealEnabled: false,
-      themeData: { ...priorTheme, p9Sentinel: sentinel }
-    }
-  });
+  await prisma.restaurantConfig.update({ where: { tenantId: tenant.id }, data: { dianRealEnabled: false, physicalPrinterFieldPass: false, themeData: { ...priorTheme, p9Sentinel: sentinel } } });
 
   const beforeTables = await prisma.restaurantTable.findMany({ where: { tenantId: tenant.id, active: true }, select: { id: true, qrToken: true } });
   assert.ok(beforeTables.length > 0, 'piloto necesita al menos una mesa activa');
@@ -108,9 +100,15 @@ async function main() {
   const directBefore = await pilot.getPilot(tenant.id);
   assert.equal(directBefore.pilot.enabled, false);
   assert.equal(directBefore.readiness.ready, true);
+  assert.equal(directBefore.readiness.required.find((row) => row.key === 'waiters').ok, true);
+  assert.equal(directBefore.readiness.required.find((row) => row.key === 'productionUsers').ok, true);
+  assert.equal(directBefore.readiness.required.find((row) => row.key === 'cashiers').ok, true);
+  assert.equal(directBefore.readiness.required.find((row) => row.key === 'cashAccounts').ok, true);
   assert.equal(directBefore.readiness.notGates.dian, true);
   assert.equal(directBefore.readiness.notGates.push, true);
   assert.equal(directBefore.readiness.notGates.manualStations, true);
+  assert.equal(directBefore.readiness.notGates.printer, true);
+  assert.equal(directBefore.readiness.notGates.devicePairing, true);
 
   const adminSession = sessionFor(admin, tenant);
   const waiterSession = sessionFor(waiter, tenant);
@@ -135,18 +133,17 @@ async function main() {
     assert.equal(initial.data.safety.changesCanonicalRoutes, false);
     assert.equal(initial.data.safety.rotatesQrTokens, false);
     assert.equal(initial.data.safety.requiresDian, false);
+    assert.equal(initial.data.safety.requiresPrinter, false);
     await api(base, '/api/v1/restaurante/v2/piloto', waiterSession, { status: 403 });
     await api(base, '/api/v1/restaurante/v2/piloto', waiterSession, { method: 'PATCH', body: { enabled: true }, status: 403 });
 
-    const enabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, {
-      method: 'PATCH',
-      body: { enabled: true, notes: 'Piloto P9 CI sin DIAN ni FCM' }
-    });
+    const enabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method: 'PATCH', body: { enabled: true, notes: 'Piloto P9 CI sin DIAN, FCM ni impresora de campo' } });
     assert.equal(enabled.data.pilot.enabled, true);
     assert.equal(enabled.data.pilot.mode, 'PILOT');
     assert.equal(enabled.data.pilot.routingMode, 'PARALLEL_NO_REDIRECT');
     assert.equal(enabled.data.readiness.ready, true);
-    assert.equal(enabled.data.readiness.optional.find((row) => row.key === 'dian').ok, false, 'DIAN debe estar apagada en el ensayo');
+    assert.equal(enabled.data.readiness.optional.find((row) => row.key === 'dian').ok, false);
+    assert.equal(enabled.data.readiness.optional.find((row) => row.key === 'printer').ok, false);
     assert.equal(enabled.data.readiness.notGates.dian, true);
     assert.equal(enabled.data.readiness.notGates.push, true);
 
@@ -154,10 +151,7 @@ async function main() {
     assert.deepEqual(storedEnabled.themeData.p9Sentinel, sentinel, 'P9 debe preservar otras claves de themeData');
     assert.equal(storedEnabled.themeData.restaurantV2Pilot.enabled, true);
 
-    const disabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, {
-      method: 'PATCH',
-      body: { enabled: false, notes: 'Rollback P9 CI' }
-    });
+    const disabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method: 'PATCH', body: { enabled: false, notes: 'Rollback P9 CI' } });
     assert.equal(disabled.data.pilot.enabled, false);
     assert.equal(disabled.data.pilot.mode, 'OFF');
     assert.equal(disabled.data.pilot.rollbackPath, '/app/restaurante');
@@ -184,9 +178,12 @@ async function main() {
     adminOnly: true,
     canonicalRedirects: false,
     qrTokensRotated: false,
+    requiredGates: ['tenant','admin','tables','menu','waiters','productionUsers','cashiers','cashAccounts'],
     dianGate: false,
     pushGate: false,
+    printerGate: false,
     manualStationGate: false,
+    devicePairingGate: false,
     rollback: '/app/restaurante',
     previousPhasesStillLive: ['P7_CLIENT_QR', 'P8_WAITER_PWA', 'P8_PRODUCTION_PWA']
   }, null, 2));
