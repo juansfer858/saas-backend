@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>División de cuenta · Restaurante V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-split.css">
+</head>
+<body>
+  <header class="split-top">
+    <div>
+      <span>RESTAURANTE V2 · DIVISIÓN P5</span>
+      <h1>División real de cuenta</h1>
+      <p id="tenantLine">Cargando…</p>
+    </div>
+    <nav class="top-actions" aria-label="Navegación Restaurante V2">
+      <a class="rv2-btn" href="/app/restaurante-v2/mesas">Mesas</a>
+      <a class="rv2-btn" href="/app/restaurante-v2/pedidos">Pedidos</a>
+      <a class="rv2-btn" href="/app/restaurante-v2/caja">Caja</a>
+      <button id="refresh" class="rv2-btn" type="button">Actualizar</button>
+    </nav>
+  </header>
+
+  <main class="split-main">
+    <section id="notice" class="notice">Cargando División V2…</section>
+
+    <div class="split-shell">
+      <aside class="rv2-panel queue-panel">
+        <div class="panel-head">
+          <div><small>CUENTAS ABIERTAS</small><h2>Mesas</h2></div>
+          <span id="queueCount" class="count-chip">0</span>
+        </div>
+        <div id="queue" class="split-queue"></div>
+      </aside>
+
+      <section class="rv2-panel detail-panel">
+        <div id="emptyDetail" class="empty-state">
+          <strong>Selecciona una mesa</strong>
+          <span>Divide por productos, personas ya asignadas o partes iguales.</span>
+        </div>
+
+        <div id="detail" hidden>
+          <div class="detail-head">
+            <div><small id="detailCode">MESA</small><h2 id="detailName">—</h2><p id="detailState">—</p></div>
+            <div class="amount-head"><small id="saleNumber">—</small><strong id="detailTotal">$0</strong></div>
+          </div>
+
+          <section id="prepareView">
+            <div class="account-strip">
+              <div><small>TOTAL A DIVIDIR</small><strong id="prepareTotal">$0</strong></div>
+              <p>La división congela la cuenta para cobro. No crea ventas duplicadas y no depende de DIAN.</p>
+            </div>
+
+            <div class="mode-grid" id="modeGrid">
+              <button class="mode-card active" data-mode="BY_ITEM" type="button">
+                <span>1</span><b>Productos / personas</b><small>Asigna cada producto a Persona 1, 2, 3…</small>
+              </button>
+              <button class="mode-card" data-mode="BY_SEAT" type="button">
+                <span>2</span><b>Personas ya asignadas</b><small>Usa lo registrado por Mesero o QR durante el pedido.</small>
+              </button>
+              <button class="mode-card" data-mode="EQUAL" type="button">
+                <span>3</span><b>Partes iguales</b><small>Divide el total matemáticamente entre varias personas.</small>
+              </button>
+            </div>
+
+            <div id="peopleControl" class="people-control">
+              <div><b>¿Cuántas personas?</b><span>Esto define las opciones de asignación.</span></div>
+              <input id="peopleCount" class="rv2-input" type="number" min="2" max="50" value="2" inputmode="numeric">
+            </div>
+
+            <div class="items-title"><div><small>CONSUMO</small><h3 id="assignmentTitle">Asigna los productos</h3></div><span id="assignmentStatus">0 / 0</span></div>
+            <div id="items" class="assignment-list"></div>
+
+            <button id="prepare" class="rv2-btn rv2-btn-primary prepare-btn" type="button">PREPARAR DIVISIÓN</button>
+            <p class="operation-note">Al preparar, la venta se registra una sola vez en inventario y contabilidad. Los pagos parciales reducen la misma CXC hasta saldo cero.</p>
+          </section>
+
+          <section id="paymentView" hidden>
+            <div class="progress-card">
+              <div class="progress-head"><div><small>DIVISIÓN PREPARADA</small><h3 id="splitMode">—</h3></div><strong id="remaining">$0 pendiente</strong></div>
+              <div class="progress-track"><i id="progressBar"></i></div>
+              <div class="progress-foot"><span id="paidLabel">Pagado $0</span><span id="partsLabel">0 / 0 partes</span></div>
+            </div>
+
+            <div id="parts" class="parts-grid"></div>
+
+            <div id="payBox" class="pay-box" hidden>
+              <div class="pay-head"><div><small>PARTE SELECCIONADA</small><h3 id="payPartName">—</h3><p id="payPartItems">—</p></div><strong id="payPartAmount">$0</strong></div>
+              <div id="paymentMethods" class="payment-methods"></div>
+              <label class="reference-field">Referencia / comprobante
+                <input id="reference" class="rv2-input" maxlength="120" placeholder="Opcional">
+              </label>
+              <button id="payPart" class="rv2-btn rv2-btn-primary pay-btn" type="button" disabled>REGISTRAR PAGO DE ESTA PARTE</button>
+            </div>
+
+            <div id="closedBox" class="closed-box" hidden>
+              <span>✓</span><div><b>Cuenta completamente pagada</b><p>La mesa quedó libre y la tirilla POS fue enviada por el flujo de impresión.</p></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="confirmDialog">
+    <div class="dialog-card">
+      <small>CONFIRMACIÓN</small>
+      <h2 id="confirmTitle">—</h2>
+      <p id="confirmText">—</p>
+      <div class="dialog-actions"><button id="confirmCancel" class="rv2-btn" type="button">Cancelar</button><button id="confirmOk" class="rv2-btn rv2-btn-primary" type="button">Confirmar</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="resultDialog">
+    <div class="dialog-card result-card">
+      <div class="result-mark">✓</div>
+      <small>PAGO REGISTRADO</small>
+      <h2 id="resultTitle">—</h2>
+      <p id="resultText">—</p>
+      <button id="resultClose" class="rv2-btn rv2-btn-primary" type="button">CONTINUAR</button>
+    </div>
+  </dialog>
+
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-split.js"></script>
+</body>
+</html>
