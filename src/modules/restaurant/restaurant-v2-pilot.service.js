@@ -50,9 +50,9 @@ function paymentMethodCount(value) {
   return Object.keys(object).length;
 }
 async function readiness(tenantId, client = prisma) {
-  const [tenant, config, admins, tables, menuItems, waiters, productionUsers, cashAccounts, manualStations] = await Promise.all([
+  const [tenant, configRow, admins, tables, menuItems, waiters, productionUsers, cashAccounts, manualStations] = await Promise.all([
     client.tenant.findUnique({ where: { id: tenantId }, select: { id: true, subdomain: true, nombreEmpresa: true, activo: true } }),
-    client.restaurantConfig.upsert({ where: { tenantId }, create: { tenantId }, update: {} }),
+    client.restaurantConfig.findUnique({ where: { tenantId } }),
     client.user.count({ where: { tenantId, activo: true, rol: { in: ['ADMIN', 'SUPER_ADMIN'] } } }),
     client.restaurantTable.count({ where: { tenantId, active: true } }),
     client.restaurantMenuItem.count({ where: { tenantId, active: true } }),
@@ -64,6 +64,7 @@ async function readiness(tenantId, client = prisma) {
       : Promise.resolve(0)
   ]);
   if (!tenant) throw new AppError(404, 'Restaurante no encontrado', 'RESTAURANT_V2_PILOT_TENANT_NOT_FOUND');
+  const config = configRow || {};
 
   const required = [
     { key: 'tenant', label: 'Tenant activo', ok: Boolean(tenant.activo), value: tenant.activo ? 1 : 0 },
@@ -98,7 +99,8 @@ async function currentConfig(tenantId, client = prisma) {
   return client.restaurantConfig.upsert({ where: { tenantId }, create: { tenantId }, update: {} });
 }
 async function getPilot(tenantId, client = prisma) {
-  const [config, checks] = await Promise.all([currentConfig(tenantId, client), readiness(tenantId, client)]);
+  const config = await currentConfig(tenantId, client);
+  const checks = await readiness(tenantId, client);
   const themeData = objectValue(config.themeData);
   return {
     marker: MARKER,
