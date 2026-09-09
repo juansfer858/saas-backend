@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>VantixGC Restaurante · Retiro V1</title>
+  <link rel="stylesheet" href="/app/restaurant-v1-retirement-p11.css?v=p11">
+</head>
+<body data-p11-retirement-panel="true">
+  <main class="wrap">
+    <header><div><span class="eyebrow">VANTIXGC RESTAURANTES · P11</span><h1>Retiro operativo de V1</h1><p>Oculta V1 de la operación normal del tenant sin borrar el código ni perder rollback técnico.</p></div><a href="/app/centro-de-control">Centro de control</a></header>
+    <div id="message" class="message" hidden></div>
+    <section id="stateCard" class="state-card"><div class="loading">Leyendo estado del tenant…</div></section>
+    <section class="card"><h2>Qué cambia al activarlo</h2><div class="grid"><span>Entrada normal Restaurante</span><b>Centro de Control V2 nativo</b><span>Mesero normal</span><b>PWA V2</b><span>Producción normal</span><b>PWA V2</b><span>QR físicos</span><b>Sin cambios</b><span>DIAN</span><b>No bloquea</b></div></section>
+    <section class="card"><h2>Rollback técnico preservado</h2><code>/app/restaurante-v1</code><code>/app/centro-de-control/mesero-v1</code><code>/app/produccion-v1</code><p class="muted">Estas rutas no aparecen en la navegación normal y se conservan únicamente para recuperación técnica.</p></section>
+  </main>
+  <script src="/app/restaurant-v1-retirement-p11.js?v=p11"></script>
+</body>
+</html>
