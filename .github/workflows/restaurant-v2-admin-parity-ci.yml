@@ -40,9 +40,9 @@ jobs:
         with: {node-version: '22', cache: npm}
       - name: Create ephemeral test secrets
         run: |
-          echo "JWT_SECRET=$(node -e \"console.log(require('node:crypto').randomBytes(48).toString('hex'))\")" >> "$GITHUB_ENV"
-          echo "RESTAURANT_DEVICE_SECRET=$(node -e \"console.log(require('node:crypto').randomBytes(48).toString('hex'))\")" >> "$GITHUB_ENV"
-          echo "RESTAURANT_QR_VISIT_SECRET=$(node -e \"console.log(require('node:crypto').randomBytes(48).toString('hex'))\")" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_DEVICE_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_QR_VISIT_SECRET=$(openssl rand -hex 48)" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npm run build
       - run: npx prisma db push
