@@ -3,6 +3,7 @@
 const express = require('express');
 require('./restaurant-pos-operational-mode');
 const { restaurantOperationalV2PreviewPublicRouter } = require('./restaurant-operational-v2-preview.public.routes');
+const { restaurantV2DevicePwaP8PublicRouter } = require('./restaurant-v2-device-pwa-p8.public.routes');
 const { coreAdminPwaPublicRouter } = require('../platform/core-admin-pwa.public.routes');
 const { publicInstallerRouter } = require('../public-installer/public-installer.routes');
 const { platformEdgeRolloutPublicRouter } = require('../platform/saas/platform-edge-rollout.public.routes');
@@ -67,6 +68,9 @@ const router = express.Router();
 // V2 is handled before every legacy response wrapper. If this router answers,
 // the request never enters source-rewriting layers from Restaurant V1.
 router.use(restaurantOperationalV2PreviewPublicRouter);
+// P8 device PWAs are parallel entrypoints with their own service-worker scopes.
+// Pairing/session ownership remains in the proven V1 waiter/production device services.
+router.use(restaurantV2DevicePwaP8PublicRouter);
 
 function installCashCompactRuntime(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
