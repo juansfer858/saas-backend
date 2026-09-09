@@ -251,6 +251,14 @@
     const body = await response.json().catch(() => ({}));
     if (!response.ok) return;
     visitState = body.data || {};
+  if (visitState.relocatedToPath && storedToken()) {
+    const targetToken = decodeURIComponent(String(visitState.relocatedToPath).split('/').filter(Boolean).pop() || '');
+    if (targetToken && targetToken !== qrToken) {
+      localStorage.setItem(`vantixgc_restaurant_visit_${targetToken}`, storedToken());
+      location.replace(visitState.relocatedToPath);
+      return;
+    }
+  }
     if (visitState.authorized) {
       selectedSeat = Number(visitState.seatNumber || 1);
       removeOverlay();
