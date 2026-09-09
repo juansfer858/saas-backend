@@ -11,27 +11,15 @@ const { ensureRestaurantDemoTenant, SUBDOMAIN } = require('./ensure-restaurant-d
 
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-
 async function withServer(run) {
-  const server = await new Promise((resolve, reject) => {
-    const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
-    instance.once('error', reject);
-  });
+  const server = await new Promise((resolve, reject) => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); instance.once('error', reject); });
   try { return await run(`http://127.0.0.1:${server.address().port}`); }
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
-function sessionFor(user, tenant) {
-  return { token: signAccessToken({ userId: user.id, tenantId: tenant.id, rol: user.rol }), subdomain: tenant.subdomain };
-}
+function sessionFor(user, tenant) { return { token: signAccessToken({ userId: user.id, tenantId: tenant.id, rol: user.rol }), subdomain: tenant.subdomain }; }
 async function api(base, url, session, { method = 'GET', body = null, status = 200 } = {}) {
-  const response = await fetch(`${base}${url}`, {
-    method,
-    cache: 'no-store',
-    headers: { Authorization: `Bearer ${session.token}`, 'x-tenant-subdomain': session.subdomain, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {})
-  });
-  let payload = {};
-  try { payload = await response.json(); } catch {}
+  const response = await fetch(`${base}${url}`, { method, cache: 'no-store', headers: { Authorization: `Bearer ${session.token}`, 'x-tenant-subdomain': session.subdomain, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  let payload = {}; try { payload = await response.json(); } catch {}
   assert.equal(response.status, status, `${method} ${url} esperaba ${status}: ${JSON.stringify(payload)}`);
   return { response, payload, data: payload.data };
 }
@@ -57,6 +45,7 @@ async function main() {
   assert.match(serviceSource, /VANTIX_RESTAURANT_V2_PILOT_P9/);
   assert.match(serviceSource, /restaurantV2Pilot/);
   assert.match(serviceSource, /PARALLEL_NO_REDIRECT/);
+  assert.match(serviceSource, /\/app\/restaurante-v1/);
   assert.match(serviceSource, /DIAN_PUSH_IMPRESORA_ESTACIONES_Y_DISPOSITIVOS_NO_BLOQUEAN_ACTIVACION/);
   assert.match(serviceSource, /cashiers/);
   assert.match(serviceSource, /cashAccounts/);
@@ -65,6 +54,8 @@ async function main() {
   assert.match(routeSource, /requireRoles\('ADMIN', 'SUPER_ADMIN'\)/);
   assert.match(routeSource, /patch\('\/v2\/piloto'/);
   assert.match(publicSource, /\/app\/restaurante-v2\/piloto/);
+  assert.match(publicSource, /\/app\/restaurante-v1/);
+  assert.match(publicSource, /v1-direct-shell/);
   assert.match(core, /restaurantV2PilotRouter/);
   assert.match(aggregator, /restaurantV2PilotPublicRouter/);
   assert.match(bridge, /pilot:\s*'\/app\/restaurante-v2\/piloto'/);
@@ -76,8 +67,7 @@ async function main() {
   assert.match(js, /VANTIX_RESTAURANT_V2_PILOT_P9/);
   assert.match(css, /VANTIX_RESTAURANT_V2_PILOT_P9/);
   for (const source of [js, serviceSource, routeSource, publicSource]) assert.doesNotMatch(source, /MutationObserver|setInterval|POLL_MS/);
-  new Function(js);
-  new Function(bridge);
+  new Function(js); new Function(bridge);
 
   const seeded = await ensureRestaurantDemoTenant();
   const tenant = await prisma.tenant.findUnique({ where: { subdomain: SUBDOMAIN } });
@@ -100,10 +90,7 @@ async function main() {
   const directBefore = await pilot.getPilot(tenant.id);
   assert.equal(directBefore.pilot.enabled, false);
   assert.equal(directBefore.readiness.ready, true);
-  assert.equal(directBefore.readiness.required.find((row) => row.key === 'waiters').ok, true);
-  assert.equal(directBefore.readiness.required.find((row) => row.key === 'productionUsers').ok, true);
-  assert.equal(directBefore.readiness.required.find((row) => row.key === 'cashiers').ok, true);
-  assert.equal(directBefore.readiness.required.find((row) => row.key === 'cashAccounts').ok, true);
+  for (const key of ['waiters','productionUsers','cashiers','cashAccounts']) assert.equal(directBefore.readiness.required.find((row) => row.key === key).ok, true, `${key} debe ser gate verde`);
   assert.equal(directBefore.readiness.notGates.dian, true);
   assert.equal(directBefore.readiness.notGates.push, true);
   assert.equal(directBefore.readiness.notGates.manualStations, true);
@@ -112,14 +99,16 @@ async function main() {
 
   const adminSession = sessionFor(admin, tenant);
   const waiterSession = sessionFor(waiter, tenant);
-
   await withServer(async (base) => {
     const pilotPage = await publicGet(base, '/app/restaurante-v2/piloto');
     assert.equal(pilotPage.response.headers.get('x-vantixgc-restaurant-v2-pilot'), 'p9-controlled-pilot');
     assert.match(pilotPage.text, /RESTAURANTE V2 · PILOTO P9/);
 
-    const legacy = await publicGet(base, '/app/restaurante');
-    assert.equal(legacy.response.headers.get('location'), null, 'P9 no debe redirigir la entrada V1');
+    const canonicalLegacyAlias = await publicGet(base, '/app/restaurante', 302);
+    assert.equal(canonicalLegacyAlias.response.headers.get('location'), '/app/centro-de-control', 'alias histórico debe conservar su redirect previo');
+    const rollback = await publicGet(base, '/app/restaurante-v1');
+    assert.equal(rollback.response.headers.get('x-vantixgc-restaurant-v2-pilot-rollback'), 'v1-direct-shell');
+    assert.doesNotMatch(rollback.text, /restaurant-v2-control-center-bridge/);
     const waiterV2 = await publicGet(base, '/app/centro-de-control/mesero-v2/');
     assert.equal(waiterV2.response.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
     const productionV2 = await publicGet(base, '/app/produccion-v2/');
@@ -130,6 +119,7 @@ async function main() {
     const initial = await api(base, '/api/v1/restaurante/v2/piloto', adminSession);
     assert.equal(initial.response.headers.get('x-vantixgc-restaurant-v2-pilot'), 'p9-control-plane');
     assert.equal(initial.data.pilot.enabled, false);
+    assert.equal(initial.data.pilot.rollbackPath, '/app/restaurante-v1');
     assert.equal(initial.data.safety.changesCanonicalRoutes, false);
     assert.equal(initial.data.safety.rotatesQrTokens, false);
     assert.equal(initial.data.safety.requiresDian, false);
@@ -154,7 +144,7 @@ async function main() {
     const disabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method: 'PATCH', body: { enabled: false, notes: 'Rollback P9 CI' } });
     assert.equal(disabled.data.pilot.enabled, false);
     assert.equal(disabled.data.pilot.mode, 'OFF');
-    assert.equal(disabled.data.pilot.rollbackPath, '/app/restaurante');
+    assert.equal(disabled.data.pilot.rollbackPath, '/app/restaurante-v1');
   });
 
   const storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
@@ -169,24 +159,7 @@ async function main() {
   assert.equal(latestAudit.metadata.after.enabled, false);
   assert.equal(latestAudit.metadata.marker, 'VANTIX_RESTAURANT_V2_PILOT_P9');
 
-  console.log(JSON.stringify({
-    ok: true,
-    phase: 'P9_CONTROLLED_PILOT',
-    tenant: seeded.subdomain,
-    configStorage: 'RestaurantConfig.themeData.restaurantV2Pilot',
-    audit: 'RESTAURANT_V2_PILOT',
-    adminOnly: true,
-    canonicalRedirects: false,
-    qrTokensRotated: false,
-    requiredGates: ['tenant','admin','tables','menu','waiters','productionUsers','cashiers','cashAccounts'],
-    dianGate: false,
-    pushGate: false,
-    printerGate: false,
-    manualStationGate: false,
-    devicePairingGate: false,
-    rollback: '/app/restaurante',
-    previousPhasesStillLive: ['P7_CLIENT_QR', 'P8_WAITER_PWA', 'P8_PRODUCTION_PWA']
-  }, null, 2));
+  console.log(JSON.stringify({ ok: true, phase: 'P9_CONTROLLED_PILOT', tenant: seeded.subdomain, configStorage: 'RestaurantConfig.themeData.restaurantV2Pilot', audit: 'RESTAURANT_V2_PILOT', adminOnly: true, canonicalRedirectsChanged: false, explicitV1Rollback: '/app/restaurante-v1', qrTokensRotated: false, requiredGates: ['tenant','admin','tables','menu','waiters','productionUsers','cashiers','cashAccounts'], dianGate: false, pushGate: false, printerGate: false, manualStationGate: false, devicePairingGate: false, previousPhasesStillLive: ['P7_CLIENT_QR','P8_WAITER_PWA','P8_PRODUCTION_PWA'] }, null, 2));
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => prisma.$disconnect());
