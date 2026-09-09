@@ -23,7 +23,7 @@
   <main>
     <header><div class="icon">V</div><div class="copy"><h1>VantixGC Mesero</h1><p>Conectar este tablet o celular al restaurante.</p></div></header>
     <section>
-      <div id="status" class="state"><b>Validando vínculo…</b><span>Este QR funciona una sola vez y vence rápidamente.</span></div>
+      <div id="status" class="state"><b>Validando vínculo…</b><span>Este QR puede usarse en varias tablets o celulares del mismo mesero.</span></div>
       <div id="pairDetails" class="hidden">
         <div class="rows"><div class="row"><small>Restaurante</small><b id="restaurantName">—</b></div><div class="row"><small>Mesero asignado</small><b id="waiterName">—</b></div></div>
         <label>Nombre de este dispositivo<input id="deviceName" maxlength="80" autocomplete="off"></label>
@@ -35,7 +35,7 @@
         <a class="action secondary" href="/app/centro-de-control/mesero?view=mesero&pwa=1">Abrir Mesero ahora</a>
         <div id="installHelp" class="install-note hidden"></div>
       </div>
-      <p class="fine">El dispositivo queda ligado únicamente al mesero seleccionado. El administrador puede retirarle acceso desde el Centro de control sin cambiar las claves del restaurante.</p>
+      <p class="fine">El QR de este mesero es reutilizable. Cada tablet o celular queda registrado como un dispositivo independiente y Administración puede retirarle acceso a uno sin desconectar los demás.</p>
     </section>
   </main>
   <script>
@@ -71,13 +71,13 @@
     async function json(url,options={}){const response=await fetch(url,{...options,cache:'no-store',headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});let body={};try{body=await response.json()}catch{}if(!response.ok)throw new Error(body?.error?.message||body?.message||`HTTP ${response.status}`);return body.data;}
 
     async function inspect(){
-      if(!token)return error('El enlace no contiene un código de vinculación. Genera uno nuevo desde el Centro de control.');
+      if(!token)return error('El enlace no contiene un vínculo. Genera uno desde el Centro de control.');
       try{
         const data=await json(`/api/public/restaurante/mesero-dispositivo/vinculo?t=${encodeURIComponent(token)}`);
         document.querySelector('#restaurantName').textContent=data.tenant?.nombreEmpresa||'Restaurante';
         document.querySelector('#waiterName').textContent=data.waiter?.nombre||'Mesero';
         if(data.deviceName)deviceInput.value=data.deviceName;
-        status.className='state';status.innerHTML='<b>Vínculo válido</b><span>Confirma este dispositivo para terminar la conexión.</span>';
+        status.className='state';status.innerHTML=data.reusable?'<b>QR reutilizable</b><span>Puedes conectar este dispositivo. El mismo QR seguirá disponible para otras tablets del mismo mesero.</span>':'<b>Vínculo válido</b><span>Confirma este dispositivo para terminar la conexión.</span>';
         details.classList.remove('hidden');
       }catch(e){error(e.message);}
     }
@@ -88,20 +88,13 @@
         const data=await json('/api/public/restaurante/mesero-dispositivo/vincular',{method:'POST',body:JSON.stringify({token,deviceName:deviceInput.value})});
         localStorage.setItem(SESSION_KEY,JSON.stringify(data.session));
         status.classList.add('hidden');details.classList.add('hidden');installed.classList.remove('hidden');
-        document.querySelector('#installedCopy').textContent=`${data.deviceName} quedó asignado a ${data.session?.user?.nombre||'este mesero'}.`;
+        document.querySelector('#installedCopy').textContent=`${data.deviceName} quedó asignado a ${data.session?.user?.nombre||'este mesero'}. Puedes usar el mismo QR para conectar otra tablet.`;
       }catch(e){pairButton.disabled=false;pairButton.textContent='Vincular este dispositivo';error(e.message);}
     });
 
     installButton.addEventListener('click',async()=>{
-      if(installPrompt){
-        installButton.disabled=true;
-        const prompt=installPrompt;installPrompt=null;
-        try{await prompt.prompt();await prompt.userChoice;}catch{}
-        installButton.disabled=false;
-        return;
-      }
-      const ua=navigator.userAgent||'';
-      help.classList.remove('hidden');
+      if(installPrompt){installButton.disabled=true;const prompt=installPrompt;installPrompt=null;try{await prompt.prompt();await prompt.userChoice;}catch{}installButton.disabled=false;return;}
+      const ua=navigator.userAgent||'';help.classList.remove('hidden');
       if(/iPad|iPhone|iPod/i.test(ua))help.innerHTML='<b>En iPhone/iPad:</b> toca Compartir y luego <b>Añadir a pantalla de inicio</b>. Apple exige ese último toque.';
       else help.innerHTML='<b>En Android/Chrome:</b> abre el menú ⋮ y toca <b>Instalar aplicación</b> o <b>Añadir a pantalla de inicio</b>. Si aparece el aviso automático del navegador, acéptalo.';
     });
