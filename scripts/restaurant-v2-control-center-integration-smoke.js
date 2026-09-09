@@ -37,8 +37,13 @@ assert.match(bridge,/data-v2-workspace/);
 assert.match(bridge,/data-v2-frame/);
 assert.match(bridge,/← Centro de control/);
 assert.match(bridge,/history\.replaceState/);
+assert.match(bridge,/suppressLegacyOperationalOverlays/);
+assert.match(bridge,/#restaurantAccountAttentionDock/);
+assert.match(bridge,/dataset\.restaurantV2Workspace\s*=\s*'1'/);
+assert.match(bridge,/dataset\.restaurantV2Cutover\s*=\s*'1'/);
+assert.match(bridge,/restaurantAccountAttentionDock'\)\?\.remove\(\)/);
 assert.doesNotMatch(bridge,/MutationObserver|setInterval|POLL_MS/);
 assert.match(sdk,/version:'1\.0\.0'/);
 assert.doesNotMatch(sdk,/MutationObserver|setInterval|document\.querySelector|innerHTML/);
 
-console.log(JSON.stringify({ok:true,marker:'RESTAURANT_V2_CONTROL_CENTER_INTEGRATION_OK',routes:5,embeddedWorkspace:true,returnToControlCenter:true,sdkDomFree:true,kdsWindowsLoaderPreserved:true}));
+console.log(JSON.stringify({ok:true,marker:'RESTAURANT_V2_CONTROL_CENTER_INTEGRATION_OK',routes:5,embeddedWorkspace:true,returnToControlCenter:true,sdkDomFree:true,kdsWindowsLoaderPreserved:true,legacyAccountDockSuppressed:true}));

@@ -1,0 +1,54 @@
+name: Restaurant V2 V1 Overlay Isolation CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+      - '.github/workflows/restaurant-v2-v1-overlay-isolation-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+      - '.github/workflows/restaurant-v2-v1-overlay-isolation-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/restaurant-v2-control-center-integration-smoke.js
+      - run: node --check src/web/restaurant-v2-control-center-bridge.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact production SHA and overlay isolation marker
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              BRIDGE="$(mktemp)"
+              curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$BRIDGE"
+              grep -Fq 'suppressLegacyOperationalOverlays' "$BRIDGE"
+              grep -Fq '#restaurantAccountAttentionDock' "$BRIDGE"
+              grep -Fq "dataset.restaurantV2Workspace = '1'" "$BRIDGE"
+              echo "Production exact SHA and V1 overlay isolation verified: $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Production did not expose expected SHA/overlay isolation marker in time"
+          exit 1
