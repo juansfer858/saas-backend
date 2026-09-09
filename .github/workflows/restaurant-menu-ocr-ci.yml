@@ -38,6 +38,10 @@ jobs:
           cache: npm
       - name: Install local OCR runtime
         run: |
+          # GitHub's Ubuntu image may include Google's Chrome apt source. OCR does
+          # not depend on it, and a transient Chrome index Hash Sum mismatch must
+          # never block Tesseract/Poppler validation.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.list.save || true
           sudo apt-get update -qq
           sudo apt-get install -y tesseract-ocr tesseract-ocr-spa poppler-utils
       - name: Install dependencies
