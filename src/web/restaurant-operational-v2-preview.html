@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Restaurante V2 · Preview</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-operational-v2-preview.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <span class="eyebrow">RESTAURANT OPERATIONAL UI V2</span>
+      <h1 id="restaurantName">Restaurante</h1>
+      <p id="tenantLine">Cargando contexto…</p>
+    </div>
+    <span class="rv2-badge badge">P1 · FOUNDATION · SOLO LECTURA</span>
+  </header>
+  <main>
+    <nav class="tabs" aria-label="Módulos V2">
+      <button class="rv2-btn rv2-btn-primary active" data-tab="mesas">Mesas</button>
+      <button class="rv2-btn" data-tab="pedidos">Pedidos</button>
+      <button class="rv2-btn" data-tab="caja">Caja</button>
+    </nav>
+    <section id="status" class="status">Cargando…</section>
+    <section id="view"></section>
+  </main>
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-operational-v2-preview.js"></script>
+</body>
+</html>
