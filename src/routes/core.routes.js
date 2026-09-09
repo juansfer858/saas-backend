@@ -38,6 +38,7 @@ const { restaurantTestDataResetV66Router } = require('../modules/restaurant/rest
 const { restaurantTestDataResetV68Router } = require('../modules/restaurant/restaurant-test-data-reset-v68.routes');
 const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/restaurant-table-live-detail-v67.routes');
 const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restaurant-v2-table-move.routes');
+const { restaurantV2TableOpenRequestRouter } = require('../modules/restaurant/restaurant-v2-table-open-request.routes');
 const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v2-orders.routes');
 const { restaurantV2CashRouter } = require('../modules/restaurant/restaurant-v2-cash.routes');
 const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2-split.routes');
@@ -90,6 +91,9 @@ router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 router.use('/restaurante', restaurantTableLiveDetailV67Router);
 router.use('/restaurante', restaurantV2TableMoveRouter);
+// QR Cliente puede solicitar apertura sin abrir la mesa por sí mismo. Mesas/Pedidos V2
+// consumen esta cola y un usuario con MESAS.CREAR confirma la apertura real.
+router.use('/restaurante', restaurantV2TableOpenRequestRouter);
 // V2 P3 orders is opt-in and standalone. V1 routes keep their original waiter scope
 // and billing semantics while this API enables shared-floor reinforcement + optional persons.
 router.use('/restaurante', restaurantV2OrdersRouter);
