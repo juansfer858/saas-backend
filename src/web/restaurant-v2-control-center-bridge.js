@@ -30,6 +30,7 @@
 
   document.documentElement.dataset.restaurantV2ControlCenter = MARKER;
   document.documentElement.dataset.restaurantV2CutoverBridge = CUTOVER_MARKER;
+  document.documentElement.dataset.restaurantV2Workspace = '0';
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem('vantixgc_core_session_v1') || 'null'); }
@@ -53,6 +54,7 @@
     style.id = 'restaurantV2ControlCenterBridgeStyles';
     style.textContent = `
       #rail [data-tab="salon"],#rail [data-tab="mesero"],#rail [data-tab="pedidos"],#rail [data-tab="kds"],#rail [data-tab="caja"]{display:none!important}
+      html[data-restaurant-v2-workspace="1"] #restaurantAccountAttentionDock,html[data-restaurant-v2-cutover="1"] #restaurantAccountAttentionDock{display:none!important;pointer-events:none!important}
       .cc-v2-nav{display:grid;gap:8px;margin:0 0 12px;padding:10px;border:1px solid #dbe3ea;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.06)}
       .cc-v2-title{font-size:11px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;color:#64748b;padding:2px 4px 6px}
       .cc-v2-nav button{width:100%;min-height:46px;border:1px solid #dbe3ea;border-radius:12px;background:#f8fafc;color:#17212b;text-align:left;padding:10px 12px;font:inherit;font-weight:850;cursor:pointer}
@@ -102,6 +104,12 @@
     document.querySelectorAll('[data-restaurant-v2-nav] [data-v2]').forEach((button) => button.classList.toggle('active', button.dataset.v2 === key));
   }
 
+  function suppressLegacyOperationalOverlays() {
+    const cutover = document.documentElement.dataset.restaurantV2Cutover === '1';
+    const workspace = document.documentElement.dataset.restaurantV2Workspace === '1';
+    if (cutover || workspace) document.getElementById('restaurantAccountAttentionDock')?.remove();
+  }
+
   function openV2(key) {
     const route = ROUTES[key];
     if (!route) return;
@@ -113,6 +121,8 @@
     const title = workspace.querySelector('[data-v2-workspace-title]');
     if (title) title.textContent = LABELS[key] || 'Operación V2';
     if (frame && frame.getAttribute('src') !== route) frame.setAttribute('src', route);
+    document.documentElement.dataset.restaurantV2Workspace = '1';
+    suppressLegacyOperationalOverlays();
     setLegacyVisible(false);
     workspace.hidden = false;
     setActive(key);
@@ -122,6 +132,8 @@
   function closeV2() {
     const workspace = document.querySelector('[data-v2-workspace]');
     if (workspace) workspace.hidden = true;
+    document.documentElement.dataset.restaurantV2Workspace = '0';
+    suppressLegacyOperationalOverlays();
     setLegacyVisible(true);
     setActive('');
     history.replaceState({ ...(history.state || {}), restaurantV2Module:null }, '', '/app/centro-de-control');
@@ -179,6 +191,7 @@
         return;
       }
       document.documentElement.dataset.restaurantV2Cutover = '1';
+      suppressLegacyOperationalOverlays();
       const key = defaultModuleForRole();
       if (key) openV2(key);
     } catch {
