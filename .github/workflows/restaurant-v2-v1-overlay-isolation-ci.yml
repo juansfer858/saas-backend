@@ -1,0 +1,45 @@
+name: Restaurant V2 V1 Overlay Isolation CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'scripts/restaurant-v2-control-center-integration-smoke.js'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/restaurant-v2-control-center-integration-smoke.js
+      - run: node --check src/web/restaurant-v2-control-center-bridge.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact production SHA and overlay isolation marker
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            LIVE_SHA="$(curl -fsS https://core.vantixgc.com/api/health | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);console.log(j.commit||j.sha||j.gitSha||j.version||'')}catch{}})")"
+            BRIDGE="$(curl -fsS https://core.vantixgc.com/app/restaurant-v2-control-center-bridge.js || true)"
+            if [ "$LIVE_SHA" = "$EXPECTED_SHA" ] && printf '%s' "$BRIDGE" | grep -q 'suppressLegacyOperationalOverlays' && printf '%s' "$BRIDGE" | grep -q 'restaurantAccountAttentionDock'; then
+              echo "Production exact SHA and V1 overlay isolation verified: $EXPECTED_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Production did not expose expected SHA/overlay isolation marker in time"
+          exit 1
