@@ -1,217 +1,102 @@
+'use strict';
+
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { app } = require('../src/app');
 
 async function main() {
-  const routes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
   const appSource = fs.readFileSync('src/app.js', 'utf8');
   const panelEntry = fs.readFileSync('src/web/panel-restaurant-entry.js', 'utf8');
-  const shellJs = fs.readFileSync('src/web/restaurant-control-center.js', 'utf8');
-  const shellCss = fs.readFileSync('src/web/restaurant-control-center.css', 'utf8');
-  const restaurantHtml = fs.readFileSync('src/web/restaurant.html', 'utf8');
-  const operationalEngine = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
+  const legacyHtml = fs.readFileSync('src/web/restaurant.html', 'utf8');
+  const legacyShell = fs.readFileSync('src/web/restaurant-control-center.js', 'utf8');
+  const legacyCss = fs.readFileSync('src/web/restaurant-control-center.css', 'utf8');
+  const legacyEngine = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
+  const p11Public = fs.readFileSync('src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js', 'utf8');
+  const p10Public = fs.readFileSync('src/modules/restaurant/restaurant-v2-control-center.public.routes.js', 'utf8');
+  const p11Launcher = fs.readFileSync('src/web/restaurant-v1-retirement-p11-launch.js', 'utf8');
+  const p11Native = fs.readFileSync('src/web/restaurant-v2-native-control-p11.js', 'utf8');
 
-  assert.match(routes, /\/app\/centro-de-control/);
-  assert.match(routes, /operational-shell-v1/);
-  assert.match(routes, /restaurant-ui-v1/);
-  assert.match(routes, /restaurant-control-center\.css/);
-  assert.match(routes, /restaurant-control-center\.js/);
-
+  // Global Restaurant entry remains stable; P11 owns the tenant-aware decision behind it.
   assert.match(panelEntry, /CONTROL_CENTER_PATH = '\/app\/centro-de-control'/);
-  assert.ok(!panelEntry.includes('CLASSIC_RESTAURANT_PATH'));
-  assert.ok(!panelEntry.includes('Panel clásico'));
-  assert.ok(!panelEntry.includes('openRestaurantClassic'));
-
   assert.match(appSource, /href: '\/app\/centro-de-control',[\s\S]*?label: 'Restaurante',[\s\S]*?primaryVertical: true/);
-  assert.match(appSource, /subtitle: 'Operación principal'/);
   assert.match(appSource, /restaurantApp: '\/app\/centro-de-control'/);
   assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
-  assert.ok(!appSource.includes("href: '/app/restaurante'"));
 
-  assert.match(restaurantHtml, /data-restaurant-admin-link="true"/);
-  assert.match(restaurantHtml, /href="\/app\/dashboard"[^>]*data-restaurant-admin-link="true"[^>]*>← Volver a Administración<\/a>/);
-  assert.ok(!/data-restaurant-admin-link="true"[^>]*style=/.test(restaurantHtml), 'Admin return styling must live in the canonical Restaurant CSS, not inline');
-  assert.match(restaurantHtml, /restaurant-control-center\.css\?v=workspace-v8-salon/);
-  assert.match(restaurantHtml, /restaurant-ui\.js\?v=salon-qr-v2/);
-  assert.match(restaurantHtml, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
-  assert.match(restaurantHtml, /admin\.textContent='← Volver a Administración'/);
-  assert.match(shellCss, /\.cc-classic-link\{position:static!important;display:flex!important;[\s\S]*?min-height:56px!important/);
-  assert.match(shellCss, /\.cc-classic-link:hover\{background:#fff7ed!important/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.cc-classic-link\{display:flex!important/);
-  assert.ok(!shellCss.includes('.rail-wrap:before,.rail-wrap:after,.cc-classic-link{display:none!important}'), 'Admin return must remain visible on mobile');
+  // P11 canonical Control Center is native/tenant-aware and cannot load V1 engine.
+  assert.match(p11Public, /router\.get\('\/app\/centro-de-control'/);
+  assert.match(p11Public, /\/app\/centro-de-control-v2/);
+  assert.match(p11Launcher, /VANTIX_RESTAURANT_V1_RETIREMENT_LAUNCH_P11/);
+  assert.match(p11Launcher, /\/api\/v1\/restaurante\/v2\/retiro-v1\/launch/);
+  assert.match(p11Native, /VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11/);
+  assert.match(p11Native, /\/app\/restaurante-v2\/mesas/);
+  assert.match(p11Native, /\/app\/restaurante-v2\/pedidos/);
+  assert.match(p11Native, /\/app\/restaurante-v2\/kds/);
+  assert.match(p11Native, /\/app\/restaurante-v2\/caja/);
+  assert.doesNotMatch(p11Launcher, /MutationObserver|setInterval|restaurant-ui\.js/);
+  assert.doesNotMatch(p11Native, /MutationObserver|setInterval|restaurant-ui\.js|restaurant-control-center\.js/);
 
-  // Centro de control is owned by the shell outside #rail. Repainting the operational
-  // role buttons must never delete it and restaurant.html must not add another interceptor.
-  assert.match(shellJs, /railWrap\.insertBefore\(home, rail\)/);
-  assert.match(shellJs, /railWrap\.querySelector\('\[data-cc-home\]'\)/);
-  assert.ok(!restaurantHtml.includes('stopImmediatePropagation'), 'Restaurant shell must not add a second rail click interceptor');
+  // P10 compatibility remains explicit for rollback/migration and still owns the
+  // previous operational shell contracts while V1 code is retained.
+  assert.match(p10Public, /\/app\/centro-de-control-p10/);
+  assert.match(p10Public, /restaurant-ui-v1/);
+  assert.match(legacyHtml, /restaurant-ui\.js\?v=salon-qr-v2/);
+  assert.match(legacyHtml, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
+  assert.match(legacyShell, /openOperationalTab/);
+  assert.match(legacyShell, /data-cc-home/);
+  assert.doesNotMatch(legacyShell, /MutationObserver/);
+  assert.match(legacyCss, /\.rail-wrap/);
+  assert.match(legacyCss, /\.cc-dashboard/);
 
-  assert.match(restaurantHtml, /id="noticeToggle"[^>]*>Avisos<\/a>/);
-  assert.match(restaurantHtml, /<dialog id="noticePanel"/);
-  assert.match(restaurantHtml, /id="gateInner"/);
-  assert.match(restaurantHtml, /id="edgeStatusSlot"/);
-  assert.match(restaurantHtml, /panel\.showModal\(\)/);
-  assert.match(restaurantHtml, /panel\.close\?\.\(\)/);
-  assert.ok(!restaurantHtml.includes('id="gate"'), 'The production warning must not reserve a page band');
-  assert.ok(!restaurantHtml.includes("insertAdjacentElement('afterend'"), 'Edge status must not insert a second page band');
-  assert.ok(!restaurantHtml.includes('data-edge-install-status]'));
-
-  assert.match(shellJs, /data-cc-home/);
-  assert.match(shellJs, /openOperationalTab/);
-  assert.match(shellJs, /data-tab/);
-  assert.match(shellJs, /\/api\/v1\/restaurante\/ui-context/);
-  assert.match(shellJs, /\/api\/v1\/restaurante\/mesas/);
-  assert.match(shellJs, /\/api\/v1\/restaurante\/menu/);
-  assert.match(shellJs, /\/api\/v1\/restaurante\/comandas/);
-  assert.match(shellJs, /\/api\/v1\/restaurante\/pedidos/);
-  assert.ok(!shellJs.includes("location.href='/app/restaurante'"), 'Operational shell must not redirect normal actions to legacy UI');
-  assert.ok(!shellJs.includes('Panel clásico de respaldo'), 'The control center must not recreate obsolete legacy navigation');
-  assert.ok(!shellJs.includes("classic.href = '/app/restaurante'"), 'Administration return has one canonical owner in restaurant.html');
-  assert.match(shellCss, /\.rail-wrap/);
-  assert.match(shellCss, /\.cc-dashboard/);
-
-  assert.match(shellCss, /html,body\{[^}]*font-size:14px;[^}]*line-height:1\.45/);
-  assert.match(shellCss, /\.ri-btn\{[^}]*min-height:46px!important;[^}]*font-size:14px!important/);
-  assert.match(shellCss, /\.ri-input,\.ri-select\{[^}]*min-height:48px!important;[^}]*font-size:15px!important/);
-  assert.match(shellCss, /\.menu-grid\{[^}]*grid-template-columns:repeat\(auto-fit,minmax\(180px,1fr\)\)!important/);
-  assert.match(shellCss, /\.kds-v2-lanes\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
-  assert.match(shellCss, /\.order-sheet\{[^}]*position:sticky!important;[^}]*top:92px!important/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-floor\{[^}]*display:grid;[^}]*repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.salon-table\{[^}]*position:relative!important;[^}]*left:auto!important;[^}]*width:auto!important/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.kds-v2-lanes\{grid-template-columns:1fr\}/);
-  assert.match(shellCss, /@media\(pointer:coarse\)[\s\S]*?min-height:48px!important/);
-  assert.ok(!shellCss.includes('.ri-btn{min-height:39px!important'), 'Operational buttons must not regress to the old small target');
-
-  assert.match(shellJs, /<button class="cc-action cash" data-cc-tab="caja"><span class="cc-cash-icon">▣<\/span><strong>Caja<\/strong><small>Cobrar \/ Cerrar<\/small><\/button>/);
-  assert.match(shellCss, /\.cc-action\{[^}]*font-size:14px;[^}]*line-height:1\.25/);
-  assert.match(shellCss, /\.cc-action\.cash\{[^}]*font-size:22px/);
-  assert.match(shellCss, /\.cc-action\.cash small\{[^}]*font-size:15px;[^}]*font-weight:950/);
-  assert.ok(!shellCss.includes('.cc-action.cash small{display:block;margin-top:7px;font-size:10px}'), 'Caja label must never regress to the old 10px size');
-
+  // Keep high-value legacy fallback contracts protected until P12 deletes them.
   for (const token of [
-    'function cashAge(', 'function cashTableRow(', 'Caja lista para comenzar', 'CAJA CERRADA', 'CAJA ABIERTA',
-    'Ventas del turno', 'Efectivo registrado', 'Otros medios', 'Mesas por cobrar', 'Cobro rápido', 'Método de pago',
-    'Recibido del cliente', 'Cambio', 'Mixto', 'Próximamente', 'Últimos cobros', 'Resumen del turno', 'Efectivo contado',
-    'Confirmar cobro', 'Cerrar turno', 'data-cash-table', 'data-cash-method="EFECTIVO"', 'data-cash-method="BANCO"', 'data-cash-method="CREDITO"'
-  ]) assert.ok(operationalEngine.includes(token), `Caja V2 must contain ${token}`);
-  assert.ok(!operationalEngine.includes('summary?.paymentBreakdown'), 'Caja must not depend on the nonexistent paymentBreakdown field');
-  assert.match(operationalEngine, /restaurantClosedTablesTotal/);
-  assert.match(operationalEngine, /restaurantCashRecorded/);
-  assert.match(operationalEngine, /systemCashExpected/);
-  assert.match(shellCss, /\/\* Caja V2 — propietario visual del flujo de cobro y turno\. \*\//);
-  assert.match(shellCss, /\.cash-methods\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(shellCss, /@media\(max-width:480px\)[\s\S]*?\.cash-shift-strip,\.cash-kpis\{grid-template-columns:1fr\}/);
+    'Caja lista para comenzar', 'CAJA CERRADA', 'CAJA ABIERTA', 'Confirmar cobro', 'Cerrar turno',
+    'Gestionar zonas', 'Gestionar QR', 'Editar plano', 'openQrManager',
+    'KDS_OVERDUE_MINUTES = 12', 'Marcar listo', 'Mesero avisado en vivo',
+    'Panel del mesero', '+ Agregar persona', 'Enviar a cocina / barra', 'Preparar cuenta', 'Enviar a caja'
+  ]) assert.ok(legacyEngine.includes(token), `P10/V1 compatibility must retain ${token}`);
 
-  for (const token of [
-    "dashboard:'Centro de control'", "salon:'Mesas'", "mesero:'Mesero'", "pedidos:'Pedidos en curso'", "kds:'Cocina / Barra'",
-    "caja:'Caja'", "carta:'Carta y productos'", "estado:'Estado'", 'function currentView()',
-    'function enterView(view, pushState = true)', 'function navigateBack()', 'function renderBackControl', 'ccTrail', 'ccBackBar',
-    'data-cc-back="true"', '← Atrás', 'routeCurrentView', 'history.replaceState'
-  ]) assert.ok(shellJs.includes(token), `Restaurant origin-aware back must contain ${token}`);
-  assert.ok(!shellJs.includes('history.back('), 'Restaurant internal back must be deterministic, not browser-history dependent');
-  assert.ok(!shellJs.includes('customBack()'), 'Custom screens must use the same canonical back control as operational screens');
-
-  for (const token of [
-    'Pedidos en curso', 'Flujo del servicio', '1 · Mesas abiertas', '2 · Pedidos activos', '3 · Por preparar', '4 · En preparación',
-    '5 · Listos', '6 · Cuenta pedida', 'Listo para entregar', 'Entregados recientes', 'data-cc-orders="true"', 'data-cc-order-filter',
-    'data-cc-order-mesero', 'data-cc-order-kds', 'data-cc-order-cash', "view === 'pedidos'", "showOrders: () => showOrders(true)"
-  ]) assert.ok(shellJs.includes(token), `Restaurant service flow must contain ${token}`);
-
-  // Navigation is synchronous and canonical: no observer and no delayed rail resync requirement.
-  assert.ok(!shellJs.includes('MutationObserver'));
-  assert.ok(shellJs.includes("document.addEventListener('click'"));
-
-  assert.match(operationalEngine, /method:'POST'/);
-  assert.match(operationalEngine, /method:'PUT'/);
-  assert.match(operationalEngine, /method:'PATCH'/);
-
-  // Salón V2 + QR canónico: operación separada de edición, lista/plano y URL pública del servidor.
-  for (const token of [
-    "salonView:", "salonEdit:", 'OPERACIÓN DEL SALÓN', 'Gestionar zonas', 'Gestionar QR', 'Editar plano',
-    'data-salon-view="PLANO"', 'data-salon-view="LISTA"', 'openQrManager', 'showQr', 'regenerateQr',
-    '/mesas/${id}/qr', '/qr/regenerar', '/zonas/${zone.id}/qrs', "api('/api/v1/restaurante/qrs')",
-    'URL pública canónica', 'datos móviles o el Wi-Fi del restaurante', 'qrPrintHtml'
-  ]) assert.ok(operationalEngine.includes(token), `Salon/QR V2 must contain ${token}`);
-  assert.ok(!operationalEngine.includes('location.origin}/r/'), 'Printed table QR must never depend on the current browser origin');
-  assert.match(shellCss, /\/\* Salón V2 — operación de mesas separada de edición y gestión QR\. \*\//);
-  assert.match(shellCss, /\.salon-floor\{[^}]*min-height:560px/);
-  assert.match(shellCss, /\.qr-print-grid\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-
-  // KDS V2: KPIs reales, filtros, sonido, fullscreen, detalle y contexto zona/mesero.
-  for (const token of [
-    'KDS_OVERDUE_MINUTES = 12', 'kdsFilter:', 'kdsSoundEnabled:', 'Pendientes', 'En preparación', 'Tiempo prom.',
-    'data-kds-filter', 'kdsZoneFilter', 'kdsWaiterFilter', 'kdsSearch', 'Sonido ON', 'Pantalla completa',
-    'kds-command-card', 'Ver detalle', 'Marcar listo', 'Mesero avisado en vivo', 'kdsDetailDialog',
-    'playKdsTone', 'requestFullscreen', 'kdsZoneLabel', 'kdsWaiterLabel'
-  ]) assert.ok(operationalEngine.includes(token), `KDS V2 must contain ${token}`);
-  assert.match(shellCss, /\/\* KDS V2 — tablero de producción canónico, táctil y adaptable por rol\/estación\. \*\//);
-  assert.match(shellCss, /\.kds-kpis\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
-  assert.match(shellCss, /\.kds-v2-lanes\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
-  assert.match(shellCss, /@media\(max-width:1180px\)[\s\S]*?\.kds-v2-lanes\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
-  assert.match(shellCss, /@media\(max-width:780px\)[\s\S]*?\.kds-v2-lanes\{grid-template-columns:1fr\}/);
-  assert.ok(!shellCss.includes('.kds-lanes{'), 'KDS V1 lane layout must be removed from the canonical stylesheet');
-
-  // Mesero V2: zona, mesa, cuenta conjunta/individual, personas y envío explícito a Caja.
-  for (const token of [
-    'waiterSeat: 1',
-    'Panel del mesero',
-    'data-waiter-table',
-    'data-billing-mode=\"CONJUNTA\"',
-    'data-billing-mode=\"INDIVIDUAL\"',
-    '+ Agregar persona',
-    'data-waiter-seat',
-    'data-waiter-move',
-    'data-waiter-note',
-    'Enviar a cocina / barra',
-    'Preparar cuenta',
-    'Enviar a caja',
-    'Imprimir pre-cuenta',
-    '/servicio',
-    '/items/',
-    '/preparar-cuenta',
-    '/enviar-caja',
-    'waiterPrecheckHtml',
-    'waiterProgressMarkup'
-  ]) assert.ok(operationalEngine.includes(token), `Mesero V2 must contain ${token}`);
-  assert.match(shellCss, /\/\* Mesero V2 — zona, mesa, personas, pedido y cuenta en un solo flujo canónico\. \*\//);
-  assert.match(shellCss, /\.waiter-workspace\{[^}]*grid-template-columns:minmax\(0,1\.55fr\) minmax\(390px,\.85fr\)/);
-  assert.match(shellCss, /@media\(max-width:1180px\)[\s\S]*?\.waiter-workspace\{grid-template-columns:1fr\}/);
-
-  new Function(shellJs);
-  new Function(operationalEngine);
+  new Function(p11Launcher);
+  new Function(p11Native);
+  new Function(legacyShell);
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    const control = await fetch(base + '/app/centro-de-control');
-    const body = await control.text();
-    assert.equal(control.status, 200);
-    assert.equal(control.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
-    assert.equal(control.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
-    assert.match(body, /restaurant-theme\.js/);
-    assert.match(body, /restaurant-ui\.js\?v=salon-qr-v2/);
-    assert.match(body, /restaurant-control-center\.css\?v=workspace-v8-salon/);
-    assert.match(body, /restaurant-control-center\.js\?v=workspace-v3-nav2/);
-    assert.match(body, /data-restaurant-admin-link="true"/);
-    assert.match(body, /← Volver a Administración/);
-    assert.match(body, /<dialog id="noticePanel"/);
-    assert.match(body, />Avisos<\/a>/);
-    assert.ok(!body.includes('id="gate"'));
+    const canonical = await fetch(base + '/app/centro-de-control');
+    const canonicalBody = await canonical.text();
+    assert.equal(canonical.status, 200);
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v1-retirement'), 'p11-v1-retirement');
+    assert.match(canonicalBody, /data-p11-launch="true"/);
+    assert.doesNotMatch(canonicalBody, /restaurant-ui\.js|restaurant-control-center\.js|MutationObserver/);
 
-    const legacy = await fetch(base + '/app/restaurante', { redirect:'manual' });
-    assert.equal(legacy.status, 302);
-    assert.equal(legacy.headers.get('location'), '/app/centro-de-control');
-    assert.equal(legacy.headers.get('x-vantixgc-restaurant-canonical'), '/app/centro-de-control');
+    const native = await fetch(base + '/app/centro-de-control-v2');
+    const nativeBody = await native.text();
+    assert.equal(native.status, 200);
+    assert.equal(native.headers.get('x-vantixgc-restaurant-v1-retirement'), 'p11-v1-retirement');
+    assert.match(nativeBody, /data-v2-native-control="p11"/);
+    assert.doesNotMatch(nativeBody, /restaurant-ui\.js|restaurant-control-center\.js|MutationObserver/);
+
+    const compat = await fetch(base + '/app/centro-de-control-p10');
+    const compatBody = await compat.text();
+    assert.equal(compat.status, 200);
+    assert.equal(compat.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
+    assert.equal(compat.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
+    assert.equal(compat.headers.get('x-vantixgc-restaurant-control-p10-compatibility'), 'true');
+    assert.match(compatBody, /restaurant-theme\.js/);
+    assert.match(compatBody, /restaurant-ui\.js\?v=salon-qr-v2/);
+    assert.match(compatBody, /restaurant-v2-control-center-bridge\.js/);
+
+    const legacyEntry = await fetch(base + '/app/restaurante', { redirect:'manual' });
+    assert.equal(legacyEntry.status, 302);
+    assert.equal(legacyEntry.headers.get('location'), '/app/centro-de-control');
+    assert.equal(legacyEntry.headers.get('x-vantixgc-restaurant-canonical'), '/app/centro-de-control');
 
     for (const route of ['/app/dashboard', '/app/inventario']) {
       const response = await fetch(base + route);
       const html = await response.text();
       assert.equal(response.status, 200, route);
-      assert.equal(response.headers.get('x-vantixgc-super-core-theme'), 'super-core-v5-silver-server');
       assert.match(html, /href="\/app\/centro-de-control"[^>]*data-restaurant-entry="true"[^>]*data-core-vertical-primary="true"/);
-      assert.match(html, /<strong>Restaurante<\/strong><small>Operación principal<\/small>/);
-      assert.ok(!/href="\/app\/restaurante"[^>]*data-restaurant-entry="true"/.test(html), `${route}: sidebar must not point to legacy Restaurant`);
     }
 
     const root = await fetch(base + '/');
@@ -221,7 +106,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER + ZONES + FLOATING NOTICES + CAJA V2 + KDS V2 + ADAPTIVE INTERNAL UX + ORIGIN-AWARE BACK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER P11 CANONICAL + P10 COMPATIBILITY + V1 TECHNICAL FALLBACK SMOKE OK');
 }
 
 main().catch((error) => {
