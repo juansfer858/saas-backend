@@ -1,0 +1,107 @@
+name: Temporary P0 Core UI Patcher
+on:
+  push:
+    branches: [fix/core-ui-runtime-isolation-p0]
+    paths:
+      - '.github/workflows/tmp-p0-core-ui-patcher.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[p0-auto]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/core-ui-runtime-isolation-p0
+          fetch-depth: 0
+      - name: Apply isolation patch
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          restaurant = Path('src/web/panel-restaurant-entry.js')
+          text = restaurant.read_text()
+          text, n = re.subn(r"\n  function renameAccountingConfigurationHeading\(\) \{.*?\n  \}\n", "\n", text, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit('restaurant heading ownership target not found')
+          text = text.replace("    renameAccountingConfigurationHeading();\n", "")
+          if 'renameAccountingConfigurationHeading' in text:
+              raise SystemExit('restaurant accounting heading mutation still present')
+          restaurant.write_text(text)
+
+          loader = Path('src/web/panel-integration-extras.js')
+          text = loader.read_text()
+          start = text.index('  async function start() {')
+          end = text.index('\n  start();', start)
+          replacement = r'''  async function loadRuntimeIsolated(path, name, errorCode) {
+    try {
+      const source = await fetchRuntime(path);
+      executeSource(source, name);
+      return true;
+    } catch (error) {
+      console.error(errorCode, error);
+      return false;
+    }
+  }
+
+  async function start() {
+    installAdminPwa();
+    installInventoryProductCreatorV70();
+
+    // P0: Accounting/Core is critical and must never depend on Restaurant,
+    // realtime or printing runtimes. Load it first and independently.
+    const accountingReady = await loadRuntimeIsolated(
+      '/api/v1/comercial/ui-runtime/panel-integration-extras-core.js',
+      'panel-integration-extras-core.js',
+      'SUPER_CORE_ACCOUNTING_RUNTIME_ERROR'
+    );
+
+    // Optional runtimes fail independently; one outage cannot suppress Accounting.
+    await Promise.all([
+      loadRuntimeIsolated('/app/vantix-tenant-realtime.js?v=tenant-realtime-v1', 'vantix-tenant-realtime.js', 'SUPER_CORE_REALTIME_RUNTIME_ERROR'),
+      loadRuntimeIsolated('/app/core-realtime-panel-ui.js?v=core-realtime-v1', 'core-realtime-panel-ui.js', 'SUPER_CORE_REALTIME_PANEL_RUNTIME_ERROR'),
+      loadRuntimeIsolated('/api/v1/comercial/ui-runtime/panel-printing-config.js', 'panel-printing-config.js', 'SUPER_CORE_PRINTING_RUNTIME_ERROR')
+    ]);
+
+    installInventoryAdjustmentLibrary();
+    ensureInstallButton();
+    window.VantixGCCoreRuntimeIsolationP0 = Object.freeze({
+      version: '1.0.0',
+      accountingIndependent: true,
+      accountingReady,
+      optionalRuntimesIsolated: true
+    });
+
+    if (location.pathname === '/app/configuracion' && typeof window.render === 'function') {
+      if (!accountingReady) {
+        window.viewConfig = function viewAccountingRuntimeUnavailable() {
+          return '<div class="pagehead"><div><h1>Parametrización Contable</h1><p>El módulo contable no pudo cargar su runtime. No se mostrará Configuración de empresa como sustituto.</p></div></div><div class="error">No fue posible cargar Parametrización Contable. Recarga la página o contacta soporte.</div>';
+        };
+      }
+      await window.render();
+      requestAnimationFrame(() => {
+        const target = location.hash ? document.querySelector(location.hash) : null;
+        target?.scrollIntoView?.({ block: 'start' });
+      });
+    }
+  }
+'''
+          text = text[:start] + replacement + text[end:]
+          loader.write_text(text)
+
+          core = Path('src/web/panel-integration-extras-core.js')
+          text = core.read_text()
+          old = '<h1>Configuración</h1><p>Parametrización contable única para Ventas, Compras, Inventario, Tesorería y Cartera.</p>'
+          new = '<h1>Parametrización Contable</h1><p>Parametrización contable única para Ventas, Compras, Inventario, Tesorería y Cartera.</p>'
+          if old not in text:
+              raise SystemExit('accounting heading owner target not found')
+          core.write_text(text.replace(old, new, 1))
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/web/panel-restaurant-entry.js src/web/panel-integration-extras.js src/web/panel-integration-extras-core.js
+          git commit -m '[p0-auto] isolate Accounting runtime from Restaurant UI'
+          git push origin HEAD:fix/core-ui-runtime-isolation-p0
