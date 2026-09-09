@@ -4,6 +4,7 @@ const { prisma } = require('../../config/prisma');
 const push = require('../notifications/push-v65.service');
 
 const EVENT_CODE = 'RESTAURANT_COMMAND_NEW_V2';
+const PRODUCTION_ROLES = Object.freeze(['COCINA','BARRA','POSTRES']);
 
 function stationLabel(station) {
   return station === 'COCINA' ? 'Cocina' : station === 'BARRA' ? 'Barra' : station === 'POSTRES' ? 'Postres' : station;
@@ -11,6 +12,17 @@ function stationLabel(station) {
 
 function itemCount(order, station) {
   return (order?.items || []).filter((item) => !item.station || item.station === station).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+}
+
+function normalizedStations(profile) {
+  return Array.isArray(profile?.stations) ? profile.stations.map((value) => String(value || '').toUpperCase()).filter(Boolean) : [];
+}
+
+function deviceMatchesStation(device, profile, station) {
+  const role = String(device?.role || '').toUpperCase();
+  const queue = String(station || '').toUpperCase();
+  if (role === queue) return true;
+  return Boolean(profile?.flexibleSupport) && normalizedStations(profile).includes(queue);
 }
 
 async function latestSentOrder(tenantId, sessionId, createdByUserId = null) {
@@ -32,15 +44,28 @@ async function deliveryExists(tenantId, pushDeviceId, deepLink) {
   });
 }
 
+async function productionPushTargets(tenantId, stations) {
+  const devices = await prisma.notificationPushDevice.findMany({
+    where:{ tenantId, state:'ACTIVE', permission:'granted', role:{ in:PRODUCTION_ROLES } },
+    orderBy:{ lastSeenAt:'desc' }
+  });
+  const userIds = [...new Set(devices.map((device) => device.userId).filter(Boolean))];
+  const profiles = userIds.length ? await prisma.restaurantEmployeeWorkProfile.findMany({
+    where:{ tenantId, userId:{ in:userIds } },
+    select:{ userId:true, stations:true, flexibleSupport:true }
+  }) : [];
+  const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
+  return new Map(stations.map((station) => [
+    station,
+    devices.filter((device) => deviceMatchesStation(device, profileByUser.get(device.userId) || null, station))
+  ]));
+}
+
 async function notifyLatestRound(tenantId, sessionId, createdByUserId = null) {
   const order = await latestSentOrder(tenantId, sessionId, createdByUserId);
   if (!order?.commands?.length) return { eventCode:EVENT_CODE, orderId:order?.id || null, attempted:0, sent:0, failed:0, deduplicated:0 };
   const stations = [...new Set(order.commands.map((command) => command.station).filter(Boolean))];
-  const devices = await prisma.notificationPushDevice.findMany({
-    where:{ tenantId, state:'ACTIVE', permission:'granted', role:{ in:stations } },
-    orderBy:{ lastSeenAt:'desc' }
-  });
-  const byStation = new Map(stations.map((station) => [station, devices.filter((device) => String(device.role || '').toUpperCase() === station)]));
+  const byStation = await productionPushTargets(tenantId, stations);
   let attempted=0,sent=0,failed=0,deduplicated=0;
   for (const command of order.commands) {
     const station = command.station;
@@ -64,4 +89,11 @@ async function notifyLatestRound(tenantId, sessionId, createdByUserId = null) {
   return { eventCode:EVENT_CODE, orderId:order.id, stations, attempted, sent, failed, deduplicated };
 }
 
-module.exports = { EVENT_CODE, latestSentOrder, notifyLatestRound };
+module.exports = {
+  EVENT_CODE,
+  PRODUCTION_ROLES,
+  deviceMatchesStation,
+  productionPushTargets,
+  latestSentOrder,
+  notifyLatestRound
+};
