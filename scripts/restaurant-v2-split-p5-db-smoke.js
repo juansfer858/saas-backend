@@ -12,6 +12,22 @@ const cashV2 = require('../src/modules/restaurant/restaurant-v2-cash.service');
 const splitV2 = require('../src/modules/restaurant/restaurant-v2-split.service');
 const { V2_OPTIONS } = require('../src/modules/restaurant/restaurant-v2-orders.routes');
 
+async function paymentsForSale(tenantId, saleId) {
+  return prisma.pago.findMany({
+    where: { tenantId, documentoId: saleId },
+    select: { id: true, sourceId: true, comprobanteTesoreriaId: true, monto: true },
+    orderBy: { creadoEn: 'asc' }
+  });
+}
+
+async function treasuryCountForPayments(tenantId, payments) {
+  const receiptIds = payments.map((row) => row.comprobanteTesoreriaId).filter(Boolean);
+  if (!receiptIds.length) return 0;
+  return prisma.movimientoTesoreria.count({
+    where: { tenantId, comprobanteId: { in: receiptIds } }
+  });
+}
+
 async function main() {
   const splitRoutes = fs.readFileSync('src/modules/restaurant/restaurant-v2-split.routes.js', 'utf8');
   const splitPublic = fs.readFileSync('src/modules/restaurant/restaurant-v2-split.public.routes.js', 'utf8');
@@ -125,14 +141,18 @@ async function main() {
   assert.equal(first.closed, false);
   assert.ok(Number(first.remaining) > 0);
 
-  const treasuryAfterFirst = await prisma.movimientoTesoreria.count({
-    where: { tenantId: demo.tenantId, comprobanteId: opened.sale.id }
-  });
+  const paymentsAfterFirst = await paymentsForSale(demo.tenantId, opened.sale.id);
+  assert.equal(paymentsAfterFirst.length, 1, 'la primera parte crea un único Pago vinculado a la venta');
+  assert.ok(paymentsAfterFirst[0].comprobanteTesoreriaId, 'el pago debe generar su RECIBO_CAJA');
+  assert.equal(await treasuryCountForPayments(demo.tenantId, paymentsAfterFirst), 1, 'la primera parte genera un movimiento de Tesorería a través de su recibo');
+
   const firstAgain = await splitV2.payPart(demo.tenantId, cashier, table.id, {
     partKey: 'P1', paymentMethodId: cashMethodId, reference: 'P5-PARTE-1-REINTENTO'
   });
   assert.equal(firstAgain.parts.find((part) => part.key === 'P1').paid, true);
-  assert.equal(await prisma.movimientoTesoreria.count({ where: { tenantId: demo.tenantId, comprobanteId: opened.sale.id } }), treasuryAfterFirst, 'reintentar una parte pagada no duplica Tesorería');
+  const paymentsAfterRetry = await paymentsForSale(demo.tenantId, opened.sale.id);
+  assert.equal(paymentsAfterRetry.length, 1, 'reintentar una parte pagada no crea otro Pago');
+  assert.equal(await treasuryCountForPayments(demo.tenantId, paymentsAfterRetry), 1, 'reintentar una parte pagada no duplica Tesorería');
 
   const final = await splitV2.payPart(demo.tenantId, cashier, table.id, {
     partKey: 'P2', paymentMethodId: cashMethodId, reference: 'P5-PARTE-2'
@@ -140,22 +160,31 @@ async function main() {
   assert.equal(final.closed, true);
   assert.equal(Number(final.remaining), 0);
 
-  const [closedSession, freedTable, sale, payments, treasuryRows, accountingEntry, simulatedFiscal] = await Promise.all([
+  const [closedSession, freedTable, sale, sessionPayments, salePayments, saleAccountingEntry, simulatedFiscal] = await Promise.all([
     prisma.restaurantTableSession.findUnique({ where: { id: opened.session.id } }),
     prisma.restaurantTable.findUnique({ where: { id: table.id } }),
     prisma.comprobanteComercial.findUnique({ where: { id: opened.sale.id } }),
     prisma.restaurantSessionPayment.findMany({ where: { tenantId: demo.tenantId, sessionId: opened.session.id } }),
-    prisma.movimientoTesoreria.findMany({ where: { tenantId: demo.tenantId, comprobanteId: opened.sale.id } }),
+    paymentsForSale(demo.tenantId, opened.sale.id),
     prisma.asientoContable.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: opened.sale.id } }),
     prisma.restaurantFiscalDocument.count({ where: { tenantId: demo.tenantId, saleId: opened.sale.id, mode: 'SIMULATED' } })
   ]);
+  const receiptIds = salePayments.map((row) => row.comprobanteTesoreriaId).filter(Boolean);
+  const [treasuryRows, receiptAccountingEntries] = await Promise.all([
+    prisma.movimientoTesoreria.findMany({ where: { tenantId: demo.tenantId, comprobanteId: { in: receiptIds } } }),
+    prisma.asientoContable.count({ where: { tenantId: demo.tenantId, comprobanteId: { in: receiptIds } } })
+  ]);
+
   assert.equal(closedSession.state, 'CERRADA');
   assert.equal(freedTable.state, 'LIBRE');
   assert.equal(sale.estado, 'PAGADO_TOTAL');
   assert.equal(Number(sale.saldo), 0);
-  assert.equal(payments.length, 2, 'deben existir exactamente dos partes pagadas');
-  assert.equal(treasuryRows.length, 2, 'cada parte real genera un único movimiento de Tesorería');
-  assert.ok(accountingEntry, 'la venta conserva asiento contable real');
+  assert.equal(sessionPayments.length, 2, 'deben existir exactamente dos partes pagadas');
+  assert.equal(salePayments.length, 2, 'la venta debe tener exactamente dos abonos reales');
+  assert.equal(receiptIds.length, 2, 'cada abono debe tener su recibo de Tesorería');
+  assert.equal(treasuryRows.length, 2, 'cada recibo real genera un único movimiento de Tesorería');
+  assert.equal(receiptAccountingEntries, 2, 'cada recibo real genera su asiento de pago');
+  assert.ok(saleAccountingEntry, 'la venta conserva su asiento contable de emisión');
   assert.equal(simulatedFiscal, 0, 'DIAN apagada no genera documento SIMULATED');
 
   console.log(JSON.stringify({
@@ -168,6 +197,7 @@ async function main() {
     sameSale: true,
     splitEqual: true,
     partialPayments: true,
+    receiptChainValidated: true,
     duplicatePartBlocked: true,
     treasuryReal: true,
     accountingReal: true,
