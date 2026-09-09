@@ -158,17 +158,9 @@
     return '<button class="btn" type="button" data-restaurant-dashboard-entry="true" data-dashboard-action="restaurant">Abrir Restaurante</button>';
   }
 
-  function renameAccountingConfigurationHeading() {
-    if (currentPath() !== '/app/configuracion') return;
-    const heading = document.querySelector('.content .pagehead h1, .content .head h1');
-    if (heading && heading.textContent.trim() !== 'Parametrización Contable') {
-      heading.textContent = 'Parametrización Contable';
-    }
-  }
 
   function installCurrentUi() {
     hydrateTenantCard();
-    renameAccountingConfigurationHeading();
     window.VantixGCCoreOriginBack?.mount?.();
   }
 
