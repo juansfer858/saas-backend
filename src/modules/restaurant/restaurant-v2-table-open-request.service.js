@@ -51,7 +51,7 @@ function publicRequest(row, table) {
 async function publish(tenantId, tableId, requestId, action) {
   await realtime.publishTenantChange(
     tenantId,
-    ['restaurant.table-open-request','restaurant.tables'],
+    ['restaurant.table-open-request','restaurant.tables','restaurant.table'],
     { tableId, requestId },
     { source:'restaurant-v2-table-open-request', method:'POST', path:action }
   ).catch(() => {});
