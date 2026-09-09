@@ -2,6 +2,7 @@
 
 const express=require('express');
 const { z }=require('zod');
+const { prisma }=require('../../config/prisma');
 const { AppError }=require('../../utils/app-error');
 const { requirePermission }=require('../../middleware/require-permission');
 const base=require('./restaurant.service');
@@ -17,7 +18,23 @@ const qtySchema=z.object({quantity:z.coerce.number().min(0).max(999),seatNumber:
 const metaSchema=z.object({seatNumber:z.coerce.number().int().min(1).max(50).nullable().optional(),notes:z.string().trim().max(300).nullable().optional()}).refine(x=>Object.keys(x).length>0,{message:'Debe enviar al menos un cambio'});
 const peopleSchema=z.object({guestCount:z.coerce.number().int().min(1).max(50)});
 
-router.get('/v2/mesas',requirePermission('MESAS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:await identity.listTablesLive(req.tenantId,req.user,V2_OPTIONS)})}catch(error){next(error)}});
+async function listTablesV2(tenantId,user){
+  const tables=await base.listTables(tenantId,user,V2_OPTIONS);
+  const saleIds=[...new Set(tables.map(row=>row.activeSession?.saleId).filter(Boolean))];
+  const sales=saleIds.length?await prisma.comprobanteComercial.findMany({
+    where:{tenantId,id:{in:saleIds}},
+    select:{id:true,numero:true,estado:true,total:true,fecha:true,creadoEn:true}
+  }):[];
+  const bySale=new Map(sales.map(row=>[row.id,row]));
+  return tables.map(table=>{
+    const session=table.activeSession;
+    if(!session)return table;
+    const sale=bySale.get(session.saleId)||null;
+    return {...table,activeSession:{...session,sale:sale?{id:sale.id,numero:sale.numero,estado:sale.estado,total:sale.total,fecha:sale.fecha,creadoEn:sale.creadoEn}:null}};
+  });
+}
+
+router.get('/v2/mesas',requirePermission('MESAS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:await listTablesV2(req.tenantId,req.user)})}catch(error){next(error)}});
 router.post('/v2/mesas/:id/abrir',requirePermission('MESAS.CREAR'),async(req,res,next)=>{try{const input=parse(openSchema,req.body);res.status(201).json({ok:true,data:await base.openTable(req.tenantId,req.user,req.params.id,{guestCount:input.guestCount},V2_OPTIONS)})}catch(error){next(error)}});
 router.post('/v2/mesas/:id/pedir-cuenta',requirePermission('MESAS.EDITAR'),async(req,res,next)=>{try{res.json({ok:true,data:await base.requestAccount(req.tenantId,req.user,req.params.id,V2_OPTIONS)})}catch(error){next(error)}});
 router.get('/v2/sesiones/:sessionId/pedido',requirePermission('PEDIDOS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:await identity.getWaiterDraft(req.tenantId,req.user,req.params.sessionId,V2_OPTIONS)})}catch(error){next(error)}});
@@ -34,4 +51,4 @@ router.post('/v2/sesiones/:sessionId/pedido/enviar',requirePermission('PEDIDOS.C
   }catch(error){next(error)}
 });
 
-module.exports={restaurantV2OrdersRouter:router,V2_OPTIONS};
+module.exports={restaurantV2OrdersRouter:router,V2_OPTIONS,listTablesV2};
