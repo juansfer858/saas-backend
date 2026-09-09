@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { z } = require('zod');
 const visitPayments = require('./restaurant-visit-payments.service');
+const noCodeVisit = require('./restaurant-v2-qr-no-code.service');
 const tableOpenRequests = require('./restaurant-v2-table-open-request.service');
 const edgeIngress = require('../edge/edge-restaurant-ingress.service');
 const notifications = require('../notifications/notifications.service');
@@ -23,11 +24,12 @@ function visitToken(req) {
   return String(req.get('x-vantix-restaurant-visit') || '').trim();
 }
 
+// Legacy only: V1 can keep consuming this endpoint while V2 uses /iniciar-visita.
 const authorizeSchema = z.object({
   code: z.string().trim().regex(/^\d{4}$/, 'El código debe tener 4 dígitos'),
   seatNumber: z.coerce.number().int().min(1).max(50).default(1)
 });
-
+const noCodeSchema = z.object({ seatNumber: z.coerce.number().int().min(1).max(50).default(1) });
 const seatSchema = z.object({ seatNumber: z.coerce.number().int().min(1).max(50) });
 
 const orderSchema = z.object({
@@ -75,27 +77,22 @@ router.get('/app/restaurant-qr-mobile-fit.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-mobile-fit.js'));
 });
-
 router.get('/app/restaurant-qr-edge-fallback-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-edge-fallback-ui.js'));
 });
-
 router.get('/app/restaurant-qr-visit-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-visit-ui.js'));
 });
-
 router.get('/app/restaurant-qr-tracking-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-qr-tracking-ui.js'));
 });
-
 router.get('/app/restaurant-visit-payments-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-visit-payments-ui.js'));
 });
-
 router.get('/app/restaurant-payment-methods-ui.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.type('application/javascript').sendFile(path.join(webRoot, 'restaurant-payment-methods-ui.js'));
@@ -109,14 +106,7 @@ router.get('/api/public/restaurante/qr/:token/visita', async (req, res, next) =>
       edgeIngress.qrOrderIngressStatus(req.params.token)
     ]);
     const localModeRequired = Boolean(ingress.managedByEdge && !ingress.available);
-    res.json({
-      ok: true,
-      data: {
-        ...visit,
-        localModeRequired,
-        localFallbackUrl: localModeRequired ? ingress.localFallbackUrl || null : null
-      }
-    });
+    res.json({ ok:true, data:{ ...visit, localModeRequired, localFallbackUrl:localModeRequired ? ingress.localFallbackUrl || null : null } });
   } catch (error) { next(error); }
 });
 
@@ -129,11 +119,22 @@ router.post('/api/public/restaurante/qr/:token/solicitar-apertura', async (req, 
   } catch (error) { next(error); }
 });
 
+// V2 no pide PIN ni código visible. El único gate humano es que el personal abra la mesa.
+// Después de esa aprobación se emite un token opaco ligado a la visita actual del dispositivo.
+router.post('/api/public/restaurante/qr/:token/iniciar-visita', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const input = parse(noCodeSchema, req.body || {});
+    res.json({ ok:true, data:await noCodeVisit.startVisit(req.params.token, visitToken(req), input.seatNumber) });
+  } catch (error) { next(error); }
+});
+
+// Compatibilidad V1. La interfaz V2 no invoca este endpoint.
 router.post('/api/public/restaurante/qr/:token/autorizar', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
     const input = parse(authorizeSchema, req.body || {});
-    res.json({ ok: true, data: await visitPayments.authorizeVisit(req.params.token, input.code, input.seatNumber) });
+    res.json({ ok:true, data:await visitPayments.authorizeVisit(req.params.token, input.code, input.seatNumber) });
   } catch (error) { next(error); }
 });
 
@@ -141,12 +142,10 @@ router.patch('/api/public/restaurante/qr/:token/persona', async (req, res, next)
   try {
     res.set('Cache-Control', 'no-store');
     const input = parse(seatSchema, req.body || {});
-    res.json({ ok: true, data: await visitPayments.changeVisitSeat(req.params.token, visitToken(req), input.seatNumber) });
+    res.json({ ok:true, data:await visitPayments.changeVisitSeat(req.params.token, visitToken(req), input.seatNumber) });
   } catch (error) { next(error); }
 });
 
-// This route deliberately precedes the legacy QR-order handler. A photographed permanent QR
-// may browse the menu, but cannot submit any order without a device token from the current visit.
 router.post('/api/public/restaurante/qr/:token/pedidos', async (req, res, next) => {
   try {
     const input = parse(orderSchema, req.body || {});
@@ -154,14 +153,14 @@ router.post('/api/public/restaurante/qr/:token/pedidos', async (req, res, next) 
     const order = await visitPayments.placeAuthorizedQrOrder(req.params.token, visitToken(req), input);
     if (input.consentWhatsApp && input.customerPhoneE164) {
       await notifications.grantConsent(order.tenantId, null, {
-        phoneE164: input.customerPhoneE164,
-        scope: 'TRANSACTIONAL',
-        source: 'RESTAURANT_QR',
-        evidence: { orderId: order.id, explicitCheckbox: true, capturedAt: new Date().toISOString() }
+        phoneE164:input.customerPhoneE164,
+        scope:'TRANSACTIONAL',
+        source:'RESTAURANT_QR',
+        evidence:{ orderId:order.id, explicitCheckbox:true, capturedAt:new Date().toISOString() }
       });
     }
-    res.status(201).json({ ok: true, data: order });
+    res.status(201).json({ ok:true, data:order });
   } catch (error) { next(error); }
 });
 
-module.exports = { restaurantVisitPublicRouter: router };
+module.exports = { restaurantVisitPublicRouter:router };
