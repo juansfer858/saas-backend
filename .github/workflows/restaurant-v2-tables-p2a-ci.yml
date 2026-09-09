@@ -1,0 +1,58 @@
+name: Restaurant V2 Tables P2A CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-tables.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-tables.*'
+      - 'scripts/restaurant-v2-tables-p2a-smoke.js'
+      - '.github/workflows/restaurant-v2-tables-p2a-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-tables.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-tables.*'
+      - 'scripts/restaurant-v2-tables-p2a-smoke.js'
+      - '.github/workflows/restaurant-v2-tables-p2a-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node scripts/restaurant-v2-tables-p2a-smoke.js
+      - run: node --check src/modules/restaurant/restaurant-v2-tables.public.routes.js
+      - run: node --check src/web/restaurant-v2-tables.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact Mesas V2 P2A in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"; C="$(mktemp)"
+              curl -fsS -D "$H" "$BASE/app/restaurante-v2/mesas?v=$GITHUB_SHA" -o "$P"
+              curl -fsS "$BASE/app/restaurant-v2-tables.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-tables.css?v=$GITHUB_SHA" -o "$C"
+              grep -Fqi 'X-VantixGC-Restaurant-V2-Tables: p2a-tables-independent' "$H"
+              grep -Fq 'RESTAURANTE V2 · MESAS' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_V2_TABLES_P2A' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_TABLES_P2A' "$C"
+              grep -Fq 'guestCount:1' "$J"
+              if grep -Fq 'billingMode:' "$J"; then exit 1; fi
+              echo "Mesas V2 P2A live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
