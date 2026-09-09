@@ -43,7 +43,11 @@ async function main() {
   const aggregator = read('src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js');
 
   assert.match(serviceSource, /VANTIX_RESTAURANT_V2_PILOT_P9/);
-  assert.match(serviceSource, /restaurantV2Pilot/);
+  assert.match(serviceSource, /VANTIX_RESTAURANT_V2_PILOT_ACTIVATION_FIX_V2/);
+  assert.match(serviceSource, /restaurantV2PilotHistory/);
+  assert.match(serviceSource, /BEST_EFFORT/);
+  assert.match(serviceSource, /mirrorAccountingAudit/);
+  assert.doesNotMatch(serviceSource, /client\.\$transaction/);
   assert.match(serviceSource, /PARALLEL_NO_REDIRECT/);
   assert.match(serviceSource, /\/app\/restaurante-v1/);
   assert.match(serviceSource, /DIAN_PUSH_IMPRESORA_ESTACIONES_Y_DISPOSITIVOS_NO_BLOQUEAN_ACTIVACION/);
@@ -65,6 +69,8 @@ async function main() {
   assert.match(html, /ACTIVAR PILOTO V2/);
   assert.match(html, /DESACTIVAR \/ VOLVER A V1/);
   assert.match(js, /VANTIX_RESTAURANT_V2_PILOT_P9/);
+  assert.match(js, /VANTIX_RESTAURANT_V2_PILOT_ACTIVATION_FIX_V2/);
+  assert.match(js, /accountingMirror/);
   assert.match(css, /VANTIX_RESTAURANT_V2_PILOT_P9/);
   for (const source of [js, serviceSource, routeSource, publicSource]) assert.doesNotMatch(source, /MutationObserver|setInterval|POLL_MS/);
   new Function(js); new Function(bridge);
@@ -90,6 +96,8 @@ async function main() {
   const directBefore = await pilot.getPilot(tenant.id);
   assert.equal(directBefore.pilot.enabled, false);
   assert.equal(directBefore.readiness.ready, true);
+  assert.equal(directBefore.activationFix, 'VANTIX_RESTAURANT_V2_PILOT_ACTIVATION_FIX_V2');
+  assert.equal(directBefore.audit.accountingMirror, 'BEST_EFFORT');
   for (const key of ['waiters','productionUsers','cashiers','cashAccounts']) assert.equal(directBefore.readiness.required.find((row) => row.key === key).ok, true, `${key} debe ser gate verde`);
   assert.equal(directBefore.readiness.notGates.dian, true);
   assert.equal(directBefore.readiness.notGates.push, true);
@@ -120,6 +128,7 @@ async function main() {
     assert.equal(initial.response.headers.get('x-vantixgc-restaurant-v2-pilot'), 'p9-control-plane');
     assert.equal(initial.data.pilot.enabled, false);
     assert.equal(initial.data.pilot.rollbackPath, '/app/restaurante-v1');
+    assert.equal(initial.data.activationFix, 'VANTIX_RESTAURANT_V2_PILOT_ACTIVATION_FIX_V2');
     assert.equal(initial.data.safety.changesCanonicalRoutes, false);
     assert.equal(initial.data.safety.rotatesQrTokens, false);
     assert.equal(initial.data.safety.requiresDian, false);
@@ -132,6 +141,9 @@ async function main() {
     assert.equal(enabled.data.pilot.mode, 'PILOT');
     assert.equal(enabled.data.pilot.routingMode, 'PARALLEL_NO_REDIRECT');
     assert.equal(enabled.data.readiness.ready, true);
+    assert.equal(enabled.data.audit.operational, 'RECORDED');
+    assert.equal(enabled.data.audit.accountingMirror, 'RECORDED');
+    assert.ok(enabled.data.audit.operationalEventId);
     assert.equal(enabled.data.readiness.optional.find((row) => row.key === 'dian').ok, false);
     assert.equal(enabled.data.readiness.optional.find((row) => row.key === 'printer').ok, false);
     assert.equal(enabled.data.readiness.notGates.dian, true);
@@ -140,26 +152,86 @@ async function main() {
     const storedEnabled = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
     assert.deepEqual(storedEnabled.themeData.p9Sentinel, sentinel, 'P9 debe preservar otras claves de themeData');
     assert.equal(storedEnabled.themeData.restaurantV2Pilot.enabled, true);
+    assert.ok(Array.isArray(storedEnabled.themeData.restaurantV2PilotHistory));
+    assert.equal(storedEnabled.themeData.restaurantV2PilotHistory.at(-1).action, 'ENABLE');
+    assert.equal(storedEnabled.themeData.restaurantV2PilotHistory.at(-1).after.enabled, true);
 
     const disabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method: 'PATCH', body: { enabled: false, notes: 'Rollback P9 CI' } });
     assert.equal(disabled.data.pilot.enabled, false);
     assert.equal(disabled.data.pilot.mode, 'OFF');
     assert.equal(disabled.data.pilot.rollbackPath, '/app/restaurante-v1');
+    assert.equal(disabled.data.audit.operational, 'RECORDED');
+    assert.equal(disabled.data.audit.accountingMirror, 'RECORDED');
   });
 
-  const storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
+  let storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
   assert.deepEqual(storedAfter.themeData.p9Sentinel, sentinel, 'rollback debe preservar themeData ajeno');
   assert.equal(storedAfter.themeData.restaurantV2Pilot.enabled, false);
-  const afterTables = await prisma.restaurantTable.findMany({ where: { tenantId: tenant.id, active: true }, select: { id: true, qrToken: true } });
-  assert.deepEqual(qrMap(afterTables), beforeQr, 'activar/desactivar piloto no puede rotar qrToken');
-  const auditAfter = await prisma.auditoriaContable.count({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' } });
-  assert.equal(auditAfter - auditBefore, 2, 'activar y rollback deben dejar dos auditorías');
+  assert.ok(storedAfter.themeData.restaurantV2PilotHistory.length >= 2);
+  assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).action, 'DISABLE');
+  assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).after.enabled, false);
+
+  const auditAfterNormal = await prisma.auditoriaContable.count({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' } });
+  assert.equal(auditAfterNormal - auditBefore, 2, 'activar y rollback normales deben dejar dos espejos contables');
   const latestAudit = await prisma.auditoriaContable.findFirst({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' }, orderBy: { creadoEn: 'desc' } });
   assert.equal(latestAudit.userId, admin.id);
   assert.equal(latestAudit.metadata.after.enabled, false);
   assert.equal(latestAudit.metadata.marker, 'VANTIX_RESTAURANT_V2_PILOT_P9');
 
-  console.log(JSON.stringify({ ok: true, phase: 'P9_CONTROLLED_PILOT', tenant: seeded.subdomain, configStorage: 'RestaurantConfig.themeData.restaurantV2Pilot', audit: 'RESTAURANT_V2_PILOT', adminOnly: true, canonicalRedirectsChanged: false, explicitV1Rollback: '/app/restaurante-v1', qrTokensRotated: false, requiredGates: ['tenant','admin','tables','menu','waiters','productionUsers','cashiers','cashAccounts'], dianGate: false, pushGate: false, printerGate: false, manualStationGate: false, devicePairingGate: false, previousPhasesStillLive: ['P7_CLIENT_QR','P8_WAITER_PWA','P8_PRODUCTION_PWA'] }, null, 2));
+  const failingAuditClient = {
+    auditoriaContable: {
+      create: async () => {
+        const error = new Error('simulated accounting audit outage');
+        error.code = 'SIMULATED_AUDIT_OUTAGE';
+        throw error;
+      }
+    }
+  };
+  const historyBeforeFailure = storedAfter.themeData.restaurantV2PilotHistory.length;
+  const enabledWithAuditDown = await pilot.setPilot(tenant.id, admin.id, { enabled: true, notes: 'P9 audit mirror outage simulation' }, prisma, { auditClient: failingAuditClient });
+  assert.equal(enabledWithAuditDown.pilot.enabled, true, 'caída del espejo contable no puede bloquear activación');
+  assert.equal(enabledWithAuditDown.audit.operational, 'RECORDED');
+  assert.equal(enabledWithAuditDown.audit.accountingMirror, 'FAILED');
+  assert.equal(enabledWithAuditDown.audit.accountingMirrorCode, 'SIMULATED_AUDIT_OUTAGE');
+  storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
+  assert.equal(storedAfter.themeData.restaurantV2Pilot.enabled, true);
+  assert.equal(storedAfter.themeData.restaurantV2PilotHistory.length, historyBeforeFailure + 1);
+  assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).action, 'ENABLE');
+
+  const disabledWithAuditDown = await pilot.setPilot(tenant.id, admin.id, { enabled: false, notes: 'P9 audit mirror outage rollback' }, prisma, { auditClient: failingAuditClient });
+  assert.equal(disabledWithAuditDown.pilot.enabled, false, 'caída del espejo contable no puede bloquear rollback');
+  assert.equal(disabledWithAuditDown.audit.operational, 'RECORDED');
+  assert.equal(disabledWithAuditDown.audit.accountingMirror, 'FAILED');
+  storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
+  assert.equal(storedAfter.themeData.restaurantV2Pilot.enabled, false);
+  assert.equal(storedAfter.themeData.restaurantV2PilotHistory.length, historyBeforeFailure + 2);
+  assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).action, 'DISABLE');
+
+  const auditAfterFailureSimulation = await prisma.auditoriaContable.count({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' } });
+  assert.equal(auditAfterFailureSimulation, auditAfterNormal, 'simulación de caída no debe crear espejo contable ni revertir estado operativo');
+  const afterTables = await prisma.restaurantTable.findMany({ where: { tenantId: tenant.id, active: true }, select: { id: true, qrToken: true } });
+  assert.deepEqual(qrMap(afterTables), beforeQr, 'activar/desactivar piloto no puede rotar qrToken');
+
+  console.log(JSON.stringify({
+    ok: true,
+    phase: 'P9_CONTROLLED_PILOT_ACTIVATION_FIX',
+    tenant: seeded.subdomain,
+    configStorage: 'RestaurantConfig.themeData.restaurantV2Pilot',
+    operationalAudit: 'RestaurantConfig.themeData.restaurantV2PilotHistory',
+    accountingAuditMirror: 'BEST_EFFORT',
+    accountingAuditOutageBlocksPilot: false,
+    adminOnly: true,
+    canonicalRedirectsChanged: false,
+    explicitV1Rollback: '/app/restaurante-v1',
+    qrTokensRotated: false,
+    requiredGates: ['tenant','admin','tables','menu','waiters','productionUsers','cashiers','cashAccounts'],
+    dianGate: false,
+    pushGate: false,
+    printerGate: false,
+    manualStationGate: false,
+    devicePairingGate: false,
+    previousPhasesStillLive: ['P7_CLIENT_QR','P8_WAITER_PWA','P8_PRODUCTION_PWA']
+  }, null, 2));
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => prisma.$disconnect());

@@ -94,6 +94,8 @@ jobs:
               grep -Fqi 'X-VantixGC-Restaurant-V2-Pilot: p9-controlled-pilot' "$H"
               grep -Fq 'RESTAURANTE V2 · PILOTO P9' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_PILOT_P9' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_PILOT_ACTIVATION_FIX_V2' "$J"
+              grep -Fq 'accountingMirror' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_PILOT_P9' "$C"
               grep -Fq '/app/restaurante-v2/piloto' "$B"
               grep -Fq 'canSeePilot' "$B"
@@ -104,7 +106,7 @@ jobs:
               curl -fsS "$BASE/app/restaurante-v2/mesas?v=$GITHUB_SHA" >/dev/null
               curl -fsS "$BASE/app/centro-de-control/mesero-v2/?v=$GITHUB_SHA" >/dev/null
               curl -fsS "$BASE/app/produccion-v2/?v=$GITHUB_SHA" >/dev/null
-              echo "Restaurant V2 P9 controlled pilot + V1 rollback live at $GITHUB_SHA"
+              echo "Restaurant V2 P9 activation fix + V1 rollback live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
