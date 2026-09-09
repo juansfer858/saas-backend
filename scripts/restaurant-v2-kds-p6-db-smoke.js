@@ -94,14 +94,14 @@ async function main() {
   assert.ok(draft?.order?.id, 'P3 debe crear sólo el borrador del pedido');
   assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:draft.order.id } }), 0, 'agregar productos no puede crear comandas');
 
-  const sent = await identity.sendWaiterDraft(demo.tenantId, waiter, opened.session.id, V2_OPTIONS);
+  await identity.sendWaiterDraft(demo.tenantId, waiter, opened.session.id, V2_OPTIONS);
   const command = await prisma.restaurantCommand.findFirst({
-    where:{ tenantId:demo.tenantId, orderId:sent.order.id, station:'COCINA' },
+    where:{ tenantId:demo.tenantId, orderId:draft.order.id, station:'COCINA' },
     include:{ order:true }
   });
   assert.ok(command, 'confirmar pedido debe crear la comanda real');
   assert.equal(command.state, 'PENDIENTE');
-  assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:sent.order.id } }), 1, 'la ronda de un solo módulo crea una comanda');
+  assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:draft.order.id } }), 1, 'la ronda de un solo módulo crea una comanda');
 
   const workspace = await kds.workspace(demo.tenantId, cook, { station:'COCINA' });
   assert.equal(workspace.marker, 'VANTIX_RESTAURANT_V2_KDS_P6');
@@ -128,9 +128,6 @@ async function main() {
   assert.equal(state.state, 'LISTA');
   assert.ok(state.readyAt);
 
-  // A real registered production Push device is targeted. CI intentionally has no FCM
-  // credentials, so provider delivery fails fast but the durable delivery record proves
-  // event routing; the second dispatch must deduplicate it.
   const token = `P6-${crypto.randomBytes(32).toString('base64url')}`;
   const pushDevice = await push.registerDevice({
     tenantId:demo.tenantId,
@@ -147,7 +144,7 @@ async function main() {
   });
   assert.equal(pushDevice.role, 'COCINA');
   const firstPush = await kdsPush.notifyLatestRound(demo.tenantId, opened.session.id, waiter.id);
-  assert.equal(firstPush.orderId, sent.order.id);
+  assert.equal(firstPush.orderId, draft.order.id);
   assert.equal(firstPush.attempted, 1, 'la comanda debe dirigirse al dispositivo COCINA activo');
   assert.equal(firstPush.sent + firstPush.failed, 1, 'Push es best-effort pero debe intentar exactamente una entrega');
   const deliveriesAfterFirst = await prisma.notificationPushDelivery.count({
@@ -165,13 +162,11 @@ async function main() {
   const afterDelivery = await kds.workspace(demo.tenantId, cook, { station:'COCINA' });
   assert.equal(afterDelivery.commands.some((row) => row.id === command.id), false, 'ENTREGADA deja de ocupar el tablero activo');
 
-  // Same employee/device has base role COCINA but BARRA is an assigned flexible module.
-  // A second real round proves both KDS reinforcement and Push targeting by work profile.
   const barDraft = await identity.setWaiterDraftItem(demo.tenantId, waiter, opened.session.id, barMenuItem.id, 1, null, V2_OPTIONS);
-  assert.ok(barDraft?.order?.id && barDraft.order.id !== sent.order.id, 'una nueva ronda debe usar un nuevo borrador');
+  assert.ok(barDraft?.order?.id && barDraft.order.id !== draft.order.id, 'una nueva ronda debe usar un nuevo borrador');
   assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:barDraft.order.id } }), 0);
-  const barSent = await identity.sendWaiterDraft(demo.tenantId, waiter, opened.session.id, V2_OPTIONS);
-  const barCommand = await prisma.restaurantCommand.findFirst({ where:{ tenantId:demo.tenantId, orderId:barSent.order.id, station:'BARRA' } });
+  await identity.sendWaiterDraft(demo.tenantId, waiter, opened.session.id, V2_OPTIONS);
+  const barCommand = await prisma.restaurantCommand.findFirst({ where:{ tenantId:demo.tenantId, orderId:barDraft.order.id, station:'BARRA' } });
   assert.ok(barCommand && barCommand.state === 'PENDIENTE', 'la segunda ronda debe crear una comanda BARRA real');
   const barWorkspace = await kds.workspace(demo.tenantId, cook, { station:'BARRA' });
   assert.equal(barWorkspace.commands.some((row) => row.id === barCommand.id), true, 'COCINA puede reforzar BARRA según el contrato flexible');
@@ -180,7 +175,7 @@ async function main() {
   assert.equal(barQueue.stations.some((row) => row.id === manualBar.id), true);
 
   const flexiblePush = await kdsPush.notifyLatestRound(demo.tenantId, opened.session.id, waiter.id);
-  assert.equal(flexiblePush.orderId, barSent.order.id);
+  assert.equal(flexiblePush.orderId, barDraft.order.id);
   assert.equal(flexiblePush.attempted, 1, 'el dispositivo COCINA debe recibir BARRA porque el perfil la tiene asignada');
   assert.equal(flexiblePush.sent + flexiblePush.failed, 1);
   assert.equal(await prisma.notificationPushDelivery.count({ where:{ tenantId:demo.tenantId, pushDeviceId:pushDevice.id, eventCode:kdsPush.EVENT_CODE } }), 2, 'cada ronda/estación tiene una entrega durable distinta');
