@@ -40,6 +40,7 @@ const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/re
 const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restaurant-v2-table-move.routes');
 const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v2-orders.routes');
 const { restaurantV2CashRouter } = require('../modules/restaurant/restaurant-v2-cash.routes');
+const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2-split.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -92,6 +93,9 @@ router.use('/restaurante', restaurantV2OrdersRouter);
 // V2 P4 Caja owns its API independently. It closes the same real sale/session but never
 // enters the legacy V1 cash UI rewrite chain and never makes DIAN a mandatory gate.
 router.use('/restaurante', restaurantV2CashRouter);
+// V2 P5 Division is a separate settlement surface. It uses the same sale/session and
+// real Treasury/Accounting contracts while keeping the legacy Restaurant routes intact.
+router.use('/restaurante', restaurantV2SplitRouter);
 router.use('/restaurante', restaurantTestDataResetV68Router);
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);
