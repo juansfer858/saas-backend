@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const liveTables = require('./restaurant-live-tables.service');
+const qrCompatibility = require('./restaurant-qr-compatibility.service');
 
 const DEFAULT_RESTAURANT_PUBLIC_BASE_URL = 'https://core.vantixgc.com';
 
@@ -25,7 +26,7 @@ function publicBaseUrl() {
 
 function buildPublicTableUrl(qrToken) {
   if (!qrToken) throw new AppError(500, 'La mesa no tiene token QR', 'RESTAURANT_QR_TOKEN_REQUIRED');
-  return `${publicBaseUrl()}/r/${encodeURIComponent(qrToken)}`;
+  return qrCompatibility.publicTableUrl(publicBaseUrl(), qrToken);
 }
 
 async function svgForUrl(url) {
@@ -80,6 +81,7 @@ async function regenerateTableQr(tenantId, userId, tableId) {
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
     const actor = await tx.user.findFirst({ where: { id: userId, tenantId, activo: true }, select: { id: true } });
     if (!actor) throw new AppError(403, 'Usuario no válido para auditar la regeneración del QR', 'RESTAURANT_QR_AUDIT_USER_INVALID');
+    await qrCompatibility.authorizeQrTokenRegeneration(tx);
     const row = await tx.restaurantTable.update({ where: { id: table.id }, data: { qrToken: crypto.randomUUID() } });
     await tx.auditoriaContable.create({
       data: {
@@ -88,7 +90,7 @@ async function regenerateTableQr(tenantId, userId, tableId) {
         entidad: 'RESTAURANT_TABLE_QR',
         entidadId: table.id,
         accion: 'REGENERATE',
-        metadata: { tableCode: table.code, tableName: table.name, regeneratedAt: new Date().toISOString() }
+        metadata: { tableCode: table.code, tableName: table.name, regeneratedAt: new Date().toISOString(), compatibilityContract: qrCompatibility.QR_COMPATIBILITY_CONTRACT }
       }
     });
     return row;

@@ -4,6 +4,7 @@ const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { prisma } = require('../src/config/prisma');
+const qrCompatibility = require('../src/modules/restaurant/restaurant-qr-compatibility.service');
 
 const execFileAsync = promisify(execFile);
 let inFlight = null;
@@ -27,6 +28,11 @@ async function readRestaurantSchemaState() {
           AND table_name = 'RestaurantTable'
           AND column_name = 'zoneId'
       ) AS "tableZoneId",
+      EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgname = 'restaurant_qr_token_immutable_guard'
+          AND NOT tgisinternal
+      ) AS "qrTokenGuard",
       to_regclass('public."RestaurantMenuItem"')::text AS "menuItem",
       to_regclass('public."RestaurantTableSession"')::text AS "session",
       EXISTS (
@@ -120,7 +126,7 @@ async function readRestaurantSchemaState() {
   `);
   const state = rows?.[0] || {};
   const required = [
-    'config', 'configPaymentMethods', 'zone', 'table', 'tableZoneId', 'menuItem', 'session',
+    'config', 'configPaymentMethods', 'zone', 'table', 'tableZoneId', 'qrTokenGuard', 'menuItem', 'session',
     'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
     'sessionPaymentMethodId', 'sessionPaymentMethodLabel', 'sessionPaymentMethodKind',
     'sessionPaymentAccountId', 'sessionPaymentReference',
@@ -150,8 +156,6 @@ async function prepareLegacyQrVisitNonce() {
 
   let changed = false;
   if (!state.hasQrVisitNonce) {
-    // Prisma's uuid() is a client-level default. `db push` cannot add this field as
-    // NOT NULL when legacy sessions already exist, so stage it safely first.
     await prisma.$executeRawUnsafe('ALTER TABLE "RestaurantTableSession" ADD COLUMN IF NOT EXISTS "qrVisitNonce" TEXT');
     changed = true;
     console.warn('RESTAURANT_SCHEMA_COMPAT_ADDED nullable=RestaurantTableSession.qrVisitNonce');
@@ -199,16 +203,26 @@ async function ensureRestaurantRuntimeSchema() {
     const before = await readRestaurantSchemaState();
     if (before.ready) return { changed: false, ready: true };
 
-    console.warn(`RESTAURANT_SCHEMA_SYNC_REQUIRED missing=${Object.entries(before.state).filter(([, value]) => !value).map(([key]) => key).join(',')}`);
-    const compatibility = await prepareLegacyQrVisitNonce();
-    await runPrismaDbPush();
+    const schemaMissing = Object.entries(before.state)
+      .filter(([key, value]) => key !== 'qrTokenGuard' && !value)
+      .map(([key]) => key);
+    let compatibility = { changed: false, rowsBackfilled: 0 };
+
+    if (schemaMissing.length) {
+      console.warn(`RESTAURANT_SCHEMA_SYNC_REQUIRED missing=${schemaMissing.join(',')}`);
+      compatibility = await prepareLegacyQrVisitNonce();
+      await runPrismaDbPush();
+    }
+
+    const guard = await qrCompatibility.ensureQrTokenGuard(prisma);
+    if (guard.installed && !before.state.qrTokenGuard) console.log('RESTAURANT_QR_COMPATIBILITY_GUARD_READY');
 
     const after = await readRestaurantSchemaState();
     if (!after.ready) {
-      throw new Error(`El esquema Restaurante sigue incompleto después de prisma db push: ${Object.entries(after.state).filter(([, value]) => !value).map(([key]) => key).join(',')}`);
+      throw new Error(`El esquema Restaurante sigue incompleto después de preparar compatibilidad: ${Object.entries(after.state).filter(([, value]) => !value).map(([key]) => key).join(',')}`);
     }
     console.log('RESTAURANT_SCHEMA_SYNC_READY');
-    return { changed: true, ready: true, compatibility };
+    return { changed: Boolean(schemaMissing.length || !before.state.qrTokenGuard), ready: true, compatibility, guard };
   })();
 
   try {
