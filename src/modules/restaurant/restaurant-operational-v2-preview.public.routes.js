@@ -3,6 +3,7 @@
 const express = require('express');
 const path = require('node:path');
 const { restaurantV2TablesPublicRouter } = require('./restaurant-v2-tables.public.routes');
+const { restaurantV2OrdersPublicRouter } = require('./restaurant-v2-orders.public.routes');
 
 const MARKER = 'VANTIX_RESTAURANT_OPERATIONAL_UI_V2_P1';
 const DESIGN_MARKER = 'VANTIX_RESTAURANT_V2_DESIGN_SYSTEM_V1';
@@ -15,6 +16,7 @@ const restaurantOperationalV2PreviewPublicRouter = express.Router();
 // V2 public aggregator. Each operational module owns its own route and assets;
 // all of them are resolved here before any legacy Restaurant response wrapper.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2TablesPublicRouter);
+restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OrdersPublicRouter);
 
 function sendPreviewAsset(res, file, contentType = null) {
   res.set('Cache-Control', 'no-store, max-age=0');
