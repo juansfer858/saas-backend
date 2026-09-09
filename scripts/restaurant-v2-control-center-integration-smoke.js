@@ -25,11 +25,12 @@ for(const route of [
 ]) assert.ok(bridge.includes(route),`Falta ruta V2 ${route}`);
 
 assert.match(bridge,/VANTIX_RESTAURANT_V2_CONTROL_CENTER_BRIDGE_P6_5/);
-assert.match(bridge,/from.*control-center/);
+assert.match(bridge,/data-v2-workspace/);
+assert.match(bridge,/data-v2-frame/);
+assert.match(bridge,/← Centro de control/);
+assert.match(bridge,/history\.replaceState/);
 assert.doesNotMatch(bridge,/MutationObserver|setInterval|POLL_MS/);
-assert.match(sdk,/cameFromControlCenter/);
-assert.match(sdk,/mountControlCenterReturn/);
-assert.match(sdk,/← Centro de control/);
-assert.match(sdk,/version:'1\.1\.0'/);
+assert.match(sdk,/version:'1\.0\.0'/);
+assert.doesNotMatch(sdk,/MutationObserver|setInterval|document\.querySelector|innerHTML/);
 
-console.log(JSON.stringify({ok:true,marker:'RESTAURANT_V2_CONTROL_CENTER_INTEGRATION_OK',routes:5,returnToControlCenter:true}));
+console.log(JSON.stringify({ok:true,marker:'RESTAURANT_V2_CONTROL_CENTER_INTEGRATION_OK',routes:5,embeddedWorkspace:true,returnToControlCenter:true,sdkDomFree:true}));
