@@ -25,16 +25,15 @@ function deviceMatchesStation(device, profile, station) {
   return Boolean(profile?.flexibleSupport) && normalizedStations(profile).includes(queue);
 }
 
-// Una ronda ya enviada queda identificada por sus comandas persistidas, no por un
-// texto de estado del pedido. El motor canónico cambia ENVIADO -> EN_PREPARACION ->
-// LISTO -> ENTREGADO conforme avanza KDS, pero la ronda y sus comandas siguen siendo
-// las mismas. Este criterio también excluye borradores porque todavía no tienen comandas.
-async function latestSentOrder(tenantId, sessionId, createdByUserId = null) {
+// La ronda autoritativa para Push es la última orden de la visita que ya tenga
+// comandas persistidas. No depende del texto de estado ni del actor que la creó:
+// puede provenir de Mesero, QR u otro flujo autorizado de refuerzo. Los borradores
+// quedan excluidos naturalmente porque todavía no tienen comandas.
+async function latestSentOrder(tenantId, sessionId) {
   return prisma.restaurantOrder.findFirst({
     where:{
       tenantId,
       sessionId,
-      ...(createdByUserId ? { createdByUserId } : {}),
       commands:{ some:{} }
     },
     orderBy:{ creadoEn:'desc' },
@@ -70,8 +69,8 @@ async function productionPushTargets(tenantId, stations) {
   ]));
 }
 
-async function notifyLatestRound(tenantId, sessionId, createdByUserId = null) {
-  const order = await latestSentOrder(tenantId, sessionId, createdByUserId);
+async function notifyLatestRound(tenantId, sessionId) {
+  const order = await latestSentOrder(tenantId, sessionId);
   if (!order?.commands?.length) return { eventCode:EVENT_CODE, orderId:order?.id || null, attempted:0, sent:0, failed:0, deduplicated:0 };
   const stations = [...new Set(order.commands.map((command) => command.station).filter(Boolean))];
   const byStation = await productionPushTargets(tenantId, stations);
