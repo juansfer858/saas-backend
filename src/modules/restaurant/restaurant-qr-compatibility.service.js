@@ -57,7 +57,7 @@ async function ensureQrTokenGuard(client = prisma) {
 }
 
 async function authorizeQrTokenRegeneration(tx) {
-  await tx.$executeRawUnsafe(`SELECT set_config('${QR_REGEN_SETTING}', 'allowed', true)`);
+  await tx.$queryRawUnsafe(`SELECT set_config('${QR_REGEN_SETTING}', 'allowed', true)`);
 }
 
 function publicTableUrl(baseUrl, qrToken) {
