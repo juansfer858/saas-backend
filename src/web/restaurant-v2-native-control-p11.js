@@ -2,6 +2,7 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11';
+  const MODULE_CHROME_MARKER = 'VANTIX_RESTAURANT_V2_MODULE_CHROME_CLEAN_P11';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const MODULES = Object.freeze({
     mesas:{ label:'Mesas', hint:'Salón y estado de mesas', route:'/app/restaurante-v2/mesas', roles:['ADMIN','SUPER_ADMIN','MESERO','CAJERO'] },
@@ -18,6 +19,7 @@
   const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos', migration:'retiro', pilot:'retiro' });
 
   document.documentElement.dataset.restaurantV2NativeControl = MARKER;
+  document.documentElement.dataset.restaurantV2ModuleChrome = MODULE_CHROME_MARKER;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -98,18 +100,19 @@
     if (!module || !allowed(module)) { setMessage('Tu usuario no tiene permiso para abrir este módulo.'); return; }
     setMessage('');
     $('#p11Dashboard').hidden = true;
+    $('#p11Top').hidden = true;
+    $('#p11Main').classList.add('module-open');
     $('#p11Workspace').hidden = false;
-    $('#p11WorkspaceTitle').textContent = module.label;
     $('#p11Title').textContent = module.label;
     const frame = $('#p11Frame');
     if (frame.getAttribute('src') !== module.route) frame.setAttribute('src', module.route);
-    const openWindow = $('#p11OpenWindow');
-    openWindow.href = module.route;
     setActive(key);
     if (updateHistory) history.replaceState({ ...(history.state || {}), p11Module:key }, '', `/app/centro-de-control-v2?module=${encodeURIComponent(key)}`);
   }
   function closeModule(updateHistory = true) {
     $('#p11Workspace').hidden = true;
+    $('#p11Main').classList.remove('module-open');
+    $('#p11Top').hidden = false;
     $('#p11Dashboard').hidden = false;
     $('#p11Title').textContent = 'Centro de control';
     setActive('');
@@ -143,7 +146,6 @@
   }
 
   function bindStatic() {
-    $('#p11Back').addEventListener('click', () => closeModule());
     window.addEventListener('popstate', () => {
       const key = moduleKey(new URLSearchParams(location.search).get('module'));
       if (key && MODULES[key] && allowed(MODULES[key])) openModule(key, false);
