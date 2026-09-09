@@ -6,6 +6,14 @@
   <meta name="theme-color" content="#0D6B43">
   <title>VantixGC Restaurante · Centro de control</title>
   <link rel="stylesheet" href="/app/restaurant-v2-native-control-p11.css?v=p11">
+  <style>
+    /* VANTIX_RESTAURANT_V2_MODULE_CHROME_CLEAN_P11 */
+    .p11-top[hidden]{display:none!important}
+    .p11-main.module-open{padding:0!important}
+    .p11-main.module-open .p11-workspace{height:100dvh!important;min-height:100dvh!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+    .p11-main.module-open .p11-workspace iframe{height:100%!important}
+    @media(max-width:900px){.p11-main.module-open .p11-workspace{height:calc(100dvh - 64px)!important;min-height:calc(100dvh - 64px)!important}}
+  </style>
 </head>
 <body data-v2-native-control="p11">
   <div class="p11-shell">
@@ -16,8 +24,8 @@
       <a class="p11-core-link" href="/app/dashboard">← Administración general</a>
     </aside>
 
-    <main class="p11-main">
-      <header class="p11-top">
+    <main id="p11Main" class="p11-main">
+      <header id="p11Top" class="p11-top">
         <div><strong id="p11Title">Centro de control</strong><span id="p11Status">V2 · operación principal</span></div>
         <div class="p11-user"><b id="p11User">Usuario</b><span id="p11Role">Rol</span></div>
       </header>
@@ -35,11 +43,10 @@
       </section>
 
       <section id="p11Workspace" class="p11-workspace" hidden>
-        <div class="p11-workbar"><button id="p11Back" type="button">← Centro de control</button><strong id="p11WorkspaceTitle">Módulo V2</strong><a id="p11OpenWindow" target="_blank" rel="noopener">Abrir aparte</a></div>
         <iframe id="p11Frame" title="Módulo Restaurante V2"></iframe>
       </section>
     </main>
   </div>
-  <script src="/app/restaurant-v2-native-control-p11.js?v=p11"></script>
+  <script src="/app/restaurant-v2-native-control-p11.js?v=p11-module-clean"></script>
 </body>
 </html>
