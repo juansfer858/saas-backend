@@ -6,6 +6,7 @@ on:
       - 'src/modules/restaurant/restaurant-v2-control-center.public.routes.js'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'src/web/restaurant-v2-native-control-p11.js'
       - 'src/web/restaurant-v2-sdk.js'
       - 'scripts/restaurant-v2-control-center-integration-smoke.js'
       - '.github/workflows/restaurant-v2-control-center-integration-ci.yml'
@@ -15,6 +16,7 @@ on:
       - 'src/modules/restaurant/restaurant-v2-control-center.public.routes.js'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/web/restaurant-v2-control-center-bridge.js'
+      - 'src/web/restaurant-v2-native-control-p11.js'
       - 'src/web/restaurant-v2-sdk.js'
       - 'scripts/restaurant-v2-control-center-integration-smoke.js'
       - '.github/workflows/restaurant-v2-control-center-integration-ci.yml'
@@ -34,6 +36,7 @@ jobs:
       - run: node scripts/restaurant-v2-control-center-integration-smoke.js
       - run: node --check src/modules/restaurant/restaurant-v2-control-center.public.routes.js
       - run: node --check src/web/restaurant-v2-control-center-bridge.js
+      - run: node --check src/web/restaurant-v2-native-control-p11.js
       - run: node --check src/web/restaurant-v2-sdk.js
   verify-production:
     if: github.event_name == 'push'
@@ -47,22 +50,25 @@ jobs:
           for i in $(seq 1 60); do
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
-              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"
+              H="$(mktemp)"; P="$(mktemp)"; HN="$(mktemp)"; N="$(mktemp)"; J="$(mktemp)"; NJ="$(mktemp)"
               curl -fsS -D "$H" "$BASE/app/centro-de-control?v=$GITHUB_SHA" -o "$P"
+              curl -fsS -D "$HN" "$BASE/app/centro-de-control-v2?v=$GITHUB_SHA" -o "$N"
               curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$J"
-              grep -Fqi 'X-VantixGC-Restaurant-Control: operational-shell-v1' "$H"
-              grep -Fqi 'X-VantixGC-Restaurant-Control-V2: v2-control-center-bridge-p6-5' "$H"
-              grep -Fq 'restaurant-v2-control-center-bridge.js' "$P"
+              curl -fsS "$BASE/app/restaurant-v2-native-control-p11.js?v=$GITHUB_SHA" -o "$NJ"
+              grep -Fqi 'X-VantixGC-Restaurant-V1-Retirement: p11-v1-retirement' "$H"
+              grep -Fq 'data-p11-launch="true"' "$P"
+              if grep -Eq 'restaurant-ui\.js|restaurant-control-center\.js|MutationObserver' "$P"; then exit 1; fi
+              grep -Fqi 'X-VantixGC-Restaurant-V1-Retirement: p11-v1-retirement' "$HN"
+              grep -Fq 'data-v2-native-control="p11"' "$N"
+              if grep -Eq 'restaurant-ui\.js|restaurant-control-center\.js|restaurant\.html|MutationObserver' "$N"; then exit 1; fi
+              grep -Fq 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11' "$NJ"
+              grep -Fq '/app/restaurante-v2/mesas' "$NJ"
+              grep -Fq '/app/restaurante-v2/pedidos' "$NJ"
+              grep -Fq '/app/restaurante-v2/kds' "$NJ"
+              grep -Fq '/app/restaurante-v2/caja' "$NJ"
+              grep -Fq '/app/restaurante-v2/division' "$NJ"
               grep -Fq 'VANTIX_RESTAURANT_V2_CONTROL_CENTER_BRIDGE_P6_5' "$J"
-              grep -Fq '/app/restaurante-v2/mesas' "$J"
-              grep -Fq '/app/restaurante-v2/pedidos' "$J"
-              grep -Fq '/app/restaurante-v2/kds' "$J"
-              grep -Fq '/app/restaurante-v2/caja' "$J"
-              grep -Fq '/app/restaurante-v2/division' "$J"
-              grep -Fq 'data-v2-workspace' "$J"
-              grep -Fq 'data-v2-frame' "$J"
-              grep -Fq '← Centro de control' "$J"
-              echo "Restaurant V2 Control Center live at $GITHUB_SHA"
+              echo "Restaurant V2 Control Center P11 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
