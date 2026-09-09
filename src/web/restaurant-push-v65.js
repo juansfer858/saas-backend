@@ -18,6 +18,14 @@
 
   function readJson(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
   function resolveSession(){
+    // P8 device shells already resolved the authoritative paired identity. Prefer it
+    // only in that isolated context so a stale Core session can never steal the
+    // Push registration from a dedicated Cocina/Barra/Postres tablet.
+    const p8=window.RestaurantV2;
+    if(p8?.marker==='VANTIX_RESTAURANT_V2_DEVICE_SDK_P8'&&typeof p8.readSession==='function'){
+      const paired=p8.readSession();
+      if(paired?.token&&paired?.subdomain)return paired;
+    }
     const core=readJson(CORE_SESSION);
     if(core?.token&&core?.subdomain)return core;
     const production=readJson(PRODUCTION_SESSION);
