@@ -126,8 +126,8 @@ async function validateAssignedWaiter(tenantId, assignedWaiterId, client = prism
   return user;
 }
 
-function applyWaiterTableVisibility(where, user) {
-  if (user?.rol === 'MESERO') {
+function applyWaiterTableVisibility(where, user, options = {}) {
+  if (user?.rol === 'MESERO' && !options.sharedFloor) {
     where.OR = [
       { assignedWaiterId: null },
       { assignedWaiterId: user.id }
@@ -159,8 +159,8 @@ async function createTable(tenantId, input) {
   }
 }
 
-async function listTables(tenantId, user = null) {
-  const where = applyWaiterTableVisibility({ tenantId, active: true }, user);
+async function listTables(tenantId, user = null, options = {}) {
+  const where = applyWaiterTableVisibility({ tenantId, active: true }, user, options);
   const tables = await prisma.restaurantTable.findMany({
     where,
     include: { sessions: { where: { state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } }, orderBy: { openedAt: 'desc' }, take: 1 } },
@@ -205,17 +205,17 @@ async function removeTable(tenantId, id) {
   });
 }
 
-function assertWaiterTableAccess(user, table) {
-  if (user?.rol === 'MESERO' && table.assignedWaiterId && table.assignedWaiterId !== user.id) {
+function assertWaiterTableAccess(user, table, options = {}) {
+  if (user?.rol === 'MESERO' && !options.sharedFloor && table.assignedWaiterId && table.assignedWaiterId !== user.id) {
     throw new AppError(403, 'La mesa está asignada a otro mesero', 'RESTAURANT_WAITER_TABLE_FORBIDDEN');
   }
 }
 
-async function openTable(tenantId, user, tableId, input = {}) {
+async function openTable(tenantId, user, tableId, input = {}, options = {}) {
   return prisma.$transaction(async (tx) => {
     const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
-    assertWaiterTableAccess(user, table);
+    assertWaiterTableAccess(user, table, options);
     const existing = await tx.restaurantTableSession.findFirst({ where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } } });
     if (existing) throw new AppError(409, 'La mesa ya tiene una cuenta abierta', 'RESTAURANT_TABLE_ALREADY_OPEN');
 
@@ -246,11 +246,11 @@ async function openTable(tenantId, user, tableId, input = {}) {
   });
 }
 
-async function requestAccount(tenantId, user, tableId) {
+async function requestAccount(tenantId, user, tableId, options = {}) {
   return prisma.$transaction(async (tx) => {
     const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
-    assertWaiterTableAccess(user, table);
+    assertWaiterTableAccess(user, table, options);
     const session = await tx.restaurantTableSession.findFirst({ where: { tenantId, tableId, state: 'ABIERTA' } });
     if (!session) throw new AppError(404, 'No hay cuenta abierta para esta mesa', 'RESTAURANT_SESSION_NOT_FOUND');
     const now = new Date();
