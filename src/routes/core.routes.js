@@ -45,6 +45,7 @@ const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2
 const { restaurantV2KdsRouter } = require('../modules/restaurant/restaurant-v2-kds.routes');
 const { restaurantV2PilotRouter } = require('../modules/restaurant/restaurant-v2-pilot.routes');
 const { restaurantV2CutoverRouter, restaurantV2CutoverPilotGuard } = require('../modules/restaurant/restaurant-v2-cutover.routes');
+const { restaurantV1RetirementP11Router, restaurantV1RetirementCutoverGuard } = require('../modules/restaurant/restaurant-v1-retirement-p11.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -106,12 +107,16 @@ router.use('/restaurante', restaurantV2SplitRouter);
 // V2 P6 KDS is push/realtime-driven and reuses the canonical command state machine.
 // It remains opt-in and does not alter legacy KDS/device routes.
 router.use('/restaurante', restaurantV2KdsRouter);
+// P11 keeps P10 active while V1 is retired from normal operation. Restore P10
+// compatibility first if a technical rollback needs to disable the cutover.
+router.use('/restaurante', restaurantV1RetirementCutoverGuard);
 // P10 prevents an active cutover from being left without its P9 safety envelope.
 router.use('/restaurante', restaurantV2CutoverPilotGuard);
 // P9 controls pilot enrollment per tenant. P10 consumes that proven state before it
 // may switch canonical device entrypoints to V2 for this tenant only.
 router.use('/restaurante', restaurantV2PilotRouter);
 router.use('/restaurante', restaurantV2CutoverRouter);
+router.use('/restaurante', restaurantV1RetirementP11Router);
 router.use('/restaurante', restaurantTestDataResetV68Router);
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);

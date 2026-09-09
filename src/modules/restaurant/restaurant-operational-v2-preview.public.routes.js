@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('node:path');
+const { restaurantV1RetirementP11PublicRouter } = require('./restaurant-v1-retirement-p11.public.routes');
 const { restaurantV2ControlCenterPublicRouter } = require('./restaurant-v2-control-center.public.routes');
 const { restaurantV2TablesPublicRouter } = require('./restaurant-v2-tables.public.routes');
 const { restaurantV2OrdersPublicRouter } = require('./restaurant-v2-orders.public.routes');
@@ -20,6 +21,10 @@ const webRoot = path.join(__dirname, '../../web');
 
 const restaurantOperationalV2PreviewPublicRouter = express.Router();
 
+// P11 owns the canonical Control Center first. It serves only a tenant-aware
+// launcher and a native V2 shell; no legacy Restaurant rewriting runs when P11
+// answers. Tenants not retired are sent explicitly to the P10 compatibility alias.
+restaurantOperationalV2PreviewPublicRouter.use(restaurantV1RetirementP11PublicRouter);
 // V2 public aggregator. Each operational module owns its own route and assets;
 // all of them are resolved here before any legacy Restaurant response wrapper.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2ControlCenterPublicRouter);

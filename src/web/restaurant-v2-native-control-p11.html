@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0D6B43">
+  <title>VantixGC Restaurante · Centro de control</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-native-control-p11.css?v=p11">
+</head>
+<body data-v2-native-control="p11">
+  <div class="p11-shell">
+    <aside class="p11-side">
+      <div class="p11-brand"><span>V</span><div><b>VantixGC</b><small>RESTAURANTES · V2</small></div></div>
+      <div class="p11-tenant"><b id="p11Tenant">Restaurante</b><span id="p11TenantMeta">Cargando tenant…</span></div>
+      <nav id="p11Nav" class="p11-nav" aria-label="Operación V2"></nav>
+      <a class="p11-core-link" href="/app/dashboard">← Administración general</a>
+    </aside>
+
+    <main class="p11-main">
+      <header class="p11-top">
+        <div><strong id="p11Title">Centro de control</strong><span id="p11Status">V2 · operación principal</span></div>
+        <div class="p11-user"><b id="p11User">Usuario</b><span id="p11Role">Rol</span></div>
+      </header>
+
+      <div id="p11Message" class="p11-message" hidden></div>
+
+      <section id="p11Dashboard" class="p11-dashboard">
+        <div class="p11-hero">
+          <div><small>OPERACIÓN V2</small><h1 id="p11RestaurantName">Restaurante</h1><p>Mesas, pedidos, producción, entrega y cobro trabajan sobre la misma operación real. V1 no se carga en este Centro de Control.</p></div>
+          <span class="p11-badge">V2 PRINCIPAL</span>
+        </div>
+        <div id="p11Metrics" class="p11-metrics"><div class="p11-loading">Cargando operación real…</div></div>
+        <section class="p11-section"><div class="p11-section-head"><b>Accesos rápidos</b><span>Abren módulos independientes del mismo tenant.</span></div><div id="p11Quick" class="p11-quick"></div></section>
+        <section class="p11-section"><div class="p11-section-head"><b>Estado de migración</b><span>V1 permanece sólo como rollback técnico, fuera de la navegación normal.</span></div><div class="p11-safety"><span>✓ QR físicos sin cambios</span><span>✓ DIAN no bloquea</span><span>✓ Dispositivos conservados</span><span>✓ Ventas y sesiones reales</span></div></section>
+      </section>
+
+      <section id="p11Workspace" class="p11-workspace" hidden>
+        <div class="p11-workbar"><button id="p11Back" type="button">← Centro de control</button><strong id="p11WorkspaceTitle">Módulo V2</strong><a id="p11OpenWindow" target="_blank" rel="noopener">Abrir aparte</a></div>
+        <iframe id="p11Frame" title="Módulo Restaurante V2"></iframe>
+      </section>
+    </main>
+  </div>
+  <script src="/app/restaurant-v2-native-control-p11.js?v=p11"></script>
+</body>
+</html>
