@@ -121,38 +121,67 @@ async function authorizeVisit(qrToken, code, seatNumber) {
     const maxDevices = Math.min(Math.max(Number(session.guestCount || 1) * 2 + 2, 4), 20);
     if (activeDevices >= maxDevices) throw new AppError(429, 'Esta mesa ya tiene demasiados dispositivos autorizados. Solicita al mesero reiniciar el acceso QR.', 'RESTAURANT_QR_VISIT_DEVICE_LIMIT');
     const seat = normalizeSeat(session, seatNumber);
-    const device = await tx.restaurantQrVisitDevice.create({ data: { tenantId: table.tenantId, sessionId: session.id, tokenHash, seatNumber: seat } });
+    const device = await tx.restaurantQrVisitDevice.create({ data: { tenantId: table.tenantId, sessionId: session.id, originTableId: table.id, tokenHash, seatNumber: seat } });
     await tx.restaurantTableSession.update({ where: { id: session.id }, data: { qrVisitFailedAttempts: 0, qrVisitLockedUntil: null } });
     return { visitToken: rawToken, sessionId: session.id, seatNumber: device.seatNumber, guestCount: session.guestCount, expiresWhenTableCloses: true };
   });
 }
 
 async function verifyVisit(qrToken, rawToken, client = prisma) {
-  const table = await tableByQr(qrToken, client);
-  const session = await currentSessionForTable(table, client);
-  if (!session) throw new AppError(409, 'La mesa todavía no está abierta', 'RESTAURANT_QR_TABLE_NOT_OPEN');
+  const sourceTable = await tableByQr(qrToken, client);
   if (!rawToken) throw new AppError(401, 'Ingresa el código de la mesa para autorizar este teléfono', 'RESTAURANT_QR_VISIT_REQUIRED');
-  const device = await client.restaurantQrVisitDevice.findFirst({
-    where: { tenantId: table.tenantId, sessionId: session.id, tokenHash: hashToken(rawToken), revokedAt: null }
+  const tokenHash = hashToken(rawToken);
+
+  // A device authorized before a physical table move keeps originTableId.
+  // Resolve it first so the visit still follows its current table even if the
+  // old physical table has already been opened for a different party.
+  let device = await client.restaurantQrVisitDevice.findFirst({
+    where: { tenantId: sourceTable.tenantId, originTableId: sourceTable.id, tokenHash, revokedAt: null },
+    include: { session: { include: { table: true } } }
   });
+  let session = null;
+  let table = sourceTable;
+  let relocated = false;
+  if (device?.session && ['ABIERTA', 'CUENTA_PEDIDA'].includes(device.session.state) && device.session.table?.active) {
+    session = device.session;
+    table = device.session.table;
+    relocated = table.id !== sourceTable.id;
+  } else {
+    device = null;
+    session = await currentSessionForTable(sourceTable, client);
+    if (!session) throw new AppError(409, 'La mesa todavía no está abierta', 'RESTAURANT_QR_TABLE_NOT_OPEN');
+    device = await client.restaurantQrVisitDevice.findFirst({
+      where: { tenantId: sourceTable.tenantId, sessionId: session.id, tokenHash, revokedAt: null }
+    });
+  }
   if (!device) throw new AppError(401, 'La autorización de este teléfono ya no es válida', 'RESTAURANT_QR_VISIT_INVALID');
   if (Number(device.seatNumber || 0) > Number(session.guestCount || 1)) throw new AppError(409, 'La persona asociada a este teléfono ya no existe en la mesa', 'RESTAURANT_QR_VISIT_SEAT_INVALID');
   if (client === prisma) await prisma.restaurantQrVisitDevice.update({ where: { id: device.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
-  return { table, session, device };
+  return { table, sourceTable, session, device, relocated };
 }
 
 async function describeVisit(qrToken, rawToken) {
-  const table = await tableByQr(qrToken);
-  const session = await currentSessionForTable(table);
-  if (!session) return { open: false, authorized: false, guestCount: 0, seatNumber: null };
-  if (!rawToken) return { open: true, authorized: false, guestCount: session.guestCount, seatNumber: null };
-  try {
-    const verified = await verifyVisit(qrToken, rawToken);
-    return { open: true, authorized: true, guestCount: session.guestCount, seatNumber: verified.device.seatNumber };
-  } catch (error) {
-    if (['RESTAURANT_QR_VISIT_INVALID', 'RESTAURANT_QR_VISIT_REQUIRED'].includes(error.code)) return { open: true, authorized: false, guestCount: session.guestCount, seatNumber: null };
-    throw error;
+  const sourceTable = await tableByQr(qrToken);
+  if (rawToken) {
+    try {
+      const verified = await verifyVisit(qrToken, rawToken);
+      return {
+        open: true,
+        authorized: true,
+        guestCount: verified.session.guestCount,
+        seatNumber: verified.device.seatNumber,
+        relocated: verified.relocated,
+        sourceTable: { id: sourceTable.id, name: sourceTable.name },
+        currentTable: { id: verified.table.id, name: verified.table.name },
+        relocatedToPath: verified.relocated ? `/r/${encodeURIComponent(verified.table.qrToken)}` : null
+      };
+    } catch (error) {
+      if (!['RESTAURANT_QR_VISIT_INVALID', 'RESTAURANT_QR_VISIT_REQUIRED', 'RESTAURANT_QR_TABLE_NOT_OPEN'].includes(error.code)) throw error;
+    }
   }
+  const session = await currentSessionForTable(sourceTable);
+  if (!session) return { open: false, authorized: false, guestCount: 0, seatNumber: null, relocated: false };
+  return { open: true, authorized: false, guestCount: session.guestCount, seatNumber: null, relocated: false };
 }
 
 async function changeVisitSeat(qrToken, rawToken, seatNumber) {
@@ -172,7 +201,7 @@ async function placeAuthorizedQrOrder(qrToken, rawToken, input) {
     where: { tenantId: verified.table.tenantId, sessionId: verified.session.id, source: 'QR', qrVisitDeviceId: verified.device.id, creadoEn: { gte: new Date(Date.now() - VISIT_ORDER_WINDOW_MS) } }
   });
   if (recent >= VISIT_MAX_ORDERS_PER_WINDOW) throw new AppError(429, 'Demasiados pedidos seguidos desde este teléfono. Espera un momento.', 'RESTAURANT_QR_ORDER_RATE_LIMIT');
-  const order = await restaurant.placeQrOrder(qrToken, input);
+  const order = await restaurant.placeQrOrder(verified.table.qrToken, input);
   await prisma.$transaction(async (tx) => {
     await tx.restaurantOrder.update({ where: { id: order.id }, data: { qrVisitDeviceId: verified.device.id } });
     await tx.restaurantOrderItem.updateMany({ where: { tenantId: verified.table.tenantId, orderId: order.id }, data: { seatNumber: verified.device.seatNumber } });

@@ -37,6 +37,7 @@ const { restaurantEmployeeWorkRouter } = require('../modules/restaurant/restaura
 const { restaurantTestDataResetV66Router } = require('../modules/restaurant/restaurant-test-data-reset-v66.routes');
 const { restaurantTestDataResetV68Router } = require('../modules/restaurant/restaurant-test-data-reset-v68.routes');
 const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/restaurant-table-live-detail-v67.routes');
+const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restaurant-v2-table-move.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -65,24 +66,15 @@ router.use('/dian', dianRouter);
 router.use('/nomina', payrollRouter);
 router.use('/impresion', printingRouter);
 router.use('/seguridad', rbacRouter);
-// V53 debe resolver el pase de retorno antes del router Edge canónico para conservar
-// exactamente el origen local autorizado (127.0.0.1/localhost o la IP LAN reportada).
 router.use('/edge', edgeHybridLocalOriginV53Router);
 router.use('/edge', edgeTenantUpdateGuard, edgeTenantRouter);
-// V65 extiende el Core de Notificaciones con dispositivos Push. Se monta antes
-// del router histórico WhatsApp/SMS para mantener el canal FCM aislado y reversible.
 router.use('/notificaciones/push-v65', notificationPushV65Router);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
-// Checkout de crédito: permite al cajero listar/crear únicamente clientes para
-// la operación de cartera, sin otorgar acceso administrativo completo a Terceros.
 router.use('/restaurante', restaurantCreditCustomerRouter);
-// Debe ejecutarse antes del router base: para crédito enlaza cliente/plazo/cupo
-// al borrador y luego deja que la ruta canónica /mesas/:id/cerrar haga emisión,
-// inventario, contabilidad, cartera, cierre de mesa e impresión.
 router.use('/restaurante', restaurantCreditPaymentRouter);
 router.use('/restaurante', restaurantWaiterCallUnifiedRouter);
 router.use('/restaurante', restaurantWaiterCallRouter);
@@ -90,18 +82,13 @@ router.use('/restaurante', restaurantWaiterDeviceRouter);
 router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
-// V67 agrega lectura operativa completa por mesa y permite descartar únicamente
-// una apertura totalmente vacía. No reutiliza el cierre de venta/cobro.
 router.use('/restaurante', restaurantTableLiveDetailV67Router);
-// V68 habilita el reinicio de datos de prueba para cualquier tenant del nicho
-// Restaurante. Conserva maestros, exige permiso admin + confirmación del subdominio
-// y bloquea la operación cuando ya existen documentos DIAN de PRODUCCIÓN.
+// V2 P2B owns visit relocation. It moves only the active session between physical
+// tables; QR tokens, sale, orders, command states, quantities and prices are immutable.
+router.use('/restaurante', restaurantV2TableMoveRouter);
 router.use('/restaurante', restaurantTestDataResetV68Router);
-// V66 se conserva como compatibilidad histórica únicamente para demo-restaurante.
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);
-// Sólo procesa errores de un cierre a crédito previamente preparado. Si el cierre
-// canónico falló, restaura el BORRADOR antes de continuar al error handler global.
 router.use(restaurantCreditRollbackMiddleware);
 
 module.exports = { coreRouter: router };

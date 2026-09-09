@@ -134,7 +134,7 @@ model RestaurantMenuItem {
   category        RestaurantMenuCategory
   station         RestaurantStation
   requiresRecipe  Boolean                @default(true)
-  active          Boolean                @default(true)
+  active           Boolean               @default(true)
   sortOrder       Int                    @default(0)
   creadoEn        DateTime               @default(now())
   actualizadoEn   DateTime               @updatedAt
@@ -191,6 +191,7 @@ model RestaurantQrVisitDevice {
   id                  String                 @id @default(uuid())
   tenantId            String
   sessionId           String
+  originTableId       String?
   tokenHash           String                 @unique
   seatNumber          Int?
   authorizedAt        DateTime               @default(now())
@@ -200,6 +201,7 @@ model RestaurantQrVisitDevice {
   session             RestaurantTableSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, sessionId, revokedAt])
+  @@index([tenantId, originTableId, revokedAt])
   @@index([sessionId, seatNumber])
 }
 
