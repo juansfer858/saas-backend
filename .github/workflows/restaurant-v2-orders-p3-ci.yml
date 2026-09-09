@@ -70,8 +70,8 @@ jobs:
               curl -fsS "$BASE/app/restaurant-v2-orders.js?v=$GITHUB_SHA" -o "$J"
               grep -Fqi 'X-VantixGC-Restaurant-V2-Orders: p3-orders-independent' "$H"
               grep -Fq 'RESTAURANTE V2 · PEDIDOS' "$P"
+              grep -Fq 'REVISAR PEDIDO' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_ORDERS_P3' "$J"
-              grep -Fq 'REVISAR PEDIDO' "$J"
               grep -Fq '/pedido/enviar' "$J"
               if grep -Fq 'billingMode:' "$J"; then exit 1; fi
               echo "Pedidos V2 P3 live at $GITHUB_SHA"
