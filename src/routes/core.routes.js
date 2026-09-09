@@ -38,6 +38,7 @@ const { restaurantTestDataResetV66Router } = require('../modules/restaurant/rest
 const { restaurantTestDataResetV68Router } = require('../modules/restaurant/restaurant-test-data-reset-v68.routes');
 const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/restaurant-table-live-detail-v67.routes');
 const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restaurant-v2-table-move.routes');
+const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v2-orders.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -83,9 +84,10 @@ router.use('/restaurante', restaurantDeliveryRouter);
 router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 router.use('/restaurante', restaurantTableLiveDetailV67Router);
-// V2 P2B owns visit relocation. It moves only the active session between physical
-// tables; QR tokens, sale, orders, command states, quantities and prices are immutable.
 router.use('/restaurante', restaurantV2TableMoveRouter);
+// V2 P3 orders is opt-in and standalone. V1 routes keep their original waiter scope
+// and billing semantics while this API enables shared-floor reinforcement + optional persons.
+router.use('/restaurante', restaurantV2OrdersRouter);
 router.use('/restaurante', restaurantTestDataResetV68Router);
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);
