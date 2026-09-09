@@ -41,6 +41,7 @@ const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restauran
 const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v2-orders.routes');
 const { restaurantV2CashRouter } = require('../modules/restaurant/restaurant-v2-cash.routes');
 const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2-split.routes');
+const { restaurantV2KdsRouter } = require('../modules/restaurant/restaurant-v2-kds.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -96,6 +97,9 @@ router.use('/restaurante', restaurantV2CashRouter);
 // V2 P5 Division is a separate settlement surface. It uses the same sale/session and
 // real Treasury/Accounting contracts while keeping the legacy Restaurant routes intact.
 router.use('/restaurante', restaurantV2SplitRouter);
+// V2 P6 KDS is push/realtime-driven and reuses the canonical command state machine.
+// It remains opt-in and does not alter legacy KDS/device routes.
+router.use('/restaurante', restaurantV2KdsRouter);
 router.use('/restaurante', restaurantTestDataResetV68Router);
 router.use('/restaurante', restaurantTestDataResetV66Router);
 router.use('/restaurante', restaurantRouter);

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cocina / KDS · Restaurante V2</title>
+<link rel="stylesheet" href="/app/restaurant-v2-design-system.css"><link rel="stylesheet" href="/app/restaurant-v2-kds.css">
+</head>
+<body>
+<header class="kds-top"><div><span>RESTAURANTE V2 · COCINA/KDS/PUSH P6</span><h1>Cocina / KDS</h1><p id="tenantLine">Cargando operación…</p></div><nav><a class="rv2-btn" href="/app/restaurante-v2/mesas">Mesas</a><a class="rv2-btn" href="/app/restaurante-v2/pedidos">Pedidos</a><a class="rv2-btn" href="/app/restaurante-v2/caja">Caja</a><a class="rv2-btn" href="/app/restaurante-v2/division">División</a><button class="rv2-btn" id="refresh" type="button">Actualizar</button></nav></header>
+<main class="kds-main">
+<section class="status-line"><div id="notice">Conectando KDS V2…</div><div class="live"><i id="liveDot"></i><span id="liveText">Conectando tiempo real</span></div></section>
+<section class="queue-tabs" id="queues"></section>
+<section class="stats"><article><small>PENDIENTES</small><strong id="pendingCount">0</strong></article><article><small>EN PREPARACIÓN</small><strong id="preparingCount">0</strong></article><article><small>LISTAS</small><strong id="readyCount">0</strong></article><article><small>ACTIVAS</small><strong id="activeCount">0</strong></article></section>
+<section id="stationWarning" class="station-warning" hidden></section>
+<section class="board">
+  <article class="lane"><header><div><small>01</small><h2>Pendientes</h2></div><b id="pendingBadge">0</b></header><div id="pendingLane" class="tickets"></div></article>
+  <article class="lane"><header><div><small>02</small><h2>En preparación</h2></div><b id="preparingBadge">0</b></header><div id="preparingLane" class="tickets"></div></article>
+  <article class="lane"><header><div><small>03</small><h2>Listas para entregar</h2></div><b id="readyBadge">0</b></header><div id="readyLane" class="tickets"></div></article>
+</section>
+</main>
+<dialog id="confirmDialog"><div class="dialog-card"><small>CAMBIO DE ESTADO</small><h2 id="confirmTitle">—</h2><p id="confirmText">—</p><div><button class="rv2-btn" id="cancelAction" type="button">Cancelar</button><button class="rv2-btn rv2-btn-primary" id="confirmAction" type="button">Confirmar</button></div></div></dialog>
+<script src="/app/restaurant-v2-sdk.js"></script><script src="/app/restaurant-v2-realtime.js"></script><script src="/app/restaurant-push-v65.js" data-vantix-push-v65="1"></script><script src="/app/restaurant-v2-kds.js"></script>
+</body></html>

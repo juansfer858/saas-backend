@@ -6,6 +6,7 @@ const { AppError }=require('../../utils/app-error');
 const { requirePermission }=require('../../middleware/require-permission');
 const base=require('./restaurant.service');
 const identity=require('./restaurant-identity.service');
+const kdsPush=require('./restaurant-v2-kds-push.service');
 
 const router=express.Router();
 const V2_OPTIONS=Object.freeze({sharedFloor:true,optionalSeat:true});
@@ -23,6 +24,14 @@ router.get('/v2/sesiones/:sessionId/pedido',requirePermission('PEDIDOS.VER'),asy
 router.put('/v2/sesiones/:sessionId/pedido/items/:menuItemId',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{const input=parse(qtySchema,req.body);res.json({ok:true,data:await identity.setWaiterDraftItem(req.tenantId,req.user,req.params.sessionId,req.params.menuItemId,input.quantity,input.seatNumber??null,V2_OPTIONS)})}catch(error){next(error)}});
 router.patch('/v2/sesiones/:sessionId/items/:itemId',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{res.json({ok:true,data:await identity.updateOrderItemMeta(req.tenantId,req.user,req.params.sessionId,req.params.itemId,parse(metaSchema,req.body),V2_OPTIONS)})}catch(error){next(error)}});
 router.patch('/v2/sesiones/:sessionId/personas',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{const input=parse(peopleSchema,req.body);res.json({ok:true,data:await identity.updateTableServiceSetup(req.tenantId,req.user,req.params.sessionId,{guestCount:input.guestCount},V2_OPTIONS)})}catch(error){next(error)}});
-router.post('/v2/sesiones/:sessionId/pedido/enviar',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{res.json({ok:true,data:await identity.sendWaiterDraft(req.tenantId,req.user,req.params.sessionId,V2_OPTIONS)})}catch(error){next(error)}});
+router.post('/v2/sesiones/:sessionId/pedido/enviar',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{
+  try{
+    const data=await identity.sendWaiterDraft(req.tenantId,req.user,req.params.sessionId,V2_OPTIONS);
+    // Push is deliberately best-effort. The confirmed order and its real commands are
+    // authoritative; a missing/invalid FCM device can never roll back or delay the kitchen flow.
+    void kdsPush.notifyLatestRound(req.tenantId,req.params.sessionId).catch(()=>{});
+    res.json({ok:true,data});
+  }catch(error){next(error)}
+});
 
 module.exports={restaurantV2OrdersRouter:router,V2_OPTIONS};

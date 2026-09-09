@@ -6,6 +6,7 @@ const { restaurantV2TablesPublicRouter } = require('./restaurant-v2-tables.publi
 const { restaurantV2OrdersPublicRouter } = require('./restaurant-v2-orders.public.routes');
 const { restaurantV2CashPublicRouter } = require('./restaurant-v2-cash.public.routes');
 const { restaurantV2SplitPublicRouter } = require('./restaurant-v2-split.public.routes');
+const { restaurantV2KdsPublicRouter } = require('./restaurant-v2-kds.public.routes');
 
 const MARKER = 'VANTIX_RESTAURANT_OPERATIONAL_UI_V2_P1';
 const DESIGN_MARKER = 'VANTIX_RESTAURANT_V2_DESIGN_SYSTEM_V1';
@@ -21,6 +22,7 @@ restaurantOperationalV2PreviewPublicRouter.use(restaurantV2TablesPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OrdersPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2CashPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2SplitPublicRouter);
+restaurantOperationalV2PreviewPublicRouter.use(restaurantV2KdsPublicRouter);
 
 function sendPreviewAsset(res, file, contentType = null) {
   res.set('Cache-Control', 'no-store, max-age=0');
