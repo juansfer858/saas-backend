@@ -12,6 +12,7 @@
     division: '/app/restaurante-v2/division',
     qrs: '/app/restaurante-v2/qrs',
     devices: '/app/restaurante-v2/dispositivos',
+    retirement: '/app/restaurante-v2/retiro-v1',
     migration: '/app/restaurante-v2/migracion',
     pilot: '/app/restaurante-v2/piloto'
   });
@@ -24,6 +25,7 @@
     division: 'División de cuenta',
     qrs: 'QR de mesas',
     devices: 'Dispositivos',
+    retirement: 'Retiro V1 · P11',
     migration: 'Migración V2',
     pilot: 'Piloto V2'
   });
@@ -61,7 +63,7 @@
       .cc-v2-nav button:hover,.cc-v2-nav button.active{border-color:#f97316;background:#fff7ed;color:#9a3412}
       .cc-v2-nav button[data-v2="division"]{border-style:dashed}
       .cc-v2-nav button[data-v2="qrs"],.cc-v2-nav button[data-v2="devices"]{border-color:#d1ddd7;background:#f7faf8;color:#25523e}
-      .cc-v2-nav button[data-v2="migration"]{border-color:#0d6b43;background:#eef8f2;color:#0d6b43;font-weight:950}
+      .cc-v2-nav button[data-v2="migration"],.cc-v2-nav button[data-v2="retirement"]{border-color:#0d6b43;background:#eef8f2;color:#0d6b43;font-weight:950}
       .cc-v2-nav button[data-v2="pilot"]{border-color:#b7d7c7;background:#f3faf6;color:#0d6b43}
       .cc-v2-badge{display:inline-flex;margin-left:6px;padding:2px 7px;border-radius:999px;background:#111827;color:#fff;font-size:9px;font-weight:900;vertical-align:middle}
       .cc-v2-workspace{display:grid;grid-template-rows:auto minmax(0,1fr);height:calc(100dvh - 24px);min-height:640px;background:#fff;border:1px solid #dbe3ea;border-radius:18px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,.08)}
@@ -114,7 +116,7 @@
     const route = ROUTES[key];
     if (!route) return;
     if (key === 'pilot' && !canSeePilot()) return;
-    if ((key === 'qrs' || key === 'devices' || key === 'migration') && !canSeeAdminTools()) return;
+    if ((key === 'qrs' || key === 'devices' || key === 'migration' || key === 'retirement') && !canSeeAdminTools()) return;
     const workspace = installWorkspace();
     if (!workspace) return;
     const frame = workspace.querySelector('[data-v2-frame]');
@@ -126,7 +128,7 @@
     setLegacyVisible(false);
     workspace.hidden = false;
     setActive(key);
-    history.replaceState({ ...(history.state || {}), restaurantV2Module:key }, '', `/app/centro-de-control?module=${encodeURIComponent(key)}`);
+    history.replaceState({ ...(history.state || {}), restaurantV2Module:key }, '', `/app/centro-de-control-p10?module=${encodeURIComponent(key)}`);
   }
 
   function closeV2() {
@@ -136,7 +138,7 @@
     suppressLegacyOperationalOverlays();
     setLegacyVisible(true);
     setActive('');
-    history.replaceState({ ...(history.state || {}), restaurantV2Module:null }, '', '/app/centro-de-control');
+    history.replaceState({ ...(history.state || {}), restaurantV2Module:null }, '', '/app/centro-de-control-p10');
   }
 
   function installNav() {
@@ -150,7 +152,7 @@
       ['caja', LABELS.caja],
       ['division', LABELS.division]
     ];
-    if (canSeeAdminTools()) entries.push(['qrs', LABELS.qrs], ['devices', LABELS.devices], ['migration', LABELS.migration]);
+    if (canSeeAdminTools()) entries.push(['qrs', LABELS.qrs], ['devices', LABELS.devices], ['retirement', LABELS.retirement], ['migration', LABELS.migration]);
     if (canSeePilot()) entries.push(['pilot', LABELS.pilot]);
     const nav = document.createElement('section');
     nav.className = 'cc-v2-nav';
