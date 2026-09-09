@@ -14,21 +14,31 @@ const desktopV10 = menuSurface.patchDesktopRuntime(read('src/web/restaurant-ui.j
 const desktopV57 = globalSearch.patchOperatorSource(desktopV10);
 const desktop = attention.patchOperatorSource(desktopV57);
 assert.ok(desktop.includes(attention.MARKER));
+assert.ok(desktop.includes(attention.DIRECT_CASH_MARKER));
 assert.ok(desktop.includes('accountAttentionActive(table)'));
 assert.ok(desktop.includes('table.activeSession.accountRequestedAt'));
 assert.ok(desktop.includes("String(table.state || '') === 'CUENTA_PEDIDA'"));
 assert.ok(desktop.includes('ACCOUNT_ATTENTION'));
 assert.ok(desktop.includes('CUENTA SOLICITADA'));
 assert.ok(desktop.includes('COBRAR '));
-assert.ok(desktop.includes('Cuenta solicitada · abrir Caja'));
+assert.ok(desktop.includes('Cuenta solicitada · cobrar ahora'));
 assert.ok(desktop.includes("can('RESTAURANTE.CERRAR') && can('TESORERIA.CERRAR')"));
 assert.ok(desktop.includes("setTab('caja')"));
+assert.ok(desktop.includes('accountAttentionChargeTarget'));
+assert.ok(desktop.includes('accountAttentionChargeNow(table)'));
+assert.ok(desktop.includes('accountAttentionContinueCharge()'));
+assert.ok(desktop.includes("S.selectedTableId = table.id"));
+assert.ok(desktop.includes('row.click()'), 'el handoff debe reutilizar el clic canónico de la fila de Caja para abrir el modal estable');
+assert.ok(desktop.includes('Abre Caja para cobrar'));
+assert.ok(desktop.includes('Al abrirla continuaremos automáticamente.'));
+assert.ok(desktop.includes('bindCash(cajas, summary, selected);\n    accountAttentionContinueCharge();'), 'al abrir un turno pendiente debe retomar la mesa solicitada');
+assert.ok(desktop.includes("message('La mesa ya fue pagada o cerrada.')"), 'una mesa cerrada entre tanto no debe volver a cobrarse');
 assert.ok(desktop.includes("window.addEventListener('vantix:tenant-realtime'"));
 assert.ok(desktop.includes("window.addEventListener('vantix:tenant-realtime-ready'"));
-assert.ok(!desktop.includes('setInterval(() => refreshAccountAttentionDock'), 'V58 no debe reintroducir polling en Centro');
+assert.ok(!desktop.includes('setInterval(() => refreshAccountAttentionDock'), 'V58.1 no debe reintroducir polling en Centro');
 assert.ok(desktop.includes('prefers-reduced-motion:reduce'));
-assert.ok(desktop.includes(globalSearch.MARKER), 'V58 debe preservar V57');
-assert.ok(desktop.includes(menuSurface.MARKER), 'V58 debe preservar Menu Surfaces');
+assert.ok(desktop.includes(globalSearch.MARKER), 'V58.1 debe preservar V57');
+assert.ok(desktop.includes(menuSurface.MARKER), 'V58.1 debe preservar Menu Surfaces');
 
 const waiterV10 = menuSurface.patchWaiterTabletRuntime(read('src/web/restaurant-waiter-runtime-v7.js'));
 const waiterV57 = globalSearch.patchDedicatedWaiterSource(waiterV10);
@@ -52,4 +62,12 @@ const v58 = routes.indexOf('router.use(installRestaurantAccountAttentionV58);');
 const v57 = routes.indexOf('router.use(installRestaurantGlobalProductSearchV57);');
 assert.ok(v58 >= 0 && v57 >= 0 && v58 < v57, 'V58 debe envolver el asset final después de V57 por unwind inverso');
 
-console.log('RESTAURANT ACCOUNT ATTENTION V58 CLIENT+WAITER+FLOATING CASH REALTIME CONTRACT OK');
+console.log('RESTAURANT ACCOUNT ATTENTION V58.1 DIRECT CASH HANDOFF CONTRACT OK');
+console.log(JSON.stringify({
+  oneClickMesaToCash:true,
+  selectedTablePreserved:true,
+  opensCanonicalCashRow:true,
+  resumesAfterOpeningCashShift:true,
+  stalePaidTableGuard:true,
+  noNewPolling:true
+}));
