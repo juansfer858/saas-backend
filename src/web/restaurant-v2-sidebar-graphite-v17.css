@@ -1,0 +1,60 @@
+/* VANTIX_RESTAURANT_V2_SIDEBAR_GRAPHITE_V17
+   Neutral Super Core palette: no green cast. */
+:root{
+  --restaurant-sidebar-graphite:#111827;
+  --restaurant-sidebar-graphite-active:#1f2937;
+  --restaurant-sidebar-graphite-text:#d1d5db;
+  --restaurant-sidebar-graphite-muted:#9ca3af;
+  --restaurant-sidebar-accent:#3b82f6;
+  --restaurant-sidebar-accent-strong:#2563eb;
+}
+
+.p11-side{
+  background:var(--restaurant-sidebar-graphite)!important;
+  color:#fff!important;
+}
+
+.p11-brand>span{
+  background:#eff6ff!important;
+  color:var(--restaurant-sidebar-accent-strong)!important;
+}
+
+.p11-brand small,
+.p11-nav-label{
+  color:var(--restaurant-sidebar-graphite-muted)!important;
+}
+
+.p11-tenant{
+  border-color:rgba(255,255,255,.10)!important;
+  background:rgba(255,255,255,.035)!important;
+}
+
+.p11-tenant span{
+  color:var(--restaurant-sidebar-graphite-muted)!important;
+}
+
+.p11-nav button{
+  border-color:transparent!important;
+  background:transparent!important;
+  color:var(--restaurant-sidebar-graphite-text)!important;
+}
+
+.p11-nav button:hover,
+.p11-nav button.active{
+  border-color:transparent!important;
+  background:var(--restaurant-sidebar-graphite-active)!important;
+  color:#fff!important;
+}
+
+.p11-nav button.active{
+  box-shadow:inset 3px 0 0 var(--restaurant-sidebar-accent)!important;
+}
+
+.p11-core-link{
+  border-top-color:rgba(255,255,255,.10)!important;
+  color:var(--restaurant-sidebar-graphite-text)!important;
+}
+
+@media(max-width:900px){
+  .p11-side{background:var(--restaurant-sidebar-graphite)!important}
+}
