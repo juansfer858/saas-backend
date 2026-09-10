@@ -2,6 +2,7 @@
 
 const express = require('express');
 const realtime = require('./tenant-realtime.service');
+const push = require('../notifications/push-v65.service');
 
 const router = express.Router();
 const MUTATION_METHODS = new Set(['POST','PUT','PATCH','DELETE']);
@@ -45,6 +46,33 @@ function responseRefs(data, path) {
   return refs;
 }
 
+function pushForMutation(req, topics, path) {
+  const method=String(req.method || '').toUpperCase();
+  if (method !== 'POST') return;
+  const lower=String(path || '').toLowerCase();
+  // A command is the high-value production notification. Draft edits are excluded
+  // deliberately so adding quantities does not generate notification noise.
+  if (topics.includes('restaurant.command')) {
+    push.sendOperationalEvent(req.tenantId, {
+      eventCode:'RESTAURANT_COMMAND_NEW',
+      title:'Nueva comanda',
+      body:'Hay un pedido nuevo para preparar.',
+      deepLink:'/app/restaurante-v2/kds',
+      roles:['COCINA','BARRA','POSTRES','ADMIN','SUPER_ADMIN','ADMINISTRADOR']
+    }).catch(() => {});
+    return;
+  }
+  if (topics.includes('restaurant.account') && lower.includes('cuenta')) {
+    push.sendOperationalEvent(req.tenantId, {
+      eventCode:'RESTAURANT_ACCOUNT_ACTIVITY',
+      title:'Solicitud de cuenta',
+      body:'Hay una novedad de cuenta que requiere atención.',
+      deepLink:'/app/centro-de-control/mesero-v2',
+      roles:['MESERO','ADMIN','SUPER_ADMIN','ADMINISTRADOR']
+    }).catch(() => {});
+  }
+}
+
 function tenantRealtimeMutationMiddleware(req, res, next) {
   if (!MUTATION_METHODS.has(String(req.method || '').toUpperCase())) return next();
   const path = cleanPath(req);
@@ -64,6 +92,8 @@ function tenantRealtimeMutationMiddleware(req, res, next) {
       responseRefs(res.locals.tenantRealtimeResponse, path),
       { source:'core-http', method:req.method, path }
     ).catch(() => {});
+    // Push is best-effort and never participates in the business transaction.
+    pushForMutation(req, topics, path);
   });
   next();
 }
@@ -120,5 +150,6 @@ module.exports = {
   tenantRealtimeRouter: router,
   tenantRealtimeMutationMiddleware,
   topicsForPath,
-  responseRefs
+  responseRefs,
+  pushForMutation
 };
