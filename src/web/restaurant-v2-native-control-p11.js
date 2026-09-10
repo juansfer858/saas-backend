@@ -80,9 +80,6 @@
   }
 
   function navItem(key, module) {
-    if (module.external) {
-      return `<a href="${esc(module.route)}" data-module-link="${esc(key)}"><b>${esc(module.label)}</b><small>${esc(module.hint)}</small></a>`;
-    }
     return `<button type="button" data-module="${esc(key)}"><b>${esc(module.label)}</b><small>${esc(module.hint)}</small></button>`;
   }
   function renderNav() {
@@ -96,8 +93,8 @@
     });
   }
   function setActive(key) {
-    document.querySelectorAll('#p11Nav [data-module], #p11Nav [data-module-link]').forEach((item) => {
-      item.classList.toggle('active', item.dataset.module === key || item.dataset.moduleLink === key);
+    document.querySelectorAll('#p11Nav [data-module]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.module === key);
     });
   }
   function openModule(rawKey, updateHistory = true) {
