@@ -1,0 +1,47 @@
+/* VANTIX_RESTAURANT_SIDEBAR_PURPLE_V15 */
+:root{
+  --restaurant-sidebar-purple:#8B5CF6;
+  --restaurant-sidebar-purple-active:#6D28D9;
+}
+
+/* Sólo cambia la navegación del shell Restaurante. El resto del Design System
+   conserva sus colores funcionales y estados actuales. */
+.p11-side{
+  background:var(--restaurant-sidebar-purple);
+  color:#fff;
+}
+
+.p11-brand>span{
+  background:var(--restaurant-sidebar-purple-active);
+  color:#fff;
+}
+
+.p11-brand small,
+.p11-tenant span,
+.p11-nav-label,
+.p11-core-link{
+  color:rgba(255,255,255,.84);
+}
+
+.p11-tenant{
+  border-color:rgba(255,255,255,.24);
+  background:rgba(255,255,255,.11);
+}
+
+.p11-nav button{
+  border-color:rgba(255,255,255,.22);
+  background:rgba(255,255,255,.12);
+  color:#fff;
+}
+
+.p11-nav button:hover,
+.p11-nav button.active{
+  border-color:rgba(255,255,255,.46);
+  background:var(--restaurant-sidebar-purple-active);
+  color:#fff;
+  box-shadow:0 5px 14px rgba(76,29,149,.18);
+}
+
+.p11-core-link{
+  border-top-color:rgba(255,255,255,.22);
+}
