@@ -11,10 +11,12 @@ const html = fs.readFileSync('src/web/restaurant-v2-menu.html', 'utf8');
 const js = fs.readFileSync('src/web/restaurant-v2-menu.js', 'utf8');
 const css = fs.readFileSync('src/web/restaurant-v2-menu.css', 'utf8');
 const commercial = fs.readFileSync('src/modules/commercial/commercial.routes.js', 'utf8');
+const salesService = fs.readFileSync('src/modules/commercial/sales.service.js', 'utf8');
 const menuRoutes = fs.readFileSync('src/modules/restaurant/restaurant.routes.js', 'utf8');
 const importService = fs.readFileSync('src/modules/restaurant/restaurant-menu-import.service.js', 'utf8');
 const inventoryRoutes = fs.readFileSync('src/modules/inventory/inventory.routes.js', 'utf8');
 const consumptionRoutes = fs.readFileSync('src/modules/consumption/consumption.routes.js', 'utf8');
+const consumptionService = fs.readFileSync('src/modules/consumption/consumption.service.js', 'utf8');
 
 assert.match(route, /restaurantV2MenuPublicRouter/);
 assert.match(route, /\/app\/restaurante-v2\/carta/);
@@ -36,6 +38,7 @@ assert.match(html, /Inventario \/ Kardex/);
 assert.match(html, /id="configureRecipe"/);
 
 assert.match(js, /VANTIX_RESTAURANT_V2_MENU_V1/);
+assert.match(js, /VANTIX_RESTAURANT_V2_MENU_RECIPE_MODE_V2/);
 assert.match(js, /\/api\/v1\/restaurante\/menu\?active=true/);
 assert.match(js, /\/api\/v1\/inventario\/productos\?activo=true&limit=1000/);
 assert.match(js, /\/api\/v1\/consumo\/recetas\?limit=1000/);
@@ -43,6 +46,12 @@ assert.match(js, /requiresRecipe:\s*false/);
 assert.match(js, /controlaInventario:\s*false/);
 assert.match(js, /kind === 'DIRECT'/);
 assert.match(js, /kind === 'RECIPE'/);
+assert.match(js, /function setRecipeActive/);
+assert.match(js, /active:Boolean\(active\)/);
+assert.match(js, /mode !== 'RECIPE'\) await setRecipeActive\(recipe, false\)/);
+assert.match(js, /mode === 'RECIPE'\) await setRecipeActive\(recipe, true\)/);
+assert.match(js, /recipeModeExclusive:true/);
+assert.match(js, /recipePreservedWhenDisabled:true/);
 assert.match(js, /restaurant-menu-import-ui\.js/);
 assert.match(js, /canonicalOcrReused:true/);
 assert.doesNotThrow(() => new vm.Script(js));
@@ -62,6 +71,17 @@ assert.match(menuRoutes, /router\.put\('\/menu\/:id'/);
 assert.match(inventoryRoutes, /router\.post\('\/productos'/);
 assert.match(inventoryRoutes, /router\.get\('\/kardex'/);
 assert.match(consumptionRoutes, /router\.post\('\/recetas'/);
+
+// Contrato real al emitir la venta: una receta activa consume sus insumos; si no
+// hay receta activa y el producto controla inventario, se descuenta ese mismo SKU.
+assert.match(salesService, /consumption\.consumeForSaleInTx/);
+assert.match(salesService, /if \(recipeConsumption\.recipeOutputProductIds\.has\(product\.id\)\) continue/);
+assert.match(salesService, /inventory\.applyMovement\(tx, \{/);
+assert.match(salesService, /tipo:\s*'VENTA'/);
+assert.match(consumptionService, /active:\s*true, outputProductId:\s*\{ in: productIds \}/);
+assert.match(consumptionService, /recipeOutputProductIds/);
+assert.match(consumptionService, /ingredientProductId/);
+
 // El OCR ya crea platos vendibles sin exigir receta: regla de adopción simple.
 assert.match(importService, /requiresRecipe:\s*false/);
 assert.match(importService, /controlaInventario:\s*false/);
@@ -72,5 +92,8 @@ console.log('RESTAURANT V2 MENU V1 SMOKE OK', JSON.stringify({
   masterProductReused: true,
   directInventorySupported: true,
   optionalRecipeSupported: true,
+  recipeModeExclusive: true,
+  recipesPreservedWhenDisabled: true,
+  salesEngineDirectOrRecipeVerified: true,
   canonicalOcrReused: true
 }));
