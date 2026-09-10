@@ -51,10 +51,10 @@ jobs:
           BASE='https://core.vantixgc.com'
           for i in $(seq 1 60); do
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
-            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
               ASSET="$(curl -fsS "$BASE/app/restaurant-menu-import-ui.js?v=$GITHUB_SHA")"
-              echo "$ASSET" | grep -Fq 'VANTIX_MENU_OCR_END_TO_END_10MB_V7'
-              echo "$ASSET" | grep -Fq 'VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8'
+              [[ "$ASSET" == *"VANTIX_MENU_OCR_END_TO_END_10MB_V7"* ]]
+              [[ "$ASSET" == *"VANTIX_MENU_OCR_DYNAMIC_CATEGORIES_V8"* ]]
               echo "Restaurant Inventory/Menu Import V1 live at $GITHUB_SHA"
               exit 0
             fi
