@@ -15,11 +15,11 @@
     if(query)showAllCategory();
     const rows=[...list.querySelectorAll('.p7-row')];let visible=0;
     rows.forEach(row=>{const match=!query||normalize(row.textContent).includes(query);row.hidden=!match;if(match)visible+=1});
-    if(empty){empty.hidden=!query||visible>0||!rows.length;empty.textContent=query&&!visible?'No encontramos productos con esa búsqueda.':' ';}
+    if(empty){empty.hidden=!query||visible>0||!rows.length;empty.textContent=query&&!visible?'No encontramos productos con esa búsqueda.':''}
   }
   input.addEventListener('input',apply);
   clear?.addEventListener('click',()=>{input.value='';query='';apply();input.focus()});
-  document.getElementById('categoryNav')?.addEventListener('click',event=>{if(query&&event.target.closest?.('[data-category]')){input.value='';query='';if(clear)clear.hidden=true;if(empty)empty.hidden=true}});
+  document.getElementById('categoryNav')?.addEventListener('click',event=>{if(!switching&&query&&event.target.closest?.('[data-category]')){input.value='';query='';if(clear)clear.hidden=true;if(empty)empty.hidden=true}});
   const observer=new MutationObserver(apply);observer.observe(list,{childList:true,subtree:true});
   apply();window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
   window.VantixGCRestaurantClientSearchP8=Object.freeze({marker:MARKER,searchesNameAndCategory:true,allCategoriesOnSearch:true});
