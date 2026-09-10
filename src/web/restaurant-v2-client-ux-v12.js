@@ -1,15 +1,41 @@
-/* VANTIX_RESTAURANT_V2_CLIENT_UX_V12 */
+/* VANTIX_RESTAURANT_V2_CLIENT_UX_V12 · VANTIX_RESTAURANT_V2_CLIENT_ADAPTIVE_VIEWPORT_V13 */
 (() => {
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_V2_CLIENT_UX_V12';
+  const ADAPTIVE_MARKER = 'VANTIX_RESTAURANT_V2_CLIENT_ADAPTIVE_VIEWPORT_V13';
   document.documentElement.dataset.restaurantV2ClientUx = MARKER;
+  document.documentElement.dataset.restaurantV2AdaptiveViewport = ADAPTIVE_MARKER;
 
   const norm = (value) => String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+
+  function installAdaptiveViewport() {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    let raf = 0;
+
+    const sync = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const visualHeight = Math.max(1, Math.round(viewport?.height || window.innerHeight || root.clientHeight || 1));
+        const offsetTop = Math.max(0, Math.round(viewport?.offsetTop || 0));
+        const layoutHeight = Math.max(visualHeight, Math.round(window.innerHeight || 0), Math.round(root.clientHeight || 0));
+        const visualBottom = Math.max(0, layoutHeight - visualHeight - offsetTop);
+        root.style.setProperty('--p7-visual-height', `${visualHeight}px`);
+        root.style.setProperty('--p7-visual-bottom', `${visualBottom}px`);
+      });
+    };
+
+    sync();
+    viewport?.addEventListener('resize', sync, { passive:true });
+    viewport?.addEventListener('scroll', sync, { passive:true });
+    window.addEventListener('resize', sync, { passive:true });
+    window.addEventListener('orientationchange', () => setTimeout(sync, 120), { passive:true });
+  }
 
   function installSearch() {
     const spotlight = document.getElementById('spotlight');
@@ -95,6 +121,11 @@
     }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installSearch, { once:true });
-  else installSearch();
+  function bootUx() {
+    installAdaptiveViewport();
+    installSearch();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootUx, { once:true });
+  else bootUx();
 })();
