@@ -1,0 +1,58 @@
+/* VANTIX_RESTAURANT_V2_SIDEBAR_SUPER_CORE_V16
+   Exact sidebar palette shared with the Super Core shell. */
+:root{
+  --restaurant-sidebar-bg:#10241b;
+  --restaurant-sidebar-active:#173429;
+  --restaurant-sidebar-text:#d9e6e0;
+  --restaurant-sidebar-muted:#92aa9f;
+  --restaurant-sidebar-brand-soft:#dff2e8;
+  --restaurant-sidebar-brand-green:#0d6b43;
+}
+
+.p11-side{
+  background:var(--restaurant-sidebar-bg)!important;
+  color:#fff!important;
+}
+
+.p11-brand>span{
+  background:linear-gradient(145deg,#fff,var(--restaurant-sidebar-brand-soft))!important;
+  color:var(--restaurant-sidebar-brand-green)!important;
+}
+
+.p11-brand small,
+.p11-nav-label{
+  color:var(--restaurant-sidebar-muted)!important;
+}
+
+.p11-tenant{
+  border-color:rgba(255,255,255,.10)!important;
+  background:rgba(255,255,255,.035)!important;
+}
+
+.p11-tenant span{
+  color:#9db3a8!important;
+}
+
+.p11-nav button{
+  border-color:transparent!important;
+  background:transparent!important;
+  color:var(--restaurant-sidebar-text)!important;
+}
+
+.p11-nav button:hover,
+.p11-nav button.active{
+  border-color:transparent!important;
+  background:var(--restaurant-sidebar-active)!important;
+  color:#fff!important;
+}
+
+.p11-core-link{
+  border-top-color:rgba(255,255,255,.10)!important;
+  color:var(--restaurant-sidebar-text)!important;
+}
+
+@media(max-width:900px){
+  .p11-side{
+    background:var(--restaurant-sidebar-bg)!important;
+  }
+}
