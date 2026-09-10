@@ -36,6 +36,11 @@ assert.match(html, /\+ Nuevo plato/);
 assert.match(html, /\+ Desde inventario/);
 assert.match(html, /Inventario \/ Kardex/);
 assert.match(html, /id="configureRecipe"/);
+assert.match(html, /id="menuGrid" class="menu-grid"/);
+// El OCR canónico puede reutilizar el encabezado y sus acciones, pero no debe encontrar
+// un grid legado dentro de Carta V2: de lo contrario repinta la carta antigua como una
+// tercera columna del encabezado y desplaza todo el layout hacia la derecha.
+assert.doesNotMatch(html, /class="cc-menu-grid"/);
 
 assert.match(js, /VANTIX_RESTAURANT_V2_MENU_V1/);
 assert.match(js, /VANTIX_RESTAURANT_V2_MENU_RECIPE_MODE_V2/);
@@ -95,5 +100,6 @@ console.log('RESTAURANT V2 MENU V1 SMOKE OK', JSON.stringify({
   recipeModeExclusive: true,
   recipesPreservedWhenDisabled: true,
   salesEngineDirectOrRecipeVerified: true,
-  canonicalOcrReused: true
+  canonicalOcrReused: true,
+  legacyOcrGridExcludedFromV2Layout: true
 }));
