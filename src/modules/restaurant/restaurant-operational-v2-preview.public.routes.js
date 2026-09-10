@@ -22,29 +22,16 @@ const webRoot = path.join(__dirname, '../../web');
 
 const restaurantOperationalV2PreviewPublicRouter = express.Router();
 
-// P11 owns the canonical Control Center first. It serves only a tenant-aware
-// launcher and a native V2 shell; no legacy Restaurant rewriting runs when P11
-// answers. Tenants not retired are sent explicitly to the P10 compatibility alias.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV1RetirementP11PublicRouter);
-// V2 public aggregator. Each operational module owns its own route and assets;
-// all of them are resolved here before any legacy Restaurant response wrapper.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2ControlCenterPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2TablesPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OrdersPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2CashPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2SplitPublicRouter);
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2KdsPublicRouter);
-// Carta V2 is its own Restaurant surface. It reuses the Super Core product master,
-// Inventory/Kardex, Recipes and the canonical OCR importer without embedding itself
-// inside the administrative inventory screen.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2MenuPublicRouter);
-// Final admin parity reuses the proven QR/device APIs without rotating tokens or
-// introducing a second pairing model.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2AdminParityPublicRouter);
-// P9 is a control-plane surface only; it never rewrites canonical V1 routes.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2PilotPublicRouter);
-// P7 owns the existing permanent physical QR path before V1. If this router is
-// removed, src/app.js keeps serving restaurant-qr.html as the automatic fallback.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2ClientQrPublicRouter);
 
 function sendPreviewAsset(res, file, contentType = null) {
@@ -60,6 +47,14 @@ restaurantOperationalV2PreviewPublicRouter.get('/app/restaurante-v2-preview', (_
 
 restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-v2-design-system.css', (_req, res) => {
   return sendPreviewAsset(res, 'restaurant-v2-design-system.css', 'text/css; charset=utf-8');
+});
+
+restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-v2-ux-v78.css', (_req, res) => {
+  return sendPreviewAsset(res, 'restaurant-v2-ux-v78.css', 'text/css; charset=utf-8');
+});
+
+restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-v2-ux-v78.js', (_req, res) => {
+  return sendPreviewAsset(res, 'restaurant-v2-ux-v78.js', 'application/javascript; charset=utf-8');
 });
 
 restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-v2-sdk.js', (_req, res) => {
