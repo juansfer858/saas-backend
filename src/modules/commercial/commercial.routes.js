@@ -13,6 +13,8 @@ router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, nex
   try {
     let source = await fs.promises.readFile(path.join(webRoot, 'panel-integration-extras-core.js'), 'utf8');
     const inventoryProductCreator = await fs.promises.readFile(path.join(webRoot, 'inventory-product-create-v70.js'), 'utf8');
+    const restaurantInventoryWorkspace = await fs.promises.readFile(path.join(webRoot, 'restaurant-inventory-workspace-v1.js'), 'utf8');
+    const restaurantInventoryMenuImport = await fs.promises.readFile(path.join(webRoot, 'restaurant-inventory-menu-import-loader-v1.js'), 'utf8');
     source = source.replace(
       "api('/api/v1/tesoreria/pagos')",
       "api('/api/v1/tesoreria/recaudos-recientes')"
@@ -23,10 +25,18 @@ router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, nex
     if (!inventoryProductCreator.includes('VANTIX_INVENTORY_PRODUCT_CREATE_V70')) {
       throw new Error('No fue posible montar el creador de productos de Inventario V70');
     }
+    if (!restaurantInventoryWorkspace.includes('VANTIX_RESTAURANT_INVENTORY_WORKSPACE_V1')) {
+      throw new Error('No fue posible montar Inventarios / Kardex de Restaurante V1');
+    }
+    if (!restaurantInventoryMenuImport.includes('VANTIX_RESTAURANT_MENU_IMPORT_INVENTORY_V1')) {
+      throw new Error('No fue posible montar el importador de carta dentro de Inventarios / Kardex');
+    }
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Treasury-Recent-Receipts', 'v43-movimiento-tesoreria');
     res.set('X-VantixGC-Inventory-Product-Creator', 'v70');
-    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}\n/* VANTIX_INVENTORY_PRODUCT_CREATE_V70 */\n${inventoryProductCreator}`);
+    res.set('X-VantixGC-Restaurant-Inventory-Workspace', 'v1');
+    res.set('X-VantixGC-Restaurant-Menu-Import-Inventory', 'v1-canonical-ocr');
+    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}\n/* VANTIX_INVENTORY_PRODUCT_CREATE_V70 */\n${inventoryProductCreator}\n/* VANTIX_RESTAURANT_INVENTORY_WORKSPACE_V1 */\n${restaurantInventoryWorkspace}\n/* VANTIX_RESTAURANT_MENU_IMPORT_INVENTORY_V1 */\n${restaurantInventoryMenuImport}`);
   } catch (error) { next(error); }
 });
 
