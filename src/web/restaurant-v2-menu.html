@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0D6B43">
+  <title>Carta · Restaurante V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-menu.css">
+</head>
+<body>
+  <header class="rv2-top menu-top">
+    <div>
+      <span>RESTAURANTE V2 · CARTA</span>
+      <h1 id="restaurantName">Carta</h1>
+      <p id="tenantLine">Cargando carta…</p>
+    </div>
+    <div class="rv2-top-actions">
+      <button id="refresh" class="rv2-btn" type="button">Actualizar</button>
+    </div>
+  </header>
+
+  <main class="menu-main">
+    <section id="notice" class="rv2-notice">Cargando productos de la carta…</section>
+
+    <section id="ccCustomView" class="rv2-panel menu-command" aria-labelledby="menuTitle">
+      <div>
+        <small>CARTA COMERCIAL</small>
+        <h1 id="menuTitle">Carta y productos</h1>
+        <p>Lo que ve el mesero y el cliente. La existencia física sigue perteneciendo al Inventario/Kardex del Super Core.</p>
+      </div>
+      <div class="cc-view-actions menu-actions">
+        <button id="newPrepared" class="rv2-btn rv2-btn-primary" type="button">+ Nuevo plato</button>
+        <button id="addInventory" class="rv2-btn" type="button">+ Desde inventario</button>
+        <a class="rv2-btn" href="/app/inventario" target="_top">Inventario / Kardex</a>
+      </div>
+      <div class="cc-menu-grid" hidden aria-hidden="true"></div>
+    </section>
+
+    <section id="summary" class="menu-summary"></section>
+
+    <section class="rv2-panel menu-toolbar">
+      <input id="search" class="menu-input" type="search" placeholder="Buscar producto, categoría o SKU" autocomplete="off">
+      <select id="categoryFilter" class="menu-select" aria-label="Filtrar categoría"><option value="">Todas las categorías</option></select>
+      <select id="stationFilter" class="menu-select" aria-label="Filtrar estación">
+        <option value="">Todas las estaciones</option>
+        <option value="COCINA">Cocina</option>
+        <option value="BARRA">Barra</option>
+        <option value="POSTRES">Postres</option>
+      </select>
+      <select id="kindFilter" class="menu-select" aria-label="Filtrar tipo">
+        <option value="">Todos los tipos</option>
+        <option value="PREPARED">Preparado / sin control</option>
+        <option value="DIRECT">Inventario directo</option>
+        <option value="RECIPE">Receta</option>
+      </select>
+      <label class="menu-check"><input id="showInactive" type="checkbox"> Mostrar ocultos</label>
+    </section>
+
+    <section id="menuGrid" class="menu-grid"></section>
+  </main>
+
+  <dialog id="preparedDialog" class="menu-dialog">
+    <form id="preparedForm" method="dialog">
+      <div class="menu-dialog-head"><div><small>NUEVO PRODUCTO DE CARTA</small><h2>Nuevo plato / preparado</h2></div><button class="rv2-btn" type="button" data-close="preparedDialog">Cerrar</button></div>
+      <div class="menu-dialog-body">
+        <div class="menu-grid2">
+          <label>Nombre<input id="preparedName" class="menu-input" required maxlength="180"></label>
+          <label>Precio<input id="preparedPrice" class="menu-input" type="number" min="0" step="1" required></label>
+          <label>Categoría visible<input id="preparedCommercialCategory" class="menu-input" maxlength="80" placeholder="Ej. Hamburguesas"></label>
+          <label>Categoría operativa<select id="preparedCategory" class="menu-select"><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="BEBIDAS">Bebidas</option><option value="POSTRES">Postres</option></select></label>
+          <label>Estación<select id="preparedStation" class="menu-select"><option value="COCINA">Cocina</option><option value="BARRA">Barra</option><option value="POSTRES">Postres</option></select></label>
+          <label>SKU<input id="preparedSku" class="menu-input" maxlength="80" placeholder="Se genera si lo dejas vacío"></label>
+        </div>
+        <div class="menu-info"><b>Por defecto no descuenta inventario.</b><span>El producto puede venderse inmediatamente. Si después el restaurante quiere controlar receta, se configura desde la misma Carta.</span></div>
+        <div id="preparedError" class="menu-error" hidden></div>
+      </div>
+      <div class="menu-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar en Carta</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="inventoryDialog" class="menu-dialog">
+    <form id="inventoryForm" method="dialog">
+      <div class="menu-dialog-head"><div><small>PRODUCTO EXISTENTE</small><h2>Agregar desde Inventario</h2></div><button class="rv2-btn" type="button" data-close="inventoryDialog">Cerrar</button></div>
+      <div class="menu-dialog-body">
+        <label>Buscar producto<input id="inventorySearch" class="menu-input" type="search" placeholder="Coca-Cola, agua, SKU…" autocomplete="off"></label>
+        <div id="inventoryCandidates" class="inventory-candidates"></div>
+        <input id="inventoryProductId" type="hidden" required>
+        <div id="inventorySelected" class="menu-info"><span>Selecciona un producto existente del inventario.</span></div>
+        <div class="menu-grid2">
+          <label>Categoría visible<input id="inventoryCommercialCategory" class="menu-input" maxlength="80" placeholder="Ej. Gaseosas"></label>
+          <label>Categoría operativa<select id="inventoryCategory" class="menu-select"><option value="BEBIDAS">Bebidas</option><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="POSTRES">Postres</option></select></label>
+          <label>Estación<select id="inventoryStation" class="menu-select"><option value="BARRA">Barra</option><option value="COCINA">Cocina</option><option value="POSTRES">Postres</option></select></label>
+        </div>
+        <div class="menu-info"><b>Usa el mismo producto del Super Core.</b><span>Si Compras ingresó 50 unidades, la Carta no crea otra existencia ni otro Kardex.</span></div>
+        <div id="inventoryError" class="menu-error" hidden></div>
+      </div>
+      <div class="menu-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Agregar a Carta</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="editDialog" class="menu-dialog">
+    <form id="editForm" method="dialog">
+      <div class="menu-dialog-head"><div><small>PRODUCTO DE CARTA</small><h2 id="editTitle">Editar</h2></div><button class="rv2-btn" type="button" data-close="editDialog">Cerrar</button></div>
+      <div class="menu-dialog-body">
+        <input id="editMenuId" type="hidden"><input id="editProductId" type="hidden">
+        <div class="menu-grid2">
+          <label>Nombre<input id="editName" class="menu-input" maxlength="180" required></label>
+          <label>Precio<input id="editPrice" class="menu-input" type="number" min="0" step="1" required></label>
+          <label>Categoría visible<input id="editCommercialCategory" class="menu-input" maxlength="80"></label>
+          <label>Categoría operativa<select id="editCategory" class="menu-select"><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="BEBIDAS">Bebidas</option><option value="POSTRES">Postres</option></select></label>
+          <label>Estación<select id="editStation" class="menu-select"><option value="COCINA">Cocina</option><option value="BARRA">Barra</option><option value="POSTRES">Postres</option></select></label>
+          <label>Control<select id="editKind" class="menu-select"><option value="PREPARED">Preparado / sin control de inventario</option><option value="DIRECT">Descontar este mismo producto</option><option value="RECIPE">Descontar mediante receta</option></select></label>
+        </div>
+        <label class="menu-check"><input id="editActive" type="checkbox"> Visible y disponible en Carta</label>
+        <div id="recipeBox" class="menu-info"></div>
+        <div id="editError" class="menu-error" hidden></div>
+      </div>
+      <div class="menu-dialog-actions"><button id="configureRecipe" class="rv2-btn" type="button">Configurar receta</button><button class="rv2-btn rv2-btn-primary" type="submit">Guardar cambios</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="recipeDialog" class="menu-dialog menu-dialog-wide">
+    <form id="recipeForm" method="dialog">
+      <div class="menu-dialog-head"><div><small>CONTROL AVANZADO</small><h2 id="recipeTitle">Configurar receta</h2></div><button class="rv2-btn" type="button" data-close="recipeDialog">Cerrar</button></div>
+      <div class="menu-dialog-body">
+        <div class="menu-info"><b>Opcional.</b><span>La mayoría de restaurantes puede operar sin receta. Úsala sólo si deseas descontar ingredientes automáticamente.</span></div>
+        <div id="recipeRows" class="recipe-rows"></div>
+        <button id="addRecipeRow" class="rv2-btn" type="button">+ Agregar insumo</button>
+        <div id="recipeError" class="menu-error" hidden></div>
+      </div>
+      <div class="menu-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar receta y activar control</button></div>
+    </form>
+  </dialog>
+
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-menu.js"></script>
+</body>
+</html>
