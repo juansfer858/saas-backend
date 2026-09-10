@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#111827">
   <title>Pedido en mesa · VantixGC</title>
   <link rel="stylesheet" href="/app/restaurant-v2-client-qr.css?v=p7">
+  <link rel="stylesheet" href="/app/restaurant-v2-client-experience-p8.css?v=p8">
 </head>
 <body>
-  <!-- VANTIX_RESTAURANT_V2_CLIENT_QR_P7 · VANTIX_RESTAURANT_V2_QR_NO_CODE_V11 -->
+  <!-- VANTIX_RESTAURANT_V2_CLIENT_QR_P7 · VANTIX_RESTAURANT_V2_QR_NO_CODE_V11 · VANTIX_RESTAURANT_V2_CLIENT_SEARCH_P8 -->
   <main class="p7-shell" id="p7App" aria-live="polite">
     <header class="p7-header">
       <div class="p7-brand-copy">
@@ -25,6 +26,16 @@
     </section>
 
     <section id="spotlight" class="p7-spotlight" hidden></section>
+
+    <section class="p7-search" aria-label="Buscar en la carta">
+      <label for="menuSearch">Buscar producto</label>
+      <div class="p7-search-row">
+        <input id="menuSearch" type="search" placeholder="Buscar producto o categoría…" autocomplete="off">
+        <button id="menuSearchClear" class="p7-secondary" type="button" hidden>Limpiar</button>
+      </div>
+      <div id="menuSearchEmpty" class="p7-search-empty" hidden></div>
+    </section>
+
     <nav id="categoryNav" class="p7-categories" aria-label="Categorías del menú"></nav>
 
     <section class="p7-menu-head">
@@ -51,5 +62,6 @@
   <div id="toast" class="p7-toast" role="status" hidden></div>
   <script src="/app/restaurant-v2-client-qr.js?v=p7"></script>
   <script src="/app/restaurant-v2-client-qr-open-request.js?v=v11-no-code"></script>
+  <script src="/app/restaurant-v2-client-search-p8.js?v=p8"></script>
 </body>
 </html>
