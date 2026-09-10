@@ -23,6 +23,7 @@ router.get('/app/restaurant-v1-retirement-p11-launch.js', (_req, res) => send(re
 router.get('/app/centro-de-control-v2', (_req, res) => send(res, 'restaurant-v2-native-control-p11.html', 'text/html; charset=utf-8'));
 router.get('/app/restaurant-v2-native-control-p11.js', (_req, res) => send(res, 'restaurant-v2-native-control-p11.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-native-control-p11.css', (_req, res) => send(res, 'restaurant-v2-native-control-p11.css', 'text/css; charset=utf-8'));
+router.get('/app/restaurant-v2-sidebar-purple-v15.css', (_req, res) => send(res, 'restaurant-v2-sidebar-purple-v15.css', 'text/css; charset=utf-8'));
 
 // Existing independent admin/business modules get standalone hosts so they no
 // longer need the V1 Restaurant shell to remain reachable.
