@@ -1,0 +1,64 @@
+name: Restaurant V2 KDS Stations V23 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-kds-stations-v23.js'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'scripts/restaurant-v2-kds-stations-v23-smoke.js'
+      - '.github/workflows/restaurant-v2-kds-stations-v23-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-kds-stations-v23.js'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'scripts/restaurant-v2-kds-stations-v23-smoke.js'
+      - '.github/workflows/restaurant-v2-kds-stations-v23-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate KDS station addon syntax
+        run: node --check src/web/restaurant-v2-kds-stations-v23.js
+      - name: Validate V2 production station management contract
+        run: node scripts/restaurant-v2-kds-stations-v23-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact KDS Stations V23 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              PAGE="$(curl -fsS "$BASE/app/restaurante-v2/kds?v=$GITHUB_SHA")"
+              JS="$(curl -fsS "$BASE/app/restaurant-v2-kds-stations-v23.js?v=$GITHUB_SHA")"
+              [[ "$PAGE" == *'restaurant-v2-kds-stations-v23.js?v=v23'* ]]
+              [[ "$JS" == *'VANTIX_RESTAURANT_V2_KDS_STATIONS_V23'* ]]
+              [[ "$JS" == *'+ Crear estación'* ]]
+              [[ "$JS" == *'/api/v1/impresion/estaciones'* ]]
+              [[ "$JS" == *"new Set(['ADMIN','SUPER_ADMIN'])"* ]]
+              echo "Restaurant V2 KDS Stations V23 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Exact KDS Stations V23 commit did not reach production in time.' >&2
+          exit 1
