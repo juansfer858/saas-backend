@@ -42,6 +42,11 @@ async function publicGet(base, url, status=200) {
   assert.equal(response.status, status, `${url} esperaba ${status}`);
   return { response, text };
 }
+function assertV2Redirect(result, target) {
+  assert.equal(result.response.status, 307);
+  assert.equal(result.response.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+  assert.ok(String(result.response.headers.get('location') || '').startsWith(target), `redirect esperado a ${target}`);
+}
 async function operationalCounts(tenantId) {
   const [sales, sessions, orders, sessionPayments] = await Promise.all([
     prisma.comprobanteComercial.count({ where:{ tenantId } }),
@@ -56,6 +61,7 @@ async function main() {
   const serviceSource = read('src/modules/restaurant/restaurant-v1-retirement-p11.service.js');
   const routeSource = read('src/modules/restaurant/restaurant-v1-retirement-p11.routes.js');
   const publicSource = read('src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js');
+  const p12Source = read('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js');
   const launcherHtml = read('src/web/restaurant-v1-retirement-p11-launch.html');
   const launcherJs = read('src/web/restaurant-v1-retirement-p11-launch.js');
   const nativeHtml = read('src/web/restaurant-v2-native-control-p11.html');
@@ -75,13 +81,19 @@ async function main() {
   assert.match(serviceSource, /dianDoesNotBlock:\s*true/);
   assert.doesNotMatch(serviceSource, /qrToken\s*:/);
   assert.match(routeSource, /\/v2\/retiro-v1\/launch/);
-  assert.match(routeSource, /RESTAURANT_V1_RETIREMENT_ACTIVE_CUTOVER_DISABLE_FORBIDDEN/);
+  assert.match(routeSource, /RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED/);
   assert.match(publicSource, /\/app\/centro-de-control-v2/);
   assert.match(publicSource, /\/app\/restaurante-v2\/empleados/);
   assert.match(publicSource, /\/app\/restaurante-v2\/domicilios/);
   assert.match(p10Public, /\/app\/centro-de-control-p10/);
-  assert.match(aggregator, /restaurantV1RetirementP11PublicRouter/);
-  assert.ok(aggregator.indexOf('restaurantV1RetirementP11PublicRouter') < aggregator.indexOf('restaurantV2ControlCenterPublicRouter'), 'P11 debe resolverse antes del shell P10');
+  assert.match(p12Source, /p12-v2-only-runtime/);
+  assert.match(p12Source, /\/app\/restaurante-v1/);
+  assert.match(p12Source, /\/app\/centro-de-control\/mesero-v1/);
+  assert.match(p12Source, /\/app\/produccion-v1/);
+  const p12Mount = aggregator.indexOf('restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OnlyP12PublicRouter)');
+  const p11Mount = aggregator.indexOf('restaurantOperationalV2PreviewPublicRouter.use(restaurantV1RetirementP11PublicRouter)');
+  const p10Mount = aggregator.indexOf('restaurantOperationalV2PreviewPublicRouter.use(restaurantV2ControlCenterPublicRouter)');
+  assert.ok(p12Mount >= 0 && p12Mount < p11Mount && p11Mount < p10Mount, 'P12 debe resolver antes de P11 y P10');
   assert.match(core, /restaurantV1RetirementCutoverGuard/);
   assert.match(core, /restaurantV1RetirementP11Router/);
   assert.match(launcherHtml, /VANTIXGC RESTAURANTES · P11/);
@@ -133,7 +145,7 @@ async function main() {
   const adminSession = sessionFor(admin, tenant);
   const waiterSession = sessionFor(waiter, tenant);
 
-  // Establish the exact precondition required for P11: P9 active + P10 active.
+  // Preserve P11 service-state coverage even though P12 owns the public runtime.
   const pilotOn = await pilot.setPilot(tenant.id, admin.id, { enabled:true, notes:'P11 smoke pilot' });
   assert.equal(pilotOn.pilot.enabled, true);
   assert.equal(pilotOn.readiness.ready, true);
@@ -164,20 +176,16 @@ async function main() {
   assert.equal(launchAfter.dianGate, false);
 
   await withServer(async(base) => {
-    const canonical = await publicGet(base, '/app/centro-de-control');
-    assert.equal(canonical.response.headers.get('x-vantixgc-restaurant-v1-retirement'), 'p11-v1-retirement');
-    assert.match(canonical.text, /data-p11-launch="true"/);
-    assert.doesNotMatch(canonical.text, /restaurant-ui\.js|restaurant-control-center\.js|MutationObserver/);
+    const canonical = await publicGet(base, '/app/centro-de-control', 307);
+    assertV2Redirect(canonical, '/app/centro-de-control-v2');
 
     const native = await publicGet(base, '/app/centro-de-control-v2');
     assert.equal(native.response.headers.get('x-vantixgc-restaurant-v1-retirement'), 'p11-v1-retirement');
     assert.match(native.text, /data-v2-native-control="p11"/);
     assert.doesNotMatch(native.text, /restaurant-ui\.js|restaurant-control-center\.js|restaurant\.html|MutationObserver/);
 
-    const p10 = await publicGet(base, '/app/centro-de-control-p10');
-    assert.equal(p10.response.headers.get('x-vantixgc-restaurant-control-p10-compatibility'), 'true');
-    assert.equal(p10.response.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
-    assert.match(p10.text, /restaurant-v2-control-center-bridge\.js/);
+    const p10 = await publicGet(base, '/app/centro-de-control-p10', 307);
+    assertV2Redirect(p10, '/app/centro-de-control-v2');
 
     const employees = await publicGet(base, '/app/restaurante-v2/empleados');
     assert.match(employees.text, /data-p11-module-host="employees"/);
@@ -189,15 +197,15 @@ async function main() {
     assert.equal((await publicGet(base, '/app/restaurant-employees-ui.js')).response.status, 200);
     assert.equal((await publicGet(base, '/app/restaurant-waiter-device-admin.js')).response.status, 200);
 
-    const panel = await publicGet(base, '/app/restaurante-v2/retiro-v1');
-    assert.match(panel.text, /Retiro operativo de V1/);
+    const panel = await publicGet(base, '/app/restaurante-v2/retiro-v1', 307);
+    assertV2Redirect(panel, '/app/centro-de-control-v2');
 
-    const restaurantRollback = await publicGet(base, '/app/restaurante-v1');
-    assert.equal(restaurantRollback.response.headers.get('x-vantixgc-restaurant-v2-pilot-rollback'), 'v1-direct-shell');
-    const waiterRollback = await publicGet(base, '/app/centro-de-control/mesero-v1');
-    assert.equal(waiterRollback.response.headers.get('x-vantixgc-restaurant-v2-cutover-rollback'), 'waiter-v1-direct');
-    const productionRollback = await publicGet(base, '/app/produccion-v1');
-    assert.equal(productionRollback.response.headers.get('x-vantixgc-restaurant-v2-cutover-rollback'), 'production-v1-direct');
+    const restaurantRollback = await publicGet(base, '/app/restaurante-v1', 307);
+    assertV2Redirect(restaurantRollback, '/app/centro-de-control-v2');
+    const waiterRollback = await publicGet(base, '/app/centro-de-control/mesero-v1', 307);
+    assertV2Redirect(waiterRollback, '/app/centro-de-control/mesero-v2/');
+    const productionRollback = await publicGet(base, '/app/produccion-v1', 307);
+    assertV2Redirect(productionRollback, '/app/produccion-v2/');
 
     assert.equal((await publicGet(base, '/app/centro-de-control/mesero-v2/')).response.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
     assert.equal((await publicGet(base, '/app/produccion-v2/')).response.headers.get('x-vantixgc-restaurant-v2-device'), 'production-p8');
@@ -209,20 +217,25 @@ async function main() {
     const waiterLaunch = await api(base, '/api/v1/restaurante/v2/retiro-v1/launch', waiterSession);
     assert.equal(waiterLaunch.data.target, '/app/centro-de-control-v2');
 
-    // P11 cannot be left active while P10 is rolled back underneath it.
-    const blocked = await api(base, '/api/v1/restaurante/v2/cutover', adminSession, { method:'PATCH', body:{ enabled:false }, status:409 });
-    assert.equal(blocked.payload?.error?.code, 'RESTAURANT_V1_RETIREMENT_ACTIVE_CUTOVER_DISABLE_FORBIDDEN');
+    // P12 blocks every operator-accessible route back to V1.
+    const blockedCutover = await api(base, '/api/v1/restaurante/v2/cutover', adminSession, { method:'PATCH', body:{ enabled:false }, status:409 });
+    assert.equal(blockedCutover.payload?.error?.code, 'RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED');
+    const blockedRetirement = await api(base, '/api/v1/restaurante/v2/retiro-v1', adminSession, { method:'PATCH', body:{ enabled:false }, status:409 });
+    assert.equal(blockedRetirement.payload?.error?.code, 'RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED');
+    const blockedPilot = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method:'PATCH', body:{ enabled:false }, status:409 });
+    assert.equal(blockedPilot.payload?.error?.code, 'RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED');
   });
 
-  assert.deepEqual(await operationalCounts(tenant.id), countsBeforeP11, 'P11 no puede crear/modificar ventas, sesiones, pedidos ni pagos por activación');
-  assert.deepEqual(qrMap(await prisma.restaurantTable.findMany({ where:{ tenantId:tenant.id, active:true }, select:{ id:true, qrToken:true } })), beforeQr, 'P11 no puede rotar QR físicos');
+  assert.deepEqual(await operationalCounts(tenant.id), countsBeforeP11, 'P12/P11 no puede crear/modificar ventas, sesiones, pedidos ni pagos por activación');
+  assert.deepEqual(qrMap(await prisma.restaurantTable.findMany({ where:{ tenantId:tenant.id, active:true }, select:{ id:true, qrToken:true } })), beforeQr, 'P12/P11 no puede rotar QR físicos');
 
-  const disabled = await retirement.setState(tenant.id, admin.id, { enabled:false, notes:'P11 smoke restore compatibility' }, prisma, { auditClient:forcedAuditFailure });
+  // Direct service calls are retained only for isolated test cleanup and code-level rollback.
+  const disabled = await retirement.setState(tenant.id, admin.id, { enabled:false, notes:'P11 smoke internal cleanup' }, prisma, { auditClient:forcedAuditFailure });
   assert.equal(disabled.retirement.enabled, false);
   assert.equal(disabled.retirement.mode, 'P10_COMPATIBILITY');
   assert.equal((await retirement.launchDecision(tenant.id)).target, '/app/centro-de-control-p10');
-  assert.deepEqual(await operationalCounts(tenant.id), countsBeforeP11, 'restaurar P10 tampoco puede afectar operación financiera');
-  assert.deepEqual(qrMap(await prisma.restaurantTable.findMany({ where:{ tenantId:tenant.id, active:true }, select:{ id:true, qrToken:true } })), beforeQr, 'rollback P11 no puede rotar QR físicos');
+  assert.deepEqual(await operationalCounts(tenant.id), countsBeforeP11, 'cleanup interno tampoco puede afectar operación financiera');
+  assert.deepEqual(qrMap(await prisma.restaurantTable.findMany({ where:{ tenantId:tenant.id, active:true }, select:{ id:true, qrToken:true } })), beforeQr, 'cleanup interno no puede rotar QR físicos');
 
   const stored = await prisma.restaurantConfig.findUnique({ where:{ tenantId:tenant.id } });
   assert.deepEqual(stored.themeData.p11Sentinel, sentinel, 'P11 debe preservar themeData ajeno');
@@ -232,13 +245,12 @@ async function main() {
   assert.equal(stored.themeData.restaurantV1RetirementHistory[0].action, 'RETIRE_V1_NORMAL_OPERATION');
   assert.equal(stored.themeData.restaurantV1RetirementHistory[1].action, 'RESTORE_P10_COMPATIBILITY');
 
-  // Clean the isolated test tenant back to pre-pilot state in the correct order.
   const cutoverOff = await cutover.setCutover(tenant.id, admin.id, { enabled:false, notes:'P11 smoke cleanup cutover' });
   assert.equal(cutoverOff.cutover.enabled, false);
   const pilotOff = await pilot.setPilot(tenant.id, admin.id, { enabled:false, notes:'P11 smoke cleanup pilot' });
   assert.equal(pilotOff.pilot.enabled, false);
 
-  console.log('RESTAURANT V1 RETIREMENT P11 DB SMOKE OK', JSON.stringify({ tenant:tenant.subdomain, tables:tablesBefore.length, qrStable:true, financialStable:true, nativeControl:true, p10Compatibility:true, v1RollbackPreserved:true, historyEvents:2 }));
+  console.log('RESTAURANT V1 RETIREMENT P11/P12 DB SMOKE OK', JSON.stringify({ tenant:tenant.subdomain, tables:tablesBefore.length, qrStable:true, financialStable:true, nativeControl:true, p10Runtime:false, v1Runtime:false, sourceRollbackPreserved:true, historyEvents:2 }));
 }
 
-main().catch((error) => { console.error('RESTAURANT V1 RETIREMENT P11 DB SMOKE ERROR', error); process.exitCode=1; }).finally(async() => prisma.$disconnect());
+main().catch((error) => { console.error('RESTAURANT V1 RETIREMENT P11/P12 DB SMOKE ERROR', error); process.exitCode=1; }).finally(async() => prisma.$disconnect());
