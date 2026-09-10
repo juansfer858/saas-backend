@@ -76,9 +76,9 @@ jobs:
               assert_redirect '/app/restaurante-v2/migracion' '/app/centro-de-control-v2'
               assert_redirect '/app/restaurante-v2/retiro-v1' '/app/centro-de-control-v2'
 
-              curl -fsS "$BASE/app/centro-de-control-v2" | grep -q 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11'
+              curl -fsS "$BASE/app/centro-de-control-v2" | grep -q 'data-v2-native-control="p11"'
               curl -fsS "$BASE/app/centro-de-control/mesero-v2" | grep -q 'data-waiter-ui="tablet-3col-v22"'
-              curl -fsS "$BASE/app/produccion-v2" | grep -q 'VANTIX_RESTAURANT_V2_PRODUCTION_P8'
+              curl -fsS "$BASE/app/produccion-v2" | grep -q 'data-vantix-device="production"'
 
               WAITER_SW="$(curl -fsS "$BASE/app/centro-de-control/sw.js")"
               PROD_SW="$(curl -fsS "$BASE/app/produccion/sw.js")"
