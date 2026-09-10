@@ -8,6 +8,7 @@ on:
       - 'src/web/restaurant-v2-menu.*'
       - 'src/web/restaurant-v2-native-control-p11.js'
       - 'src/modules/commercial/commercial.routes.js'
+      - 'src/modules/commercial/sales.service.js'
       - 'src/modules/restaurant/restaurant.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.*'
       - 'src/modules/inventory/**'
@@ -22,6 +23,7 @@ on:
       - 'src/web/restaurant-v2-menu.*'
       - 'src/web/restaurant-v2-native-control-p11.js'
       - 'src/modules/commercial/commercial.routes.js'
+      - 'src/modules/commercial/sales.service.js'
       - 'src/modules/restaurant/restaurant.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.*'
       - 'src/modules/inventory/**'
@@ -44,7 +46,9 @@ jobs:
           node --check src/web/restaurant-v2-menu.js
           node --check src/web/restaurant-v2-native-control-p11.js
           node --check src/modules/commercial/commercial.routes.js
-      - name: Validate Carta architecture
+          node --check src/modules/commercial/sales.service.js
+          node --check src/modules/consumption/consumption.service.js
+      - name: Validate Carta architecture and stock contracts
         run: node scripts/restaurant-v2-menu-v1-smoke.js
   verify-production:
     if: github.event_name == 'push'
@@ -63,6 +67,8 @@ jobs:
               [[ "$HTML" == *"Carta y productos"* ]]
               [[ "$HTML" == *"+ Nuevo plato"* ]]
               [[ "$JS" == *"VANTIX_RESTAURANT_V2_MENU_V1"* ]]
+              [[ "$JS" == *"VANTIX_RESTAURANT_V2_MENU_RECIPE_MODE_V2"* ]]
+              [[ "$JS" == *"recipeModeExclusive:true"* ]]
               [[ "$JS" == *"canonicalOcrReused:true"* ]]
               echo "Restaurant V2 Menu V1 live at $GITHUB_SHA"
               exit 0
