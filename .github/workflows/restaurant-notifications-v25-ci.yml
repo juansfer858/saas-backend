@@ -1,0 +1,94 @@
+name: Restaurant Notifications V25 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/notifications/push-v65.service.js'
+      - 'src/modules/restaurant/restaurant-push-v65.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-push-v25.service.js'
+      - 'src/modules/restaurant/restaurant-v2-kds.service.js'
+      - 'src/web/restaurant-v2-waiter-p8.html'
+      - 'scripts/restaurant-notifications-v25-smoke.js'
+      - '.github/workflows/restaurant-notifications-v25-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/notifications/push-v65.service.js'
+      - 'src/modules/restaurant/restaurant-push-v65.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-push-v25.service.js'
+      - 'src/modules/restaurant/restaurant-v2-kds.service.js'
+      - 'src/web/restaurant-v2-waiter-p8.html'
+      - 'scripts/restaurant-notifications-v25-smoke.js'
+      - '.github/workflows/restaurant-notifications-v25-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma validate
+      - name: Validate Push V65 base contract
+        run: node scripts/restaurant-push-core-v65-smoke.js
+      - name: Validate operational Notifications V25 contract
+        run: node scripts/restaurant-notifications-v25-smoke.js
+
+  production-fcm-readiness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify current production Firebase readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          CFG="$(curl -fsS --retry 3 --retry-delay 2 'https://core.vantixgc.com/api/public/restaurante/push-v65/config')"
+          printf '%s' "$CFG" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const x=JSON.parse(s);const c=x&&x.data||{};console.log(JSON.stringify({marker:c.marker,enabled:c.enabled,clientConfigured:c.clientConfigured,serverConfigured:c.serverConfigured}));if(c.marker!=='VANTIX_RESTAURANT_PUSH_CORE_V65'||c.enabled!==true||c.clientConfigured!==true||c.serverConfigured!==true)process.exit(1)})"
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: [validate, production-fcm-readiness]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact Notifications V25 in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              WAITER="$(mktemp)"
+              PUSH="$(mktemp)"
+              SW="$(mktemp)"
+              CFG="$(mktemp)"
+              HEADERS="$(mktemp)"
+              if curl -fsS "$BASE/app/centro-de-control/mesero-v2?v=$GITHUB_SHA" -o "$WAITER" \
+                && curl -fsS "$BASE/app/restaurant-push-v65.js?v=$GITHUB_SHA" -o "$PUSH" \
+                && curl -fsS -D "$HEADERS" "$BASE/app/push-v65-sw.js?v=$GITHUB_SHA" -o "$SW" \
+                && curl -fsS "$BASE/api/public/restaurante/push-v65/config?v=$GITHUB_SHA" -o "$CFG" \
+                && grep -Fq 'restaurant-push-v65.js?v=v25' "$WAITER" \
+                && grep -Fq 'VANTIX_RESTAURANT_PUSH_CLIENT_V65' "$PUSH" \
+                && grep -Fq 'VANTIX_RESTAURANT_PUSH_SW_V65' "$SW" \
+                && grep -Fiq 'Service-Worker-Allowed: /app/push-v65/' "$HEADERS" \
+                && node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));const c=x&&x.data||{};if(c.marker!=='VANTIX_RESTAURANT_PUSH_CORE_V65'||c.enabled!==true||c.clientConfigured!==true||c.serverConfigured!==true)process.exit(1)" "$CFG"; then
+                echo "Notifications V25 exact commit + FCM ready in production: $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "Notifications V25 did not become fully ready for exact commit $GITHUB_SHA" >&2
+          exit 1

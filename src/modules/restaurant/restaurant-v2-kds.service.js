@@ -5,6 +5,7 @@ const { AppError } = require('../../utils/app-error');
 const restaurant = require('./restaurant.service');
 const work = require('./restaurant-employee-work.service');
 const stations = require('../platform/printing/printing-stations.service');
+const operationalPush = require('./restaurant-operational-push-v25.service');
 
 const MARKER = 'VANTIX_RESTAURANT_V2_KDS_P6';
 const QUEUES = Object.freeze(['COCINA', 'BARRA', 'POSTRES']);
@@ -77,6 +78,11 @@ async function updateState(tenantId, user, commandId, targetState) {
     throw new AppError(409, `La transición válida es ${command.state} → ${expected}`, 'RESTAURANT_V2_KDS_TRANSITION_INVALID', { current:command.state, expected, requested:targetState });
   }
   const updated = await restaurant.updateCommandState(tenantId, runtimeUser(user), command.id, targetState);
+  // El estado de la comanda/pedido ya quedó persistido. Push sólo avisa al piso y jamás
+  // participa en la transición KDS ni puede revertirla si FCM está caído.
+  if (updated?.becameReady && updated?.order) {
+    void operationalPush.notifyOrderReadyFromOrder(updated.order).catch(()=>{});
+  }
   return { marker:MARKER, command:updated, previousState:command.state, state:targetState };
 }
 

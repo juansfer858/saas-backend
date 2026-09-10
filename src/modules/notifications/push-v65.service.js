@@ -171,6 +171,55 @@ async function sendSelfTest(tenantId, userId, input = {}) {
   });
 }
 
+async function alreadyDelivered(device, eventCode, deepLink) {
+  return prisma.notificationPushDelivery.findFirst({
+    where:{
+      tenantId:device.tenantId,
+      pushDeviceId:device.id,
+      eventCode,
+      deepLink,
+      state:{ in:['SENDING','SENT'] }
+    },
+    select:{ id:true }
+  });
+}
+
+// Best-effort operational fanout. It is deliberately separated from the business
+// transaction: a Firebase outage must never fail an order, account request or KDS change.
+async function sendOperationalEvent(tenantId, input = {}) {
+  const roles=[...new Set((input.roles || []).map((value)=>String(value || '').toUpperCase()).filter(Boolean))];
+  const userIds=[...new Set((input.userIds || []).map((value)=>String(value || '').trim()).filter(Boolean))];
+  const audience=[];
+  if (roles.length) audience.push({ role:{ in:roles } });
+  if (userIds.length) audience.push({ userId:{ in:userIds } });
+  if (!audience.length) return { matched:0, sent:0, failed:0, deduplicated:0 };
+  if (!provider.publicWebConfig().enabled) return { matched:0, sent:0, failed:0, deduplicated:0, skipped:'FCM_NOT_CONFIGURED' };
+  const devices=await prisma.notificationPushDevice.findMany({
+    where:{ tenantId, state:'ACTIVE', permission:'granted', OR:audience },
+    orderBy:{ lastSeenAt:'desc' },
+    take:250
+  });
+  const eventCode=input.eventCode || 'RESTAURANT_ACTIVITY';
+  const deepLink=input.deepLink || '/app/centro-de-control';
+  let sent=0;let failed=0;let deduplicated=0;
+  for (const device of devices) {
+    try {
+      if (input.dedupe !== false && await alreadyDelivered(device, eventCode, deepLink)) {
+        deduplicated+=1;
+        continue;
+      }
+      await sendDelivery(device, {
+        eventCode,
+        title:input.title || 'VantixGC Restaurantes',
+        body:input.body || 'Nueva actividad en el restaurante.',
+        deepLink
+      });
+      sent+=1;
+    } catch { failed+=1; }
+  }
+  return { matched:devices.length, sent, failed, deduplicated };
+}
+
 function publicConfig() {
   return provider.publicWebConfig();
 }
@@ -182,5 +231,6 @@ module.exports = {
   revokeDevice,
   sendSelfTest,
   sendDelivery,
+  sendOperationalEvent,
   hashToken
 };
