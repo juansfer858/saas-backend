@@ -9,6 +9,7 @@ const paymentMethods = require('./restaurant-payment-methods.service');
 const creditPayment = require('./restaurant-credit-payment.service');
 const creditCustomers = require('./restaurant-credit-customer.service');
 const cashShiftRecovery = require('./restaurant-cash-shift-recovery.service');
+const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
 
 // P4 must always execute on the operational POS implementation. This makes DIAN
 // an optional external integration and prevents module-load order from restoring
@@ -291,7 +292,8 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
       paymentMethodId: method.id,
       reference,
       tipAmount,
-      split: { mode: 'NONE' }
+      split: { mode: 'NONE' },
+      deferPosReceipt: true
     });
     return {
       marker: CASH_V2_MARKER,
@@ -300,6 +302,7 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
       reference,
       credit: null,
       shiftId: shift.id,
+      receiptDecisionRequired: true,
       result
     };
   }
@@ -332,7 +335,8 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
       formaPago: 'CREDITO',
       cajaBancoId: null,
       tipAmount: 0,
-      split: { mode: 'NONE' }
+      split: { mode: 'NONE' },
+      deferPosReceipt: true
     });
     return {
       marker: CASH_V2_MARKER,
@@ -342,6 +346,7 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
       credit: prepared.credit,
       customer: prepared.customer,
       shiftId: shift.id,
+      receiptDecisionRequired: true,
       result
     };
   } catch (error) {
@@ -352,6 +357,37 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
     }).catch(() => {});
     throw error;
   }
+}
+
+async function queueReceiptPrint(tenantId, user, sessionId) {
+  const session = await prisma.restaurantTableSession.findFirst({
+    where: { id: sessionId, tenantId, state: 'CERRADA' },
+    select: { id: true, saleId: true, closedByUserId: true, closedAt: true }
+  });
+  if (!session) throw new AppError(404, 'La venta liquidada no está disponible para imprimir', 'RESTAURANT_V2_CASH_RECEIPT_SESSION_NOT_FOUND');
+
+  const sale = await prisma.comprobanteComercial.findFirst({
+    where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: { not: 'ANULADO' } },
+    select: { id: true, numero: true, saldo: true }
+  });
+  if (!sale || money(sale.saldo).gt(0)) {
+    throw new AppError(409, 'La venta debe estar completamente liquidada antes de imprimir el recibo', 'RESTAURANT_V2_CASH_RECEIPT_SALE_NOT_SETTLED');
+  }
+
+  const queued = await posReceiptPrint.queueReceiptIntent(tenantId, session.id);
+  if (!queued?.queued) {
+    throw new AppError(409, 'No fue posible preparar la tirilla POS para impresión', 'RESTAURANT_V2_CASH_RECEIPT_QUEUE_FAILED', { reason: queued?.reason || 'UNKNOWN' });
+  }
+
+  return {
+    marker: CASH_V2_MARKER,
+    receiptRequested: true,
+    sessionId: session.id,
+    saleId: sale.id,
+    saleNumber: sale.numero,
+    requestedByUserId: user?.id || null,
+    queued
+  };
 }
 
 async function listCustomers(tenantId, q) {
@@ -370,6 +406,7 @@ module.exports = {
   shiftSummary,
   closeShift,
   chargeWholeAccount,
+  queueReceiptPrint,
   listCustomers,
   createCustomer,
   assertWholeAccountBoundary
