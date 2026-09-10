@@ -3,6 +3,7 @@
   if (!location.pathname.startsWith('/app/centro-de-control')) return;
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
+  const MANUAL_LINK_MARKER = 'VANTIX_MENU_OCR_MANUAL_INVENTORY_LINK_V1';
   let session = null;
   try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch {}
   if (!session?.token || !session?.subdomain) return;
@@ -10,6 +11,7 @@
   const MAX_BYTES = 5 * 1024 * 1024;
   let currentFileName = '';
   let currentItems = [];
+  let directInventoryProducts = [];
   let busy = false;
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
@@ -45,13 +47,13 @@
       .cc-ocr-button:hover{background:#0f6846}.cc-ocr-button:disabled{opacity:.55;cursor:not-allowed}
       .cc-ocr-groups{display:grid;gap:18px}.cc-ocr-group{display:grid;gap:9px}.cc-ocr-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px 7px;border-bottom:1px solid #d9dfe3}.cc-ocr-group-head h2{margin:0;font-size:19px}.cc-ocr-group-head span{font-size:11px;color:#64748b;font-weight:700}
       .cc-ocr-overlay[hidden]{display:none}.cc-ocr-overlay{position:fixed;inset:0;z-index:220;display:grid;place-items:center;padding:18px;background:rgba(15,23,42,.60);backdrop-filter:blur(5px)}
-      .cc-ocr-modal{width:min(980px,100%);max-height:min(90dvh,860px);display:flex;flex-direction:column;overflow:hidden;border-radius:18px;background:#fff;color:#17212b;box-shadow:0 28px 80px rgba(0,0,0,.30)}
+      .cc-ocr-modal{width:min(1120px,100%);max-height:min(90dvh,860px);display:flex;flex-direction:column;overflow:hidden;border-radius:18px;background:#fff;color:#17212b;box-shadow:0 28px 80px rgba(0,0,0,.30)}
       .cc-ocr-head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px;border-bottom:1px solid #e2e8f0}.cc-ocr-head h2{margin:0;font-size:23px}.cc-ocr-head p{margin:5px 0 0;color:#64748b;font-size:13px}.cc-ocr-close{margin-left:auto;width:42px;height:42px;border:1px solid #d7dee4;border-radius:10px;background:#fff;font-size:22px;cursor:pointer}
       .cc-ocr-body{overflow:auto;padding:18px 20px}.cc-ocr-state{padding:24px;border:1px dashed #cbd5e1;border-radius:14px;background:#f8fafc;text-align:center}.cc-ocr-state b{display:block;font-size:18px}.cc-ocr-state span{display:block;margin-top:6px;color:#64748b;line-height:1.45}
-      .cc-ocr-note{margin-bottom:14px;padding:10px 12px;border-radius:10px;background:#ecfdf5;color:#166534;font-size:12px;font-weight:700}.cc-ocr-error{margin-bottom:14px;padding:11px 13px;border-radius:10px;background:#fff1f2;color:#9f1239;font-size:13px;font-weight:700}
-      .cc-ocr-table{width:100%;border-collapse:collapse}.cc-ocr-table th{padding:8px 6px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.cc-ocr-table td{padding:7px 6px;border-top:1px solid #eef2f5;vertical-align:middle}.cc-ocr-table input{width:100%;min-height:42px;padding:8px 10px;border:1px solid #cfd8df;border-radius:9px;background:#fff;font-size:14px}.cc-ocr-table input:focus{outline:2px solid rgba(19,122,83,.16);border-color:#137a53}.cc-ocr-price{max-width:150px}.cc-ocr-confidence{white-space:nowrap;font-size:11px;font-weight:800;color:#64748b}.cc-ocr-remove{width:38px;height:38px;border:1px solid #fecdd3;border-radius:9px;background:#fff;color:#be123c;font-size:18px;cursor:pointer}
+      .cc-ocr-note{margin-bottom:14px;padding:10px 12px;border-radius:10px;background:#ecfdf5;color:#166534;font-size:12px;font-weight:700}.cc-ocr-note.link{background:#eff8ff;color:#175cd3}.cc-ocr-error{margin-bottom:14px;padding:11px 13px;border-radius:10px;background:#fff1f2;color:#9f1239;font-size:13px;font-weight:700}
+      .cc-ocr-table{width:100%;border-collapse:collapse;min-width:980px}.cc-ocr-table th{padding:8px 6px;text-align:left;color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.cc-ocr-table td{padding:7px 6px;border-top:1px solid #eef2f5;vertical-align:middle}.cc-ocr-table input,.cc-ocr-table select{width:100%;min-height:42px;padding:8px 10px;border:1px solid #cfd8df;border-radius:9px;background:#fff;font-size:14px}.cc-ocr-table input:focus,.cc-ocr-table select:focus{outline:2px solid rgba(19,122,83,.16);border-color:#137a53}.cc-ocr-price{max-width:150px}.cc-ocr-link{min-width:260px;max-width:340px}.cc-ocr-confidence{white-space:nowrap;font-size:11px;font-weight:800;color:#64748b}.cc-ocr-remove{width:38px;height:38px;border:1px solid #fecdd3;border-radius:9px;background:#fff;color:#be123c;font-size:18px;cursor:pointer}
       .cc-ocr-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid #e2e8f0;background:#f8fafc}.cc-ocr-secondary{min-height:42px;padding:0 14px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-weight:800;cursor:pointer}.cc-ocr-primary{min-height:44px;padding:0 18px;border:0;border-radius:10px;background:#137a53;color:#fff;font-weight:850;cursor:pointer}.cc-ocr-primary:disabled{opacity:.55;cursor:not-allowed}
-      @media(max-width:700px){.cc-ocr-overlay{padding:0;place-items:end center}.cc-ocr-modal{width:100%;max-height:94dvh;border-radius:18px 18px 0 0}.cc-ocr-head,.cc-ocr-body,.cc-ocr-foot{padding-left:14px;padding-right:14px}.cc-ocr-table{display:block;min-width:700px}.cc-ocr-body{overflow:auto}.cc-ocr-foot{position:sticky;bottom:0}.cc-ocr-button{width:100%;justify-content:center}}
+      @media(max-width:700px){.cc-ocr-overlay{padding:0;place-items:end center}.cc-ocr-modal{width:100%;max-height:94dvh;border-radius:18px 18px 0 0}.cc-ocr-head,.cc-ocr-body,.cc-ocr-foot{padding-left:14px;padding-right:14px}.cc-ocr-table{display:block;min-width:980px}.cc-ocr-body{overflow:auto}.cc-ocr-foot{position:sticky;bottom:0}.cc-ocr-button{width:100%;justify-content:center}}
     `;
     document.head.appendChild(style);
   }
@@ -144,6 +146,54 @@
     return `${pct}%`;
   }
 
+  function normalizedName(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  }
+
+  function candidateScore(name, product) {
+    const a = normalizedName(name);
+    const b = normalizedName(`${product?.nombre || ''} ${product?.sku || ''}`);
+    const productName = normalizedName(product?.nombre || '');
+    if (!a || !b) return 0;
+    if (a === productName) return 100;
+    if (productName.includes(a) || a.includes(productName)) return 86;
+    const left = new Set(a.split(' ').filter((token) => token.length > 1));
+    const right = new Set(productName.split(' ').filter((token) => token.length > 1));
+    if (!left.size || !right.size) return 0;
+    let intersection = 0;
+    for (const token of left) if (right.has(token)) intersection += 1;
+    if (!intersection) return 0;
+    return Math.round((intersection / Math.max(left.size, right.size)) * 70);
+  }
+
+  async function loadDirectInventoryProducts() {
+    try {
+      const [products, recipes] = await Promise.all([
+        api('/api/v1/inventario/productos?activo=true&limit=1000'),
+        api('/api/v1/consumo/recetas?active=true&limit=1000')
+      ]);
+      const recipeOutputs = new Set((Array.isArray(recipes) ? recipes : []).map((row) => row.outputProductId).filter(Boolean));
+      directInventoryProducts = (Array.isArray(products) ? products : []).filter((product) =>
+        product?.activo !== false
+        && product?.tipo !== 'SERVICIO'
+        && product?.controlaInventario === true
+        && !recipeOutputs.has(product.id)
+      );
+    } catch (error) {
+      directInventoryProducts = [];
+      console.warn('RESTAURANT_MENU_OCR_INVENTORY_CANDIDATES_ERROR', error);
+    }
+  }
+
+  function candidateOptions(item) {
+    const candidates = directInventoryProducts
+      .map((product) => ({ product, score:candidateScore(item?.subcategory, product) }))
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score || String(a.product.nombre || '').localeCompare(String(b.product.nombre || ''), 'es'))
+      .slice(0, 8);
+    return `<option value="">Preparado (por defecto)</option>${candidates.map(({ product, score }) => `<option value="${esc(product.id)}">${score >= 80 ? 'Posible · ' : ''}${esc(product.sku || '')} · ${esc(product.nombre || '')} · stock ${Number(product.stockActual || 0)}</option>`).join('')}`;
+  }
+
   function collectRows() {
     return [...document.querySelectorAll('#ccOcrTable tbody tr')].map((row) => ({
       category: row.querySelector('[data-field="category"]').value.trim(),
@@ -151,8 +201,19 @@
       price: Number(row.querySelector('[data-field="price"]').value || 0),
       operationalCategory: row.dataset.operationalCategory,
       station: row.dataset.station,
-      confidence: Number(row.dataset.confidence || 1)
+      confidence: Number(row.dataset.confidence || 1),
+      existingProductId: row.querySelector('[data-field="existingProductId"]')?.value || null
     })).filter((row) => row.category && row.subcategory && row.price > 0);
+  }
+
+  function preventDuplicateManualLinks(changed) {
+    const selected = changed.value;
+    if (!selected) return;
+    const duplicate = [...document.querySelectorAll('[data-field="existingProductId"]')]
+      .some((select) => select !== changed && select.value === selected);
+    if (!duplicate) return;
+    changed.value = '';
+    alert('Ese producto del inventario ya fue vinculado a otra fila. Cada producto sólo puede usarse una vez en esta importación.');
   }
 
   function renderPreview(items) {
@@ -161,7 +222,8 @@
     const body = document.querySelector('#ccOcrBody');
     const foot = document.querySelector('#ccOcrFoot');
     body.innerHTML = `<div class="cc-ocr-note">No se importan las fotos de la carta. Revisa estos datos antes de crear productos.</div>
-      <div style="overflow:auto"><table id="ccOcrTable" class="cc-ocr-table"><thead><tr><th>Categoría</th><th>Producto / sabor</th><th>Precio</th><th>Confianza</th><th></th></tr></thead><tbody>${currentItems.map((item, index) => `<tr data-operational-category="${esc(item.operationalCategory)}" data-station="${esc(item.station)}" data-confidence="${Number(item.confidence || 0)}"><td><input data-field="category" value="${esc(item.category)}" maxlength="80"></td><td><input data-field="subcategory" value="${esc(item.subcategory)}" maxlength="180"></td><td><input class="cc-ocr-price" data-field="price" type="number" min="1" step="1" value="${Number(item.price || 0)}"></td><td class="cc-ocr-confidence">${confidenceLabel(item.confidence)}</td><td><button type="button" class="cc-ocr-remove" data-remove-row="${index}" aria-label="Quitar">×</button></td></tr>`).join('')}</tbody></table></div>`;
+      <div class="cc-ocr-note link">${MANUAL_LINK_MARKER}: cada fila se crea como preparado salvo que tú elijas manualmente un producto existente. Las sugerencias nunca se vinculan solas.</div>
+      <div style="overflow:auto"><table id="ccOcrTable" class="cc-ocr-table"><thead><tr><th>Categoría</th><th>Producto / sabor</th><th>Precio</th><th>Control</th><th>Confianza</th><th></th></tr></thead><tbody>${currentItems.map((item, index) => `<tr data-operational-category="${esc(item.operationalCategory)}" data-station="${esc(item.station)}" data-confidence="${Number(item.confidence || 0)}"><td><input data-field="category" value="${esc(item.category)}" maxlength="80"></td><td><input data-field="subcategory" value="${esc(item.subcategory)}" maxlength="180"></td><td><input class="cc-ocr-price" data-field="price" type="number" min="1" step="1" value="${Number(item.price || 0)}"></td><td><select class="cc-ocr-link" data-field="existingProductId" aria-label="Control de inventario para ${esc(item.subcategory)}">${candidateOptions(item)}</select></td><td class="cc-ocr-confidence">${confidenceLabel(item.confidence)}</td><td><button type="button" class="cc-ocr-remove" data-remove-row="${index}" aria-label="Quitar">×</button></td></tr>`).join('')}</tbody></table></div>`;
     foot.hidden = false;
     foot.innerHTML = `<button type="button" class="cc-ocr-secondary" id="ccOcrChooseAgain">Elegir otro archivo</button><button type="button" class="cc-ocr-primary" id="ccOcrConfirm">Importar ${currentItems.length} producto${currentItems.length === 1 ? '' : 's'}</button>`;
     body.querySelectorAll('[data-remove-row]').forEach((button) => button.addEventListener('click', () => {
@@ -170,6 +232,7 @@
       const confirm = document.querySelector('#ccOcrConfirm');
       if (confirm) { confirm.disabled = !rows.length; confirm.textContent = `Importar ${rows.length} producto${rows.length === 1 ? '' : 's'}`; }
     }));
+    body.querySelectorAll('[data-field="existingProductId"]').forEach((select) => select.addEventListener('change', () => preventDuplicateManualLinks(select)));
     document.querySelector('#ccOcrChooseAgain').addEventListener('click', () => document.querySelector('#ccMenuOcrFile')?.click());
     document.querySelector('#ccOcrConfirm').addEventListener('click', confirmImport);
   }
@@ -185,7 +248,8 @@
       const result = await api('/api/v1/restaurante/carta-importacion/confirmar', { method:'POST', body:JSON.stringify({ fileName:currentFileName, items:rows }) });
       const body = document.querySelector('#ccOcrBody');
       const foot = document.querySelector('#ccOcrFoot');
-      body.innerHTML = `<div class="cc-ocr-state"><b>Carta importada</b><span>${result.created} producto(s) creado(s), ${result.updated} actualizado(s). Total: ${result.total}.</span></div>`;
+      const linked = Number(result.linked || 0);
+      body.innerHTML = `<div class="cc-ocr-state"><b>Carta importada</b><span>${result.created} producto(s) creado(s), ${result.updated} actualizado(s)${linked ? `, ${linked} vinculado(s) al inventario existente` : ''}. Total: ${result.total}.</span></div>`;
       foot.hidden = false;
       foot.innerHTML = '<button type="button" class="cc-ocr-primary" id="ccOcrDone">Ver carta actualizada</button>';
       document.querySelector('#ccOcrDone').addEventListener('click', async () => { busy = false; closeModal(); await refreshGroupedMenu(); });
@@ -219,6 +283,7 @@
         method:'POST',
         body:JSON.stringify({ fileName:currentFileName, mimeType:prepared.type, dataBase64 })
       });
+      await loadDirectInventoryProducts();
       busy = false;
       renderPreview(result.items || []);
     } catch (error) {
