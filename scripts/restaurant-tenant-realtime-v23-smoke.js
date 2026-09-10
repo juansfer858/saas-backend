@@ -55,18 +55,24 @@ async function readSseEvent(reader, expectedName, timeoutMs = 2500) {
 async function main() {
   const coreRoutes = read('src/routes/core.routes.js');
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
+  const p12Public = read('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js');
   const panelLoader = read('src/web/panel-integration-extras.js');
   const tenantClient = read('src/web/vantix-tenant-realtime.js');
   const coreUi = read('src/web/core-realtime-panel-ui.js');
   const qrRealtime = read('src/web/restaurant-qr-realtime-ui.js');
   const realtimePublic = read('src/modules/restaurant/restaurant-tenant-realtime.public.routes.js');
   const presencePublic = read('src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js');
+  const v2Waiter = read('src/web/restaurant-v2-waiter-p8.html');
+  const v2DeviceRealtime = read('src/web/restaurant-v2-device-realtime-p8.js');
+  const v2WaiterSw = read('src/web/restaurant-v2-waiter-sw-p8.js');
 
   assert.match(coreRoutes, /tenantRealtimeMutationMiddleware/);
   assert.match(coreRoutes, /router\.use\('\/realtime', tenantRealtimeRouter\)/);
   assert.match(publicRoot, /restaurantPublicRealtimePublisher/);
   assert.match(publicRoot, /restaurantQrPresenceRealtimePublicRouter/);
   assert.match(publicRoot, /router\.use\(restaurantPublicRealtimePublisher\);[\s\S]*router\.use\(restaurantQrPresenceRealtimePublicRouter\);[\s\S]*router\.use\(restaurantTenantRealtimePublicRouter\);[\s\S]*router\.use\(restaurantElectronicPaymentPublicRouter\)/);
+  assert.match(p12Public, /\/app\/centro-de-control\/mesero/);
+  assert.match(p12Public, /VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
   assert.match(panelLoader, /vantix-tenant-realtime\.js/);
   assert.match(panelLoader, /core-realtime-panel-ui\.js/);
   assert.match(tenantClient, /\/api\/v1\/realtime\/stream/);
@@ -82,10 +88,16 @@ async function main() {
   assert.match(presencePublic, /manualRefreshRequired:false/);
   assert.match(realtimePublic, /VANTIX_RESTAURANT_TENANT_REALTIME_V23/);
   assert.match(realtimePublic, /VANTIX_WAITER_TENANT_REALTIME_V23/);
+  assert.match(v2Waiter, /restaurant-v2-device-realtime-p8\.js/);
+  assert.match(v2DeviceRealtime, /\/api\/v1\/realtime\/stream/);
+  assert.match(v2DeviceRealtime, /transport:'SSE\+PG_NOTIFY'/);
+  assert.match(v2DeviceRealtime, /vantix:tenant-realtime/);
+  assert.match(v2WaiterSw, /restaurant-v2-device-realtime-p8\.js/);
   assert.doesNotMatch(tenantClient, /MutationObserver|setInterval/);
   assert.doesNotMatch(coreUi, /MutationObserver|setInterval/);
   assert.doesNotMatch(qrRealtime, /MutationObserver|setInterval/);
   assert.doesNotMatch(presencePublic, /MutationObserver|setInterval/);
+  assert.doesNotMatch(v2DeviceRealtime, /MutationObserver|setInterval/);
 
   const kdsTopics = topicsForPath('/api/v1/restaurante/comandas/abc/estado');
   assert.ok(kdsTopics.includes('restaurant.command'));
@@ -146,6 +158,8 @@ async function main() {
   assert.equal(Number(movement.saldoNuevo), 28500);
 
   await withServer(async (baseUrl) => {
+    // El asset V1 permanece congelado para rollback de código y continúa validando
+    // su integración histórica; P12 impide que una ruta operativa lo cargue.
     const restaurantResponse = await fetch(`${baseUrl}/app/restaurant-ui.js?v=restaurant-ui-v1`, { cache:'no-store' });
     const restaurantUi = await restaurantResponse.text();
     assert.equal(restaurantResponse.status, 200);
@@ -209,22 +223,38 @@ async function main() {
     presenceController.abort();
     await presenceReader.cancel().catch(() => {});
 
-    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
+    const canonical = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store', redirect:'manual' });
+    assert.equal(canonical.status, 307);
+    assert.equal(canonical.headers.get('location'), '/app/centro-de-control/mesero-v2/?view=mesero&pwa=1');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+
+    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/`, { cache:'no-store' });
     const pwa = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200);
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-realtime'), 'v23-tenant');
-    assert.match(pwa, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v23-tenant-realtime/);
-    assert.match(pwa, /vantix-tenant-realtime\.js\?v=tenant-realtime-v1/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
+    assert.match(pwa, /data-waiter-ui="tablet-3col-v22"/);
+    assert.match(pwa, /restaurant-v2-device-realtime-p8\.js/);
     assert.match(pwa, /restaurant-waiter-call-ui\.js\?v=waiter-call-v21-account-request/);
     assert.match(pwa, /restaurant-waiter-electronic-payment-ui\.js\?v=waiter-electronic-v22/);
+    assert.match(pwa, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
+    assert.doesNotMatch(pwa, /restaurant-waiter-runtime-v7\.js|restaurant-ui\.js/);
 
-    const swResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
-    const sw = await swResponse.text();
-    assert.equal(swResponse.status, 200);
-    assert.equal(swResponse.headers.get('x-vantixgc-waiter-realtime'), 'v23-tenant');
-    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v23-tenant-realtime/);
-    assert.match(sw, /vantix-tenant-realtime\.js\?v=tenant-realtime-v1/);
+    const oldSwResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
+    const oldSw = await oldSwResponse.text();
+    assert.equal(oldSwResponse.status, 200);
+    assert.equal(oldSwResponse.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+    assert.match(oldSw, /VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
 
+    const v2SwResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/sw.js`, { cache:'no-store' });
+    const v2Sw = await v2SwResponse.text();
+    assert.equal(v2SwResponse.status, 200);
+    assert.equal(v2SwResponse.headers.get('service-worker-allowed'), '/app/centro-de-control/mesero-v2/');
+    assert.match(v2Sw, /VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22/);
+    assert.match(v2Sw, /restaurant-v2-device-realtime-p8\.js/);
+
+    // El runtime V23 histórico sigue sintácticamente disponible como asset de
+    // rollback de código, pero ya no es el runtime ejecutado por el Mesero P12.
     const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v23-tenant-realtime`, { cache:'no-store' });
     const runtime = await runtimeResponse.text();
     assert.equal(runtimeResponse.status, 200);
@@ -237,19 +267,20 @@ async function main() {
     assert.equal(coreClientResponse.headers.get('x-vantixgc-realtime'), 'tenant-v1');
   });
 
-  console.log('RESTAURANT TENANT REALTIME V23 + QR TABLE PRESENCE V24 + CORE TREASURY VISIBILITY SMOKE OK');
+  console.log('RESTAURANT TENANT REALTIME V2 P12 + QR TABLE PRESENCE V24 + CORE TREASURY VISIBILITY SMOKE OK');
   console.log(JSON.stringify({
     clientRealtime:true,
     qrSeesTableOpenWithoutRefresh:true,
     qrSeesTableCloseWithoutRefresh:true,
-    waiterRealtime:true,
+    waiterRealtime:'V2_SSE_PG_NOTIFY',
     kitchenRealtime:true,
     cashRealtime:true,
     coreRealtime:true,
     postgresListenNotify:true,
     tenantIsolation:true,
     restaurantCashUsesCoreTreasuryBalance:true,
-    browserPeriodicPollingRemovedFromRestaurantUi:true
+    browserPeriodicPollingRemovedFromRestaurantUi:true,
+    v1WaiterRuntimeExecuted:false
   }, null, 2));
 }
 
