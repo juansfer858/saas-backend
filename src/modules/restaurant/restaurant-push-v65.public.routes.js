@@ -51,7 +51,8 @@ router.use((req, res, next) => {
   if (String(req.method || '').toUpperCase() !== 'POST') return next();
   const match = String(req.path || '').match(/^\/api\/public\/restaurante\/qr\/([^/]+)\/(llamar-mesero|pedir-cuenta|pedidos|solicitar-apertura)\/?$/);
   if (!match) return next();
-  const qrToken = decodeURIComponent(match[1]);
+  let qrToken;
+  try { qrToken = decodeURIComponent(match[1]); } catch { return next(); }
   const action = match[2];
   const originalJson = res.json.bind(res);
   res.json = (body) => {
