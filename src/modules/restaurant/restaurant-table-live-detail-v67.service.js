@@ -5,6 +5,7 @@ const { AppError } = require('../../utils/app-error');
 
 const MARKER = 'VANTIX_RESTAURANT_TABLE_LIVE_DETAIL_V67';
 const ACTIVE_STATES = ['ABIERTA', 'CUENTA_PEDIDA'];
+const CONTROL_CENTER_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
 
 function assertTableAccess(user, table) {
   if (user?.rol === 'MESERO' && table?.assignedWaiterId && table.assignedWaiterId !== user.id) {
@@ -15,6 +16,16 @@ function assertTableAccess(user, table) {
 function canCancelForUser(user, session) {
   if (user?.rol === 'MESERO') return Boolean(session?.openedByUserId && session.openedByUserId === user.id);
   return true;
+}
+
+function canManageDraftFromControlCenter(user) {
+  return CONTROL_CENTER_ROLES.has(String(user?.rol || '').trim().toUpperCase());
+}
+
+function assertControlCenterDraftManager(user) {
+  if (!canManageDraftFromControlCenter(user)) {
+    throw new AppError(403, 'Solo Administración puede retirar desde Centro de control un producto que otro operador dejó por enviar.', 'RESTAURANT_CONTROL_CENTER_DRAFT_FORBIDDEN');
+  }
 }
 
 function itemState(order, item) {
@@ -57,7 +68,8 @@ async function liveDetail(tenantId, user, tableId) {
       sale: null,
       items: [],
       summary: { orderedQuantity: 0, deliveredQuantity: 0, remainingQuantity: 0, readyQuantity: 0, draftQuantity: 0, total: '0' },
-      canCancelOpening: false
+      canCancelOpening: false,
+      canManageDraftFromControlCenter: canManageDraftFromControlCenter(user)
     };
   }
 
@@ -76,15 +88,18 @@ async function liveDetail(tenantId, user, tableId) {
     prisma.restaurantQrVisitDevice.count({ where: { tenantId, sessionId: session.id, revokedAt: null } })
   ]);
 
+  const controlCenterDraftManager = canManageDraftFromControlCenter(user);
   const items = [];
   for (const order of orders) {
     for (const item of order.items || []) {
+      const state = itemState(order, item);
       items.push({
         id: item.id,
         orderId: order.id,
         orderState: order.state,
         source: order.source,
         createdAt: order.creadoEn,
+        menuItemId: item.menuItemId,
         description: item.description,
         quantity: String(item.quantity),
         unitPrice: String(item.unitPrice),
@@ -92,7 +107,8 @@ async function liveDetail(tenantId, user, tableId) {
         station: item.station,
         seatNumber: item.seatNumber,
         notes: item.notes,
-        state: itemState(order, item)
+        state,
+        canRemoveFromControlCenter: controlCenterDraftManager && state === 'POR_ENVIAR'
       });
     }
   }
@@ -132,8 +148,85 @@ async function liveDetail(tenantId, user, tableId) {
       draftQuantity,
       total: String(sale?.total || 0)
     },
-    canCancelOpening
+    canCancelOpening,
+    canManageDraftFromControlCenter: controlCenterDraftManager
   };
+}
+
+async function removeDraftItemFromControlCenter(tenantId, user, tableId, itemId) {
+  assertControlCenterDraftManager(user);
+  return prisma.$transaction(async (tx) => {
+    const { table, session } = await loadTableAndSession(tenantId, user, tableId, tx);
+    if (!session) throw new AppError(404, 'La mesa ya no tiene una cuenta abierta.', 'RESTAURANT_CONTROL_CENTER_SESSION_NOT_FOUND');
+
+    const item = await tx.restaurantOrderItem.findFirst({
+      where: { id: itemId, tenantId },
+      select: {
+        id: true,
+        orderId: true,
+        saleDetailId: true,
+        description: true,
+        quantity: true,
+        lineTotal: true,
+        seatNumber: true,
+        station: true
+      }
+    });
+    if (!item) throw new AppError(404, 'El producto por retirar ya no existe.', 'RESTAURANT_CONTROL_CENTER_DRAFT_ITEM_NOT_FOUND');
+
+    const order = await tx.restaurantOrder.findFirst({
+      where: { id: item.orderId, tenantId, sessionId: session.id },
+      select: { id: true, state: true, source: true, createdByUserId: true }
+    });
+    if (!order) throw new AppError(409, 'El producto no pertenece a la visita activa de esta mesa.', 'RESTAURANT_CONTROL_CENTER_DRAFT_ITEM_WRONG_SESSION');
+    if (String(order.state || '').toUpperCase() !== 'BORRADOR') {
+      throw new AppError(409, 'Este producto ya fue enviado. No puede retirarse silenciosamente; debe usar el flujo de cancelación de producto enviado.', 'RESTAURANT_CONTROL_CENTER_ITEM_ALREADY_SENT');
+    }
+
+    const sale = await tx.comprobanteComercial.findFirst({
+      where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: 'BORRADOR' },
+      select: { id: true, subtotal: true, ivaTotal: true, impoconsumoTotal: true, total: true }
+    });
+    if (!sale) throw new AppError(409, 'La venta de la mesa ya no admite cambios de borrador.', 'RESTAURANT_CONTROL_CENTER_SALE_NOT_DRAFT');
+    if (!item.saleDetailId) throw new AppError(409, 'La línea no tiene detalle comercial asociado.', 'RESTAURANT_CONTROL_CENTER_DRAFT_DETAIL_MISSING');
+
+    const detail = await tx.detalleComprobante.findFirst({
+      where: { id: item.saleDetailId, tenantId, comprobanteId: sale.id },
+      select: { id: true, subtotalLinea: true, ivaValor: true, impoconsumoValor: true, totalLinea: true }
+    });
+    if (!detail) throw new AppError(409, 'No se encontró el detalle comercial de la línea por retirar.', 'RESTAURANT_CONTROL_CENTER_DRAFT_DETAIL_NOT_FOUND');
+
+    await tx.restaurantOrderItem.delete({ where: { id: item.id } });
+    await tx.detalleComprobante.delete({ where: { id: detail.id } });
+    await tx.restaurantOrder.update({ where: { id: order.id }, data: { total: { decrement: detail.totalLinea } } });
+    const updatedSale = await tx.comprobanteComercial.update({
+      where: { id: sale.id },
+      data: {
+        subtotal: { decrement: detail.subtotalLinea },
+        ivaTotal: { decrement: detail.ivaValor },
+        impoconsumoTotal: { decrement: detail.impoconsumoValor },
+        total: { decrement: detail.totalLinea }
+      },
+      select: { id: true, numero: true, total: true }
+    });
+
+    return {
+      marker: MARKER,
+      removed: true,
+      table: { id: table.id, name: table.name, code: table.code },
+      sessionId: session.id,
+      orderId: order.id,
+      item: {
+        id: item.id,
+        description: item.description,
+        quantity: String(item.quantity),
+        lineTotal: String(item.lineTotal),
+        station: item.station,
+        seatNumber: item.seatNumber
+      },
+      sale: { id: updatedSale.id, numero: updatedSale.numero, total: String(updatedSale.total) }
+    };
+  });
 }
 
 async function cancelEmptyOpening(tenantId, user, tableId) {
@@ -181,4 +274,12 @@ async function cancelEmptyOpening(tenantId, user, tableId) {
   });
 }
 
-module.exports = { MARKER, liveDetail, cancelEmptyOpening, itemState, canCancelForUser };
+module.exports = {
+  MARKER,
+  liveDetail,
+  cancelEmptyOpening,
+  removeDraftItemFromControlCenter,
+  itemState,
+  canCancelForUser,
+  canManageDraftFromControlCenter
+};
