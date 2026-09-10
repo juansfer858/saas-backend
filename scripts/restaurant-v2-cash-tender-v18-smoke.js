@@ -5,6 +5,8 @@ const displayName = require('../src/modules/restaurant/restaurant-customer-displ
 const receipt = require('../src/modules/restaurant/restaurant-pos-receipt-layout.service');
 
 const overlay = fs.readFileSync('src/web/restaurant-v2-cash-tender-v18.js', 'utf8');
+const cashHtml = fs.readFileSync('src/web/restaurant-v2-cash.html', 'utf8');
+const splitHtml = fs.readFileSync('src/web/restaurant-v2-split.html', 'utf8');
 const cashRoutes = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.routes.js', 'utf8');
 const cashPublic = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.public.routes.js', 'utf8');
 const splitPublic = fs.readFileSync('src/modules/restaurant/restaurant-v2-split.public.routes.js', 'utf8');
@@ -75,8 +77,10 @@ expect(cashRoutes.includes('stageCustomerNameForTable'), 'Caja no persiste el no
 expect(cashRoutes.includes('restoreCustomerNameIfDraft'), 'Caja no restaura el nombre si el cobro falla');
 expect(receiptSource.includes("labelValueLines('Cliente'"), 'la tirilla no incluye la línea Cliente');
 
-expect(cashPublic.includes('restaurant-v2-cash-tender-v18.js?v=v18'), 'Caja no carga V18');
-expect(splitPublic.includes('restaurant-v2-cash-tender-v18.js?v=v18'), 'División no carga V18');
+expect(cashHtml.includes('/app/restaurant-v2-cash-tender-v18.js?v=v18'), 'Caja no carga V18 desde su plantilla canónica');
+expect(splitHtml.includes('/app/restaurant-v2-cash-tender-v18.js?v=v18'), 'División no carga V18 desde su plantilla canónica');
+expect(cashPublic.includes("sendAsset(res, 'restaurant-v2-cash.html'"), 'la ruta canónica de Caja fue reemplazada innecesariamente');
+expect(splitPublic.includes("sendAsset(res, 'restaurant-v2-split.html'"), 'la ruta canónica de División fue reemplazada innecesariamente');
 expect(aggregator.includes("'/app/restaurant-v2-cash-tender-v18.js'"), 'falta ruta pública V18');
 
 expect(cashService.includes('closeTableWithMethod'), 'Caja dejó de usar el cierre real existente');
