@@ -286,10 +286,18 @@
     $('#editActive').checked = item.active !== false;
     const recipe = recipeByProduct().get(item.productId);
     $('#recipeBox').innerHTML = recipe
-      ? `<b>Receta disponible: ${esc(recipe.name)}</b><span>${Array.isArray(recipe.items) ? recipe.items.length : 0} insumo(s). ${item.requiresRecipe ? 'Está activa para descontar ingredientes.' : 'Está guardada, pero no es obligatoria para vender.'}</span>`
+      ? `<b>Receta disponible: ${esc(recipe.name)}</b><span>${Array.isArray(recipe.items) ? recipe.items.length : 0} insumo(s). ${item.requiresRecipe && recipe.active !== false ? 'Está activa para descontar ingredientes.' : 'Está guardada e inactiva; no afecta las ventas.'}</span>`
       : '<b>Sin receta.</b><span>El producto puede venderse normalmente. Configurar una receta es opcional.</span>';
     setError('#editError');
     $('#editDialog').showModal();
+  }
+
+  async function setRecipeActive(recipe, active) {
+    if (!recipe || Boolean(recipe.active) === Boolean(active)) return recipe;
+    return R.api(`/api/v1/consumo/recetas/${recipe.id}`, {
+      method:'PATCH',
+      body:JSON.stringify({ active:Boolean(active) })
+    });
   }
 
   async function saveEdit(event) {
@@ -304,6 +312,23 @@
       const commercial = $('#editCommercialCategory').value.trim() || $('#editCategory').selectedOptions[0]?.textContent || 'Carta';
       const currentDescription = String(item.product?.descripcion || '');
       const description = !currentDescription || currentDescription.startsWith(PREFIX) ? `${PREFIX}${commercial}` : currentDescription;
+
+      // VANTIX_RESTAURANT_V2_MENU_RECIPE_MODE_V2
+      // Al salir de Receta primero se inactiva la receta: durante el cambio una venta
+      // podría quedar bloqueada unos milisegundos, pero nunca consumiría ingredientes
+      // por error. Al entrar a Receta se bloquea primero el menú y luego se reactiva.
+      if (mode !== 'RECIPE') await setRecipeActive(recipe, false);
+      if (mode === 'RECIPE' && !item.requiresRecipe) {
+        await R.api(`/api/v1/restaurante/menu/${item.id}`, {
+          method:'PUT',
+          body:JSON.stringify(menuPayload(item, {
+            category:$('#editCategory').value, station:$('#editStation').value,
+            requiresRecipe:true, active:$('#editActive').checked
+          }))
+        });
+      }
+      if (mode === 'RECIPE') await setRecipeActive(recipe, true);
+
       await R.api(`/api/v1/inventario/productos/${item.productId}`, {
         method:'PATCH',
         body:JSON.stringify({
@@ -374,6 +399,17 @@
         unitLabel: row.querySelector('[data-unit]').value.trim() || null
       })).filter((row) => row.ingredientProductId && row.quantity > 0);
       if (!items.length) throw new Error('Agrega al menos un insumo válido.');
+
+      // Bloqueamos primero este producto como “requiere receta”. Si la creación o
+      // activación fallara, el pedido queda temporalmente bloqueado en vez de vender
+      // con un descuento de stock incorrecto.
+      if (!item.requiresRecipe) {
+        await R.api(`/api/v1/restaurante/menu/${item.id}`, {
+          method:'PUT',
+          body:JSON.stringify(menuPayload(item, { requiresRecipe:true }))
+        });
+      }
+
       const existing = recipeByProduct().get(item.productId);
       if (existing) {
         await R.api(`/api/v1/consumo/recetas/${existing.id}`, { method:'PATCH', body:JSON.stringify({ items, outputProductId:item.productId, active:true }) });
@@ -384,6 +420,10 @@
           body:JSON.stringify({ code:`REC-${base}`.slice(0, 60), name:`Receta ${item.product?.nombre || 'producto'}`.slice(0,160), outputProductId:item.productId, active:true, items })
         });
       }
+      await R.api(`/api/v1/inventario/productos/${item.productId}`, {
+        method:'PATCH',
+        body:JSON.stringify({ controlaInventario:false })
+      });
       await R.api(`/api/v1/restaurante/menu/${item.id}`, { method:'PUT', body:JSON.stringify(menuPayload(item, { requiresRecipe:true })) });
       $('#recipeDialog').close();
       $('#editDialog').close();
@@ -434,8 +474,9 @@
     await loadData();
     await loadCanonicalOcr();
     window.VantixGCRestaurantV2MenuV1 = Object.freeze({
-      marker:'VANTIX_RESTAURANT_V2_MENU_V1', version:'1.0.0',
+      marker:'VANTIX_RESTAURANT_V2_MENU_V1', version:'1.1.0',
       preparedWithoutRecipeByDefault:true, directInventoryUsesMasterProduct:true,
+      recipeModeExclusive:true, recipePreservedWhenDisabled:true,
       canonicalOcrReused:true, refresh:loadData
     });
   }
