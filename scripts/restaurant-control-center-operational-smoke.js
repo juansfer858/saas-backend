@@ -11,32 +11,31 @@ async function main() {
   const legacyShell = fs.readFileSync('src/web/restaurant-control-center.js', 'utf8');
   const legacyCss = fs.readFileSync('src/web/restaurant-control-center.css', 'utf8');
   const legacyEngine = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
+  const p12Public = fs.readFileSync('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js', 'utf8');
   const p11Public = fs.readFileSync('src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js', 'utf8');
   const p10Public = fs.readFileSync('src/modules/restaurant/restaurant-v2-control-center.public.routes.js', 'utf8');
   const p11Launcher = fs.readFileSync('src/web/restaurant-v1-retirement-p11-launch.js', 'utf8');
   const p11Native = fs.readFileSync('src/web/restaurant-v2-native-control-p11.js', 'utf8');
 
-  // Global Restaurant entry remains stable; P11 owns the tenant-aware decision behind it.
+  // Super Core conserva una URL canónica estable; P12 la intercepta antes de las
+  // rutas históricas y la resuelve directamente al Centro de Control V2 nativo.
   assert.match(panelEntry, /CONTROL_CENTER_PATH = '\/app\/centro-de-control'/);
   assert.match(appSource, /href: '\/app\/centro-de-control',[\s\S]*?label: 'Restaurante',[\s\S]*?primaryVertical: true/);
   assert.match(appSource, /restaurantApp: '\/app\/centro-de-control'/);
-  assert.match(appSource, /app\.get\('\/app\/restaurante',[\s\S]*?res\.redirect\(302, '\/app\/centro-de-control'\)/);
+  assert.match(p12Public, /router\.get\('\/app\/centro-de-control'/);
+  assert.match(p12Public, /TARGETS\.controlCenter/);
+  assert.match(p12Public, /X-VantixGC-Restaurant-V1-Runtime/);
 
-  // P11 canonical Control Center is native/tenant-aware and cannot load V1 engine.
+  // P11/P10 y el motor V1 permanecen congelados en código para una reversión de
+  // código deliberada, pero ya no pueden ganar el enrutamiento del runtime.
   assert.match(p11Public, /router\.get\('\/app\/centro-de-control'/);
   assert.match(p11Public, /\/app\/centro-de-control-v2/);
   assert.match(p11Launcher, /VANTIX_RESTAURANT_V1_RETIREMENT_LAUNCH_P11/);
-  assert.match(p11Launcher, /\/api\/v1\/restaurante\/v2\/retiro-v1\/launch/);
   assert.match(p11Native, /VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11/);
   assert.match(p11Native, /\/app\/restaurante-v2\/mesas/);
   assert.match(p11Native, /\/app\/restaurante-v2\/pedidos/);
   assert.match(p11Native, /\/app\/restaurante-v2\/kds/);
   assert.match(p11Native, /\/app\/restaurante-v2\/caja/);
-  assert.doesNotMatch(p11Launcher, /MutationObserver|setInterval|restaurant-ui\.js/);
-  assert.doesNotMatch(p11Native, /MutationObserver|setInterval|restaurant-ui\.js|restaurant-control-center\.js/);
-
-  // P10 compatibility remains explicit for rollback/migration and still owns the
-  // previous operational shell contracts while V1 code is retained.
   assert.match(p10Public, /\/app\/centro-de-control-p10/);
   assert.match(p10Public, /restaurant-ui-v1/);
   assert.match(legacyHtml, /restaurant-ui\.js\?v=salon-qr-v2/);
@@ -46,14 +45,16 @@ async function main() {
   assert.doesNotMatch(legacyShell, /MutationObserver/);
   assert.match(legacyCss, /\.rail-wrap/);
   assert.match(legacyCss, /\.cc-dashboard/);
+  assert.doesNotMatch(p11Launcher, /MutationObserver|setInterval|restaurant-ui\.js/);
+  assert.doesNotMatch(p11Native, /MutationObserver|setInterval|restaurant-ui\.js|restaurant-control-center\.js/);
 
-  // Keep high-value legacy fallback contracts protected until P12 deletes them.
+  // Los contratos V1 se conservan intactos en git; P12 no los ejecuta.
   for (const token of [
     'Caja lista para comenzar', 'CAJA CERRADA', 'CAJA ABIERTA', 'Confirmar cobro', 'Cerrar turno',
     'Gestionar zonas', 'Gestionar QR', 'Editar plano', 'openQrManager',
     'KDS_OVERDUE_MINUTES = 12', 'Marcar listo', 'Mesero avisado en vivo',
     'Panel del mesero', '+ Agregar persona', 'Enviar a cocina / barra', 'Preparar cuenta', 'Enviar a caja'
-  ]) assert.ok(legacyEngine.includes(token), `P10/V1 compatibility must retain ${token}`);
+  ]) assert.ok(legacyEngine.includes(token), `V1 frozen source must retain ${token}`);
 
   new Function(p11Launcher);
   new Function(p11Native);
@@ -63,12 +64,11 @@ async function main() {
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    const canonical = await fetch(base + '/app/centro-de-control');
-    const canonicalBody = await canonical.text();
-    assert.equal(canonical.status, 200);
-    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v1-retirement'), 'p11-v1-retirement');
-    assert.match(canonicalBody, /data-p11-launch="true"/);
-    assert.doesNotMatch(canonicalBody, /restaurant-ui\.js|restaurant-control-center\.js|MutationObserver/);
+    const canonical = await fetch(base + '/app/centro-de-control', { redirect:'manual' });
+    assert.equal(canonical.status, 307);
+    assert.equal(canonical.headers.get('location'), '/app/centro-de-control-v2');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
 
     const native = await fetch(base + '/app/centro-de-control-v2');
     const nativeBody = await native.text();
@@ -77,20 +77,21 @@ async function main() {
     assert.match(nativeBody, /data-v2-native-control="p11"/);
     assert.doesNotMatch(nativeBody, /restaurant-ui\.js|restaurant-control-center\.js|MutationObserver/);
 
-    const compat = await fetch(base + '/app/centro-de-control-p10');
-    const compatBody = await compat.text();
-    assert.equal(compat.status, 200);
-    assert.equal(compat.headers.get('x-vantixgc-restaurant-control'), 'operational-shell-v1');
-    assert.equal(compat.headers.get('x-vantixgc-restaurant-control-engine'), 'restaurant-ui-v1');
-    assert.equal(compat.headers.get('x-vantixgc-restaurant-control-p10-compatibility'), 'true');
-    assert.match(compatBody, /restaurant-theme\.js/);
-    assert.match(compatBody, /restaurant-ui\.js\?v=salon-qr-v2/);
-    assert.match(compatBody, /restaurant-v2-control-center-bridge\.js/);
+    const compat = await fetch(base + '/app/centro-de-control-p10', { redirect:'manual' });
+    assert.equal(compat.status, 307);
+    assert.equal(compat.headers.get('location'), '/app/centro-de-control-v2');
+    assert.equal(compat.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+    assert.equal(compat.headers.get('x-vantixgc-restaurant-v1-redirect-from'), 'centro-de-control-p10');
 
     const legacyEntry = await fetch(base + '/app/restaurante', { redirect:'manual' });
-    assert.equal(legacyEntry.status, 302);
-    assert.equal(legacyEntry.headers.get('location'), '/app/centro-de-control');
-    assert.equal(legacyEntry.headers.get('x-vantixgc-restaurant-canonical'), '/app/centro-de-control');
+    assert.equal(legacyEntry.status, 307);
+    assert.equal(legacyEntry.headers.get('location'), '/app/centro-de-control-v2');
+    assert.equal(legacyEntry.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+
+    const frozenV1 = await fetch(base + '/app/restaurante-v1', { redirect:'manual' });
+    assert.equal(frozenV1.status, 307);
+    assert.equal(frozenV1.headers.get('location'), '/app/centro-de-control-v2');
+    assert.equal(frozenV1.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
 
     for (const route of ['/app/dashboard', '/app/inventario']) {
       const response = await fetch(base + route);
@@ -106,7 +107,7 @@ async function main() {
     await new Promise((resolve) => server.close(resolve));
   }
 
-  console.log('RESTAURANT CONTROL CENTER P11 CANONICAL + P10 COMPATIBILITY + V1 TECHNICAL FALLBACK SMOKE OK');
+  console.log('RESTAURANT CONTROL CENTER V2 ONLY P12 + V1 RUNTIME DISABLED SMOKE OK');
 }
 
 main().catch((error) => {
