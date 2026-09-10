@@ -11,6 +11,7 @@ const p12 = read('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js
 const aggregator = read('src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js');
 const retirementRoutes = read('src/modules/restaurant/restaurant-v1-retirement-p11.routes.js');
 const devicePwa = read('src/web/restaurant-v2-device-pwa-p8.js');
+const nativeControl = read('src/web/restaurant-v2-native-control-p11.js');
 
 must(p12.includes("HEADER_VALUE = 'p12-v2-only-runtime'"), 'P12 runtime marker missing');
 must(p12.includes("controlCenter: '/app/centro-de-control-v2'"), 'Native V2 Control Center target missing');
@@ -48,6 +49,12 @@ must(v2BridgeMount > p12Mount, 'P12 must run before P10 compatibility bridge');
 must(retirementRoutes.includes("'/v2/retiro-v1', '/v2/cutover', '/v2/piloto'"), 'Rollback API paths are not locked');
 must(retirementRoutes.includes('RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED'), 'P12 rollback API error code missing');
 must(retirementRoutes.includes('v1Runtime:false, v2Only:true'), 'P12 API runtime contract missing');
+
+must(nativeControl.includes('VANTIX_RESTAURANT_V2_ONLY_CONTROL_P12'), 'Native Control Center does not expose P12 global marker');
+must(!nativeControl.includes('/api/v1/restaurante/v2/retiro-v1/launch'), 'Native Control Center still depends on per-tenant P11 retirement gate');
+must(!nativeControl.includes('assertRetirement'), 'Native Control Center still has P11 retirement bootstrap gate');
+must(!nativeControl.includes("retiro:{ label:'Retiro V1'"), 'Retiro V1 must not be exposed in P12 navigation');
+must(nativeControl.includes('renderIdentity();\n      renderNav();'), 'Tenant identity must render directly under P12');
 
 must(devicePwa.includes("legacyScope:'/app/centro-de-control'"), 'Waiter legacy worker scope cleanup missing');
 must(devicePwa.includes("legacyScope:'/app/produccion'"), 'Production legacy worker scope cleanup missing');
