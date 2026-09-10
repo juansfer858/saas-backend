@@ -1,0 +1,69 @@
+name: Restaurant Control Center Close Empty V21 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.service.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.routes.js'
+      - 'src/web/restaurant-v2-tables.js'
+      - 'src/web/restaurant-v2-tables.html'
+      - 'prisma/restaurant-phase2-v1.prisma'
+      - 'scripts/restaurant-control-center-close-empty-v21-smoke.js'
+      - '.github/workflows/restaurant-control-center-close-empty-v21-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.service.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.routes.js'
+      - 'src/web/restaurant-v2-tables.js'
+      - 'src/web/restaurant-v2-tables.html'
+      - 'prisma/restaurant-phase2-v1.prisma'
+      - 'scripts/restaurant-control-center-close-empty-v21-smoke.js'
+      - '.github/workflows/restaurant-control-center-close-empty-v21-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate V21 syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-table-live-detail-v67.service.js
+          node --check src/modules/restaurant/restaurant-table-live-detail-v67.routes.js
+          node --check src/web/restaurant-v2-tables.js
+      - name: Validate Control Center empty-table close
+        run: node scripts/restaurant-control-center-close-empty-v21-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact Control Center Close Empty V21 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              HTML="$(curl -fsS "$BASE/app/restaurante-v2/mesas")"
+              JS="$(curl -fsS "$BASE/app/restaurant-v2-tables.js")"
+              [[ "$HTML" == *'restaurant-v2-tables.js?v=v21'* ]]
+              [[ "$JS" == *'VANTIX_RESTAURANT_CONTROL_CENTER_CLOSE_EMPTY_V21'* ]]
+              [[ "$JS" == *'CERRAR MESA VACÍA'* ]]
+              [[ "$JS" == *'/cerrar-vacia-v21'* ]]
+              echo "Restaurant Control Center Close Empty V21 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

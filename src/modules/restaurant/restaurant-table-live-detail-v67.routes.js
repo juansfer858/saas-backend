@@ -23,6 +23,12 @@ router.post(
   }
 );
 
+router.post('/mesas/:id/cerrar-vacia-v21', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
+  try {
+    res.json({ ok: true, data: await service.closeEmptyFromControlCenter(req.tenantId, req.user, req.params.id) });
+  } catch (error) { next(error); }
+});
+
 router.post('/mesas/:id/cancelar-apertura-v67', requirePermission('MESAS.EDITAR'), async (req, res, next) => {
   try {
     res.json({ ok: true, data: await service.cancelEmptyOpening(req.tenantId, req.user, req.params.id) });

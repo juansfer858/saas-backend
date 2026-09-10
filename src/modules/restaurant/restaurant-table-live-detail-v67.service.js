@@ -4,6 +4,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
 const MARKER = 'VANTIX_RESTAURANT_TABLE_LIVE_DETAIL_V67';
+const CONTROL_CENTER_EMPTY_CLOSE_MARKER = 'VANTIX_RESTAURANT_CONTROL_CENTER_CLOSE_EMPTY_V21';
 const ACTIVE_STATES = ['ABIERTA', 'CUENTA_PEDIDA'];
 const CONTROL_CENTER_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
 
@@ -28,6 +29,12 @@ function assertControlCenterDraftManager(user) {
   }
 }
 
+function assertControlCenterEmptyClose(user) {
+  if (!canManageDraftFromControlCenter(user)) {
+    throw new AppError(403, 'Solo Administración puede cerrar una mesa vacía desde Centro de control.', 'RESTAURANT_CONTROL_CENTER_EMPTY_CLOSE_FORBIDDEN');
+  }
+}
+
 function itemState(order, item) {
   const orderState = String(order?.state || '').toUpperCase();
   if (orderState === 'BORRADOR') return 'POR_ENVIAR';
@@ -46,6 +53,27 @@ function numeric(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function emptyTableFacts(sale, orders, payments, fiscalDocuments, saleDetails = 0) {
+  const rows = Array.isArray(orders) ? orders : [];
+  const hasItems = rows.some((order) => (order.items || []).length > 0);
+  const hasSentOrder = rows.some((order) => String(order.state || '').toUpperCase() !== 'BORRADOR');
+  const hasCommands = rows.some((order) => (order.commands || []).length > 0);
+  const commercialEmpty = Boolean(
+    sale
+    && String(sale.estado || '').toUpperCase() === 'BORRADOR'
+    && numeric(sale.total) === 0
+    && Number(saleDetails || sale?.detalles?.length || 0) === 0
+  );
+  return {
+    hasItems,
+    hasSentOrder,
+    hasCommands,
+    commercialEmpty,
+    financiallyEmpty: Number(payments || 0) === 0 && Number(fiscalDocuments || 0) === 0,
+    empty: commercialEmpty && !hasItems && !hasSentOrder && !hasCommands && Number(payments || 0) === 0 && Number(fiscalDocuments || 0) === 0
+  };
+}
+
 async function loadTableAndSession(tenantId, user, tableId, client = prisma) {
   const table = await client.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
   if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
@@ -62,6 +90,7 @@ async function liveDetail(tenantId, user, tableId) {
   if (!session) {
     return {
       marker: MARKER,
+      controlCenterEmptyCloseMarker: CONTROL_CENTER_EMPTY_CLOSE_MARKER,
       table,
       open: false,
       session: null,
@@ -69,11 +98,12 @@ async function liveDetail(tenantId, user, tableId) {
       items: [],
       summary: { orderedQuantity: 0, deliveredQuantity: 0, remainingQuantity: 0, readyQuantity: 0, draftQuantity: 0, total: '0' },
       canCancelOpening: false,
-      canManageDraftFromControlCenter: canManageDraftFromControlCenter(user)
+      canManageDraftFromControlCenter: canManageDraftFromControlCenter(user),
+      canCloseEmptyFromControlCenter: false
     };
   }
 
-  const [sale, orders, payments, fiscalDocuments, activeQrDevices] = await Promise.all([
+  const [sale, orders, payments, fiscalDocuments, activeQrDevices, saleDetails] = await Promise.all([
     prisma.comprobanteComercial.findFirst({
       where: { id: session.saleId, tenantId },
       select: { id: true, numero: true, estado: true, subtotal: true, ivaTotal: true, impoconsumoTotal: true, total: true, saldo: true, formaPago: true }
@@ -85,7 +115,8 @@ async function liveDetail(tenantId, user, tableId) {
     }),
     prisma.restaurantSessionPayment.count({ where: { tenantId, sessionId: session.id } }),
     prisma.restaurantFiscalDocument.count({ where: { tenantId, sessionId: session.id } }),
-    prisma.restaurantQrVisitDevice.count({ where: { tenantId, sessionId: session.id, revokedAt: null } })
+    prisma.restaurantQrVisitDevice.count({ where: { tenantId, sessionId: session.id, revokedAt: null } }),
+    prisma.detalleComprobante.count({ where: { tenantId, comprobanteId: session.saleId } })
   ]);
 
   const controlCenterDraftManager = canManageDraftFromControlCenter(user);
@@ -132,9 +163,12 @@ async function liveDetail(tenantId, user, tableId) {
     && !session.accountPreparedAt
     && !session.cashierRequestedAt
   );
+  const emptyFacts = emptyTableFacts(sale, orders, payments, fiscalDocuments, saleDetails);
+  const canCloseEmptyFromControlCenter = Boolean(controlCenterDraftManager && emptyFacts.empty);
 
   return {
     marker: MARKER,
+    controlCenterEmptyCloseMarker: CONTROL_CENTER_EMPTY_CLOSE_MARKER,
     table,
     open: true,
     session,
@@ -149,7 +183,15 @@ async function liveDetail(tenantId, user, tableId) {
       total: String(sale?.total || 0)
     },
     canCancelOpening,
-    canManageDraftFromControlCenter: controlCenterDraftManager
+    canManageDraftFromControlCenter: controlCenterDraftManager,
+    canCloseEmptyFromControlCenter,
+    emptyCloseInfo: canCloseEmptyFromControlCenter ? {
+      noProducts: true,
+      noPayments: true,
+      noFiscalDocuments: true,
+      activeQrDevices,
+      accountRequestWillBeDiscarded: Boolean(session.accountRequestedAt || session.accountPreparedAt || session.cashierRequestedAt)
+    } : null
   };
 }
 
@@ -229,6 +271,55 @@ async function removeDraftItemFromControlCenter(tenantId, user, tableId, itemId)
   });
 }
 
+async function closeEmptyFromControlCenter(tenantId, user, tableId) {
+  assertControlCenterEmptyClose(user);
+  return prisma.$transaction(async (tx) => {
+    const { table, session } = await loadTableAndSession(tenantId, user, tableId, tx);
+    if (!session) return { marker: CONTROL_CENTER_EMPTY_CLOSE_MARKER, closed: false, alreadyFree: true, table };
+
+    const [sale, orders, payments, fiscalDocuments, activeQrDevices] = await Promise.all([
+      tx.comprobanteComercial.findFirst({ where: { id: session.saleId, tenantId }, include: { detalles: true } }),
+      tx.restaurantOrder.findMany({ where: { tenantId, sessionId: session.id }, include: { items: true, commands: true } }),
+      tx.restaurantSessionPayment.count({ where: { tenantId, sessionId: session.id } }),
+      tx.restaurantFiscalDocument.count({ where: { tenantId, sessionId: session.id } }),
+      tx.restaurantQrVisitDevice.count({ where: { tenantId, sessionId: session.id, revokedAt: null } })
+    ]);
+
+    const facts = emptyTableFacts(sale, orders, payments, fiscalDocuments, sale?.detalles?.length || 0);
+    if (!facts.empty) {
+      if (facts.hasItems || facts.hasSentOrder || facts.hasCommands) {
+        throw new AppError(409, 'La mesa tiene productos pedidos o actividad de cocina/barra. No puede cerrarse como mesa vacía.', 'RESTAURANT_CONTROL_CENTER_EMPTY_CLOSE_HAS_PRODUCTS');
+      }
+      if (!facts.financiallyEmpty) {
+        throw new AppError(409, 'La mesa ya tiene pagos o documentos asociados y no puede cerrarse como mesa vacía.', 'RESTAURANT_CONTROL_CENTER_EMPTY_CLOSE_HAS_FINANCIAL_ACTIVITY');
+      }
+      throw new AppError(409, 'La venta asociada ya contiene información comercial y no puede descartarse como mesa vacía.', 'RESTAURANT_CONTROL_CENTER_EMPTY_CLOSE_SALE_NOT_EMPTY');
+    }
+
+    const draftIds = orders.filter((order) => String(order.state || '').toUpperCase() === 'BORRADOR').map((order) => order.id);
+    if (draftIds.length) await tx.restaurantOrder.deleteMany({ where: { tenantId, id: { in: draftIds } } });
+
+    // RestaurantQrVisitDevice uses onDelete:Cascade from the session. Deleting the
+    // empty session invalidates every QR authorization for this visit without touching
+    // the permanent physical QR token of the table.
+    await tx.restaurantTableSession.delete({ where: { id: session.id } });
+    await tx.comprobanteComercial.delete({ where: { id: sale.id } });
+    const freed = await tx.restaurantTable.update({ where: { id: table.id }, data: { state: 'LIBRE' } });
+
+    return {
+      marker: CONTROL_CENTER_EMPTY_CLOSE_MARKER,
+      closed: true,
+      alreadyFree: false,
+      table: freed,
+      sessionId: session.id,
+      discardedSaleId: sale.id,
+      discardedEmptyDrafts: draftIds.length,
+      invalidatedQrAuthorizations: activeQrDevices,
+      closedByUserId: user.id
+    };
+  });
+}
+
 async function cancelEmptyOpening(tenantId, user, tableId) {
   return prisma.$transaction(async (tx) => {
     const { table, session } = await loadTableAndSession(tenantId, user, tableId, tx);
@@ -276,10 +367,13 @@ async function cancelEmptyOpening(tenantId, user, tableId) {
 
 module.exports = {
   MARKER,
+  CONTROL_CENTER_EMPTY_CLOSE_MARKER,
   liveDetail,
   cancelEmptyOpening,
+  closeEmptyFromControlCenter,
   removeDraftItemFromControlCenter,
   itemState,
   canCancelForUser,
-  canManageDraftFromControlCenter
+  canManageDraftFromControlCenter,
+  emptyTableFacts
 };
