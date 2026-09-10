@@ -2,7 +2,7 @@
 (()=>{'use strict';
   const MARKER='VANTIX_RESTAURANT_V2_UX_V78';
   const OPEN_MESSAGE='VANTIX_RESTAURANT_V2_OPEN_MODULE_V78';
-  const path=location.pathname;
+  const initialPath=location.pathname;
   const titles=new Map([
     ['/app/restaurante-v2/mesas','Mesas'],
     ['/app/restaurante-v2/pedidos','Pedidos'],
@@ -17,7 +17,7 @@
   ]);
   document.documentElement.dataset.restaurantV2Ux=MARKER;
 
-  function canonicalTitle(){return titles.get(path)||null}
+  function canonicalTitle(){return titles.get(location.pathname)||null}
   function mainHeader(){return document.querySelector('.kds-top,.rv2-top,.rv2-order-top,.cash-top,.split-top,.menu-top,.admin-top,.rv2-v78-top')}
   function enforceHeader(){
     const title=canonicalTitle();const header=mainHeader();if(!title||!header)return;
@@ -47,14 +47,14 @@
 
   let currentTableId='';
   function upgradeRequestedAccount(){
-    if(path!=='/app/restaurante-v2/mesas'||!currentTableId)return;
+    if(initialPath!=='/app/restaurante-v2/mesas'||!currentTableId)return;
     const body=document.getElementById('dialogBody');if(!body)return;
     const badge=[...body.querySelectorAll('.rv2-badge,.rv2-status-danger')].find(node=>/CUENTA SOLICITADA/i.test(node.textContent||''));
     if(!badge||badge.dataset.v78Upgraded==='1')return;
     const button=document.createElement('button');button.id='settleRequestedAccount';button.type='button';button.className='rv2-btn rv2-btn-danger';button.dataset.v78Upgraded='1';button.dataset.tableId=currentTableId;button.textContent='CUENTA SOLICITADA';
     badge.replaceWith(button);
   }
-  if(path==='/app/restaurante-v2/mesas'){
+  if(initialPath==='/app/restaurante-v2/mesas'){
     document.addEventListener('click',event=>{const card=event.target.closest?.('[data-table]');if(card?.dataset?.table)currentTableId=validTableId(card.dataset.table)||currentTableId},true);
     const body=document.getElementById('dialogBody');if(body){const observer=new MutationObserver(upgradeRequestedAccount);observer.observe(body,{childList:true,subtree:true});window.addEventListener('pagehide',()=>observer.disconnect(),{once:true})}
     document.addEventListener('click',event=>{
@@ -71,7 +71,7 @@
   }
 
   function preselectTableFromQuery(){
-    if(!['/app/restaurante-v2/caja','/app/restaurante-v2/division'].includes(path))return;
+    if(!['/app/restaurante-v2/caja','/app/restaurante-v2/division'].includes(initialPath))return;
     const params=new URLSearchParams(location.search);const tableId=validTableId(params.get('tableId'));if(!tableId)return;
     let done=false;
     const select=()=>{
@@ -84,7 +84,7 @@
   }
   preselectTableFromQuery();
 
-  if(path==='/app/centro-de-control-v2'){
+  if(initialPath==='/app/centro-de-control-v2'){
     window.addEventListener('message',event=>{
       if(event.origin!==location.origin)return;const data=event.data||{};if(data.type!==OPEN_MESSAGE)return;
       const frame=document.getElementById('p11Frame');if(!frame||event.source!==frame.contentWindow)return;
