@@ -16,6 +16,8 @@ let lastPartKey='';
 let lastTender=null;
 let chargeInFlight=false;
 let syncing=false;
+let observer=null;
+const OBSERVER_OPTIONS={subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class','open']};
 
 function $(q,root=document){return root.querySelector(q)}
 function money(value){return RV2.money(Number(value||0))}
@@ -58,10 +60,11 @@ function ensureCustomerField(){
   if(input)return input;
   const label=document.createElement('label');
   label.className='v18-customer-field';
-  label.innerHTML='<span>Nombre del cliente</span><input id="v18CustomerName" class="rv2-input" maxlength="160" autocomplete="off" value="Cliente genérico"><small>Déjalo así si no necesitan la cuenta a nombre de alguien.</small>';
+  label.innerHTML='<span>Nombre del cliente</span><input id="v18CustomerName" class="rv2-input" maxlength="160" autocomplete="name" value="Cliente genérico"><small>Déjalo así si no necesitan la cuenta a nombre de alguien.</small>';
   fields.prepend(label);
   input=$('#v18CustomerName');
   input?.addEventListener('input',()=>{ if(!input.value.trim())input.dataset.empty='1';else delete input.dataset.empty; });
+  input?.addEventListener('focus',()=>{ if(normalizeName(input.value)===DEFAULT_CUSTOMER)input.select(); });
   input?.addEventListener('blur',()=>{ input.value=normalizeName(input.value); });
   return input;
 }
@@ -168,6 +171,7 @@ function enrichResult(){
 function sync(){
   if(syncing)return;
   syncing=true;
+  observer?.disconnect();
   try{
     injectStyles();
     if(isCashPage){ensureCustomerField();ensureCashTender()}else ensureSplitTender();
@@ -176,7 +180,10 @@ function sync(){
     const tender=currentTender();
     if(tender)updateTender(tender);
     enrichResult();
-  }finally{syncing=false}
+  }finally{
+    syncing=false;
+    observer?.observe(document.documentElement,OBSERVER_OPTIONS);
+  }
 }
 
 if(isCashPage){
@@ -232,8 +239,7 @@ document.addEventListener('click',(event)=>{
   lastTender={due,received,change:Math.max(0,received-due)};
 },true);
 
-const observer=new MutationObserver(()=>sync());
-observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class','open']});
+observer=new MutationObserver(()=>sync());
 window.addEventListener('pageshow',()=>setTimeout(sync,0));
-setTimeout(sync,0);
+sync();
 })();
