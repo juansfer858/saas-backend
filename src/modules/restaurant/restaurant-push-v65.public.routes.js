@@ -3,8 +3,11 @@
 const express = require('express');
 const path = require('node:path');
 const pushService = require('../notifications/push-v65.service');
+const operationalPush = require('./restaurant-operational-push-v25.service');
+const kdsPush = require('./restaurant-v2-kds-push.service');
 
 const MARKER = 'VANTIX_RESTAURANT_PUSH_CORE_V65';
+const OPERATIONAL_MARKER = 'VANTIX_RESTAURANT_OPERATIONAL_PUSH_V25';
 const router = express.Router();
 const clientPath = path.join(__dirname, '..', '..', 'web', 'restaurant-push-v65.js');
 
@@ -41,6 +44,51 @@ router.get('/app/push-v65-sw.js', (_req, res) => {
   res.type('application/javascript').send(serviceWorkerSource());
 });
 
+// V25 observa únicamente cuatro mutaciones públicas ya existentes. No altera sus
+// validaciones ni su respuesta; después del 2xx dispara avisos best-effort fuera
+// de la transacción operativa. Así Push nunca puede bloquear un pedido o una mesa.
+router.use((req, res, next) => {
+  if (String(req.method || '').toUpperCase() !== 'POST') return next();
+  const match = String(req.path || '').match(/^\/api\/public\/restaurante\/qr\/([^/]+)\/(llamar-mesero|pedir-cuenta|pedidos|solicitar-apertura)\/?$/);
+  if (!match) return next();
+  const qrToken = decodeURIComponent(match[1]);
+  const action = match[2];
+  const originalJson = res.json.bind(res);
+  res.json = (body) => {
+    res.locals.restaurantOperationalPushV25Data = body?.data ?? null;
+    return originalJson(body);
+  };
+  res.once('finish', () => {
+    if (res.statusCode < 200 || res.statusCode >= 300) return;
+    const data = res.locals.restaurantOperationalPushV25Data || {};
+    if (action === 'llamar-mesero') {
+      void operationalPush.notifyWaiterCallFromQr(qrToken, data?.call?.id || null).catch(()=>{});
+      return;
+    }
+    if (action === 'pedir-cuenta') {
+      void operationalPush.notifyAccountRequestFromQr(qrToken).catch(()=>{});
+      return;
+    }
+    if (action === 'solicitar-apertura') {
+      void operationalPush.notifyTableOpenRequestFromQr(qrToken, data).catch(()=>{});
+      return;
+    }
+    if (action === 'pedidos') {
+      void (async () => {
+        const context = await operationalPush.qrContext(qrToken);
+        const tenantId = data?.tenantId || context?.table?.tenantId || null;
+        const sessionId = data?.sessionId || context?.session?.id || null;
+        const order = tenantId && sessionId ? { ...data, tenantId, sessionId } : data;
+        await Promise.allSettled([
+          operationalPush.notifyQrOrderFromOrder(order),
+          tenantId && sessionId ? kdsPush.notifyLatestRound(tenantId, sessionId) : Promise.resolve(null)
+        ]);
+      })().catch(()=>{});
+    }
+  });
+  return next();
+});
+
 const loader = `;(()=>{if(window.VANTIX_RESTAURANT_PUSH_CLIENT_V65)return;if(document.querySelector('script[data-vantix-push-v65]'))return;const s=document.createElement('script');s.src='/app/restaurant-push-v65.js?v=65';s.async=true;s.dataset.vantixPushV65='1';document.head.appendChild(s)})();`;
 
 function installRestaurantPushV65(req, res, next) {
@@ -68,6 +116,7 @@ function installRestaurantPushV65(req, res, next) {
 
 module.exports = {
   MARKER,
+  OPERATIONAL_MARKER,
   restaurantPushV65PublicRouter:router,
   installRestaurantPushV65,
   serviceWorkerSource,
