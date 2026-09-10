@@ -1,0 +1,102 @@
+name: Restaurant V2 Operational UX V12 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-design-system.css'
+      - 'src/web/restaurant-v2-operational-ux-v12.js'
+      - 'src/web/restaurant-v2-client-ux-v12.js'
+      - 'src/web/restaurant-v2-client-ux-v12.css'
+      - 'src/web/restaurant-v2-tables.html'
+      - 'src/web/restaurant-v2-orders.html'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/web/restaurant-v2-cash.html'
+      - 'src/web/restaurant-v2-split.html'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/web/restaurant-v2-employees-p11.html'
+      - 'src/web/restaurant-v2-admin-parity.html'
+      - 'src/web/restaurant-v2-client-qr.html'
+      - 'scripts/restaurant-v2-operational-ux-v12-smoke.js'
+      - '.github/workflows/restaurant-v2-operational-ux-v12-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-design-system.css'
+      - 'src/web/restaurant-v2-operational-ux-v12.js'
+      - 'src/web/restaurant-v2-client-ux-v12.js'
+      - 'src/web/restaurant-v2-client-ux-v12.css'
+      - 'src/web/restaurant-v2-tables.html'
+      - 'src/web/restaurant-v2-orders.html'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/web/restaurant-v2-cash.html'
+      - 'src/web/restaurant-v2-split.html'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/web/restaurant-v2-employees-p11.html'
+      - 'src/web/restaurant-v2-admin-parity.html'
+      - 'src/web/restaurant-v2-client-qr.html'
+      - 'scripts/restaurant-v2-operational-ux-v12-smoke.js'
+      - '.github/workflows/restaurant-v2-operational-ux-v12-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate V12 syntax
+        run: |
+          node --check src/web/restaurant-v2-operational-ux-v12.js
+          node --check src/web/restaurant-v2-client-ux-v12.js
+          node --check src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js
+          node --check scripts/restaurant-v2-operational-ux-v12-smoke.js
+      - name: Validate V12 contracts
+        run: node scripts/restaurant-v2-operational-ux-v12-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact UX V12 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              UX="$(curl -fsS "$BASE/app/restaurant-v2-operational-ux-v12.js")"
+              CLIENT="$(curl -fsS "$BASE/app/restaurant-v2-client-ux-v12.js")"
+              CLIENT_CSS="$(curl -fsS "$BASE/app/restaurant-v2-client-ux-v12.css")"
+              DESIGN="$(curl -fsS "$BASE/app/restaurant-v2-design-system.css")"
+              TABLES="$(curl -fsS "$BASE/app/restaurante-v2/mesas")"
+              KDS="$(curl -fsS "$BASE/app/restaurante-v2/kds")"
+              CARTA="$(curl -fsS "$BASE/app/restaurante-v2/carta")"
+              [[ "$UX" == *"VANTIX_RESTAURANT_V2_OPERATIONAL_UX_V12"* ]]
+              [[ "$UX" == *"Cuenta conjunta"* ]]
+              [[ "$UX" == *"Cuenta dividida"* ]]
+              [[ "$UX" == *"Promo del día"* ]]
+              [[ "$CLIENT" == *"VANTIX_RESTAURANT_V2_CLIENT_UX_V12"* ]]
+              [[ "$CLIENT" == *"Buscar producto"* ]]
+              [[ "$CLIENT_CSS" == *"VANTIX_RESTAURANT_V2_CLIENT_PROMO_HERO_V12"* ]]
+              [[ "$DESIGN" == *"VANTIX_RESTAURANT_V2_CANONICAL_HEADER_V12"* ]]
+              [[ "$TABLES" == *"restaurant-v2-operational-ux-v12.js"* ]]
+              [[ "$KDS" == *"data-rv2-module-title=\"Cocina / KDS\""* ]]
+              [[ "$CARTA" == *"data-rv2-module-title=\"Carta\""* ]]
+              echo "Restaurant V2 Operational UX V12 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

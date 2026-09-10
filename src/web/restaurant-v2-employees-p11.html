@@ -3,14 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>VantixGC Restaurante · Empleados</title>
+  <title>Empleados · Restaurante V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
   <link rel="stylesheet" href="/app/restaurant-v2-native-control-p11.css?v=p11">
-  <style>:root{--cc-muted:#61706a;--cc-line:#dce6e0;--cc-ink:#18221d;--paper:#fff;--verdigris:#0f8f85}body{padding:16px;background:#f6f8f7}#ccCustomView{max-width:1400px;margin:auto}.employees-shell{padding-bottom:24px}</style>
+  <style>:root{--cc-muted:#61706a;--cc-line:#dce6e0;--cc-ink:#18221d;--paper:#fff;--verdigris:#0f8f85}body{padding:0;background:#f6f8f7}#ccCustomView{max-width:1400px;margin:auto;padding:16px}.employees-shell{padding-bottom:24px}</style>
 </head>
-<body data-p11-module-host="employees">
+<body data-p11-module-host="employees" data-rv2-module-header="true" data-rv2-module-title="Empleados">
+  <header class="rv2-module-top"><div><span>RESTAURANTE V2 · EMPLEADOS</span><h1>Empleados</h1><p>Usuarios, roles y asignaciones</p></div><div class="rv2-module-actions"><button class="rv2-btn" type="button" onclick="location.reload()">Actualizar</button></div></header>
   <main id="ccCustomView"><div class="ri-muted">Cargando Empleados…</div></main>
   <script src="/app/restaurant-v2-module-host-p11.js?v=p11"></script>
   <script src="/app/restaurant-waiter-device-admin.js?v=p11"></script>
   <script src="/app/restaurant-employees-ui.js?v=p11"></script>
+  <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
 </body>
 </html>

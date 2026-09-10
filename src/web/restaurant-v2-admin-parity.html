@@ -8,15 +8,15 @@
   <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
   <link rel="stylesheet" href="/app/restaurant-v2-admin-parity.css">
 </head>
-<body>
-  <header class="admin-top">
+<body data-rv2-module-header="true" data-rv2-module-title="AUTO_ADMIN">
+  <header class="admin-top rv2-module-top">
     <div>
-      <span class="eyebrow">RESTAURANTE V2 · PARIDAD FINAL</span>
+      <span class="eyebrow">RESTAURANTE V2 · ADMINISTRACIÓN OPERATIVA</span>
       <h1 id="pageTitle">QR de mesas</h1>
       <p id="tenantLine">Cargando administración operativa…</p>
     </div>
     <div class="admin-top-actions">
-      <a class="rv2-btn" href="/app/centro-de-control">Centro de control</a>
+      <a class="rv2-btn" href="/app/centro-de-control-v2">Restaurante</a>
       <button class="rv2-btn" id="refresh" type="button">Actualizar</button>
     </div>
   </header>
@@ -92,5 +92,6 @@
 
   <script src="/app/restaurant-v2-sdk.js"></script>
   <script src="/app/restaurant-v2-admin-parity.js"></script>
+  <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
 </body>
 </html>
