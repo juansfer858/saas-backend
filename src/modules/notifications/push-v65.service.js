@@ -171,6 +171,19 @@ async function sendSelfTest(tenantId, userId, input = {}) {
   });
 }
 
+async function alreadyDelivered(device, eventCode, deepLink) {
+  return prisma.notificationPushDelivery.findFirst({
+    where:{
+      tenantId:device.tenantId,
+      pushDeviceId:device.id,
+      eventCode,
+      deepLink,
+      state:{ in:['SENDING','SENT'] }
+    },
+    select:{ id:true }
+  });
+}
+
 // Best-effort operational fanout. It is deliberately separated from the business
 // transaction: a Firebase outage must never fail an order, account request or KDS change.
 async function sendOperationalEvent(tenantId, input = {}) {
@@ -179,26 +192,32 @@ async function sendOperationalEvent(tenantId, input = {}) {
   const audience=[];
   if (roles.length) audience.push({ role:{ in:roles } });
   if (userIds.length) audience.push({ userId:{ in:userIds } });
-  if (!audience.length) return { matched:0, sent:0, failed:0 };
-  if (!provider.publicWebConfig().enabled) return { matched:0, sent:0, failed:0, skipped:'FCM_NOT_CONFIGURED' };
+  if (!audience.length) return { matched:0, sent:0, failed:0, deduplicated:0 };
+  if (!provider.publicWebConfig().enabled) return { matched:0, sent:0, failed:0, deduplicated:0, skipped:'FCM_NOT_CONFIGURED' };
   const devices=await prisma.notificationPushDevice.findMany({
     where:{ tenantId, state:'ACTIVE', permission:'granted', OR:audience },
     orderBy:{ lastSeenAt:'desc' },
     take:250
   });
-  let sent=0;let failed=0;
+  const eventCode=input.eventCode || 'RESTAURANT_ACTIVITY';
+  const deepLink=input.deepLink || '/app/centro-de-control';
+  let sent=0;let failed=0;let deduplicated=0;
   for (const device of devices) {
     try {
+      if (input.dedupe !== false && await alreadyDelivered(device, eventCode, deepLink)) {
+        deduplicated+=1;
+        continue;
+      }
       await sendDelivery(device, {
-        eventCode:input.eventCode || 'RESTAURANT_ACTIVITY',
+        eventCode,
         title:input.title || 'VantixGC Restaurantes',
         body:input.body || 'Nueva actividad en el restaurante.',
-        deepLink:input.deepLink || '/app/centro-de-control'
+        deepLink
       });
       sent+=1;
     } catch { failed+=1; }
   }
-  return { matched:devices.length, sent, failed };
+  return { matched:devices.length, sent, failed, deduplicated };
 }
 
 function publicConfig() {
