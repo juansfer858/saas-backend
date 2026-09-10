@@ -133,7 +133,7 @@ async function main() {
     active: true,
     items: [{ ingredientProductId: ingredient.id, quantity: 2, unitLabel: 'UND' }]
   });
-  await base.saveMenuItem(demo.tenantId, null, {
+  const recipeMenu = await base.saveMenuItem(demo.tenantId, null, {
     productId: recipeOutput.id, category: 'FUERTES', station: 'COCINA', requiresRecipe: true, active: true, sortOrder: 9003
   });
   const recipeSale1 = await emitSale({ demo, admin, cashAccount, product: recipeOutput, suffix, label: 'RECIPE-1' });
@@ -148,7 +148,7 @@ async function main() {
   // 4) Salir de RECETA conserva la receta pero la vuelve inactiva. PREPARADO no toca ingredientes.
   await consumption.updateRecipe(demo.tenantId, recipe.id, { active: false });
   await prisma.producto.update({ where: { id: recipeOutput.id }, data: { controlaInventario: false } });
-  await base.saveMenuItem(demo.tenantId, recipeOutput.id === directMenu.productId ? directMenu.id : null, {
+  await base.saveMenuItem(demo.tenantId, recipeMenu.id, {
     productId: recipeOutput.id, category: 'FUERTES', station: 'COCINA', requiresRecipe: false, active: true, sortOrder: 9003
   });
   const preparedFromRecipeSale = await emitSale({ demo, admin, cashAccount, product: recipeOutput, suffix, label: 'RECIPE-AS-PREPARED' });
@@ -166,9 +166,7 @@ async function main() {
   // 6) Volver a RECETA reactiva el mismo registro y deja de descontar stock directo.
   await prisma.producto.update({ where: { id: recipeOutput.id }, data: { controlaInventario: false } });
   await consumption.updateRecipe(demo.tenantId, recipe.id, { active: true });
-  const menuForRecipe = await prisma.restaurantMenuItem.findUnique({ where: { tenantId_productId: { tenantId: demo.tenantId, productId: recipeOutput.id } } });
-  assert.ok(menuForRecipe);
-  await base.saveMenuItem(demo.tenantId, menuForRecipe.id, {
+  await base.saveMenuItem(demo.tenantId, recipeMenu.id, {
     productId: recipeOutput.id, category: 'FUERTES', station: 'COCINA', requiresRecipe: true, active: true, sortOrder: 9003
   });
   const recipeSale2 = await emitSale({ demo, admin, cashAccount, product: { ...recipeOutput, controlaInventario: false }, suffix, label: 'RECIPE-2' });
