@@ -3,6 +3,7 @@
 
   const MARKER = 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11';
   const MODULE_CHROME_MARKER = 'VANTIX_RESTAURANT_V2_MODULE_CHROME_CLEAN_P11';
+  const OPERATION_NAV_MARKER = 'VANTIX_RESTAURANT_V2_OPERATION_NAV_NO_DASHBOARD_P11';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const MODULES = Object.freeze({
     mesas:{ label:'Mesas', hint:'Salón y estado de mesas', route:'/app/restaurante-v2/mesas', roles:['ADMIN','SUPER_ADMIN','MESERO','CAJERO'] },
@@ -11,6 +12,7 @@
     division:{ label:'División', hint:'Cuenta conjunta o individual', route:'/app/restaurante-v2/division', roles:['ADMIN','SUPER_ADMIN','CAJERO','MESERO'] },
     caja:{ label:'Caja', hint:'Cobro y cierre real', route:'/app/restaurante-v2/caja', roles:['ADMIN','SUPER_ADMIN','CAJERO'] },
     domicilios:{ label:'Domicilios', hint:'Pedidos para entrega', route:'/app/restaurante-v2/domicilios', roles:['ADMIN','SUPER_ADMIN','MESERO','CAJERO'] },
+    inventario:{ label:'Carta / inventario', hint:'Productos, existencias y precios', route:'/app/inventario', roles:['ADMIN','SUPER_ADMIN'], external:true },
     empleados:{ label:'Empleados', hint:'Usuarios, roles y asignaciones', route:'/app/restaurante-v2/empleados', roles:['ADMIN','SUPER_ADMIN'] },
     qrs:{ label:'QR de mesas', hint:'Ver e imprimir QR físicos', route:'/app/restaurante-v2/qrs', roles:['ADMIN','SUPER_ADMIN'] },
     devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] },
@@ -20,6 +22,7 @@
 
   document.documentElement.dataset.restaurantV2NativeControl = MARKER;
   document.documentElement.dataset.restaurantV2ModuleChrome = MODULE_CHROME_MARKER;
+  document.documentElement.dataset.restaurantV2OperationNav = OPERATION_NAV_MARKER;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -44,6 +47,12 @@
   }
   function allowed(module) { return module.roles.includes(role); }
   function visibleModules() { return Object.entries(MODULES).filter(([, module]) => allowed(module)); }
+  function defaultModuleKey() {
+    return visibleModules().find(([, module]) => !module.technical && !module.external)?.[0]
+      || visibleModules().find(([, module]) => !module.technical)?.[0]
+      || visibleModules()[0]?.[0]
+      || null;
+  }
   function setMessage(text) {
     const box = $('#p11Message');
     if (!box) return;
@@ -68,88 +77,58 @@
     const tenant = session.tenant?.nombreEmpresa || session.tenant?.nombre || session.subdomain || 'Restaurante';
     $('#p11Tenant').textContent = tenant;
     $('#p11TenantMeta').textContent = session.subdomain;
-    $('#p11RestaurantName').textContent = tenant;
-    $('#p11User').textContent = session.user?.nombre || session.user?.email || 'Usuario';
-    $('#p11Role').textContent = role || 'ROL';
   }
 
-  function navButton(key, module) {
+  function navItem(key, module) {
+    if (module.external) {
+      return `<a href="${esc(module.route)}" data-module-link="${esc(key)}"><b>${esc(module.label)}</b><small>${esc(module.hint)}</small></a>`;
+    }
     return `<button type="button" data-module="${esc(key)}"><b>${esc(module.label)}</b><small>${esc(module.hint)}</small></button>`;
   }
   function renderNav() {
     const nav = $('#p11Nav');
     const ops = visibleModules().filter(([, module]) => !module.technical);
     const tech = visibleModules().filter(([, module]) => module.technical);
-    nav.innerHTML = `<div class="p11-nav-label">Operación</div><button type="button" data-home="true" class="active"><b>Centro de control</b><small>Resumen operativo V2</small></button>${ops.map(([key,module]) => navButton(key,module)).join('')}${tech.length ? `<div class="p11-nav-label">Técnico</div>${tech.map(([key,module]) => navButton(key,module)).join('')}` : ''}`;
+    nav.innerHTML = `<div class="p11-nav-label">Operación</div>${ops.map(([key,module]) => navItem(key,module)).join('')}${tech.length ? `<div class="p11-nav-label">Técnico</div>${tech.map(([key,module]) => navItem(key,module)).join('')}` : ''}`;
     nav.addEventListener('click', (event) => {
-      const home = event.target.closest('[data-home]');
-      if (home) { closeModule(); return; }
       const button = event.target.closest('[data-module]');
       if (button) openModule(button.dataset.module);
     });
   }
   function setActive(key) {
-    document.querySelectorAll('#p11Nav button').forEach((button) => {
-      const active = key ? button.dataset.module === key : button.hasAttribute('data-home');
-      button.classList.toggle('active', active);
+    document.querySelectorAll('#p11Nav [data-module], #p11Nav [data-module-link]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.module === key || item.dataset.moduleLink === key);
     });
   }
   function openModule(rawKey, updateHistory = true) {
     const key = moduleKey(rawKey);
     const module = MODULES[key];
     if (!module || !allowed(module)) { setMessage('Tu usuario no tiene permiso para abrir este módulo.'); return; }
+    if (module.external) { location.assign(module.route); return; }
     setMessage('');
-    $('#p11Dashboard').hidden = true;
-    $('#p11Top').hidden = true;
     $('#p11Main').classList.add('module-open');
     $('#p11Workspace').hidden = false;
-    $('#p11Title').textContent = module.label;
     const frame = $('#p11Frame');
     if (frame.getAttribute('src') !== module.route) frame.setAttribute('src', module.route);
     setActive(key);
     if (updateHistory) history.replaceState({ ...(history.state || {}), p11Module:key }, '', `/app/centro-de-control-v2?module=${encodeURIComponent(key)}`);
   }
-  function closeModule(updateHistory = true) {
-    $('#p11Workspace').hidden = true;
-    $('#p11Main').classList.remove('module-open');
-    $('#p11Top').hidden = false;
-    $('#p11Dashboard').hidden = false;
-    $('#p11Title').textContent = 'Centro de control';
-    setActive('');
-    setMessage('');
-    if (updateHistory) history.replaceState({ ...(history.state || {}), p11Module:null }, '', '/app/centro-de-control-v2');
-    loadDashboard().catch((error) => setMessage(error.message));
-  }
-
-  async function loadDashboard() {
-    const metrics = $('#p11Metrics');
-    metrics.innerHTML = '<div class="p11-loading">Cargando operación real…</div>';
-    const results = await Promise.allSettled([
-      api('/api/v1/restaurante/v2/mesas'),
-      api('/api/v1/restaurante/menu')
-    ]);
-    const tables = results[0].status === 'fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
-    const menu = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
-    const occupied = tables.filter((table) => Boolean(table.activeSession)).length;
-    const bill = tables.filter((table) => String(table.state || '').toUpperCase() === 'CUENTA_PEDIDA').length;
-    metrics.innerHTML = `
-      <article class="p11-metric"><small>Mesas</small><strong>${tables.length || '—'}</strong><span>configuradas</span></article>
-      <article class="p11-metric"><small>Ocupadas</small><strong>${results[0].status === 'fulfilled' ? occupied : '—'}</strong><span>sesiones activas</span></article>
-      <article class="p11-metric"><small>Cuenta pedida</small><strong>${results[0].status === 'fulfilled' ? bill : '—'}</strong><span>listas para caja</span></article>
-      <article class="p11-metric"><small>Carta</small><strong>${results[1].status === 'fulfilled' ? menu.length : '—'}</strong><span>productos visibles</span></article>`;
-
-    const quick = $('#p11Quick');
-    const priority = ['mesas','pedidos','kds','caja','domicilios','employees'];
-    const keys = priority.map((key) => key === 'employees' ? 'empleados' : key).filter((key) => MODULES[key] && allowed(MODULES[key]));
-    quick.innerHTML = `${keys.map((key) => `<button type="button" data-quick="${esc(key)}"><b>${esc(MODULES[key].label)}</b><small>${esc(MODULES[key].hint)}</small></button>`).join('')}${['ADMIN','SUPER_ADMIN'].includes(role) ? '<a href="/app/inventario"><b>Carta / inventario</b><small>Productos, existencias y precios</small></a>' : ''}`;
-    quick.querySelectorAll('[data-quick]').forEach((button) => button.addEventListener('click', () => openModule(button.dataset.quick)));
+  function openDefault(updateHistory = true) {
+    const key = defaultModuleKey();
+    if (!key) {
+      $('#p11Workspace').hidden = true;
+      $('#p11Main').classList.remove('module-open');
+      setMessage('Tu usuario no tiene módulos operativos disponibles.');
+      return;
+    }
+    openModule(key, updateHistory);
   }
 
   function bindStatic() {
     window.addEventListener('popstate', () => {
       const key = moduleKey(new URLSearchParams(location.search).get('module'));
       if (key && MODULES[key] && allowed(MODULES[key])) openModule(key, false);
-      else closeModule(false);
+      else openDefault(false);
     });
   }
 
@@ -161,9 +140,9 @@
       bindStatic();
       const initial = moduleKey(new URLSearchParams(location.search).get('module'));
       if (initial && MODULES[initial] && allowed(MODULES[initial])) openModule(initial, false);
-      else await loadDashboard();
+      else openDefault(true);
     } catch (error) {
-      setMessage(error.message || 'No fue posible abrir el Centro de Control V2.');
+      setMessage(error.message || 'No fue posible abrir la operación V2.');
     }
   }
 
