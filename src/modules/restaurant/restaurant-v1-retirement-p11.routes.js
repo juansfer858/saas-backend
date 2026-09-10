@@ -7,6 +7,7 @@ const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-v1-retirement-p11.service');
 
 const router = express.Router();
+const V2_ONLY_MARKER = 'VANTIX_RESTAURANT_V2_ONLY_P12';
 
 function parse(schema, value) {
   const result = schema.safeParse(value);
@@ -21,6 +22,17 @@ const updateSchema = z.object({
 
 async function restaurantV1RetirementCutoverGuard(req, _res, next) {
   try {
+    // P12 closes every operator-accessible path back to V1. The dormant source
+    // remains in git, but restoring it now requires an intentional code rollback.
+    if (req.method === 'PATCH' && req.body?.enabled === false && ['/v2/retiro-v1', '/v2/cutover', '/v2/piloto'].includes(req.path)) {
+      throw new AppError(
+        409,
+        'V1 está desactivado por el corte final V2 ONLY. La reversión requiere un cambio de código controlado.',
+        'RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED',
+        { marker: V2_ONLY_MARKER, v1Runtime:false, v2Only:true }
+      );
+    }
+
     if (req.method !== 'PATCH' || req.path !== '/v2/cutover' || req.body?.enabled !== false) return next();
     const decision = await service.launchDecision(req.tenantId);
     if (decision.enabled) {
@@ -52,4 +64,4 @@ router.patch('/v2/retiro-v1', requirePermission('RESTAURANTE.ADMINISTRAR'), asyn
   } catch (error) { next(error); }
 });
 
-module.exports = { restaurantV1RetirementP11Router:router, restaurantV1RetirementCutoverGuard };
+module.exports = { V2_ONLY_MARKER, restaurantV1RetirementP11Router:router, restaurantV1RetirementCutoverGuard };

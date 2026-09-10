@@ -25,6 +25,9 @@ async function main() {
   const ui = read('src/web/restaurant-waiter-qr-order-alert-ui.js');
   const layer = read('src/modules/restaurant/restaurant-qr-order-waiter-alert.public.routes.js');
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
+  const p12 = read('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js');
+  const v2Waiter = read('src/web/restaurant-v2-waiter-p8.html');
+  const v2Sw = read('src/web/restaurant-v2-waiter-sw-p8.js');
 
   assert.match(ui, /NUEVO PEDIDO DESDE QR/);
   assert.match(ui, /PEDIDO QR · APOYO GENERAL/);
@@ -43,6 +46,12 @@ async function main() {
   assert.match(layer, /X-VantixGC-Waiter-QR-Order/);
   assert.match(publicRoot, /restaurantQrOrderWaiterAlertPublicRouter/);
   assert.match(publicRoot, /restaurantQrPresenceRealtimePublicRouter[\s\S]*restaurantQrOrderWaiterAlertPublicRouter[\s\S]*restaurantTenantRealtimePublicRouter/);
+  assert.match(p12, /\/app\/centro-de-control\/mesero/);
+  assert.match(p12, /VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
+  assert.match(v2Waiter, /data-waiter-ui="tablet-3col-v22"/);
+  assert.match(v2Waiter, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
+  assert.match(v2Sw, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
+  assert.match(v2Sw, /qrOrderAlerts:true/);
 
   const orderId = '11111111-1111-4111-8111-111111111111';
   const refs = publicResponseRefs('/api/public/restaurante/qr/x/pedidos', { id:orderId, source:'QR' });
@@ -50,18 +59,32 @@ async function main() {
   assert.ok(publicTopics('/api/public/restaurante/qr/x/pedidos').includes('restaurant.order'));
 
   await withServer(async (baseUrl) => {
-    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
+    const canonical = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store', redirect:'manual' });
+    assert.equal(canonical.status, 307);
+    assert.equal(canonical.headers.get('location'), '/app/centro-de-control/mesero-v2/?view=mesero&pwa=1');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+
+    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/`, { cache:'no-store' });
     const pwa = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200);
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-qr-order'), 'v25-realtime');
+    assert.equal(pwaResponse.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
+    assert.match(pwa, /data-waiter-ui="tablet-3col-v22"/);
+    assert.match(pwa, /restaurant-v2-device-realtime-p8\.js/);
     assert.match(pwa, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
-    assert.match(pwa, /vantix-tenant-realtime\.js\?v=tenant-realtime-v1/);
+    assert.doesNotMatch(pwa, /restaurant-waiter-runtime-v7\.js|restaurant-ui\.js/);
 
-    const swResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
+    const oldSwResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
+    const oldSw = await oldSwResponse.text();
+    assert.equal(oldSwResponse.status, 200);
+    assert.equal(oldSwResponse.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+    assert.match(oldSw, /VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
+
+    const swResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/sw.js`, { cache:'no-store' });
     const sw = await swResponse.text();
     assert.equal(swResponse.status, 200);
-    assert.equal(swResponse.headers.get('x-vantixgc-waiter-qr-order'), 'v25-realtime');
-    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v25-qr-order-alert/);
+    assert.equal(swResponse.headers.get('service-worker-allowed'), '/app/centro-de-control/mesero-v2/');
+    assert.match(sw, /VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22/);
     assert.match(sw, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
 
     const assetResponse = await fetch(`${baseUrl}/app/restaurant-waiter-qr-order-alert-ui.js?v=waiter-qr-order-alert-v25`, { cache:'no-store' });
@@ -71,14 +94,16 @@ async function main() {
     assert.match(asset, /VantixGCWaiterQrOrderAlertV25/);
   });
 
-  console.log('RESTAURANT QR ORDER -> WAITER REALTIME ALERT V25 SMOKE OK');
+  console.log('RESTAURANT QR ORDER -> WAITER V2 P12 REALTIME ALERT V25 SMOKE OK');
   console.log(JSON.stringify({
     qrOrderRealtime:true,
     primaryOpenedByWaiter:true,
     generalFallbackAfterMs:20000,
     openTableAction:true,
     eventDedup:true,
-    noPeriodicPolling:true
+    noPeriodicPolling:true,
+    waiterRuntime:'V2_TABLET_3COL_V22',
+    v1Runtime:false
   }, null, 2));
 }
 

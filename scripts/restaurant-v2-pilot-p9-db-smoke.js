@@ -61,6 +61,8 @@ async function main() {
   assert.match(publicSource, /\/app\/restaurante-v1/);
   assert.match(publicSource, /v1-direct-shell/);
   assert.match(core, /restaurantV2PilotRouter/);
+  assert.match(core, /restaurantV1RetirementCutoverGuard/);
+  assert.match(aggregator, /restaurantV2OnlyP12PublicRouter/);
   assert.match(aggregator, /restaurantV2PilotPublicRouter/);
   assert.match(bridge, /pilot:\s*'\/app\/restaurante-v2\/piloto'/);
   assert.match(bridge, /canSeePilot/);
@@ -112,11 +114,12 @@ async function main() {
     assert.equal(pilotPage.response.headers.get('x-vantixgc-restaurant-v2-pilot'), 'p9-controlled-pilot');
     assert.match(pilotPage.text, /RESTAURANTE V2 · PILOTO P9/);
 
-    const canonicalLegacyAlias = await publicGet(base, '/app/restaurante', 302);
-    assert.equal(canonicalLegacyAlias.response.headers.get('location'), '/app/centro-de-control', 'alias histórico debe conservar su redirect previo');
-    const rollback = await publicGet(base, '/app/restaurante-v1');
-    assert.equal(rollback.response.headers.get('x-vantixgc-restaurant-v2-pilot-rollback'), 'v1-direct-shell');
-    assert.doesNotMatch(rollback.text, /restaurant-v2-control-center-bridge/);
+    const canonicalLegacyAlias = await publicGet(base, '/app/restaurante', 307);
+    assert.equal(canonicalLegacyAlias.response.headers.get('location'), '/app/centro-de-control-v2', 'P12 debe llevar el alias histórico directo a V2');
+    assert.equal(canonicalLegacyAlias.response.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+    const rollback = await publicGet(base, '/app/restaurante-v1', 307);
+    assert.equal(rollback.response.headers.get('location'), '/app/centro-de-control-v2');
+    assert.equal(rollback.response.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
     const waiterV2 = await publicGet(base, '/app/centro-de-control/mesero-v2/');
     assert.equal(waiterV2.response.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
     const productionV2 = await publicGet(base, '/app/produccion-v2/');
@@ -156,23 +159,25 @@ async function main() {
     assert.equal(storedEnabled.themeData.restaurantV2PilotHistory.at(-1).action, 'ENABLE');
     assert.equal(storedEnabled.themeData.restaurantV2PilotHistory.at(-1).after.enabled, true);
 
-    const disabled = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method: 'PATCH', body: { enabled: false, notes: 'Rollback P9 CI' } });
-    assert.equal(disabled.data.pilot.enabled, false);
-    assert.equal(disabled.data.pilot.mode, 'OFF');
-    assert.equal(disabled.data.pilot.rollbackPath, '/app/restaurante-v1');
-    assert.equal(disabled.data.audit.operational, 'RECORDED');
-    assert.equal(disabled.data.audit.accountingMirror, 'RECORDED');
+    const blockedDisable = await api(base, '/api/v1/restaurante/v2/piloto', adminSession, { method: 'PATCH', body: { enabled: false, notes: 'Rollback P9 CI' }, status: 409 });
+    assert.equal(blockedDisable.payload?.error?.code, 'RESTAURANT_V2_ONLY_P12_ROLLBACK_DISABLED');
+    const stillEnabled = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
+    assert.equal(stillEnabled.themeData.restaurantV2Pilot.enabled, true, 'P12 no puede permitir rollback operativo a V1');
   });
 
+  // Limpieza exclusiva del tenant efímero de CI. No existe como endpoint operativo.
+  const cleanupDisabled = await pilot.setPilot(tenant.id, admin.id, { enabled: false, notes: 'P12 CI internal cleanup' });
+  assert.equal(cleanupDisabled.pilot.enabled, false);
+
   let storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
-  assert.deepEqual(storedAfter.themeData.p9Sentinel, sentinel, 'rollback debe preservar themeData ajeno');
+  assert.deepEqual(storedAfter.themeData.p9Sentinel, sentinel, 'cleanup debe preservar themeData ajeno');
   assert.equal(storedAfter.themeData.restaurantV2Pilot.enabled, false);
   assert.ok(storedAfter.themeData.restaurantV2PilotHistory.length >= 2);
   assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).action, 'DISABLE');
   assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).after.enabled, false);
 
   const auditAfterNormal = await prisma.auditoriaContable.count({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' } });
-  assert.equal(auditAfterNormal - auditBefore, 2, 'activar y rollback normales deben dejar dos espejos contables');
+  assert.equal(auditAfterNormal - auditBefore, 2, 'activación P9 y limpieza interna deben dejar dos espejos contables');
   const latestAudit = await prisma.auditoriaContable.findFirst({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' }, orderBy: { creadoEn: 'desc' } });
   assert.equal(latestAudit.userId, admin.id);
   assert.equal(latestAudit.metadata.after.enabled, false);
@@ -199,7 +204,7 @@ async function main() {
   assert.equal(storedAfter.themeData.restaurantV2PilotHistory.at(-1).action, 'ENABLE');
 
   const disabledWithAuditDown = await pilot.setPilot(tenant.id, admin.id, { enabled: false, notes: 'P9 audit mirror outage rollback' }, prisma, { auditClient: failingAuditClient });
-  assert.equal(disabledWithAuditDown.pilot.enabled, false, 'caída del espejo contable no puede bloquear rollback');
+  assert.equal(disabledWithAuditDown.pilot.enabled, false, 'caída del espejo contable no puede bloquear limpieza interna');
   assert.equal(disabledWithAuditDown.audit.operational, 'RECORDED');
   assert.equal(disabledWithAuditDown.audit.accountingMirror, 'FAILED');
   storedAfter = await prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id } });
@@ -210,19 +215,20 @@ async function main() {
   const auditAfterFailureSimulation = await prisma.auditoriaContable.count({ where: { tenantId: tenant.id, entidad: 'RESTAURANT_V2_PILOT' } });
   assert.equal(auditAfterFailureSimulation, auditAfterNormal, 'simulación de caída no debe crear espejo contable ni revertir estado operativo');
   const afterTables = await prisma.restaurantTable.findMany({ where: { tenantId: tenant.id, active: true }, select: { id: true, qrToken: true } });
-  assert.deepEqual(qrMap(afterTables), beforeQr, 'activar/desactivar piloto no puede rotar qrToken');
+  assert.deepEqual(qrMap(afterTables), beforeQr, 'activar/desactivar servicio de piloto no puede rotar qrToken');
 
   console.log(JSON.stringify({
     ok: true,
-    phase: 'P9_CONTROLLED_PILOT_ACTIVATION_FIX',
+    phase: 'P9_CONTROLLED_PILOT_ACTIVATION_FIX_P12_COMPAT',
     tenant: seeded.subdomain,
     configStorage: 'RestaurantConfig.themeData.restaurantV2Pilot',
     operationalAudit: 'RestaurantConfig.themeData.restaurantV2PilotHistory',
     accountingAuditMirror: 'BEST_EFFORT',
     accountingAuditOutageBlocksPilot: false,
     adminOnly: true,
-    canonicalRedirectsChanged: false,
-    explicitV1Rollback: '/app/restaurante-v1',
+    canonicalRedirectsChangedByP12: true,
+    v1Runtime: false,
+    operatorRollbackBlocked: true,
     qrTokensRotated: false,
     requiredGates: ['tenant','admin','tables','menu','waiters','productionUsers','cashiers','cashAccounts'],
     dianGate: false,

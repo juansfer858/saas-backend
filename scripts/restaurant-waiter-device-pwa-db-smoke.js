@@ -90,20 +90,30 @@ async function main() {
   assert.ok(activeRow.expiresAt.getUTCFullYear() >= 9999, 'la columna legacy expiresAt debe quedar como centinela permanente');
 
   await withHttpServer(async (baseUrl) => {
-    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
-    const pwaHtml = await pwaResponse.text();
-    assert.equal(pwaResponse.status, 200, 'la PWA del mesero debe cargar');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-pwa'), 'v14-review-hard-gate-persistent');
-    assert.match(pwaHtml, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
-    assert.match(pwaHtml, /Dispositivo vinculado · acceso guardado/);
-    assert.match(pwaHtml, /id="wvApp"/);
-    assert.match(pwaHtml, /id="wvMessage"/);
-    assert.doesNotMatch(pwaHtml, /restaurant-ui\.js/);
-    assert.doesNotMatch(pwaHtml, /MutationObserver/);
+    // P12 conserva la URL canónica instalada, pero la resuelve a la PWA V2 sin
+    // permitir que el dispositivo vuelva a ejecutar el shell V1.
+    const canonicalResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store', redirect:'manual' });
+    assert.equal(canonicalResponse.status, 307, 'la entrada canónica del mesero debe migrar a V2');
+    assert.equal(canonicalResponse.headers.get('location'), '/app/centro-de-control/mesero-v2/?view=mesero&pwa=1');
+    assert.equal(canonicalResponse.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+    assert.equal(canonicalResponse.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
 
+    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/`, { cache:'no-store' });
+    const pwaHtml = await pwaResponse.text();
+    assert.equal(pwaResponse.status, 200, 'la PWA V2 del mesero debe cargar');
+    assert.equal(pwaResponse.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
+    assert.match(pwaHtml, /data-vantix-device="waiter"/);
+    assert.match(pwaHtml, /data-waiter-ui="tablet-3col-v22"/);
+    assert.match(pwaHtml, /1 · Mesas/);
+    assert.match(pwaHtml, /2 · Carta/);
+    assert.match(pwaHtml, /3 · Revisar pedido/);
+    assert.doesNotMatch(pwaHtml, /restaurant-ui\.js|restaurant-waiter-runtime-v7\.js|MutationObserver/);
+
+    // El runtime V14 queda congelado para trazabilidad/rollback de código, pero
+    // sigue verificándose sintácticamente sin ser la superficie canónica P12.
     const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14`, { cache:'no-store' });
     const runtimeJs = await runtimeResponse.text();
-    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V14 debe cargar');
+    assert.equal(runtimeResponse.status, 200, 'el runtime Mesero V14 congelado debe permanecer disponible como asset');
     assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-runtime'), 'v14-review-hard-gate');
     assert.match(runtimeJs, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
     assert.match(runtimeJs, /VANTIX_WAITER_ORDER_REVIEW_SYNC_V13/);
@@ -204,8 +214,9 @@ async function main() {
     permanentDeviceAccess:true,
     jwtExpiry:false,
     serverRevocationImmediate:true,
-    waiterPwa:'V14_REVIEW_HARD_GATE_PERSISTENT',
-    runtime:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE',
+    waiterPwa:'V2_TABLET_3COL_V22_P12_ONLY',
+    v1Runtime:false,
+    runtimeFrozen:'V11_NO_REBOUND_PLUS_V13_SYNC_PLUS_V14_HARD_GATE',
     orderReviewBeforeSend:true,
     orderSynchronizedBeforeReview:true,
     directKitchenSendImpossibleFromReviewButton:true,

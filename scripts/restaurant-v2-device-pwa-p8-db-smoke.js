@@ -26,6 +26,7 @@ async function requestJson(baseUrl,url,session,{method='GET',body=null,status=20
 }
 async function publicText(baseUrl,url,status=200){const response=await fetch(`${baseUrl}${url}`,{cache:'no-store',redirect:'manual'});const text=await response.text();assert.equal(response.status,status,`${url} esperaba ${status}`);return{response,text}}
 function rawPairToken(url){const value=new URL(url).searchParams.get('t');assert.ok(value&&value.length>=20,'token temporal faltante');return value}
+function assertRedirect(response,baseUrl,target){assert.equal(response.status,307);assert.ok(String(response.headers.get('location')||'').startsWith(target),`redirect esperado a ${target}`)}
 
 async function main(){
   const publicRoot=read('src/modules/restaurant/restaurant.public.routes.js');
@@ -52,6 +53,11 @@ async function main(){
   assert.notEqual(waiterManifest.scope,'/app/centro-de-control');
   assert.notEqual(productionManifest.scope,'/app/produccion');
   assert.match(waiterHtml,/data-vantix-device="waiter"/);
+  assert.match(waiterHtml,/data-waiter-ui="tablet-3col-v22"/);
+  assert.match(waiterHtml,/RESTAURANTE V2 · MESERO/);
+  assert.match(waiterHtml,/1 · Mesas/);
+  assert.match(waiterHtml,/2 · Carta/);
+  assert.match(waiterHtml,/3 · Revisar pedido/);
   assert.match(waiterHtml,/restaurant-v2-orders\.js/);
   assert.match(productionHtml,/data-vantix-device="production"/);
   assert.match(productionHtml,/restaurant-v2-kds\.js/);
@@ -65,6 +71,8 @@ async function main(){
   assert.match(realtime,/RestaurantV2\?\.readSession/);
   assert.match(push,/VANTIX_RESTAURANT_V2_DEVICE_SDK_P8/);
   assert.match(push,/p8\.readSession\(\)/);
+  assert.match(pwa,/VANTIX_RESTAURANT_V2_ONLY_P12/);
+  assert.match(pwa,/legacyWorkerRetired:true/);
   for(const source of [sdk,realtime,pwa]){assert.doesNotMatch(source,/MutationObserver|setInterval|POLL_MS/)}
   for(const sw of [waiterSw,productionSw]){assert.match(sw,/url\.pathname\.startsWith\('\/api\/'\)\)return/);assert.doesNotMatch(sw,/request\.method\s*!==\s*'GET'.*(POST|PUT|PATCH|DELETE)/s)}
   new Function(sdk);new Function(realtime);new Function(pwa);new Function(waiterSw);new Function(productionSw);new Function(push);
@@ -95,20 +103,25 @@ async function main(){
   await withHttpServer(async baseUrl=>{
     const waiterPage=await publicText(baseUrl,'/app/centro-de-control/mesero-v2/');
     assert.equal(waiterPage.response.headers.get('x-vantixgc-restaurant-v2-device'),'waiter-p8');
-    assert.match(waiterPage.text,/RESTAURANTE V2 · MESERO P8/);
+    assert.match(waiterPage.text,/RESTAURANTE V2 · MESERO/);
+    assert.match(waiterPage.text,/data-waiter-ui="tablet-3col-v22"/);
     const productionPage=await publicText(baseUrl,'/app/produccion-v2/');
     assert.equal(productionPage.response.headers.get('x-vantixgc-restaurant-v2-device'),'production-p8');
     assert.match(productionPage.text,/RESTAURANTE V2 · PRODUCCIÓN P8/);
 
-    const legacyWaiter=await publicText(baseUrl,'/app/centro-de-control/mesero?view=mesero&pwa=1');
-    assert.equal(legacyWaiter.response.headers.get('x-vantixgc-waiter-pwa'),'v14-review-hard-gate-persistent');
-    const legacyProduction=await publicText(baseUrl,'/app/produccion');
-    assert.equal(legacyProduction.response.headers.get('x-vantixgc-production-pwa'),'v71-installable');
+    const legacyWaiter=await publicText(baseUrl,'/app/centro-de-control/mesero?view=mesero&pwa=1',307);
+    assertRedirect(legacyWaiter.response,baseUrl,'/app/centro-de-control/mesero-v2/');
+    assert.equal(legacyWaiter.response.headers.get('x-vantixgc-restaurant-v1-runtime'),'disabled');
+    const legacyProduction=await publicText(baseUrl,'/app/produccion',307);
+    assertRedirect(legacyProduction.response,baseUrl,'/app/produccion-v2/');
+    assert.equal(legacyProduction.response.headers.get('x-vantixgc-restaurant-v1-runtime'),'disabled');
 
     const waiterManifestHttp=await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/manifest.webmanifest`,{cache:'no-store'});assert.equal(waiterManifestHttp.status,200);assert.equal((await waiterManifestHttp.json()).scope,waiterManifest.scope);
     const productionManifestHttp=await fetch(`${baseUrl}/app/produccion-v2/manifest.webmanifest`,{cache:'no-store'});assert.equal(productionManifestHttp.status,200);assert.equal((await productionManifestHttp.json()).scope,productionManifest.scope);
     const waiterSwHttp=await publicText(baseUrl,'/app/centro-de-control/mesero-v2/sw.js');assert.equal(waiterSwHttp.response.headers.get('service-worker-allowed'),'/app/centro-de-control/mesero-v2/');
     const productionSwHttp=await publicText(baseUrl,'/app/produccion-v2/sw.js');assert.equal(productionSwHttp.response.headers.get('service-worker-allowed'),'/app/produccion-v2/');
+    const retiredWaiterSw=await publicText(baseUrl,'/app/centro-de-control/sw.js');assert.match(retiredWaiterSw.text,/VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
+    const retiredProductionSw=await publicText(baseUrl,'/app/produccion/sw.js');assert.match(retiredProductionSw.text,/VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
 
     const tablesResult=await requestJson(baseUrl,'/api/v1/restaurante/v2/mesas',waiterSession);assert.equal(tablesResult.response.status,200);assert.ok(tablesResult.data.some(row=>row.id===table.id),'P8 Mesero debe ver la mesa de prueba');
     const opened=(await requestJson(baseUrl,`/api/v1/restaurante/v2/mesas/${table.id}/abrir`,waiterSession,{method:'POST',body:{guestCount:2},status:201})).data;
@@ -134,7 +147,7 @@ async function main(){
     await requestJson(baseUrl,'/api/v1/restaurante/v2/mesas',waiterSession,{status:401});
   });
 
-  console.log(JSON.stringify({ok:true,phase:'P8_DEVICE_PWA',tenant:seeded.subdomain,waiterDeviceReuse:true,productionDeviceReuse:true,waiterEngine:'P3',productionEngine:'P6',realtime:'SSE+PG_NOTIFY',parallelScopes:true,v1Fallback:true,serverRevocation:true,waiterCommandRead:true,crossRoleWriteEscalation:false,pushUsesPairedP8Identity:true},null,2));
+  console.log(JSON.stringify({ok:true,phase:'P12_V2_ONLY_DEVICE_PWA',tenant:seeded.subdomain,waiterDeviceReuse:true,productionDeviceReuse:true,waiterEngine:'P3_V22_UI',productionEngine:'P6',realtime:'SSE+PG_NOTIFY',parallelScopes:true,v1Fallback:false,v1Runtime:false,v2Only:true,serverRevocation:true,waiterCommandRead:true,crossRoleWriteEscalation:false,pushUsesPairedP8Identity:true},null,2));
 }
 
 main().catch(error=>{console.error(error);process.exitCode=1}).finally(async()=>prisma.$disconnect());

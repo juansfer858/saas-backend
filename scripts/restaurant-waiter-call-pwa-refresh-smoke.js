@@ -27,29 +27,41 @@ async function main() {
   const realtimeRoutes = read('src/modules/restaurant/restaurant-tenant-realtime.public.routes.js');
   const presenceRoutes = read('src/modules/restaurant/restaurant-qr-presence-realtime.public.routes.js');
   const publicRoot = read('src/modules/restaurant/restaurant.public.routes.js');
+  const p12 = read('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js');
+  const v2Waiter = read('src/web/restaurant-v2-waiter-p8.html');
+  const v2Sw = read('src/web/restaurant-v2-waiter-sw-p8.js');
   const callUi = read('src/web/restaurant-waiter-call-ui.js');
   const paymentUi = read('src/web/restaurant-waiter-electronic-payment-ui.js');
+  const qrOrderAlertUi = read('src/web/restaurant-waiter-qr-order-alert-ui.js');
   const qrPaymentUi = read('src/web/restaurant-qr-electronic-payment-ui.js');
   const trackingUi = read('src/web/restaurant-qr-tracking-ui.js');
   const qrRealtimeUi = read('src/web/restaurant-qr-realtime-ui.js');
 
-  // V22 stays in place as compatibility fallback; V23 owns the live tenant shell and
-  // V24 owns only the pre-authorization permanent-QR table-presence bridge.
-  assert.match(refreshRoutes, /waiter-runtime-v22-electronic-payment/);
+  // Las capas probadas de llamados/pagos siguen siendo módulos independientes. P12
+  // las carga dentro del shell Mesero V2 en vez de volver al shell V1.
   assert.match(refreshRoutes, /waiter-call-v21-account-request/);
   assert.match(refreshRoutes, /waiter-electronic-v22/);
-  assert.match(realtimeRoutes, /waiter-runtime-v23-tenant-realtime/);
-  assert.match(realtimeRoutes, /v23-tenant-realtime/);
   assert.match(realtimeRoutes, /VANTIX_WAITER_TENANT_REALTIME_V23/);
-  assert.match(realtimeRoutes, /VANTIX_RESTAURANT_TENANT_REALTIME_V23/);
-  assert.match(realtimeRoutes, /\/app\/centro-de-control\/mesero/);
-  assert.match(realtimeRoutes, /\/app\/centro-de-control\/sw\.js/);
-  assert.match(presenceRoutes, /restaurant-table-presence-v24/);
   assert.match(presenceRoutes, /VANTIX_QR_TABLE_PRESENCE_V24/);
-  assert.match(presenceRoutes, /manualRefreshRequired:false/);
   assert.match(publicRoot, /restaurantQrPresenceRealtimePublicRouter/);
   assert.match(publicRoot, /restaurantTenantRealtimePublicRouter/);
-  assert.match(publicRoot, /router\.use\(restaurantPublicRealtimePublisher\);[\s\S]*router\.use\(restaurantQrPresenceRealtimePublicRouter\);[\s\S]*router\.use\(restaurantTenantRealtimePublicRouter\);[\s\S]*router\.use\(restaurantElectronicPaymentPublicRouter\);[\s\S]*router\.use\(restaurantWaiterCallRefreshPublicRouter\)/);
+  assert.match(p12, /\/app\/centro-de-control\/mesero/);
+  assert.match(p12, /X-VantixGC-Restaurant-V1-Runtime/);
+
+  for (const asset of [
+    'restaurant-waiter-call-ui.js?v=waiter-call-v21-account-request',
+    'restaurant-waiter-electronic-payment-ui.js?v=waiter-electronic-v22',
+    'restaurant-waiter-qr-order-alert-ui.js?v=waiter-qr-order-alert-v25'
+  ]) {
+    assert.ok(v2Waiter.includes(asset), `Mesero V2 debe cargar ${asset}`);
+    assert.ok(v2Sw.includes(asset), `SW Mesero V2 debe precargar ${asset}`);
+  }
+  assert.match(v2Waiter, /data-waiter-ui="tablet-3col-v22"/);
+  assert.match(v2Waiter, /restaurant-v2-device-realtime-p8\.js/);
+  assert.match(v2Sw, /waiterCalls:true/);
+  assert.match(v2Sw, /accountRequests:true/);
+  assert.match(v2Sw, /electronicPaymentConfirmation:true/);
+  assert.match(v2Sw, /qrOrderAlerts:true/);
 
   assert.match(callUi, /VantixGCWaiterCallV5/);
   assert.match(callUi, /accountRequestAlerts:true/);
@@ -73,6 +85,12 @@ async function main() {
   assert.doesNotMatch(paymentUi, /setInterval|MutationObserver/);
   new Function(paymentUi);
 
+  assert.match(qrOrderAlertUi, /NUEVO PEDIDO DESDE QR/);
+  assert.match(qrOrderAlertUi, /VantixGCWaiterQrOrderAlertV25/);
+  assert.match(qrOrderAlertUi, /restaurant\.order/);
+  assert.doesNotMatch(qrOrderAlertUi, /setInterval|MutationObserver/);
+  new Function(qrOrderAlertUi);
+
   assert.match(qrPaymentUi, /¿Cómo vas a pagar\?/);
   assert.match(qrPaymentUi, /EFECTIVO/);
   assert.match(qrPaymentUi, /PAGO ELECTRÓNICO/);
@@ -88,35 +106,37 @@ async function main() {
   new Function(qrRealtimeUi);
 
   await withServer(async (baseUrl) => {
-    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store' });
+    const canonical = await fetch(`${baseUrl}/app/centro-de-control/mesero?view=mesero&pwa=1`, { cache:'no-store', redirect:'manual' });
+    assert.equal(canonical.status, 307);
+    assert.equal(canonical.headers.get('location'), '/app/centro-de-control/mesero-v2/?view=mesero&pwa=1');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v2-only'), 'p12-v2-only-runtime');
+    assert.equal(canonical.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+
+    const pwaResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/`, { cache:'no-store' });
     const pwa = await pwaResponse.text();
     assert.equal(pwaResponse.status, 200);
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-call'), 'v21-account-request');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-payment'), 'v22-electronic');
-    assert.equal(pwaResponse.headers.get('x-vantixgc-waiter-realtime'), 'v23-tenant');
-    assert.match(pwa, /<script[^>]+restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v23-tenant-realtime[^>]*><\/script>/);
-    assert.match(pwa, /<script[^>]+restaurant-waiter-call-ui\.js\?v=waiter-call-v21-account-request[^>]*><\/script>/);
-    assert.match(pwa, /<script[^>]+restaurant-waiter-electronic-payment-ui\.js\?v=waiter-electronic-v22[^>]*><\/script>/);
-    assert.match(pwa, /<script[^>]+vantix-tenant-realtime\.js\?v=tenant-realtime-v1[^>]*><\/script>/);
-    assert.match(pwa, /legacy-runtime-contract:restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v14/);
+    assert.equal(pwaResponse.headers.get('x-vantixgc-restaurant-v2-device'), 'waiter-p8');
+    assert.match(pwa, /data-waiter-ui="tablet-3col-v22"/);
+    assert.match(pwa, /restaurant-v2-device-realtime-p8\.js/);
+    assert.match(pwa, /restaurant-waiter-call-ui\.js\?v=waiter-call-v21-account-request/);
+    assert.match(pwa, /restaurant-waiter-electronic-payment-ui\.js\?v=waiter-electronic-v22/);
+    assert.match(pwa, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
+    assert.doesNotMatch(pwa, /restaurant-waiter-runtime-v7\.js|restaurant-ui\.js/);
 
-    const swResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
-    const sw = await swResponse.text();
-    assert.equal(swResponse.status, 200);
-    assert.equal(swResponse.headers.get('x-vantixgc-waiter-realtime'), 'v23-tenant');
-    assert.match(sw, /vantixgc-waiter-shell-v14-review-hard-gate-v16-autopedido-code-v23-tenant-realtime/);
-    assert.match(sw, /restaurant-waiter-runtime-v7\.js\?v=waiter-runtime-v23-tenant-realtime/);
-    assert.match(sw, /restaurant-waiter-call-ui\.js\?v=waiter-call-v21-account-request/);
-    assert.match(sw, /restaurant-waiter-electronic-payment-ui\.js\?v=waiter-electronic-v22/);
-    assert.match(sw, /vantix-tenant-realtime\.js\?v=tenant-realtime-v1/);
+    const oldSwResponse = await fetch(`${baseUrl}/app/centro-de-control/sw.js`, { cache:'no-store' });
+    const oldSw = await oldSwResponse.text();
+    assert.equal(oldSwResponse.status, 200);
+    assert.equal(oldSwResponse.headers.get('x-vantixgc-restaurant-v1-runtime'), 'disabled');
+    assert.match(oldSw, /VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12/);
 
-    const runtimeResponse = await fetch(`${baseUrl}/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v23-tenant-realtime`, { cache:'no-store' });
-    const runtime = await runtimeResponse.text();
-    assert.equal(runtimeResponse.status, 200);
-    assert.equal(runtimeResponse.headers.get('x-vantixgc-waiter-realtime'), 'v23-tenant');
-    assert.match(runtime, /VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14/);
-    assert.match(runtime, /VANTIX_WAITER_TENANT_REALTIME_V23/);
-    assert.doesNotMatch(runtime, /VantixGCWaiterCallV5/);
+    const v2SwResponse = await fetch(`${baseUrl}/app/centro-de-control/mesero-v2/sw.js`, { cache:'no-store' });
+    const v2SwHttp = await v2SwResponse.text();
+    assert.equal(v2SwResponse.status, 200);
+    assert.equal(v2SwResponse.headers.get('service-worker-allowed'), '/app/centro-de-control/mesero-v2/');
+    assert.match(v2SwHttp, /VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22/);
+    assert.match(v2SwHttp, /restaurant-waiter-call-ui\.js\?v=waiter-call-v21-account-request/);
+    assert.match(v2SwHttp, /restaurant-waiter-electronic-payment-ui\.js\?v=waiter-electronic-v22/);
+    assert.match(v2SwHttp, /restaurant-waiter-qr-order-alert-ui\.js\?v=waiter-qr-order-alert-v25/);
 
     const callResponse = await fetch(`${baseUrl}/app/restaurant-waiter-call-ui.js?v=waiter-call-v21-account-request`, { cache:'no-store' });
     const callScript = await callResponse.text();
@@ -132,6 +152,12 @@ async function main() {
     assert.equal(paymentResponse.headers.get('x-vantixgc-waiter-payment'), 'v22-electronic');
     assert.match(paymentScript, /CONFIRMAR PAGO/);
 
+    const qrAlertResponse = await fetch(`${baseUrl}/app/restaurant-waiter-qr-order-alert-ui.js?v=waiter-qr-order-alert-v25`, { cache:'no-store' });
+    const qrAlertScript = await qrAlertResponse.text();
+    assert.equal(qrAlertResponse.status, 200);
+    assert.match(qrAlertScript, /NUEVO PEDIDO DESDE QR/);
+    assert.match(qrAlertScript, /VantixGCWaiterQrOrderAlertV25/);
+
     const qrResponse = await fetch(`${baseUrl}/app/restaurant-qr-ui.js?v=menu-list-v4`, { cache:'no-store' });
     const qrScript = await qrResponse.text();
     assert.equal(qrResponse.status, 200);
@@ -145,7 +171,7 @@ async function main() {
     assert.match(qrScript, /VantixGCQrRealtimeV1/);
   });
 
-  console.log('RESTAURANT WAITER CALL + ACCOUNT REQUEST + ELECTRONIC PAYMENT + TENANT REALTIME V23 + QR TABLE PRESENCE V24 SMOKE OK');
+  console.log('RESTAURANT MESERO V2 P12 + LLAMADOS + CUENTA + PAGO ELECTRONICO + QR ORDER ALERT SMOKE OK');
 }
 
 main().catch((error) => {
