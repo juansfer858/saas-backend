@@ -1,0 +1,68 @@
+name: Restaurant Waiter Tablet 3 Columns V22 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-waiter-p8.html'
+      - 'src/web/restaurant-v2-orders.css'
+      - 'src/web/restaurant-v2-waiter-sw-p8.js'
+      - 'scripts/restaurant-waiter-tablet-3col-v22-smoke.js'
+      - '.github/workflows/restaurant-waiter-tablet-3col-v22-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-waiter-p8.html'
+      - 'src/web/restaurant-v2-orders.css'
+      - 'src/web/restaurant-v2-waiter-sw-p8.js'
+      - 'scripts/restaurant-waiter-tablet-3col-v22-smoke.js'
+      - '.github/workflows/restaurant-waiter-tablet-3col-v22-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate waiter V22 syntax
+        run: node --check src/web/restaurant-v2-waiter-sw-p8.js
+      - name: Validate tablet 3-column UX contract
+        run: node scripts/restaurant-waiter-tablet-3col-v22-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact Waiter Tablet V22 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              PAGE="$(curl -fsS "$BASE/app/centro-de-control/mesero-v2")"
+              CSS="$(curl -fsS "$BASE/app/restaurant-v2-orders.css?v=v22")"
+              SW="$(curl -fsS "$BASE/app/centro-de-control/mesero-v2/sw.js")"
+              [[ "$PAGE" == *'data-waiter-ui="tablet-3col-v22"'* ]]
+              [[ "$PAGE" == *'1 · Mesas'* ]]
+              [[ "$PAGE" == *'2 · Carta'* ]]
+              [[ "$PAGE" == *'3 · Revisar pedido'* ]]
+              [[ "$PAGE" == *'restaurant-v2-orders.css?v=v22'* ]]
+              [[ "$CSS" == *'VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22'* ]]
+              [[ "$CSS" == *'grid-template-columns:minmax(145px,20vw) minmax(0,1fr) minmax(225px,29vw)'* ]]
+              [[ "$SW" == *"version:'22.0.0'"* ]]
+              echo "Restaurant Waiter Tablet V22 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Exact V22 commit did not reach production in time.' >&2
+          exit 1
