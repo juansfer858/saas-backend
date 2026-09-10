@@ -1,0 +1,72 @@
+name: Restaurant V2 Menu V1 CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-menu.*'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/modules/commercial/commercial.routes.js'
+      - 'src/modules/restaurant/restaurant.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import.*'
+      - 'src/modules/inventory/**'
+      - 'src/modules/consumption/**'
+      - 'scripts/restaurant-v2-menu-v1-smoke.js'
+      - '.github/workflows/restaurant-v2-menu-v1-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/web/restaurant-v2-menu.*'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/modules/commercial/commercial.routes.js'
+      - 'src/modules/restaurant/restaurant.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import.*'
+      - 'src/modules/inventory/**'
+      - 'src/modules/consumption/**'
+      - 'scripts/restaurant-v2-menu-v1-smoke.js'
+      - '.github/workflows/restaurant-v2-menu-v1-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-v2-menu.public.routes.js
+          node --check src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js
+          node --check src/web/restaurant-v2-menu.js
+          node --check src/web/restaurant-v2-native-control-p11.js
+          node --check src/modules/commercial/commercial.routes.js
+      - name: Validate Carta architecture
+        run: node scripts/restaurant-v2-menu-v1-smoke.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact Carta V2 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              HTML="$(curl -fsS "$BASE/app/restaurante-v2/carta")"
+              JS="$(curl -fsS "$BASE/app/restaurant-v2-menu.js")"
+              [[ "$HTML" == *"Carta y productos"* ]]
+              [[ "$HTML" == *"+ Nuevo plato"* ]]
+              [[ "$JS" == *"VANTIX_RESTAURANT_V2_MENU_V1"* ]]
+              [[ "$JS" == *"canonicalOcrReused:true"* ]]
+              echo "Restaurant V2 Menu V1 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
