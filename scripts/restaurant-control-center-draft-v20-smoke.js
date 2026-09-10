@@ -37,7 +37,7 @@ expect(tables.includes('RETIRAR'), 'falta texto operativo de retiro');
 expect(tables.includes('/borrador/items/${encodeURIComponent(itemId)}/retirar-v20'), 'la UI no llama el endpoint administrativo');
 expect(tables.includes('todavía NO fue enviado a cocina/barra'), 'falta confirmación de frontera antes del retiro');
 expect(tables.includes('Las líneas ya enviadas no se eliminan silenciosamente'), 'falta explicación de protección para líneas enviadas');
-expect(html.includes('restaurant-v2-tables.js?v=v20'), 'Mesas no fuerza el asset V20');
+expect(html.includes('/app/restaurant-v2-tables.js?v=v'), 'Mesas no fuerza una versión del asset de tablas');
 expect(html.includes('restaurant-v2-tables.css?v=v20'), 'Mesas no fuerza estilos V20');
 expect(css.includes('.rv2-draft-admin'), 'falta señal visual de borradores administrables');
 expect(css.includes('.rv2-draft-remove'), 'falta estilo de retiro');
