@@ -27,6 +27,27 @@ function defaultCommercialCategory(category) {
   return 'Fuertes';
 }
 
+function decorateMenuCategories(menu, menuRows, products) {
+  const productById = new Map((Array.isArray(products) ? products : []).map((product) => [product.id, product]));
+  const menuById = new Map((Array.isArray(menuRows) ? menuRows : []).map((row, index) => [row.id, { ...row, rank:index }]));
+
+  return (Array.isArray(menu) ? menu : []).map((item, originalIndex) => {
+    const source = menuById.get(item.id);
+    const operationalCategory = String(source?.category || item.category || 'FUERTES').toUpperCase();
+    const fallback = defaultCommercialCategory(operationalCategory);
+    const product = source ? productById.get(source.productId) : null;
+    const commercialCategory = menuImport.publicCategoryFromDescription(product?.descripcion, fallback);
+    return {
+      ...item,
+      category: commercialCategory,
+      displayCategory: commercialCategory,
+      operationalCategory,
+      sortOrder: Number(source?.sortOrder ?? originalIndex),
+      __rank: Number(source?.rank ?? originalIndex)
+    };
+  }).sort((a, b) => a.__rank - b.__rank).map(({ __rank, ...item }) => item);
+}
+
 async function commercializeQrContext(context) {
   const menu = Array.isArray(context?.menu) ? context.menu : [];
   if (!menu.length || !context?.tenantId) return context;
@@ -43,26 +64,7 @@ async function commercializeQrContext(context) {
     select: { id: true, descripcion: true }
   }) : [];
 
-  const productById = new Map(products.map((product) => [product.id, product]));
-  const menuById = new Map(menuRows.map((row, index) => [row.id, { ...row, rank:index }]));
-
-  const decorated = menu.map((item, originalIndex) => {
-    const source = menuById.get(item.id);
-    const operationalCategory = String(source?.category || item.category || 'FUERTES').toUpperCase();
-    const fallback = defaultCommercialCategory(operationalCategory);
-    const product = source ? productById.get(source.productId) : null;
-    const commercialCategory = menuImport.publicCategoryFromDescription(product?.descripcion, fallback);
-    return {
-      ...item,
-      category: commercialCategory,
-      displayCategory: commercialCategory,
-      operationalCategory,
-      sortOrder: Number(source?.sortOrder ?? originalIndex),
-      __rank: Number(source?.rank ?? originalIndex)
-    };
-  }).sort((a, b) => a.__rank - b.__rank).map(({ __rank, ...item }) => item);
-
-  return { ...context, menu: decorated };
+  return { ...context, menu:decorateMenuCategories(menu, menuRows, products) };
 }
 
 // P7 owns the existing physical QR URL without changing the token contract.
@@ -92,6 +94,7 @@ module.exports = {
   MARKER,
   CATEGORY_MARKER,
   defaultCommercialCategory,
+  decorateMenuCategories,
   commercializeQrContext,
   restaurantV2ClientQrPublicRouter: router
 };
