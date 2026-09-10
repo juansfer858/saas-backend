@@ -2,6 +2,7 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11';
+  const P12_MARKER = 'VANTIX_RESTAURANT_V2_ONLY_CONTROL_P12';
   const MODULE_CHROME_MARKER = 'VANTIX_RESTAURANT_V2_MODULE_CHROME_CLEAN_P11';
   const OPERATION_NAV_MARKER = 'VANTIX_RESTAURANT_V2_OPERATION_NAV_NO_DASHBOARD_P11';
   const SESSION_KEY = 'vantixgc_core_session_v1';
@@ -15,12 +16,12 @@
     carta:{ label:'Carta', hint:'Productos que vende el restaurante', route:'/app/restaurante-v2/carta', roles:['ADMIN','SUPER_ADMIN'] },
     empleados:{ label:'Empleados', hint:'Usuarios, roles y asignaciones', route:'/app/restaurante-v2/empleados', roles:['ADMIN','SUPER_ADMIN'] },
     qrs:{ label:'QR de mesas', hint:'Ver e imprimir QR físicos', route:'/app/restaurante-v2/qrs', roles:['ADMIN','SUPER_ADMIN'] },
-    devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] },
-    retiro:{ label:'Retiro V1', hint:'Control técnico P11', route:'/app/restaurante-v2/retiro-v1', roles:['ADMIN','SUPER_ADMIN'], technical:true }
+    devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] }
   });
-  const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos', migration:'retiro', pilot:'retiro' });
+  const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos' });
 
   document.documentElement.dataset.restaurantV2NativeControl = MARKER;
+  document.documentElement.dataset.restaurantV2OnlyControl = P12_MARKER;
   document.documentElement.dataset.restaurantV2ModuleChrome = MODULE_CHROME_MARKER;
   document.documentElement.dataset.restaurantV2OperationNav = OPERATION_NAV_MARKER;
 
@@ -34,17 +35,6 @@
   const $ = (q, root = document) => root.querySelector(q);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
 
-  async function api(path, options = {}) {
-    const response = await fetch(path, {
-      ...options,
-      cache:'no-store',
-      headers:{ Authorization:`Bearer ${session.token}`, 'x-tenant-subdomain':session.subdomain, ...(options.body ? { 'Content-Type':'application/json' } : {}), ...(options.headers || {}) }
-    });
-    let body = {}; try { body = await response.json(); } catch {}
-    if (response.status === 401) { localStorage.removeItem(SESSION_KEY); location.replace('/app'); throw new Error('Sesión vencida'); }
-    if (!response.ok) throw new Error(body?.error?.message || `HTTP ${response.status}`);
-    return body.data;
-  }
   function allowed(module) { return module.roles.includes(role); }
   function visibleModules() { return Object.entries(MODULES).filter(([, module]) => allowed(module)); }
   function defaultModuleKey() {
@@ -62,15 +52,6 @@
   function moduleKey(value) {
     const raw = String(value || '').trim();
     return ALIASES[raw] || raw;
-  }
-
-  async function assertRetirement() {
-    const state = await api('/api/v1/restaurante/v2/retiro-v1/launch');
-    if (!state?.enabled) {
-      location.replace('/app/centro-de-control');
-      return false;
-    }
-    return true;
   }
 
   function renderIdentity() {
@@ -129,9 +110,10 @@
     });
   }
 
-  async function boot() {
+  function boot() {
     try {
-      if (!await assertRetirement()) return;
+      // P12 is global V2 ONLY. Do not consult the old per-tenant P11 retirement gate:
+      // tenants that never toggled P11 individually must still enter V2 directly.
       renderIdentity();
       renderNav();
       bindStatic();
