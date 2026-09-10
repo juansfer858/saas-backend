@@ -5,6 +5,7 @@ const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-v2-cash.service');
+const customerDisplay = require('./restaurant-customer-display-name.service');
 
 const router = express.Router();
 
@@ -27,7 +28,8 @@ const chargeSchema = z.object({
   paymentMethodId: z.string().min(1).max(100),
   tipAmount: z.coerce.number().min(0).max(1000000000000).optional().default(0),
   reference: z.string().trim().max(160).optional().nullable(),
-  terceroId: z.string().uuid().optional().nullable()
+  terceroId: z.string().uuid().optional().nullable(),
+  customerName: z.string().trim().max(160).optional().default(customerDisplay.DEFAULT_CUSTOMER_NAME)
 });
 
 const customerSchema = z.object({
@@ -70,10 +72,22 @@ router.post('/v2/caja/turno/cerrar', requirePermission('RESTAURANTE.CERRAR'), as
 });
 
 router.post('/v2/caja/mesas/:tableId/cobrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  const input = parse(chargeSchema, req.body);
+  let stagedCustomer = null;
   try {
-    const data = await service.chargeWholeAccount(req.tenantId, req.user, req.params.tableId, parse(chargeSchema, req.body));
-    res.json({ ok: true, data });
-  } catch (error) { next(error); }
+    stagedCustomer = await customerDisplay.stageCustomerNameForTable(req.tenantId, req.params.tableId, input.customerName);
+    const data = await service.chargeWholeAccount(req.tenantId, req.user, req.params.tableId, input);
+    res.json({
+      ok: true,
+      data: {
+        ...data,
+        customerName: stagedCustomer?.customerName || customerDisplay.normalizeCustomerName(input.customerName)
+      }
+    });
+  } catch (error) {
+    if (stagedCustomer) await customerDisplay.restoreCustomerNameIfDraft(stagedCustomer).catch(() => {});
+    next(error);
+  }
 });
 
 router.get('/v2/caja/clientes', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
