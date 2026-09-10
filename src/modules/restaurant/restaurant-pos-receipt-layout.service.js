@@ -1,5 +1,7 @@
 'use strict';
 
+const customerDisplay = require('./restaurant-customer-display-name');
+
 const DEFAULT_COLUMNS_80 = 42;
 const DEFAULT_COLUMNS_58 = 32;
 
@@ -95,6 +97,7 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
   lines.push(...pairOrWrap(saleLabel, tableLabel, width, 3));
   const when = dateTime(sale?.emitidoEn || session?.closedAt || sale?.fecha);
   if (when) lines.push(centerLine(`Fecha: ${when}`, width));
+  lines.push(...labelValueLines('Cliente', customerDisplay.customerNameFromObservations(sale?.observaciones), width));
   lines.push(separator);
 
   for (const detail of Array.isArray(sale?.detalles) ? sale.detalles : []) {
