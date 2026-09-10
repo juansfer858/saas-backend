@@ -1,0 +1,71 @@
+name: Restaurant V2 Adaptive Keyboard V13 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-design-system.css'
+      - 'src/web/restaurant-v2-native-control-p11.css'
+      - 'src/web/restaurant-v2-client-qr.css'
+      - 'src/web/restaurant-v2-client-qr.html'
+      - 'src/web/restaurant-v2-client-ux-v12.js'
+      - 'scripts/restaurant-v2-adaptive-keyboard-v13-smoke.js'
+      - '.github/workflows/restaurant-v2-adaptive-keyboard-v13-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-design-system.css'
+      - 'src/web/restaurant-v2-native-control-p11.css'
+      - 'src/web/restaurant-v2-client-qr.css'
+      - 'src/web/restaurant-v2-client-qr.html'
+      - 'src/web/restaurant-v2-client-ux-v12.js'
+      - 'scripts/restaurant-v2-adaptive-keyboard-v13-smoke.js'
+      - '.github/workflows/restaurant-v2-adaptive-keyboard-v13-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate adaptive JS syntax
+        run: |
+          node --check src/web/restaurant-v2-client-ux-v12.js
+          node --check scripts/restaurant-v2-adaptive-keyboard-v13-smoke.js
+      - name: Validate adaptive mobile contracts
+        run: node scripts/restaurant-v2-adaptive-keyboard-v13-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact adaptive V13 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              DESIGN="$(curl -fsS "$BASE/app/restaurant-v2-design-system.css")"
+              NATIVE="$(curl -fsS "$BASE/app/restaurant-v2-native-control-p11.css")"
+              QR_CSS="$(curl -fsS "$BASE/app/restaurant-v2-client-qr.css")"
+              QR_UX="$(curl -fsS "$BASE/app/restaurant-v2-client-ux-v12.js")"
+              [[ "$DESIGN" == *"VANTIX_RESTAURANT_V2_ADAPTIVE_SURFACE_V13"* ]]
+              [[ "$NATIVE" == *"VANTIX_RESTAURANT_V2_NATIVE_ADAPTIVE_V13"* ]]
+              [[ "$QR_CSS" == *"VANTIX_RESTAURANT_V2_CLIENT_ADAPTIVE_KEYBOARD_V13"* ]]
+              [[ "$QR_UX" == *"VANTIX_RESTAURANT_V2_CLIENT_ADAPTIVE_VIEWPORT_V13"* ]]
+              [[ "$QR_UX" == *"window.visualViewport"* ]]
+              echo "Restaurant V2 Adaptive Keyboard V13 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
