@@ -1,13 +1,13 @@
 'use strict';
 
-const MARKER='VANTIX_RESTAURANT_V2_WAITER_SW_P8';
-const CACHE='vantixgc-restaurant-v2-waiter-p8-p10-fix';
+const MARKER='VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22';
+const CACHE='vantixgc-restaurant-v2-waiter-v22';
 const START='/app/centro-de-control/mesero-v2/';
 const SHELL=[
   START,
   '/app/centro-de-control/mesero-v2/manifest.webmanifest',
   '/app/restaurant-v2-design-system.css',
-  '/app/restaurant-v2-orders.css',
+  '/app/restaurant-v2-orders.css?v=v22',
   '/app/restaurant-v2-device-sdk-p8.js',
   '/app/restaurant-v2-device-realtime-p8.js',
   '/app/restaurant-v2-orders.js',
@@ -15,7 +15,7 @@ const SHELL=[
   '/app/centro-de-control/waiter-icon-192.png',
   '/app/centro-de-control/waiter-icon-512.png'
 ];
-self.VantixGCRestaurantV2WaiterP8=Object.freeze({marker:MARKER,version:'8.1.0',scope:'/app/centro-de-control/mesero-v2/',apiCache:false,pairingTokenCache:false,realtimeCached:true});
+self.VantixGCRestaurantV2WaiterP8=Object.freeze({marker:MARKER,version:'22.0.0',scope:'/app/centro-de-control/mesero-v2/',tabletLayout:'MESAS_CARTA_REVISAR_PEDIDO',columns:3,apiCache:false,pairingTokenCache:false,realtimeCached:true});
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).catch(()=>null));self.skipWaiting()});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('vantixgc-restaurant-v2-waiter-')&&key!==CACHE).map(key=>caches.delete(key)))));self.clients.claim()});
 self.addEventListener('fetch',event=>{
