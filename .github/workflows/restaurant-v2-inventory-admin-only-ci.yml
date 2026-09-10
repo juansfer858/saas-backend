@@ -1,0 +1,30 @@
+name: Restaurant V2 Inventory Admin Only CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'scripts/restaurant-v2-inventory-admin-only-smoke.js'
+      - '.github/workflows/restaurant-v2-inventory-admin-only-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'scripts/restaurant-v2-inventory-admin-only-smoke.js'
+      - '.github/workflows/restaurant-v2-inventory-admin-only-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify Restaurant inventory remains admin-only
+        run: node scripts/restaurant-v2-inventory-admin-only-smoke.js
