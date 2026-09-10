@@ -19,6 +19,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DATABASE_URL: postgresql://vantix_ci:vantix_ci@127.0.0.1:5432/vantix_ci
+
 jobs:
   validate:
     runs-on: ubuntu-latest
