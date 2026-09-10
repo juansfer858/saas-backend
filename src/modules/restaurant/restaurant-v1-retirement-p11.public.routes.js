@@ -25,6 +25,7 @@ router.get('/app/restaurant-v2-native-control-p11.js', (_req, res) => send(res, 
 router.get('/app/restaurant-v2-native-control-p11.css', (_req, res) => send(res, 'restaurant-v2-native-control-p11.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-sidebar-purple-v15.css', (_req, res) => send(res, 'restaurant-v2-sidebar-purple-v15.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-sidebar-super-core-v16.css', (_req, res) => send(res, 'restaurant-v2-sidebar-super-core-v16.css', 'text/css; charset=utf-8'));
+router.get('/app/restaurant-v2-sidebar-graphite-v17.css', (_req, res) => send(res, 'restaurant-v2-sidebar-graphite-v17.css', 'text/css; charset=utf-8'));
 
 // Existing independent admin/business modules get standalone hosts so they no
 // longer need the V1 Restaurant shell to remain reachable.
