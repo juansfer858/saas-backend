@@ -76,6 +76,10 @@ restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-v2-client-ux-v12
   return sendPreviewAsset(res, 'restaurant-v2-client-ux-v12.js', 'application/javascript; charset=utf-8');
 });
 
+restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-v2-client-ux-v12.css', (_req, res) => {
+  return sendPreviewAsset(res, 'restaurant-v2-client-ux-v12.css', 'text/css; charset=utf-8');
+});
+
 restaurantOperationalV2PreviewPublicRouter.get('/app/restaurant-operational-v2-preview.js', (_req, res) => {
   return sendPreviewAsset(res, 'restaurant-operational-v2-preview.js', 'application/javascript; charset=utf-8');
 });
