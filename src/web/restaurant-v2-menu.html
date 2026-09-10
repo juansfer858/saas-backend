@@ -65,7 +65,7 @@
         <div class="menu-grid2">
           <label>Nombre<input id="preparedName" class="menu-input" required maxlength="180"></label>
           <label>Precio<input id="preparedPrice" class="menu-input" type="number" min="0" step="1" required></label>
-          <label>Categoría visible<input id="preparedCommercialCategory" class="menu-input" maxlength="80" placeholder="Ej. Hamburguesas"></label>
+          <label>Categoría visible<select id="preparedCommercialCategory" class="menu-select" required aria-label="Categoría visible de la Carta"><option value="Entradas">Entradas</option><option value="Fuertes">Fuertes</option><option value="Bebidas">Bebidas</option><option value="Postres">Postres</option></select></label>
           <label>Categoría operativa<select id="preparedCategory" class="menu-select"><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="BEBIDAS">Bebidas</option><option value="POSTRES">Postres</option></select></label>
           <label>Estación<select id="preparedStation" class="menu-select"><option value="COCINA">Cocina</option><option value="BARRA">Barra</option><option value="POSTRES">Postres</option></select></label>
           <label>SKU<input id="preparedSku" class="menu-input" maxlength="80" placeholder="Se genera si lo dejas vacío"></label>
@@ -133,6 +133,7 @@
 
   <script src="/app/restaurant-v2-sdk.js"></script>
   <script src="/app/restaurant-v2-menu.js"></script>
+  <script src="/app/restaurant-v2-menu-category-selector-v14.js?v=v14"></script>
   <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
 </body>
 </html>
