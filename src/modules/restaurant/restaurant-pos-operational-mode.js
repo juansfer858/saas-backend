@@ -66,6 +66,8 @@ function operationalResult(result, config) {
       mode: 'TIRILLA_POS',
       saleNumber,
       queued: Boolean(result?.posReceipt?.queued),
+      deferred: Boolean(result?.posReceipt?.deferred),
+      reason: result?.posReceipt?.reason || null,
       electronic: false
     }
   };
@@ -161,7 +163,9 @@ function installOperationalPosMode() {
       await cleanupLegacySimulatedFiscal(tenantId, result?.sale?.id);
     }
 
-    const receipt = await posReceipt.queueReceiptIntent(tenantId, result?.session?.id).catch(() => ({ queued: false }));
+    const receipt = input?.deferPosReceipt === true
+      ? { queued: false, deferred: true, reason: 'DEFERRED_BY_CASHIER_CHOICE' }
+      : await posReceipt.queueReceiptIntent(tenantId, result?.session?.id).catch(() => ({ queued: false }));
     return operationalResult({ ...result, posReceipt: receipt }, config);
   };
 
