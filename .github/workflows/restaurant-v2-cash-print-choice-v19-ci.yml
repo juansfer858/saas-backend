@@ -1,0 +1,76 @@
+name: Restaurant V2 Cash Print Choice V19 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-cash-print-choice-v19.js'
+      - 'src/web/restaurant-v2-cash.html'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-hooks.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'scripts/restaurant-v2-cash-print-choice-v19-smoke.js'
+      - '.github/workflows/restaurant-v2-cash-print-choice-v19-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-cash-print-choice-v19.js'
+      - 'src/web/restaurant-v2-cash.html'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-hooks.js'
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'scripts/restaurant-v2-cash-print-choice-v19-smoke.js'
+      - '.github/workflows/restaurant-v2-cash-print-choice-v19-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate V19 syntax
+        run: |
+          node --check src/web/restaurant-v2-cash-print-choice-v19.js
+          node --check src/modules/restaurant/restaurant-v2-cash.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash.service.js
+          node --check src/modules/restaurant/restaurant-payment-methods.service.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-hooks.js
+      - name: Validate post-settlement print choice contracts
+        run: node scripts/restaurant-v2-cash-print-choice-v19-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact Cash Print Choice V19 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              CASH="$(curl -fsS "$BASE/app/restaurante-v2/caja")"
+              ASSET="$(curl -fsS "$BASE/app/restaurant-v2-cash-print-choice-v19.js")"
+              [[ "$CASH" == *'restaurant-v2-cash-print-choice-v19.js?v=v19'* ]]
+              [[ "$ASSET" == *'VANTIX_RESTAURANT_V2_CASH_PRINT_CHOICE_V19'* ]]
+              [[ "$ASSET" == *'¿Imprimir recibo?'* ]]
+              [[ "$ASSET" == *'SÍ, IMPRIMIR'* ]]
+              [[ "$ASSET" == *'/api/v1/restaurante/v2/caja/recibo/imprimir'* ]]
+              echo "Restaurant V2 Cash Print Choice V19 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

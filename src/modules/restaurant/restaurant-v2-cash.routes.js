@@ -32,6 +32,10 @@ const chargeSchema = z.object({
   customerName: z.string().trim().max(160).optional().default(customerDisplay.DEFAULT_CUSTOMER_NAME)
 });
 
+const receiptPrintSchema = z.object({
+  sessionId: z.string().uuid()
+});
+
 const customerSchema = z.object({
   tipoDocumento: z.string().trim().min(1).max(20),
   identificacion: z.string().trim().min(3).max(40),
@@ -90,6 +94,13 @@ router.post('/v2/caja/mesas/:tableId/cobrar', requirePermission('RESTAURANTE.CER
   }
 });
 
+router.post('/v2/caja/recibo/imprimir', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    const input = parse(receiptPrintSchema, req.body, 'Datos de impresión inválidos');
+    res.json({ ok: true, data: await service.queueReceiptPrint(req.tenantId, req.user, input.sessionId) });
+  } catch (error) { next(error); }
+});
+
 router.get('/v2/caja/clientes', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.listCustomers(req.tenantId, req.query.q) }); }
   catch (error) { next(error); }
@@ -107,5 +118,6 @@ module.exports = {
   openShiftSchema,
   closeShiftSchema,
   chargeSchema,
+  receiptPrintSchema,
   customerSchema
 };

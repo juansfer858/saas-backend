@@ -12,7 +12,12 @@ function installPosReceiptHooks() {
     const originalClose = identity.closeTableGuarded.bind(identity);
     identity.closeTableGuarded = async function closeTableGuardedWithPosReceipt(tenantId, user, tableId, input) {
       const result = await originalClose(tenantId, user, tableId, input);
-      await receipts.queueReceiptIntent(tenantId, result?.session?.id).catch(() => {});
+      // Caja V2 can explicitly defer the POS receipt until the cashier answers
+      // the post-settlement Sí / No prompt. Every existing caller keeps the
+      // previous automatic queue behavior by default.
+      if (input?.deferPosReceipt !== true) {
+        await receipts.queueReceiptIntent(tenantId, result?.session?.id).catch(() => {});
+      }
       return result;
     };
     Object.defineProperty(identity, IDENTITY_FLAG, { value: true });

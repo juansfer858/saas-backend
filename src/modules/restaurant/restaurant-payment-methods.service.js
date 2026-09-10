@@ -144,7 +144,8 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
       formaPago: formaPagoForKind(method.kind),
       cajaBancoId: method.cajaBancoId || null,
       tipAmount: Number(input.tipAmount || 0),
-      split: input.split || { mode: 'NONE' }
+      split: input.split || { mode: 'NONE' },
+      deferPosReceipt: input.deferPosReceipt === true
     });
     const refreshed = await prisma.restaurantTableSession.update({
       where: { id: result.session.id },
