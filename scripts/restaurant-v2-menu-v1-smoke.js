@@ -26,15 +26,15 @@ assert.match(aggregator, /use\(restaurantV2MenuPublicRouter\)/);
 
 assert.match(shell, /carta:\{ label:'Carta'/);
 assert.match(shell, /route:'\/app\/restaurante-v2\/carta'/);
-assert.match(shell, /inventario:\{ label:'Inventario \/ Kardex'/);
-assert.match(shell, /route:'\/app\/inventario'/);
+assert.doesNotMatch(shell, /inventario:\{ label:'Inventario \/ Kardex'/);
+assert.doesNotMatch(shell, /route:'\/app\/inventario'/);
 assert.doesNotMatch(shell, /label:'Carta \/ inventario'/);
 
 assert.match(html, /id="ccCustomView"/);
 assert.match(html, /Carta y productos/);
 assert.match(html, /\+ Nuevo plato/);
 assert.match(html, /\+ Desde inventario/);
-assert.match(html, /Inventario \/ Kardex/);
+assert.doesNotMatch(html, /href="\/app\/inventario"/);
 assert.match(html, /id="configureRecipe"/);
 assert.match(html, /id="menuGrid" class="menu-grid"/);
 // El OCR canónico puede reutilizar el encabezado y sus acciones, pero no debe encontrar
@@ -63,8 +63,9 @@ assert.doesNotThrow(() => new vm.Script(js));
 assert.match(css, /VANTIX_RESTAURANT_V2_MENU_CSS_V1/);
 
 // Inventario/Kardex vuelve a ser una superficie administrativa pura: Carta no se
-// inyecta dentro de su runtime. Los archivos históricos pueden permanecer dormidos
-// como rollback técnico, pero no forman parte de la respuesta ejecutable actual.
+// inyecta dentro de su runtime ni ofrece una navegación de administración desde
+// el Restaurante. Los archivos históricos pueden permanecer dormidos como rollback
+// técnico, pero no forman parte de la respuesta ejecutable actual.
 assert.doesNotMatch(commercial, /restaurant-inventory-workspace-v1\.js/);
 assert.doesNotMatch(commercial, /restaurant-inventory-menu-import-loader-v1\.js/);
 assert.doesNotMatch(commercial, /X-VantixGC-Restaurant-Inventory-Workspace/);
@@ -94,6 +95,7 @@ assert.match(importService, /controlaInventario:\s*false/);
 console.log('RESTAURANT V2 MENU V1 SMOKE OK', JSON.stringify({
   standaloneCarta: true,
   inventorySeparated: true,
+  inventoryAdminOnlyNavigation: true,
   masterProductReused: true,
   directInventorySupported: true,
   optionalRecipeSupported: true,
