@@ -28,6 +28,11 @@ function latestTimeline(row, type) {
   return [...timelineArray(row?.timeline)].reverse().find((event) => event?.type === type) || null;
 }
 
+function eventSuffix(value) {
+  const raw = text(value);
+  return raw ? `&at=${encodeURIComponent(raw)}` : '';
+}
+
 async function firstActiveWaiter(tenantId, candidateIds = []) {
   const ids = [...new Set(candidateIds.map(text).filter(Boolean))];
   for (const id of ids) {
@@ -73,7 +78,7 @@ async function notifyWaiterCall(tenantId, input = {}) {
     eventCode:'RESTAURANT_WAITER_CALL_V25',
     title:`${label} llama al mesero`,
     body:`El cliente solicita atención${person}.`,
-    deepLink:`/app/centro-de-control/mesero-v2?call=${encodeURIComponent(text(input.callId))}`,
+    deepLink:`/app/centro-de-control/mesero-v2?call=${encodeURIComponent(text(input.callId))}${eventSuffix(input.eventAt)}`,
     ...audience
   });
 }
@@ -94,6 +99,7 @@ async function notifyWaiterCallFromQr(qrToken, callId = null) {
   const meta = latestTimeline(row, 'CALL_CREATED') || {};
   return notifyWaiterCall(context.table.tenantId, {
     callId:row.id,
+    eventAt:meta.at || row.creadoEn,
     primaryWaiterId:meta.primaryWaiterId || (row.publicReference !== 'ALL' ? row.publicReference : null),
     openedByUserId:context.session.openedByUserId,
     assignedWaiterId:context.table.assignedWaiterId,
@@ -110,7 +116,7 @@ async function notifyAccountRequest(tenantId, input = {}) {
     eventCode:'RESTAURANT_ACCOUNT_REQUEST_V25',
     title:`${label} solicita la cuenta`,
     body:person,
-    deepLink:`/app/centro-de-control/mesero-v2?accountRequest=${encodeURIComponent(text(input.requestId))}`,
+    deepLink:`/app/centro-de-control/mesero-v2?accountRequest=${encodeURIComponent(text(input.requestId))}${eventSuffix(input.eventAt)}`,
     ...audience
   });
 }
@@ -126,6 +132,7 @@ async function notifyAccountRequestFromQr(qrToken) {
   const meta = latestTimeline(row, 'ACCOUNT_REQUEST_CREATED') || {};
   return notifyAccountRequest(context.table.tenantId, {
     requestId:row.id,
+    eventAt:meta.at || row.creadoEn,
     primaryWaiterId:meta.primaryWaiterId || (row.publicReference !== 'ALL' ? row.publicReference : null),
     openedByUserId:context.session.openedByUserId,
     assignedWaiterId:context.table.assignedWaiterId,
@@ -200,7 +207,7 @@ async function notifyTableOpenRequest(tenantId, input = {}) {
     eventCode:'RESTAURANT_TABLE_OPEN_REQUEST_V25',
     title:`${label} solicita atención`,
     body:'Un cliente escaneó el QR y solicita abrir la mesa.',
-    deepLink:`/app/restaurante-v2/mesas?openRequest=${encodeURIComponent(text(input.requestId))}`,
+    deepLink:`/app/restaurante-v2/mesas?openRequest=${encodeURIComponent(text(input.requestId))}${eventSuffix(input.eventAt)}`,
     roles:['MESERO', ...ADMIN_ROLES]
   });
 }
@@ -211,6 +218,7 @@ async function notifyTableOpenRequestFromQr(qrToken, request = {}) {
   if (!request?.requested || request?.alreadyPending) return { matched:0, sent:0, failed:0, skipped:'NO_NEW_REQUEST' };
   return notifyTableOpenRequest(context.table.tenantId, {
     requestId:request.id || null,
+    eventAt:request.createdAt || null,
     table:context.table
   });
 }
