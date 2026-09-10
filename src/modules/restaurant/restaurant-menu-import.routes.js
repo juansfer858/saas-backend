@@ -3,6 +3,7 @@
 const express = require('express');
 const { z } = require('zod');
 const service = require('./restaurant-menu-import.service');
+const linkService = require('./restaurant-menu-import-link.service');
 const localOcr = require('./restaurant-menu-local-ocr.service');
 const cleanup = require('./restaurant-menu-ocr-cleanup.service');
 const menuItemEdit = require('./restaurant-menu-item-edit.service');
@@ -61,7 +62,8 @@ const itemSchema = z.object({
   price: z.coerce.number().positive().max(1000000000),
   operationalCategory: z.enum(['ENTRADAS', 'FUERTES', 'BEBIDAS', 'POSTRES']),
   station: z.enum(['COCINA', 'BARRA', 'POSTRES']),
-  confidence: z.coerce.number().min(0).max(1).optional().default(1)
+  confidence: z.coerce.number().min(0).max(1).optional().default(1),
+  existingProductId: z.string().uuid().optional().nullable()
 });
 
 const confirmSchema = z.object({
@@ -134,7 +136,7 @@ router.post(
 router.post('/carta-importacion/confirmar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try {
     const input = parse(confirmSchema, req.body || {});
-    res.status(201).json({ ok: true, data: await service.confirmImport(req.tenantId, req.userId, input) });
+    res.status(201).json({ ok: true, data: await linkService.confirmImportLinked(req.tenantId, req.userId, input) });
   } catch (error) { next(error); }
 });
 
