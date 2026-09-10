@@ -171,6 +171,36 @@ async function sendSelfTest(tenantId, userId, input = {}) {
   });
 }
 
+// Best-effort operational fanout. It is deliberately separated from the business
+// transaction: a Firebase outage must never fail an order, account request or KDS change.
+async function sendOperationalEvent(tenantId, input = {}) {
+  const roles=[...new Set((input.roles || []).map((value)=>String(value || '').toUpperCase()).filter(Boolean))];
+  const userIds=[...new Set((input.userIds || []).map((value)=>String(value || '').trim()).filter(Boolean))];
+  const audience=[];
+  if (roles.length) audience.push({ role:{ in:roles } });
+  if (userIds.length) audience.push({ userId:{ in:userIds } });
+  if (!audience.length) return { matched:0, sent:0, failed:0 };
+  if (!provider.publicWebConfig().enabled) return { matched:0, sent:0, failed:0, skipped:'FCM_NOT_CONFIGURED' };
+  const devices=await prisma.notificationPushDevice.findMany({
+    where:{ tenantId, state:'ACTIVE', permission:'granted', OR:audience },
+    orderBy:{ lastSeenAt:'desc' },
+    take:250
+  });
+  let sent=0;let failed=0;
+  for (const device of devices) {
+    try {
+      await sendDelivery(device, {
+        eventCode:input.eventCode || 'RESTAURANT_ACTIVITY',
+        title:input.title || 'VantixGC Restaurantes',
+        body:input.body || 'Nueva actividad en el restaurante.',
+        deepLink:input.deepLink || '/app/centro-de-control'
+      });
+      sent+=1;
+    } catch { failed+=1; }
+  }
+  return { matched:devices.length, sent, failed };
+}
+
 function publicConfig() {
   return provider.publicWebConfig();
 }
@@ -182,5 +212,6 @@ module.exports = {
   revokeDevice,
   sendSelfTest,
   sendDelivery,
+  sendOperationalEvent,
   hashToken
 };
