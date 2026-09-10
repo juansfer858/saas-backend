@@ -12,56 +12,24 @@
   <!-- VANTIX_RESTAURANT_V2_CLIENT_QR_P7 · VANTIX_RESTAURANT_V2_QR_NO_CODE_V11 · VANTIX_RESTAURANT_V2_CLIENT_SEARCH_P8 -->
   <main class="p7-shell" id="p7App" aria-live="polite">
     <header class="p7-header">
-      <div class="p7-brand-copy">
-        <span class="p7-kicker">PEDIDO EN MESA</span>
-        <h1 id="restaurantName">Restaurante</h1>
-        <div class="p7-table-line"><span id="tableName">Mesa</span><span id="visitBadge" class="p7-badge">Consultando…</span></div>
-      </div>
+      <div class="p7-brand-copy"><span class="p7-kicker">PEDIDO EN MESA</span><h1 id="restaurantName">Restaurante</h1><div class="p7-table-line"><span id="tableName">Mesa</span><span id="visitBadge" class="p7-badge">Consultando…</span></div></div>
       <button id="helpButton" class="p7-icon-button" type="button" aria-label="Ayuda">?</button>
     </header>
-
-    <section id="availabilityCard" class="p7-availability">
-      <div><b id="availabilityTitle">Consultando la mesa…</b><span id="availabilityText">Estamos verificando la atención actual.</span></div>
-      <span id="seatBadge" class="p7-seat" hidden></span>
-    </section>
-
+    <section id="availabilityCard" class="p7-availability"><div><b id="availabilityTitle">Consultando la mesa…</b><span id="availabilityText">Estamos verificando la atención actual.</span></div><span id="seatBadge" class="p7-seat" hidden></span></section>
     <section id="spotlight" class="p7-spotlight" hidden></section>
-
     <section class="p7-search" aria-label="Buscar en la carta">
       <label for="menuSearch">Buscar producto</label>
-      <div class="p7-search-row">
-        <input id="menuSearch" type="search" placeholder="Buscar producto o categoría…" autocomplete="off">
-        <button id="menuSearchClear" class="p7-secondary" type="button" hidden>Limpiar</button>
-      </div>
+      <div class="p7-search-row"><input id="menuSearch" type="search" placeholder="Buscar producto o categoría…" autocomplete="off"><button id="menuSearchButton" class="p7-secondary" type="button">Buscar</button><button id="menuSearchClear" class="p7-secondary" type="button" hidden>Limpiar</button></div>
       <div id="menuSearchEmpty" class="p7-search-empty" hidden></div>
     </section>
-
     <nav id="categoryNav" class="p7-categories" aria-label="Categorías del menú"></nav>
-
-    <section class="p7-menu-head">
-      <div><span class="p7-kicker">CARTA</span><h2 id="categoryTitle">Todo</h2></div>
-      <button id="trackingButton" class="p7-secondary" type="button" hidden>Mi pedido</button>
-    </section>
+    <section class="p7-menu-head"><div><span class="p7-kicker">CARTA</span><h2 id="categoryTitle">Todo</h2></div><button id="trackingButton" class="p7-secondary" type="button" hidden>Mi pedido</button></section>
     <section id="menuList" class="p7-menu" aria-label="Productos"></section>
   </main>
-
-  <footer id="cartBar" class="p7-cartbar" hidden>
-    <button id="cartButton" type="button" class="p7-cart-button">
-      <span id="cartCount" class="p7-cart-count">0</span>
-      <span class="p7-cart-copy"><b>Revisar pedido</b><small>Notas, cantidades y total</small></span>
-      <strong id="cartTotal">$0</strong>
-    </button>
-  </footer>
-
+  <footer id="cartBar" class="p7-cartbar" hidden><button id="cartButton" type="button" class="p7-cart-button"><span id="cartCount" class="p7-cart-count">0</span><span class="p7-cart-copy"><b>Revisar pedido</b><small>Notas, cantidades y total</small></span><strong id="cartTotal">$0</strong></button></footer>
   <div id="sheetBackdrop" class="p7-backdrop" hidden></div>
-  <section id="sheet" class="p7-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-    <header><div><span class="p7-kicker" id="sheetKicker">PEDIDO</span><h2 id="sheetTitle">Revisar pedido</h2></div><button id="sheetClose" class="p7-icon-button" type="button" aria-label="Cerrar">×</button></header>
-    <div id="sheetBody" class="p7-sheet-body"></div>
-  </section>
-
+  <section id="sheet" class="p7-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><header><div><span class="p7-kicker" id="sheetKicker">PEDIDO</span><h2 id="sheetTitle">Revisar pedido</h2></div><button id="sheetClose" class="p7-icon-button" type="button" aria-label="Cerrar">×</button></header><div id="sheetBody" class="p7-sheet-body"></div></section>
   <div id="toast" class="p7-toast" role="status" hidden></div>
-  <script src="/app/restaurant-v2-client-qr.js?v=p7"></script>
-  <script src="/app/restaurant-v2-client-qr-open-request.js?v=v11-no-code"></script>
-  <script src="/app/restaurant-v2-client-search-p8.js?v=p8"></script>
+  <script src="/app/restaurant-v2-client-qr.js?v=p7"></script><script src="/app/restaurant-v2-client-qr-open-request.js?v=v11-no-code"></script><script src="/app/restaurant-v2-client-search-p8.js?v=p8"></script>
 </body>
 </html>
