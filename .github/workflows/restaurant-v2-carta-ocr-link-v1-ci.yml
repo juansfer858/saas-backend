@@ -1,0 +1,89 @@
+name: Restaurant V2 Carta OCR Link V1 CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-menu-import-ui.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import-link.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
+      - 'src/modules/inventory/**'
+      - 'src/modules/consumption/**'
+      - 'src/modules/commercial/sales.service.js'
+      - 'scripts/restaurant-v2-carta-ocr-link-v1-smoke.js'
+      - 'scripts/restaurant-v2-carta-ocr-link-db-smoke.js'
+      - '.github/workflows/restaurant-v2-carta-ocr-link-v1-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-menu-import-ui.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import-link.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
+      - 'src/modules/inventory/**'
+      - 'src/modules/consumption/**'
+      - 'src/modules/commercial/sales.service.js'
+      - 'scripts/restaurant-v2-carta-ocr-link-v1-smoke.js'
+      - 'scripts/restaurant-v2-carta-ocr-link-db-smoke.js'
+      - '.github/workflows/restaurant-v2-carta-ocr-link-v1-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - name: Crear claves efímeras de prueba
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "RESTAURANT_QR_VISIT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Validar contratos OCR y asset 10 MB
+        run: node scripts/restaurant-v2-carta-ocr-link-v1-smoke.js
+      - name: Validar vínculo manual contra PostgreSQL real
+        run: node scripts/restaurant-v2-carta-ocr-link-db-smoke.js
+      - name: Validar sintaxis
+        run: |
+          node --check src/web/restaurant-menu-import-ui.js
+          node --check src/modules/restaurant/restaurant-menu-import.routes.js
+          node --check src/modules/restaurant/restaurant-menu-import-link.service.js
+          node --check scripts/restaurant-v2-carta-ocr-link-db-smoke.js
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify exact Carta OCR link in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              ASSET="$(curl -fsS "$BASE/app/restaurant-menu-import-ui.js?v=$GITHUB_SHA")"
+              [[ "$ASSET" == *"VANTIX_MENU_OCR_END_TO_END_10MB_V7"* ]]
+              [[ "$ASSET" == *"VANTIX_MENU_OCR_MANUAL_INVENTORY_LINK_V1"* ]]
+              [[ "$ASSET" == *"Preparado (por defecto)"* ]]
+              echo "Restaurant V2 Carta OCR Link V1 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
