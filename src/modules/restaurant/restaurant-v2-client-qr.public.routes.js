@@ -11,6 +11,7 @@ const webRoot = path.join(__dirname, '../../web');
 const HEADER_VALUE = 'p7-permanent-qr-client';
 const MARKER = 'VANTIX_RESTAURANT_V2_CLIENT_QR_P7';
 const CATEGORY_MARKER = 'VANTIX_RESTAURANT_V2_QR_COMMERCIAL_CATEGORIES_V1';
+const SEARCH_MARKER = 'VANTIX_RESTAURANT_V2_CLIENT_SEARCH_P8';
 
 function send(res, file, type) {
   res.set('Cache-Control', 'no-store, max-age=0');
@@ -67,14 +68,8 @@ async function commercializeQrContext(context) {
   return { ...context, menu:decorateMenuCategories(menu, menuRows, products) };
 }
 
-// P7 owns the existing physical QR URL without changing the token contract.
-// This router is mounted before every V1 QR wrapper. Removing this module makes
-// src/app.js' existing /r/:token handler the automatic legacy fallback again.
 router.get('/r/:token', (_req, res) => send(res, 'restaurant-v2-client-qr.html', 'html'));
 
-// The public QR must show the restaurant's commercial Carta categories. The four
-// operational categories remain internal routing metadata for Cocina/Barra/Postres.
-// When no imported/commercial category exists, the canonical four defaults remain.
 router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
   try {
     const context = await identity.publicQrContext(req.params.token);
@@ -87,12 +82,15 @@ router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
 
 router.get('/app/restaurant-v2-client-qr.js', (_req, res) => send(res, 'restaurant-v2-client-qr.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-client-qr-open-request.js', (_req, res) => send(res, 'restaurant-v2-client-qr-open-request.js', 'application/javascript; charset=utf-8'));
+router.get('/app/restaurant-v2-client-search-p8.js', (_req, res) => send(res, 'restaurant-v2-client-search-p8.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-client-qr.css', (_req, res) => send(res, 'restaurant-v2-client-qr.css', 'text/css; charset=utf-8'));
+router.get('/app/restaurant-v2-client-experience-p8.css', (_req, res) => send(res, 'restaurant-v2-client-experience-p8.css', 'text/css; charset=utf-8'));
 
 module.exports = {
   HEADER_VALUE,
   MARKER,
   CATEGORY_MARKER,
+  SEARCH_MARKER,
   defaultCommercialCategory,
   decorateMenuCategories,
   commercializeQrContext,
