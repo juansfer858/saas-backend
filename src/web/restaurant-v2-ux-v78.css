@@ -1,0 +1,33 @@
+/* VANTIX_RESTAURANT_V2_UX_V78 */
+.kds-top,.rv2-top,.rv2-order-top,.cash-top,.split-top,.menu-top,.admin-top,.rv2-v78-top{
+  position:sticky!important;top:0!important;z-index:40!important;display:flex!important;
+  justify-content:space-between!important;align-items:flex-start!important;gap:18px!important;
+  min-height:0!important;margin:0!important;padding:12px 18px!important;
+  border:0!important;border-bottom:1px solid var(--rv2-line,#cbd5e1)!important;border-radius:0!important;
+  background:rgba(248,250,252,.97)!important;box-shadow:none!important;backdrop-filter:blur(10px)
+}
+.kds-top>div:first-child,.rv2-top>div:first-child,.rv2-order-top>div:first-child,.cash-top>div:first-child,.split-top>div:first-child,.menu-top>div:first-child,.admin-top>div:first-child,.rv2-v78-top>div:first-child{min-width:0}
+.kds-top span,.rv2-top span,.rv2-order-top span,.cash-top span,.split-top span,.menu-top span,.admin-top .eyebrow,.rv2-v78-top span{
+  display:block!important;margin:0!important;color:var(--rv2-muted,#64748b)!important;
+  font-size:10px!important;font-weight:950!important;line-height:1.2!important;letter-spacing:.09em!important;text-transform:uppercase!important
+}
+.kds-top h1,.rv2-top h1,.rv2-order-top h1,.cash-top h1,.split-top h1,.menu-top h1,.admin-top h1,.rv2-v78-top h1{
+  margin:2px 0!important;color:var(--rv2-ink,#0f172a)!important;font-size:25px!important;line-height:1.08!important;letter-spacing:-.025em!important
+}
+.kds-top p,.rv2-top p,.rv2-order-top p,.cash-top p,.split-top p,.menu-top p,.admin-top p,.rv2-v78-top p{
+  margin:3px 0 0!important;color:var(--rv2-muted,#64748b)!important;font-size:12px!important;line-height:1.3!important
+}
+.kds-top nav,.rv2-top-actions,.rv2-order-top .top-actions,.cash-top .top-actions,.split-top .top-actions,.menu-top .rv2-top-actions,.admin-top-actions,.rv2-v78-top .rv2-v78-actions{
+  display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:7px!important;flex-wrap:wrap!important;margin:0!important
+}
+.kds-top a,.rv2-top a,.rv2-order-top a,.cash-top a,.split-top a,.menu-top a,.admin-top a,.rv2-v78-top a{text-decoration:none}
+.rv2-v78-settle-dialog{width:min(460px,calc(100vw - 28px));border:0;border-radius:16px;padding:0;box-shadow:0 26px 70px rgba(15,23,42,.28)}
+.rv2-v78-settle-dialog::backdrop{background:rgba(15,23,42,.55);backdrop-filter:blur(3px)}
+.rv2-v78-settle-card{padding:20px;background:#fff}.rv2-v78-settle-card small{color:var(--rv2-muted);font-size:10px;font-weight:950;letter-spacing:.09em}.rv2-v78-settle-card h2{margin:4px 0 6px;font-size:23px}.rv2-v78-settle-card p{margin:0;color:var(--rv2-muted);font-size:13px;line-height:1.45}.rv2-v78-settle-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}.rv2-v78-settle-actions .cancel{grid-column:1/-1}
+@media(max-width:700px){
+  .kds-top,.rv2-top,.rv2-order-top,.cash-top,.split-top,.menu-top,.admin-top,.rv2-v78-top{position:sticky!important;display:block!important;padding:11px 12px!important}
+  .kds-top nav,.rv2-top-actions,.rv2-order-top .top-actions,.cash-top .top-actions,.split-top .top-actions,.menu-top .rv2-top-actions,.admin-top-actions,.rv2-v78-top .rv2-v78-actions{margin-top:9px!important;justify-content:flex-start!important}
+  .kds-top h1,.rv2-top h1,.rv2-order-top h1,.cash-top h1,.split-top h1,.menu-top h1,.admin-top h1,.rv2-v78-top h1{font-size:22px!important}
+  .rv2-v78-settle-actions{grid-template-columns:1fr}
+  .rv2-v78-settle-actions .cancel{grid-column:auto}
+}

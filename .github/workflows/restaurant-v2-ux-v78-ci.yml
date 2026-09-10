@@ -1,0 +1,106 @@
+name: Restaurant V2 UX V78 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/web/restaurant-v2-ux-v78.*'
+      - 'src/web/restaurant-v2-client-search-p8.js'
+      - 'src/web/restaurant-v2-client-experience-p8.css'
+      - 'src/web/restaurant-v2-menu-spotlight-v1.*'
+      - 'src/web/restaurant-v2-tables.html'
+      - 'src/web/restaurant-v2-orders.html'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/web/restaurant-v2-cash.html'
+      - 'src/web/restaurant-v2-split.html'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'src/web/restaurant-v2-admin-parity.html'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/web/restaurant-v2-employees-p11.html'
+      - 'src/web/restaurant-v2-native-control-p11.html'
+      - 'src/web/restaurant-v2-client-qr.html'
+      - 'scripts/restaurant-v2-ux-v78-smoke.js'
+      - '.github/workflows/restaurant-v2-ux-v78-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/web/restaurant-v2-ux-v78.*'
+      - 'src/web/restaurant-v2-client-search-p8.js'
+      - 'src/web/restaurant-v2-client-experience-p8.css'
+      - 'src/web/restaurant-v2-menu-spotlight-v1.*'
+      - 'src/web/restaurant-v2-tables.html'
+      - 'src/web/restaurant-v2-orders.html'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/web/restaurant-v2-cash.html'
+      - 'src/web/restaurant-v2-split.html'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'src/web/restaurant-v2-admin-parity.html'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/web/restaurant-v2-employees-p11.html'
+      - 'src/web/restaurant-v2-native-control-p11.html'
+      - 'src/web/restaurant-v2-client-qr.html'
+      - 'scripts/restaurant-v2-ux-v78-smoke.js'
+      - '.github/workflows/restaurant-v2-ux-v78-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Validate V78 syntax
+        run: |
+          node --check src/web/restaurant-v2-ux-v78.js
+          node --check src/web/restaurant-v2-client-search-p8.js
+          node --check src/web/restaurant-v2-menu-spotlight-v1.js
+          node --check src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js
+          node --check src/modules/restaurant/restaurant-v2-client-qr.public.routes.js
+          node --check src/modules/restaurant/restaurant-v2-menu.public.routes.js
+      - name: Validate four Restaurant UX changes
+        run: node scripts/restaurant-v2-ux-v78-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact Restaurant UX V78 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              UX="$(curl -fsS "$BASE/app/restaurant-v2-ux-v78.js")"
+              UXCSS="$(curl -fsS "$BASE/app/restaurant-v2-ux-v78.css")"
+              SEARCH="$(curl -fsS "$BASE/app/restaurant-v2-client-search-p8.js")"
+              CLIENTCSS="$(curl -fsS "$BASE/app/restaurant-v2-client-experience-p8.css")"
+              PROMO="$(curl -fsS "$BASE/app/restaurant-v2-menu-spotlight-v1.js")"
+              CARTA="$(curl -fsS "$BASE/app/restaurante-v2/carta")"
+              MESAS="$(curl -fsS "$BASE/app/restaurante-v2/mesas")"
+              [[ "$UX" == *"VANTIX_RESTAURANT_V2_UX_V78"* ]]
+              [[ "$UX" == *"¿Cómo se va a cobrar esta mesa?"* ]]
+              [[ "$UXCSS" == *"VANTIX_RESTAURANT_V2_UX_V78"* ]]
+              [[ "$SEARCH" == *"VANTIX_RESTAURANT_V2_CLIENT_SEARCH_P8"* ]]
+              [[ "$CLIENTCSS" == *"VANTIX_RESTAURANT_V2_CLIENT_EXPERIENCE_P8"* ]]
+              [[ "$PROMO" == *"VANTIX_RESTAURANT_V2_MENU_SPOTLIGHT_V1"* ]]
+              [[ "$CARTA" == *"restaurant-v2-menu-spotlight-v1.js"* ]]
+              [[ "$MESAS" == *"restaurant-v2-ux-v78.js"* ]]
+              echo "Restaurant V2 UX V78 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
