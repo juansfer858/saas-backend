@@ -59,7 +59,7 @@ async function stock(productId) {
 
 async function saleMovements(tenantId, saleId, productId) {
   return prisma.movimientoInventario.findMany({
-    where: { tenantId, comprobanteId: saleId, productoId },
+    where: { tenantId, comprobanteId: saleId, productoId: productId },
     orderBy: { creadoEn: 'asc' }
   });
 }
