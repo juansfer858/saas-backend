@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('node:path');
+const { restaurantV2OnlyP12PublicRouter } = require('./restaurant-v2-only-p12.public.routes');
 const { restaurantV1RetirementP11PublicRouter } = require('./restaurant-v1-retirement-p11.public.routes');
 const { restaurantV2ControlCenterPublicRouter } = require('./restaurant-v2-control-center.public.routes');
 const { restaurantV2TablesPublicRouter } = require('./restaurant-v2-tables.public.routes');
@@ -22,9 +23,12 @@ const webRoot = path.join(__dirname, '../../web');
 
 const restaurantOperationalV2PreviewPublicRouter = express.Router();
 
-// P11 owns the canonical Control Center first. It serves only a tenant-aware
-// launcher and a native V2 shell; no legacy Restaurant rewriting runs when P11
-// answers. Tenants not retired are sent explicitly to the P10 compatibility alias.
+// P12 is the final runtime boundary. It resolves every canonical Restaurant
+// entrypoint directly to native V2 and retires broad V1 service workers before
+// P11/P10 or any legacy response wrapper gets a chance to execute.
+restaurantOperationalV2PreviewPublicRouter.use(restaurantV2OnlyP12PublicRouter);
+// P11 remains frozen behind P12 for source-level rollback only. Its launcher is
+// no longer reachable during normal SaaS operation.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV1RetirementP11PublicRouter);
 // V2 public aggregator. Each operational module owns its own route and assets;
 // all of them are resolved here before any legacy Restaurant response wrapper.
@@ -41,7 +45,8 @@ restaurantOperationalV2PreviewPublicRouter.use(restaurantV2MenuPublicRouter);
 // Final admin parity reuses the proven QR/device APIs without rotating tokens or
 // introducing a second pairing model.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2AdminParityPublicRouter);
-// P9 is a control-plane surface only; it never rewrites canonical V1 routes.
+// P9 is kept as historical control-plane code only; P12 prevents it from exposing
+// V1 rollback routes during normal runtime.
 restaurantOperationalV2PreviewPublicRouter.use(restaurantV2PilotPublicRouter);
 // P7 owns the existing permanent physical QR path before V1. If this router is
 // removed, src/app.js keeps serving restaurant-qr.html as the automatic fallback.
