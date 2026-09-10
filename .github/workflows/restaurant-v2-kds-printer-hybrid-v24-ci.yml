@@ -1,0 +1,76 @@
+name: Restaurant V2 KDS Printer Hybrid V24 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-kds-printer-hybrid-v24.js'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'edge/agent/restaurant-print-bridge.js'
+      - 'edge/print-spooler/windows-printer.js'
+      - 'edge/agent/server.js'
+      - 'edge/agent/store.js'
+      - 'edge/supervisor/install-windows.ps1'
+      - 'scripts/restaurant-v2-kds-printer-hybrid-v24-smoke.js'
+      - '.github/workflows/restaurant-v2-kds-printer-hybrid-v24-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-kds-printer-hybrid-v24.js'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'edge/agent/restaurant-print-bridge.js'
+      - 'edge/print-spooler/windows-printer.js'
+      - 'edge/agent/server.js'
+      - 'edge/agent/store.js'
+      - 'edge/supervisor/install-windows.ps1'
+      - 'scripts/restaurant-v2-kds-printer-hybrid-v24-smoke.js'
+      - '.github/workflows/restaurant-v2-kds-printer-hybrid-v24-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate V24 browser addon syntax
+        run: node --check src/web/restaurant-v2-kds-printer-hybrid-v24.js
+      - name: Validate hybrid printer and offline storage contract
+        run: node scripts/restaurant-v2-kds-printer-hybrid-v24-smoke.js
+      - name: Keep V23 station contract green
+        run: node scripts/restaurant-v2-kds-stations-v23-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact Printer Hybrid V24 in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              PAGE="$(curl -fsS "$BASE/app/restaurante-v2/kds?v=$GITHUB_SHA")"
+              JS="$(curl -fsS "$BASE/app/restaurant-v2-kds-printer-hybrid-v24.js?v=$GITHUB_SHA")"
+              [[ "$PAGE" == *'restaurant-v2-kds-printer-hybrid-v24.js?v=v24'* ]]
+              [[ "$JS" == *'VANTIX_RESTAURANT_V2_KDS_PRINTER_HYBRID_V24'* ]]
+              [[ "$JS" == *'Detectar impresoras'* ]]
+              [[ "$JS" == *'WINDOWS_PRINTERS'* ]]
+              [[ "$JS" == *'HÍBRIDO · Edge conectado'* ]]
+              echo "Restaurant V2 KDS Printer Hybrid V24 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Exact Printer Hybrid V24 commit did not reach production in time.' >&2
+          exit 1
