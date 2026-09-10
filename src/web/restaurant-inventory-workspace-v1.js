@@ -2,6 +2,7 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_INVENTORY_WORKSPACE_V1';
+  const ACCESS_MARKER = 'VANTIX_RESTAURANT_INVENTORY_P11_ACCESS_V1';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const INVENTORY_PATH = '/app/inventario';
   const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
@@ -69,6 +70,21 @@
     return body?.data;
   }
 
+  async function accessProbe(path, accept) {
+    try {
+      const response = await fetch(path, {
+        cache: 'no-store',
+        headers: sessionHeaders(false)
+      });
+      if (!response.ok) return false;
+      let body = {};
+      try { body = await response.json(); } catch {}
+      return Boolean(accept(body?.data, body));
+    } catch {
+      return false;
+    }
+  }
+
   async function hasRestaurantAccess() {
     if (restaurantAccess !== null) return restaurantAccess;
     const session = readSession();
@@ -76,15 +92,25 @@
       restaurantAccess = false;
       return false;
     }
-    try {
-      const response = await fetch('/api/v1/restaurante/ui-context', {
-        cache: 'no-store',
-        headers: sessionHeaders(false)
-      });
-      restaurantAccess = response.ok;
-    } catch {
-      restaurantAccess = false;
+
+    // P11 is the canonical Restaurant shell. Its lightweight launch contract is
+    // deliberately checked first so Inventarios/Kardex does not depend on the
+    // heavier legacy ui-context endpoint just to decide whether it may mount.
+    const p11Enabled = await accessProbe(
+      '/api/v1/restaurante/v2/retiro-v1/launch',
+      (data) => data?.enabled === true
+    );
+    if (p11Enabled) {
+      restaurantAccess = true;
+      return true;
     }
+
+    // Compatibility fallback for Restaurant tenants that have not retired V1.
+    const legacyAccess = await accessProbe(
+      '/api/v1/restaurante/ui-context',
+      (data) => Boolean(data?.permissions)
+    );
+    restaurantAccess = legacyAccess;
     return restaurantAccess;
   }
 
@@ -365,7 +391,8 @@
 
   window.VantixGCRestaurantInventoryWorkspaceV1 = Object.freeze({
     marker: MARKER,
-    version: '1.0.0',
+    accessMarker: ACCESS_MARKER,
+    version: '1.0.1',
     refresh: () => refresh(),
     tabs: Object.freeze(['products', 'ingredients', 'recipes', 'kardex'])
   });
