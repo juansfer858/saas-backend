@@ -8,6 +8,7 @@
   let loading = false;
   let loaded = false;
   let scheduled = false;
+  let restoringWorkspace = false;
 
   function onInventoryPage() {
     return String(location.pathname || '').replace(/\/$/, '') === '/app/inventario';
@@ -56,11 +57,23 @@
     }
   }
 
+  async function restoreWorkspaceIfNeeded() {
+    if (restoringWorkspace || !onInventoryPage()) return;
+    const root = document.querySelector('.content[data-restaurant-inventory-workspace="v1"]');
+    if (!root || root.querySelector('#riwPanel')) return;
+    const refresh = window.VantixGCRestaurantInventoryWorkspaceV1?.refresh;
+    if (typeof refresh !== 'function') return;
+    restoringWorkspace = true;
+    try { await refresh(); }
+    finally { restoringWorkspace = false; }
+  }
+
   function schedule() {
     if (scheduled) return;
     scheduled = true;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(async () => {
       scheduled = false;
+      await restoreWorkspaceIfNeeded();
       loadImporter();
     });
   }
