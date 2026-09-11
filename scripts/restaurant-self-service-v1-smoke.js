@@ -75,6 +75,17 @@ assert.match(landing, /#ea580c/i);
 assert.doesNotMatch(landing, /#0d6b43/i);
 assert.doesNotMatch(landing, /#118a57/i);
 assert.doesNotMatch(landing, /--green/i);
+
+// Public Restaurant membership positioning must remain SaaS-first and truthful while billing is pre-launch.
+assert.match(landing, /Membresía SaaS para restaurantes/);
+assert.match(landing, /id="membresia"/);
+assert.match(landing, /Membresía Restaurante · 1 sede/);
+assert.match(landing, /14 días gratis/);
+assert.match(landing, /sin cobro automático/i);
+assert.match(landing, /Multi-sede/);
+assert.doesNotMatch(landing, /La capa de cobro recurrente se integra por separado/);
+assert.doesNotMatch(landing, /Comprar ahora/i);
+
 assert.match(demo, /MODO DEMOSTRACIÓN/);
 assert.match(demo, /AISLADO DEL SISTEMA REAL/);
 assert.match(demo, /ENVIAR A COCINA \/ BARRA/);
