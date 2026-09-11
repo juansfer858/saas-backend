@@ -1,4 +1,4 @@
-name: Restaurant Public Real Demo CI
+name: Restaurant Public Standalone Demo CI
 
 on:
   pull_request:
@@ -9,7 +9,9 @@ on:
       - 'src/modules/public-installer/public-installer.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-public-demo.html'
+      - 'src/web/restaurant-public-demo-modal.js'
       - 'scripts/restaurant-public-real-demo-smoke.js'
+      - 'scripts/restaurant-self-service-v1-smoke.js'
       - '.github/workflows/restaurant-public-real-demo-ci.yml'
   push:
     branches: [main]
@@ -19,7 +21,9 @@ on:
       - 'src/modules/public-installer/public-installer.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-public-demo.html'
+      - 'src/web/restaurant-public-demo-modal.js'
       - 'scripts/restaurant-public-real-demo-smoke.js'
+      - 'scripts/restaurant-self-service-v1-smoke.js'
       - '.github/workflows/restaurant-public-real-demo-ci.yml'
 
 permissions:
@@ -28,7 +32,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,13 +40,15 @@ jobs:
           node-version: '22'
       - name: Validate syntax
         run: |
-          node --check src/modules/restaurant/restaurant-public-demo-access.public.routes.js
-          node --check src/middleware/restaurant-public-demo-guard.js
           node --check src/modules/public-installer/public-installer.routes.js
           node --check src/routes/core.routes.js
+          node --check src/web/restaurant-public-demo-modal.js
           node --check scripts/restaurant-public-real-demo-smoke.js
-      - name: Validate public real-demo contract
+          node --check scripts/restaurant-self-service-v1-smoke.js
+      - name: Validate standalone commercial demo contract
         run: node scripts/restaurant-public-real-demo-smoke.js
+      - name: Validate public self-service compatibility
+        run: node scripts/restaurant-self-service-v1-smoke.js
 
   verify-production:
     if: github.event_name == 'push'
@@ -50,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 14
     steps:
-      - name: Verify real demo is live at exact commit
+      - name: Verify standalone demo is live at exact commit
         shell: bash
         run: |
           set -euo pipefail
@@ -60,16 +66,31 @@ jobs:
             if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
               PAGE="$(curl -fsS "$BASE/restaurantes/demo")"
               [[ "$PAGE" == *'MODO DEMOSTRACIÓN'* ]]
-              [[ "$PAGE" == *'/api/public/restaurantes/demo-session'* ]]
-              [[ "$PAGE" == *"/app/centro-de-control-v2"* ]]
-              SESSION="$(curl -fsS "$BASE/api/public/restaurantes/demo-session")"
-              [[ "$SESSION" == *'"demo":true'* ]]
-              [[ "$SESSION" == *'"demoMode":"PUBLIC_REAL_V2"'* ]]
-              [[ "$SESSION" == *'"subdomain":"demo-restaurante"'* ]]
-              echo "Restaurant public real demo live at $GITHUB_SHA"
+              [[ "$PAGE" == *'AISLADO DEL SISTEMA REAL'* ]]
+              [[ "$PAGE" == *'ENVIAR A COCINA / BARRA'* ]]
+              [[ "$PAGE" == *'COBRAR EN EL DEMO'* ]]
+              [[ "$PAGE" != *'/api/'* ]]
+              [[ "$PAGE" != *'/app/'* ]]
+              [[ "$PAGE" != *'demo-restaurante'* ]]
+
+              HEADERS="$(curl -fsSI "$BASE/restaurantes/demo")"
+              echo "$HEADERS" | grep -qi 'x-vantixgc-restaurant-demo-isolation: standalone-commercial-v1'
+              echo "$HEADERS" | grep -qi "connect-src 'none'"
+
+              MODAL="$(curl -fsS "$BASE/restaurantes/demo-modal-v1.js")"
+              [[ "$MODAL" == *'sandbox="allow-scripts"'* ]]
+              [[ "$MODAL" != *'allow-same-origin'* ]]
+
+              LANDING="$(curl -fsS "$BASE/restaurantes")"
+              [[ "$LANDING" == *'/restaurantes/demo-modal-v1.js'* ]]
+
+              SESSION_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/api/public/restaurantes/demo-session")"
+              [[ "$SESSION_STATUS" == '404' ]]
+
+              echo "Restaurant standalone commercial demo live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
           done
-          echo 'Exact public real-demo commit did not reach production in time.' >&2
+          echo 'Exact standalone commercial demo commit did not reach production in time.' >&2
           exit 1
