@@ -36,7 +36,13 @@ function decorateMenuRows(rows) {
 
 async function decorateMenuRowsCentral(tenantId, rows) {
   const decorated = await commercialCategories.decorateMenuRows(tenantId, rows);
-  return decorated.sort(menuRowCompare);
+  const categories = await commercialCategories.listCategories(tenantId, { includeInactive:true });
+  const categoryOrder = new Map(categories.map((category, index) => [category.id, Number.isFinite(Number(category.sortOrder)) ? Number(category.sortOrder) : index * 10]));
+  return decorated.sort((a, b) => {
+    const categoryA = categoryOrder.get(a.commercialCategoryId) ?? Number.MAX_SAFE_INTEGER;
+    const categoryB = categoryOrder.get(b.commercialCategoryId) ?? Number.MAX_SAFE_INTEGER;
+    return categoryA - categoryB || menuRowCompare(a, b);
+  });
 }
 
 function install() {
