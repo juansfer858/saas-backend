@@ -12,7 +12,10 @@ const cash = fs.readFileSync('src/web/restaurant-v2-cash.js', 'utf8');
 const backend = fs.readFileSync('src/modules/restaurant/restaurant-table-live-detail-v67.service.js', 'utf8');
 
 assert.doesNotThrow(() => new vm.Script(runtime));
-assert.match(runtime, /VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_1/);
+assert.match(runtime, /VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_2/);
+assert.match(runtime, /\.payment-card:not\(\[data-v80-empty-close\]\)/);
+assert.doesNotMatch(runtime, /document\.querySelector\('#detail \.payment-card'\)/);
+assert.match(runtime, /selfShadowSafe:true/);
 assert.match(runtime, /\/detalle-v67/);
 assert.match(runtime, /CUENTA_PEDIDA/);
 assert.match(runtime, /Number\(detail\?\.sale\?\.total\|\|0\)===0/);
@@ -27,8 +30,9 @@ assert.match(runtime, /zeroAndNoProducts:true/);
 assert.match(runtime, /noPaymentSideEffects:true/);
 assert.doesNotMatch(runtime, /\/cobrar|paymentMethodId|cajaBancoId|restaurantSessionPayment|MovimientoTesoreria|asientoContable/);
 
-assert.match(publicRoutes, /restaurant-v2-cash-close-empty-v80\.js\?v=v80/);
+assert.match(publicRoutes, /restaurant-v2-cash-close-empty-v80\.js\?v=v80\.2/);
 assert.match(publicRoutes, /X-VantixGC-Restaurant-Cash-Close-Empty/);
+assert.match(publicRoutes, /v80\.2/);
 assert.match(cashRoutes, /'\/v2\/caja\/mesas\/:tableId\/cerrar-vacia-v80'/);
 assert.match(cashRoutes, /requirePermission\('RESTAURANTE\.CERRAR'\)/);
 assert.match(cashRoutes, /cashCloseEmpty\.closeEmptyFromCash/);
@@ -46,8 +50,9 @@ assert.match(backend, /data:\s*\{\s*state:\s*'LIBRE'\s*\}/);
 
 console.log(JSON.stringify({
   ok:true,
-  module:'RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_1',
+  module:'RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_2',
   cashierAllowed:true,
+  selfShadowSafe:true,
   centerPrivilegesNotGranted:true,
   accountRequestedZeroAndNoProducts:true,
   usesExistingSafeBackend:true,
