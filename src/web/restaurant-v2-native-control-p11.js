@@ -118,6 +118,13 @@
   function hybridInstallations(payload) {
     return Array.isArray(payload) ? payload : [];
   }
+  function hybridOnline(item) {
+    if (item?.installation?.online === true || item?.online === true) return true;
+    return String(item?.heartbeat || item?.agent?.heartbeat || '').toUpperCase() === 'ONLINE';
+  }
+  function hybridVersion(item) {
+    return item?.installation?.softwareVersion || item?.agent?.softwareVersion || item?.agent?.version || item?.version || null;
+  }
   function setHybridStatus(kind, label, detail) {
     const button = $('#p11HybridStatus');
     if (!button) return;
@@ -128,9 +135,9 @@
   }
   function renderHybridStatus(rows) {
     const installations = hybridInstallations(rows);
-    const online = installations.find((item) => String(item?.heartbeat || item?.agent?.heartbeat || '').toUpperCase() === 'ONLINE');
+    const online = installations.find(hybridOnline);
     if (online) {
-      const version = online.agent?.version || online.version || null;
+      const version = hybridVersion(online);
       setHybridStatus('online', 'HÍBRIDO · Edge en línea', `Nube y Edge local disponibles${version ? ` · Edge ${version}` : ''}`);
       return;
     }
