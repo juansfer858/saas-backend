@@ -7,6 +7,7 @@ const linkService = require('./restaurant-menu-import-link.service');
 const localOcr = require('./restaurant-menu-local-ocr.service');
 const cleanup = require('./restaurant-menu-ocr-cleanup.service');
 const menuItemEdit = require('./restaurant-menu-item-edit.service');
+const commercialCategories = require('./restaurant-commercial-categories-v26.service');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 
@@ -79,6 +80,21 @@ const editImportedItemSchema = z.object({
   station: z.enum(['COCINA', 'BARRA', 'POSTRES'])
 });
 
+const commercialCategoryCreateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  sortOrder: z.coerce.number().int().min(0).max(10000).optional()
+});
+
+const commercialCategoryUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  sortOrder: z.coerce.number().int().min(0).max(10000).optional(),
+  active: z.boolean().optional()
+}).refine((input) => Object.keys(input).length > 0, { message: 'Debe enviar al menos un cambio' });
+
+const commercialCategoryAssignSchema = z.object({
+  categoryId: z.string().uuid()
+});
+
 router.get('/carta-importacion/status', requirePermission('RESTAURANTE.ADMINISTRAR'), async (_req, res, next) => {
   try {
     const status = resolvedOcrStatus();
@@ -95,16 +111,52 @@ router.get('/carta-importacion/status', requirePermission('RESTAURANTE.ADMINISTR
   } catch (error) { next(error); }
 });
 
+router.get('/carta-importacion/categorias', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
+  try {
+    res.set('X-VantixGC-Restaurant-Commercial-Categories', 'v26');
+    res.json({
+      ok: true,
+      data: await commercialCategories.listCategories(req.tenantId, { includeInactive: req.query.includeInactive === 'true' })
+    });
+  } catch (error) { next(error); }
+});
+
+router.post('/carta-importacion/categorias', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const input = parse(commercialCategoryCreateSchema, req.body || {});
+    res.status(201).json({ ok: true, data: await commercialCategories.createCategory(req.tenantId, input) });
+  } catch (error) { next(error); }
+});
+
+router.patch('/carta-importacion/categorias/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const input = parse(commercialCategoryUpdateSchema, req.body || {});
+    res.json({ ok: true, data: await commercialCategories.updateCategory(req.tenantId, req.params.id, input) });
+  } catch (error) { next(error); }
+});
+
 router.get('/carta-importacion/lista', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.listCarta(req.tenantId) }); } catch (error) { next(error); }
+  try {
+    const rows = await service.listCarta(req.tenantId);
+    res.json({ ok: true, data: await commercialCategories.decorateCartaRows(req.tenantId, rows) });
+  } catch (error) { next(error); }
+});
+
+router.put('/carta-importacion/items/:id/categoria', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const input = parse(commercialCategoryAssignSchema, req.body || {});
+    res.json({ ok: true, data: await commercialCategories.assignMenuItem(req.tenantId, req.params.id, input.categoryId) });
+  } catch (error) { next(error); }
 });
 
 router.patch('/carta-importacion/items/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try {
     const input = parse(editImportedItemSchema, req.body || {});
+    const updated = await menuItemEdit.updateImportedCartaItem(req.tenantId, req.userId, req.params.id, input);
+    const assignment = await commercialCategories.assignMenuItemByName(req.tenantId, updated.id, input.category);
     res.json({
       ok: true,
-      data: await menuItemEdit.updateImportedCartaItem(req.tenantId, req.userId, req.params.id, input)
+      data: { ...updated, categoryId: assignment.category.id, category: assignment.category.name }
     });
   } catch (error) { next(error); }
 });
@@ -136,7 +188,13 @@ router.post(
 router.post('/carta-importacion/confirmar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try {
     const input = parse(confirmSchema, req.body || {});
-    res.status(201).json({ ok: true, data: await linkService.confirmImportLinked(req.tenantId, req.userId, input) });
+    const result = await linkService.confirmImportLinked(req.tenantId, req.userId, input);
+    for (const item of Array.isArray(result?.items) ? result.items : []) {
+      if (item?.menuItemId && item?.category) {
+        await commercialCategories.assignMenuItemByName(req.tenantId, item.menuItemId, item.category);
+      }
+    }
+    res.status(201).json({ ok: true, data: result });
   } catch (error) { next(error); }
 });
 
