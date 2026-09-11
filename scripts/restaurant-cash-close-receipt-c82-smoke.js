@@ -102,27 +102,31 @@ const intent = {
 assert.equal(receipt.cashCloseSnapshotFromIntent(intent).shift.id, snapshot.shift.id);
 
 const routes = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.routes.js', 'utf8');
-assert.match(routes, /queueShiftCloseIntent\(req\.tenantId, shiftId\)/);
+assert.match(routes, /printReceipt/);
+assert.match(routes, /shiftCloseHistory\.ensureSnapshot/);
+assert.match(routes, /shiftCloseHistory\.queuePrint/);
 assert.match(routes, /closeReceipt/);
-assert.match(routes, /QUEUE_ERROR/);
+assert.match(routes, /SNAPSHOT_ERROR/);
 
 const printService = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
 assert.match(printService, /originType: \{ in: \[ORIGIN_TYPE, CASH_SHIFT_ORIGIN_TYPE\] \}/);
 assert.match(printService, /restaurant-cash-close:/);
 assert.match(printService, /EPSON_FULL_WIDTH_48_V1/);
 assert.match(printService, /CASH_CLOSE_COLUMNS_80 = 48/);
+assert.match(printService, /queueShiftCloseSnapshotIntent/);
 
 const edgeBridge = fs.readFileSync('src/modules/edge/edge-restaurant-print-bridge.js', 'utf8');
 assert.match(edgeBridge, /posReceipt\.buildRecentReceiptJobs/);
 assert.doesNotMatch(edgeBridge, /restaurant-cash-close-receipt-c82/, 'no se debe crear un circuito paralelo en Edge');
 
-console.log('RESTAURANT CASH CLOSE RECEIPT C82 SMOKE OK', JSON.stringify({
+console.log('RESTAURANT CASH CLOSE RECEIPT C82 + C86 COMPAT SMOKE OK', JSON.stringify({
   epson80Columns:48,
   centeredHeader:true,
   paymentBreakdown:true,
   cashReconciliation:true,
   salesDetail:true,
-  stablePrintJob:true,
+  stableLegacyPrintJob:true,
+  optionalC86Print:true,
   sameExistingPosOutbox:true,
   edgeUntouched:true
 }));
