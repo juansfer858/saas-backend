@@ -1,0 +1,105 @@
+name: Restaurant V2 Cash Close Empty V80 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
+      - 'src/web/restaurant-v2-cash-close-empty-v80.js'
+      - 'scripts/restaurant-v2-cash-close-empty-v80-smoke.js'
+      - 'scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js'
+      - '.github/workflows/restaurant-v2-cash-close-empty-v80-ci.yml'
+  push:
+    branches: [main, fix/rest-cash-close-empty-v80]
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
+      - 'src/web/restaurant-v2-cash-close-empty-v80.js'
+      - 'scripts/restaurant-v2-cash-close-empty-v80-smoke.js'
+      - 'scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js'
+      - '.github/workflows/restaurant-v2-cash-close-empty-v80-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      JWT_EXPIRES_IN: 8h
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Sync database
+        run: npx prisma db push
+      - name: Validate V80 UI boundary
+        run: node scripts/restaurant-v2-cash-close-empty-v80-smoke.js
+      - name: Revalidate existing safe empty-close backend V21
+        run: node scripts/restaurant-control-center-close-empty-v21-smoke.js
+      - name: Validate V80 against PostgreSQL
+        run: node scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js
+      - name: Syntax check
+        run: |
+          node --check src/web/restaurant-v2-cash-close-empty-v80.js
+          node --check src/modules/restaurant/restaurant-v2-cash.public.routes.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Wait for exact V80 commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for attempt in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              echo "PRODUCTION_EXACT_COMMIT_OK"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+      - name: Verify Caja V80 surface in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          curl -fsSL --max-time 20 -D /tmp/cash.headers -o /tmp/cash.html "$BASE/app/restaurante-v2/caja"
+          curl -fsSL --max-time 20 -o /tmp/v80.js "$BASE/app/restaurant-v2-cash-close-empty-v80.js?v=v80"
+          grep -qi '^X-VantixGC-Restaurant-Cash-Close-Empty: v80' /tmp/cash.headers
+          grep -q 'restaurant-v2-cash-close-empty-v80.js?v=v80' /tmp/cash.html
+          grep -q 'VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80' /tmp/v80.js
+          grep -q 'CERRAR MESA SIN CONSUMO' /tmp/v80.js
+          grep -q '/cerrar-vacia-v21' /tmp/v80.js
+          grep -q 'noPaymentSideEffects:true' /tmp/v80.js
+          echo 'PRODUCTION_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_OK'
