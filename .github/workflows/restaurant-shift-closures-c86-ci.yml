@@ -16,6 +16,7 @@ on:
       - 'src/web/restaurant-shift-closures-c86.js'
       - 'src/web/restaurant-shift-closures-c86-dashboard.js'
       - 'scripts/restaurant-shift-closures-c86-smoke.js'
+      - 'scripts/restaurant-shift-closures-c86-db-smoke.js'
       - '.github/workflows/restaurant-shift-closures-c86-ci.yml'
   push:
     branches: [main]
@@ -32,6 +33,7 @@ on:
       - 'src/web/restaurant-shift-closures-c86.js'
       - 'src/web/restaurant-shift-closures-c86-dashboard.js'
       - 'scripts/restaurant-shift-closures-c86-smoke.js'
+      - 'scripts/restaurant-shift-closures-c86-db-smoke.js'
       - '.github/workflows/restaurant-shift-closures-c86-ci.yml'
 
 permissions:
@@ -40,9 +42,24 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
     steps:
@@ -53,6 +70,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - run: npx prisma db push
       - name: Validate C86 syntax
         run: |
           node --check src/modules/restaurant/restaurant-shift-close-history-c86.service.js
@@ -63,9 +81,12 @@ jobs:
           node --check src/web/restaurant-shift-close-c86-cash.js
           node --check src/web/restaurant-shift-closures-c86.js
           node --check src/web/restaurant-shift-closures-c86-dashboard.js
+          node --check scripts/restaurant-shift-closures-c86-db-smoke.js
       - name: Validate C86 close/history contract
         run: node scripts/restaurant-shift-closures-c86-smoke.js
-      - name: Validate Caja P4 existing DB contract source graph
+      - name: Validate C86 with PostgreSQL real
+        run: node scripts/restaurant-shift-closures-c86-db-smoke.js
+      - name: Validate Caja P4 existing source graph
         run: node -e "require('./src/modules/restaurant/restaurant-v2-cash.routes')"
       - name: Load application graph
         run: node -e "require('./src/app')"
