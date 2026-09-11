@@ -4,7 +4,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
 const STORAGE_KEY = 'restaurantCommandTemplate';
-const VERSION = 'RESTAURANT_COMMAND_TEMPLATE_V3';
+const VERSION = 'RESTAURANT_COMMAND_TEMPLATE_V4';
 
 const DEFAULT_COMMAND_TEMPLATE = Object.freeze({
   version: VERSION,
@@ -19,7 +19,9 @@ const DEFAULT_COMMAND_TEMPLATE = Object.freeze({
   showTrace: true,
   showSeat: true,
   separatorStyle: 'DOUBLE',
-  blankLinesBetweenItems: 1
+  blankLinesBetweenItems: 1,
+  customHeaderText: '',
+  customFooterText: ''
 });
 
 const ALIGNS = new Set(['LEFT', 'CENTER']);
@@ -34,6 +36,14 @@ function cloneDefault() {
 function enumValue(value, allowed, fallback) {
   const normalized = String(value || '').trim().toUpperCase();
   return allowed.has(normalized) ? normalized : fallback;
+}
+
+function safeCustomText(value) {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 48);
 }
 
 function normalizePrintTemplate(value = {}) {
@@ -51,7 +61,9 @@ function normalizePrintTemplate(value = {}) {
     showTrace: input.showTrace === undefined ? DEFAULT_COMMAND_TEMPLATE.showTrace : Boolean(input.showTrace),
     showSeat: input.showSeat === undefined ? DEFAULT_COMMAND_TEMPLATE.showSeat : Boolean(input.showSeat),
     separatorStyle: enumValue(input.separatorStyle, SEPARATORS, DEFAULT_COMMAND_TEMPLATE.separatorStyle),
-    blankLinesBetweenItems: Math.max(0, Math.min(2, Number.isFinite(Number(input.blankLinesBetweenItems)) ? Math.trunc(Number(input.blankLinesBetweenItems)) : DEFAULT_COMMAND_TEMPLATE.blankLinesBetweenItems))
+    blankLinesBetweenItems: Math.max(0, Math.min(2, Number.isFinite(Number(input.blankLinesBetweenItems)) ? Math.trunc(Number(input.blankLinesBetweenItems)) : DEFAULT_COMMAND_TEMPLATE.blankLinesBetweenItems)),
+    customHeaderText: safeCustomText(input.customHeaderText),
+    customFooterText: safeCustomText(input.customFooterText)
   };
 }
 
@@ -115,6 +127,7 @@ module.exports = {
   STORAGE_KEY,
   VERSION,
   DEFAULT_COMMAND_TEMPLATE,
+  safeCustomText,
   normalizePrintTemplate,
   getPrintTemplate,
   savePrintTemplate,
