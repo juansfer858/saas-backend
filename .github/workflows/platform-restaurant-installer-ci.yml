@@ -10,6 +10,7 @@ on:
       - 'src/web/public-installer.html'
       - 'src/web/platform-restaurant-fiscal-governance.js'
       - 'scripts/public-installer-workspace-smoke.js'
+      - 'public/edge-releases/manifest.json'
       - '.github/workflows/platform-restaurant-installer-ci.yml'
   push:
     branches:
@@ -20,6 +21,7 @@ on:
       - 'src/web/public-installer.html'
       - 'src/web/platform-restaurant-fiscal-governance.js'
       - 'scripts/public-installer-workspace-smoke.js'
+      - 'public/edge-releases/manifest.json'
       - '.github/workflows/platform-restaurant-installer-ci.yml'
 
 jobs:
@@ -32,7 +34,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate public installer and SaaS panel contract
+      - name: Validate public installer and recommended Edge contract
         run: node scripts/public-installer-workspace-smoke.js
 
   verify-production:
@@ -41,22 +43,44 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Wait for installer V50 in production
+      - name: Wait for exact commit in production
         shell: bash
         run: |
           set -euo pipefail
           for attempt in $(seq 1 75); do
-            PAGE="$(curl -fsS --max-time 8 https://core.vantixgc.com/instalar 2>/dev/null || true)"
-            PANEL="$(curl -fsS --max-time 8 https://core.vantixgc.com/platform/restaurant-fiscal-governance.js 2>/dev/null || true)"
-            CMD_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 https://core.vantixgc.com/instalar/windows.cmd || true)"
-            if grep -q 'Instalar VantixGC Restaurantes' <<<"$PAGE" \
-              && grep -q 'VANTIXGC_PLATFORM_RESTAURANT_INSTALLER_V1' <<<"$PANEL" \
-              && [ "$CMD_STATUS" = '200' ]; then
-              echo "INSTALLER_V50_PRODUCTION_OK attempt=$attempt"
+            BODY="$(curl -fsS --max-time 8 https://core.vantixgc.com/api/public/runtime-info 2>/dev/null || true)"
+            if grep -q "\"commit\":\"${GITHUB_SHA}\"" <<<"$BODY"; then
+              echo "INSTALLER_V53_EXACT_PRODUCTION_COMMIT_OK attempt=$attempt"
               exit 0
             fi
-            echo "Esperando despliegue del instalador V50... attempt=$attempt cmd=$CMD_STATUS"
+            echo "Esperando commit exacto del instalador V53... attempt=$attempt expected=$GITHUB_SHA"
             sleep 10
           done
-          echo 'El instalador V50 no apareció en producción dentro del tiempo esperado.' >&2
+          echo "Producción no desplegó el commit $GITHUB_SHA dentro del tiempo esperado." >&2
           exit 1
+
+      - name: Verify installer V53 and recommended Edge in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAGE="$(curl -fsS --max-time 12 https://core.vantixgc.com/instalar)"
+          PANEL="$(curl -fsS --max-time 12 https://core.vantixgc.com/platform/restaurant-fiscal-governance.js)"
+          PS1="$(curl -fsS --max-time 15 https://core.vantixgc.com/instalar/windows.ps1)"
+          MANIFEST="$(curl -fsS --max-time 15 https://core.vantixgc.com/edge-releases/manifest.json)"
+          grep -q 'Instalar VantixGC Restaurantes' <<<"$PAGE"
+          grep -q 'VANTIXGC_PLATFORM_RESTAURANT_INSTALLER_V1' <<<"$PANEL"
+          grep -q '/edge-releases/manifest.json' <<<"$PS1"
+          grep -q '\$StableCandidates = @()' <<<"$PS1"
+          grep -q '\$ReleaseManifest.installRecommended' <<<"$PS1"
+          ! grep -q 'github.com/juansfer858/saas-backend/archive/\$Commit.zip' <<<"$PS1"
+          grep -q '"installRecommended"' <<<"$MANIFEST"
+          RECOMMENDED="$(node -e 'const m=JSON.parse(process.argv[1]); const v=m.installRecommended; if(!v || !m.releases?.[v]) process.exit(2); process.stdout.write(v)' "$MANIFEST")"
+          FILE="$(node -e 'const m=JSON.parse(process.argv[1]); process.stdout.write(m.releases[m.installRecommended].file)' "$MANIFEST")"
+          SHA="$(node -e 'const m=JSON.parse(process.argv[1]); process.stdout.write(m.releases[m.installRecommended].sha256)' "$MANIFEST")"
+          test -n "$RECOMMENDED"
+          test "$RECOMMENDED" = '2.1.15-offline-print.1'
+          test "$SHA" = '89d9ebe50239cf328bc6c2b5e76a2386e7e9321b80ddcebe5c12f9b105e2bef0'
+          curl -fsS --max-time 30 -o /tmp/recommended-edge.zip "https://core.vantixgc.com/edge-releases/$FILE"
+          ACTUAL="$(sha256sum /tmp/recommended-edge.zip | awk '{print $1}')"
+          test "$ACTUAL" = "$SHA"
+          echo "INSTALLER_V53_RECOMMENDED_EDGE_PRODUCTION_OK version=$RECOMMENDED sha=$SHA"
