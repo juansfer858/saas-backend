@@ -2,11 +2,13 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_AUDIT_LOG_C84';
+  const BUSINESS_MARKER = 'VANTIX_RESTAURANT_BUSINESS_AUDIT_C85';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const PAGE_PATH = '/app/configuracion-avanzada';
   const ENDPOINT = '/api/v1/restaurante/auditoria/v84?limit=200';
   if (window[MARKER] || location.pathname !== PAGE_PATH) return;
-  window[MARKER] = Object.freeze({ version:'84.0.0', surface:'ADMIN_ADVANCED', readOnly:true });
+  window[MARKER] = Object.freeze({ version:'84.1.0', surface:'ADMIN_ADVANCED', readOnly:true });
+  window[BUSINESS_MARKER] = Object.freeze({ version:'85.0.0', surface:'ADMIN_ADVANCED', readOnly:true, businessChanges:true });
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
@@ -56,6 +58,7 @@
       .rca-audit-title{font-weight:850;color:#18221d;font-size:13px}
       .rca-audit-date{font-size:11px;color:#667085;white-space:nowrap}
       .rca-audit-meta{font-size:11px;color:#667085;line-height:1.5;margin-top:6px}
+      .rca-audit-module{display:inline-block;padding:2px 7px;border-radius:999px;background:#eef2f6;color:#344054;font-size:10px;font-weight:800;margin-right:6px}
       .rca-audit-reason{font-size:12px;color:#344054;margin-top:7px;padding:8px 10px;background:#f8fafc;border-radius:8px}
       .rca-audit-details{margin-top:8px;font-size:11px;color:#667085}
       .rca-audit-details pre{white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;max-height:220px;overflow:auto}
@@ -72,21 +75,21 @@
       const metadata = item.metadata ? esc(JSON.stringify(item.metadata, null, 2)) : '';
       return `<div class="rca-audit-row">
         <div class="rca-audit-top">
-          <div><div class="rca-audit-title">${esc(item.label || item.action || 'Actividad')}</div><div class="rca-audit-meta">${esc(who)}${item.user?.role ? ` · ${esc(item.user.role)}` : ''} · ${esc(item.entity || '')}</div></div>
+          <div><div class="rca-audit-title">${item.module ? `<span class="rca-audit-module">${esc(item.module)}</span>` : ''}${esc(item.label || item.action || 'Actividad')}</div><div class="rca-audit-meta">${esc(who)}${item.user?.role ? ` · ${esc(item.user.role)}` : ''} · ${esc(item.entity || '')}</div></div>
           <div class="rca-audit-date">${esc(when)}</div>
         </div>
         ${item.reason ? `<div class="rca-audit-reason"><strong>Motivo:</strong> ${esc(item.reason)}</div>` : ''}
-        ${metadata ? `<details class="rca-audit-details"><summary>Ver detalle técnico</summary><pre>${metadata}</pre></details>` : ''}
+        ${metadata ? `<details class="rca-audit-details"><summary>Ver detalle del cambio</summary><pre>${metadata}</pre></details>` : ''}
       </div>`;
     }).join('');
 
-    return `<div class="panel" data-restaurant-audit-log="${MARKER}">
+    return `<div class="panel" data-restaurant-audit-log="${MARKER}" data-business-audit="${BUSINESS_MARKER}">
       <div class="ph">
         <div><strong>Auditoría / Registro de actividad</strong><div class="muted" style="font-size:12px;margin-top:4px">Historial administrativo del restaurante. Esta vista es sólo lectura.</div></div>
         <span class="badge ok">AUDITORÍA</span>
       </div>
       <div class="pb">
-        <div class="rca-audit-note"><strong>Este historial no se elimina con Limpieza de pruebas.</strong> Registra usuario, fecha, acción y el motivo cuando aplica, incluyendo reinicios del consecutivo POS y limpiezas de datos de prueba.</div>
+        <div class="rca-audit-note"><strong>Este historial no se elimina con Limpieza de pruebas.</strong> Además de reinicios y limpiezas, registra cambios reales de negocio en Carta, ventas, Caja/Tesorería, clientes, inventario, empleados, pagos, seguridad y configuración. No registra clics, consultas ni eventos técnicos repetitivos.</div>
         <div class="rca-audit-list">${rows || '<div class="muted">Aún no hay registros de auditoría para mostrar.</div>'}</div>
       </div>
     </div>`;
