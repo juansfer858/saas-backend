@@ -8,6 +8,7 @@ const { requirePermission }=require('../../middleware/require-permission');
 const base=require('./restaurant.service');
 const identity=require('./restaurant-identity.service');
 const kdsPush=require('./restaurant-v2-kds-push.service');
+const adminDraft=require('./restaurant-v2-orders-admin-draft.service');
 
 const router=express.Router();
 const V2_OPTIONS=Object.freeze({sharedFloor:true,optionalSeat:true});
@@ -39,6 +40,7 @@ router.post('/v2/mesas/:id/abrir',requirePermission('MESAS.CREAR'),async(req,res
 router.post('/v2/mesas/:id/pedir-cuenta',requirePermission('MESAS.EDITAR'),async(req,res,next)=>{try{res.json({ok:true,data:await base.requestAccount(req.tenantId,req.user,req.params.id,V2_OPTIONS)})}catch(error){next(error)}});
 router.get('/v2/sesiones/:sessionId/pedido',requirePermission('PEDIDOS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:await identity.getWaiterDraft(req.tenantId,req.user,req.params.sessionId,V2_OPTIONS)})}catch(error){next(error)}});
 router.put('/v2/sesiones/:sessionId/pedido/items/:menuItemId',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{const input=parse(qtySchema,req.body);res.json({ok:true,data:await identity.setWaiterDraftItem(req.tenantId,req.user,req.params.sessionId,req.params.menuItemId,input.quantity,input.seatNumber??null,V2_OPTIONS)})}catch(error){next(error)}});
+router.delete('/v2/sesiones/:sessionId/pedido/items/:itemId',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{res.json({ok:true,data:await adminDraft.removeUnsentWaiterDraftItem(req.tenantId,req.params.sessionId,req.params.itemId)})}catch(error){next(error)}});
 router.patch('/v2/sesiones/:sessionId/items/:itemId',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{res.json({ok:true,data:await identity.updateOrderItemMeta(req.tenantId,req.user,req.params.sessionId,req.params.itemId,parse(metaSchema,req.body),V2_OPTIONS)})}catch(error){next(error)}});
 router.patch('/v2/sesiones/:sessionId/personas',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{const input=parse(peopleSchema,req.body);res.json({ok:true,data:await identity.updateTableServiceSetup(req.tenantId,req.user,req.params.sessionId,{guestCount:input.guestCount},V2_OPTIONS)})}catch(error){next(error)}});
 router.post('/v2/sesiones/:sessionId/pedido/enviar',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{
