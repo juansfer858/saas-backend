@@ -4,15 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>VantixGC Restaurante · Operación V2</title>
-  <link rel="stylesheet" href="/app/restaurant-v2-native-control-p11.css?v=p11-operation-nav">
+  <link rel="stylesheet" href="/app/restaurant-v2-native-control-p11.css?v=p11-hybrid-status-v84">
+  <link rel="stylesheet" href="/app/restaurant-v2-hybrid-status-v84.css?v=v84">
   <link rel="stylesheet" href="/app/restaurant-v2-sidebar-super-core-v16.css?v=v16">
   <link rel="stylesheet" href="/app/restaurant-v2-sidebar-graphite-v17.css?v=v17">
   <style>
     /* VANTIX_RESTAURANT_V2_MODULE_CHROME_CLEAN_P11 */
     .p11-main.module-open{padding:0!important}
-    .p11-main.module-open .p11-workspace{height:100dvh!important;min-height:100dvh!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important}
+    .p11-main.module-open .p11-workspace{height:calc(100dvh - 44px)!important;min-height:calc(100dvh - 44px)!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important}
     .p11-main.module-open .p11-workspace iframe{height:100%!important}
-    @media(max-width:900px){.p11-main.module-open .p11-workspace{height:calc(100dvh - 64px)!important;min-height:calc(100dvh - 64px)!important}}
+    @media(max-width:900px){.p11-main.module-open .p11-workspace{height:calc(100dvh - 108px)!important;min-height:calc(100dvh - 108px)!important}}
   </style>
 </head>
 <body data-v2-native-control="p11">
@@ -25,12 +26,18 @@
     </aside>
 
     <main id="p11Main" class="p11-main">
+      <button id="p11HybridStatus" class="p11-hybrid-status is-checking" type="button" aria-label="Abrir Estado local y nube en Dispositivos">
+        <span class="p11-hybrid-dot" aria-hidden="true"></span>
+        <strong id="p11HybridLabel">HÍBRIDO · Comprobando Edge…</strong>
+        <small id="p11HybridDetail">Nube disponible · consultando acceso local</small>
+        <span class="p11-hybrid-open" aria-hidden="true">Estado local y nube →</span>
+      </button>
       <div id="p11Message" class="p11-message" hidden></div>
       <section id="p11Workspace" class="p11-workspace" hidden>
         <iframe id="p11Frame" title="Módulo Restaurante V2"></iframe>
       </section>
     </main>
   </div>
-  <script src="/app/restaurant-v2-native-control-p11.js?v=p11-operation-nav"></script>
+  <script src="/app/restaurant-v2-native-control-p11.js?v=p11-hybrid-status-v84"></script>
 </body>
 </html>

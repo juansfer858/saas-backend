@@ -1,8 +1,9 @@
 /* VANTIX_RESTAURANT_V2_ADMIN_PARITY_V1 */
+/* VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84 */
 (()=>{'use strict';
   const V=window.RestaurantV2;
   if(!V) throw new Error('Restaurant V2 SDK no disponible');
-  const S={context:null,tab:location.pathname.endsWith('/dispositivos')?'devices':'qrs',deviceKind:'waiter',qrs:[],users:[],waiterDevices:[],productionDevices:[],pairing:null};
+  const S={context:null,tab:location.pathname.endsWith('/dispositivos')?'devices':'qrs',deviceKind:'waiter',qrs:[],users:[],waiterDevices:[],productionDevices:[],edgeInstallations:[],pairing:null};
   const $=(q)=>document.querySelector(q);const $$=(q)=>[...document.querySelectorAll(q)];const esc=V.esc;
   const roleLabel=(role)=>role==='MESERO'?'Mesero':role==='COCINA'?'Cocina':role==='BARRA'?'Barra':role==='POSTRES'?'Postres':String(role||'Producción');
   const dateText=(value)=>{if(!value)return 'Sin registro';const d=new Date(value);return Number.isNaN(d.getTime())?'Sin registro':new Intl.DateTimeFormat('es-CO',{dateStyle:'short',timeStyle:'short'}).format(d)};
@@ -70,7 +71,48 @@
   async function loadDevices(silent=false){
     if(!silent)notice('Cargando empleados y dispositivos…');
     const [users,waiterDevices,productionDevices]=await Promise.all([V.api('/api/v1/usuarios'),V.api('/api/v1/restaurante/dispositivos-mesero'),V.api('/api/v1/restaurante/dispositivos-produccion')]);
-    S.users=Array.isArray(users)?users:[];S.waiterDevices=Array.isArray(waiterDevices)?waiterDevices:[];S.productionDevices=Array.isArray(productionDevices)?productionDevices:[];renderDevices();if(!silent)notice('Dispositivos actualizados.','ok')
+    S.users=Array.isArray(users)?users:[];S.waiterDevices=Array.isArray(waiterDevices)?waiterDevices:[];S.productionDevices=Array.isArray(productionDevices)?productionDevices:[];renderDevices();await loadHybridState();if(!silent)notice('Dispositivos actualizados.','ok')
+  }
+  function edgeHeartbeat(row){return String(row?.heartbeat||row?.agent?.heartbeat||'').toUpperCase()}
+  function edgeVersion(row){return row?.agent?.version||row?.version||'Sin versión reportada'}
+  function edgeLastSeen(row){return row?.lastHeartbeatAt||row?.agent?.lastSeenAt||null}
+  function focusHybridState(){if(S.tab!=='devices'||location.hash!=='#estado-local-nube')return;requestAnimationFrame(()=>$('#estado-local-nube')?.scrollIntoView({block:'start',behavior:'smooth'}))}
+  function renderHybridState(){
+    const rows=Array.isArray(S.edgeInstallations)?S.edgeInstallations:[];
+    const online=rows.find(row=>edgeHeartbeat(row)==='ONLINE');
+    const selected=online||rows[0]||null;
+    const badge=$('#hybridStateBadge');
+    $('#hybridCloudStatus').textContent='En línea';
+    $('#hybridCloudDetail').textContent='Core disponible · la operación por Internet está activa.';
+    badge.className='hybrid-state-badge';
+    if(online){
+      badge.classList.add('online');badge.textContent='EDGE EN LÍNEA';
+      $('#hybridEdgeStatus').textContent='En línea';
+      $('#hybridEdgeDetail').textContent='El acceso local está reportando heartbeat al Core.';
+    }else if(rows.length){
+      badge.classList.add('offline');badge.textContent='EDGE SIN CONEXIÓN';
+      $('#hybridEdgeStatus').textContent='Sin conexión';
+      $('#hybridEdgeDetail').textContent='La nube sigue activa; Edge se sincronizará cuando vuelva.';
+    }else{
+      badge.classList.add('cloud');badge.textContent='EDGE NO INSTALADO';
+      $('#hybridEdgeStatus').textContent='No instalado';
+      $('#hybridEdgeDetail').textContent='Este restaurante opera por Internet hasta instalar Edge local.';
+    }
+    if(selected){
+      const platform=[selected.platform,selected.arch].filter(Boolean).join(' · ')||'Plataforma no reportada';
+      $('#hybridStateMeta').textContent=`Instalaciones: ${rows.length} · Heartbeat: ${edgeHeartbeat(selected)||'SIN REGISTRO'} · Último contacto: ${dateText(edgeLastSeen(selected))} · ${platform} · Edge ${edgeVersion(selected)}`;
+    }else $('#hybridStateMeta').textContent='No hay una instalación Edge registrada para este tenant.';
+    focusHybridState();
+  }
+  function renderHybridUnavailable(error){
+    const badge=$('#hybridStateBadge');badge.className='hybrid-state-badge';badge.textContent='ESTADO NO DISPONIBLE';
+    $('#hybridCloudStatus').textContent='En línea';$('#hybridCloudDetail').textContent='La pantalla continúa conectada al Core.';
+    $('#hybridEdgeStatus').textContent='No disponible';$('#hybridEdgeDetail').textContent='No se pudo consultar la telemetría Edge en este momento.';
+    $('#hybridStateMeta').textContent=`Consulta Edge: ${error?.message||'sin respuesta'}. Esto no bloquea la operación por nube.`;
+    focusHybridState();
+  }
+  async function loadHybridState(){
+    try{const rows=await V.api('/api/v1/edge/installations');S.edgeInstallations=Array.isArray(rows)?rows:[];renderHybridState()}catch(error){S.edgeInstallations=[];renderHybridUnavailable(error)}
   }
   function currentStaff(){return S.deviceKind==='waiter'?S.users.filter(u=>u.activo&&u.rol==='MESERO'):S.users.filter(u=>u.activo&&['COCINA','BARRA','POSTRES'].includes(u.rol))}
   function currentDevices(){return S.deviceKind==='waiter'?S.waiterDevices:S.productionDevices}

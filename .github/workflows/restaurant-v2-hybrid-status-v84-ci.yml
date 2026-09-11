@@ -1,0 +1,105 @@
+name: Restaurant V2 Hybrid Status V84 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-native-control-p11.html'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/web/restaurant-v2-hybrid-status-v84.css'
+      - 'src/web/restaurant-v2-admin-parity.html'
+      - 'src/web/restaurant-v2-admin-parity.js'
+      - 'src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js'
+      - 'scripts/restaurant-v2-hybrid-status-v84-smoke.js'
+      - '.github/workflows/restaurant-v2-hybrid-status-v84-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-native-control-p11.html'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/web/restaurant-v2-hybrid-status-v84.css'
+      - 'src/web/restaurant-v2-admin-parity.html'
+      - 'src/web/restaurant-v2-admin-parity.js'
+      - 'src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js'
+      - 'scripts/restaurant-v2-hybrid-status-v84-smoke.js'
+      - '.github/workflows/restaurant-v2-hybrid-status-v84-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  hybrid-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: |
+          node --check src/web/restaurant-v2-native-control-p11.js
+          node --check src/web/restaurant-v2-admin-parity.js
+          node --check src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js
+          node --check scripts/restaurant-v2-hybrid-status-v84-smoke.js
+      - name: Contract smoke
+        run: node scripts/restaurant-v2-hybrid-status-v84-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: hybrid-status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://core.vantixgc.com/api/public/runtime-info"
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            echo "Waiting for exact production commit... attempt=$attempt expected=$GITHUB_SHA"
+            sleep 10
+          done
+          echo "Production did not deploy commit $GITHUB_SHA in time" >&2
+          exit 1
+
+      - name: Verify runtime ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 https://core.vantixgc.com/healthz | grep -q '"status":"alive"'
+          curl -fsSL --max-time 15 https://core.vantixgc.com/readyz | tee /tmp/readyz.json
+          grep -q '"status":"ready"' /tmp/readyz.json
+          grep -q '"database":"OK"' /tmp/readyz.json
+          curl -fsSL --max-time 15 https://core.vantixgc.com/api/public/runtime-info | tee /tmp/runtime.json
+          grep -q '"phase":"READY"' /tmp/runtime.json
+          grep -q "\"commit\":\"${GITHUB_SHA}\"" /tmp/runtime.json
+
+      - name: Verify hybrid status V84 assets in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -o /tmp/control.html 'https://core.vantixgc.com/app/centro-de-control-v2'
+          grep -q 'id="p11HybridStatus"' /tmp/control.html
+          grep -q 'restaurant-v2-hybrid-status-v84.css?v=v84' /tmp/control.html
+
+          curl -fsSL --max-time 20 -o /tmp/control.js 'https://core.vantixgc.com/app/restaurant-v2-native-control-p11.js?v=p11-hybrid-status-v84'
+          grep -q 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84' /tmp/control.js
+          grep -q '/api/v1/edge/installations' /tmp/control.js
+          grep -q 'HÍBRIDO · Edge sin conexión' /tmp/control.js
+          grep -q 'estado-local-nube' /tmp/control.js
+
+          curl -fsSL --max-time 20 -o /tmp/devices.html 'https://core.vantixgc.com/app/restaurante-v2/dispositivos'
+          grep -q 'id="estado-local-nube"' /tmp/devices.html
+          grep -q 'Estado local y nube' /tmp/devices.html
+
+          curl -fsSL --max-time 20 -o /tmp/admin.js 'https://core.vantixgc.com/app/restaurant-v2-admin-parity.js?v=hybrid-v84'
+          grep -q 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84' /tmp/admin.js
+          grep -q '/api/v1/edge/installations' /tmp/admin.js
+
+          curl -fsSL --max-time 20 -o /tmp/hybrid.css 'https://core.vantixgc.com/app/restaurant-v2-hybrid-status-v84.css?v=v84'
+          grep -q 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84' /tmp/hybrid.css
+          echo 'PRODUCTION_RESTAURANT_V2_HYBRID_STATUS_V84_READY'
