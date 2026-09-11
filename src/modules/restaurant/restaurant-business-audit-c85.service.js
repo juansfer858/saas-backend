@@ -39,6 +39,7 @@ function sanitize(value, depth = 0, seen = new WeakSet()) {
 
 function subjectForPath(pathname) {
   const p = String(pathname || '').toLowerCase();
+  if (/\/carta-importacion\/items\//.test(p)) return 'PRODUCTO';
   if (/(producto|product)/.test(p)) return 'PRODUCTO';
   if (/(categor)/.test(p)) return 'CATEGORIA';
   if (/(receta|recipe)/.test(p)) return 'RECETA';
@@ -84,7 +85,9 @@ function restaurantAdminPathAllowed(method, pathname) {
   if (/^\/restaurante\/limpieza-pruebas\//.test(p)) return false; // ya tiene auditoría propia C83/V68
   if (/^\/restaurante\/auditoria\//.test(p)) return false;
   if (NOISY_PATH.test(p)) return false;
+  if (/^\/restaurante\/carta-importacion\/analizar(?:-binario)?\/?$/.test(p)) return false; // análisis OCR no persiste cambios
   if (/^\/restaurante\/(theme|config|gates)(\/|$)/.test(p)) return true;
+  if (/^\/restaurante\/carta-importacion\/(categorias|items|promo-v28|confirmar|importados-ocr)(\/|$)/.test(p)) return true;
   if (/^\/restaurante\/(menu|carta|categor|categorias|receta|recetas|producto|productos)(\/|$)/.test(p)) return true;
   if (/^\/restaurante\/(credito|credit|caja|cash)(\/|$)/.test(p)) return true;
   if (/^\/restaurante\/(empleado|empleados|employee|employees)(\/|$)/.test(p)) return true;
