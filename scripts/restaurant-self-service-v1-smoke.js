@@ -88,7 +88,7 @@ assert.match(landing, /\$149\.900/);
 assert.match(landing, /\$249\.900/);
 assert.match(landing, /Compara los planes/);
 assert.match(landing, /14 días gratis/);
-assert.match(landing, /sin cobro automático/i);
+assert.match(landing, /(sin cobro automático|No hay cobro automático)/i);
 assert.match(landing, /Multi-sede/);
 assert.match(landing, /\/restaurantes\/crear\?plan=esencial/);
 assert.match(landing, /\/restaurantes\/crear\?plan=profesional/);
