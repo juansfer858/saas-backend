@@ -1,0 +1,22 @@
+/* VANTIXGC_RESTAURANT_SINGLE_MEMBERSHIP_V1 */
+.vr-membership-head{max-width:900px}
+.vr-membership-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(320px,.7fr);gap:18px;align-items:stretch}
+.vr-membership-card{min-height:0!important;transform:none!important;padding:34px!important}
+.vr-membership-card .plan-desc{min-height:0;max-width:690px;font-size:15px}
+.vr-membership-card .price strong{font-size:52px}
+.vr-membership-features{grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:24px!important;row-gap:12px!important}
+.vr-membership-features li{font-size:13px!important}
+.vr-implementation-card{background:#171717;color:#fff;border-radius:24px;padding:32px;display:flex;flex-direction:column;border:1px solid #292524;box-shadow:0 20px 50px rgba(23,23,23,.10)}
+.vr-implementation-card .eyebrow{color:#fdba74}
+.vr-implementation-card h3{font-size:29px;line-height:1.05;letter-spacing:-.035em;margin:10px 0 8px}
+.vr-implementation-card>p{color:#d6d3d1;font-size:13px;line-height:1.55}
+.vr-implementation-card .vr-implementation-once{color:#fdba74;font-weight:900;margin:0 0 12px}
+.vr-implementation-card ul{list-style:none;margin:18px 0 22px;padding:0;display:grid;gap:10px}
+.vr-implementation-card li{font-size:13px;line-height:1.4;color:#f5f5f4}
+.vr-implementation-card li:before{content:'✓';color:#fb923c;font-weight:950;margin-right:8px}
+.vr-implementation-note{margin-top:auto;border:1px solid #44403c;border-radius:15px;padding:14px;background:#262626;display:grid;gap:4px}
+.vr-implementation-note b{font-size:12px;color:#fff}
+.vr-implementation-note span{font-size:11px;line-height:1.45;color:#bdb8b4}
+#membresia .plans-note b{color:#171717}
+@media(max-width:900px){.vr-membership-grid{grid-template-columns:1fr}.vr-membership-card{padding:28px!important}.vr-membership-features{grid-template-columns:1fr!important}.vr-implementation-card{padding:28px}}
+@media(max-width:640px){.vr-membership-card,.vr-implementation-card{border-radius:20px;padding:22px!important}.vr-membership-card .price strong{font-size:44px}.vr-implementation-card h3{font-size:25px}.vr-membership-card .plan-ribbon{position:static;align-self:flex-start;width:max-content;margin-bottom:12px}.vr-membership-card .price{flex-wrap:wrap}}
