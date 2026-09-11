@@ -33,8 +33,8 @@
     "2.1.15-offline-print.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.15-offline-print.1.zip",
-      "sha256": "1aa964eb0d170a4c753b4d4866629cfb7688fb0f52f42952b7449355dceb5b68",
-      "sourceCommit": "f24c7489bacc0393130eca401ed961c2268113a4"
+      "sha256": "89d9ebe50239cf328bc6c2b5e76a2386e7e9321b80ddcebe5c12f9b105e2bef0",
+      "sourceCommit": "c3513f049cc2462943ffac4bc5dba7a3c2c03450"
     },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
