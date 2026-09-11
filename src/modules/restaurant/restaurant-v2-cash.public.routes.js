@@ -35,6 +35,8 @@ async function sendCashHtml(_req, res, next) {
 }
 
 router.get('/app/restaurante-v2/caja', sendCashHtml);
+router.get('/app/restaurante-v2/cierres', (req, res) => sendAsset(res, 'restaurant-shift-close-history-c86.html', 'text/html; charset=utf-8'));
+router.get('/app/restaurant-shift-close-history-c86.js', (req, res) => sendAsset(res, 'restaurant-shift-close-history-c86.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-cash.css', (req, res) => sendAsset(res, 'restaurant-v2-cash.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-cash.js', (req, res) => sendAsset(res, 'restaurant-v2-cash.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-payment-methods-v77.js', (req, res) => sendAsset(res, 'restaurant-v2-payment-methods-v77.js', 'application/javascript; charset=utf-8'));

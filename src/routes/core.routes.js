@@ -42,6 +42,7 @@ const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restauran
 const { restaurantV2TableOpenRequestRouter } = require('../modules/restaurant/restaurant-v2-table-open-request.routes');
 const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v2-orders.routes');
 const { restaurantV2CashRouter } = require('../modules/restaurant/restaurant-v2-cash.routes');
+const { restaurantShiftCloseHistoryC86Router } = require('../modules/restaurant/restaurant-shift-close-history-c86.routes');
 const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2-split.routes');
 const { restaurantV2KdsRouter } = require('../modules/restaurant/restaurant-v2-kds.routes');
 const { restaurantV2PilotRouter } = require('../modules/restaurant/restaurant-v2-pilot.routes');
@@ -103,6 +104,9 @@ router.use('/restaurante', restaurantV2OrdersRouter);
 // V2 P4 Caja owns its API independently. It closes the same real sale/session but never
 // enters the legacy V1 cash UI rewrite chain and never makes DIAN a mandatory gate.
 router.use('/restaurante', restaurantV2CashRouter);
+// C86 is read-only after the shift closes. It snapshots the operational reconciliation,
+// exposes history/export/reprint and never mutates sales, inventory or accounting totals.
+router.use('/restaurante', restaurantShiftCloseHistoryC86Router);
 // V2 P5 Division is a separate settlement surface. It uses the same sale/session and
 // real Treasury/Accounting contracts while keeping the legacy Restaurant routes intact.
 router.use('/restaurante', restaurantV2SplitRouter);
