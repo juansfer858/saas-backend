@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/web/restaurant-delivery-orders-menu-v91.js'
       - 'src/web/restaurant-delivery-lazy-menu-v92.js'
+      - 'src/web/restaurant-delivery-orders-compact-v93.js'
       - 'src/web/restaurant-v2-orders.js'
       - 'src/web/restaurant-v2-delivery-p11.html'
       - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
@@ -16,6 +17,7 @@ on:
     paths:
       - 'src/web/restaurant-delivery-orders-menu-v91.js'
       - 'src/web/restaurant-delivery-lazy-menu-v92.js'
+      - 'src/web/restaurant-delivery-orders-compact-v93.js'
       - 'src/web/restaurant-v2-orders.js'
       - 'src/web/restaurant-v2-delivery-p11.html'
       - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
@@ -35,9 +37,11 @@ jobs:
         run: node --check src/web/restaurant-delivery-orders-menu-v91.js
       - name: Syntax check Delivery lazy menu V92
         run: node --check src/web/restaurant-delivery-lazy-menu-v92.js
+      - name: Syntax check Delivery compact orders V93
+        run: node --check src/web/restaurant-delivery-orders-compact-v93.js
       - name: Syntax check public Delivery routes
         run: node --check src/modules/restaurant/restaurant-delivery.public.routes.js
-      - name: Validate Orders menu V91/V92 contract
+      - name: Validate Orders menu V91/V92/V93 contract
         run: node scripts/restaurant-delivery-orders-menu-v91-smoke.js
       - name: Validate V90 rollback source
         run: node --check src/web/restaurant-delivery-shared-menu-v90.js
