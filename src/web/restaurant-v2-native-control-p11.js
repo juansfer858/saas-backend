@@ -5,6 +5,8 @@
   const P12_MARKER = 'VANTIX_RESTAURANT_V2_ONLY_CONTROL_P12';
   const MODULE_CHROME_MARKER = 'VANTIX_RESTAURANT_V2_MODULE_CHROME_CLEAN_P11';
   const OPERATION_NAV_MARKER = 'VANTIX_RESTAURANT_V2_OPERATION_NAV_NO_DASHBOARD_P11';
+  const HYBRID_STATUS_MARKER = 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84';
+  const HYBRID_SECTION = 'estado-local-nube';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const MODULES = Object.freeze({
     mesas:{ label:'Mesas', hint:'Salón y estado de mesas', route:'/app/restaurante-v2/mesas', roles:['ADMIN','SUPER_ADMIN','MESERO','CAJERO'] },
@@ -24,6 +26,7 @@
   document.documentElement.dataset.restaurantV2OnlyControl = P12_MARKER;
   document.documentElement.dataset.restaurantV2ModuleChrome = MODULE_CHROME_MARKER;
   document.documentElement.dataset.restaurantV2OperationNav = OPERATION_NAV_MARKER;
+  document.documentElement.dataset.restaurantV2HybridStatus = HYBRID_STATUS_MARKER;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); }
@@ -53,6 +56,9 @@
     const raw = String(value || '').trim();
     return ALIASES[raw] || raw;
   }
+  function sectionKey(value) {
+    return String(value || '').trim() === HYBRID_SECTION ? HYBRID_SECTION : '';
+  }
 
   function renderIdentity() {
     const tenant = session.tenant?.nombreEmpresa || session.tenant?.nombre || session.subdomain || 'Restaurante';
@@ -78,18 +84,25 @@
       item.classList.toggle('active', item.dataset.module === key);
     });
   }
-  function openModule(rawKey, updateHistory = true) {
+  function openModule(rawKey, updateHistory = true, rawSection = '') {
     const key = moduleKey(rawKey);
     const module = MODULES[key];
     if (!module || !allowed(module)) { setMessage('Tu usuario no tiene permiso para abrir este módulo.'); return; }
     if (module.external) { location.assign(module.route); return; }
+    const section = key === 'devices' ? sectionKey(rawSection) : '';
+    const targetRoute = `${module.route}${section ? `#${section}` : ''}`;
     setMessage('');
     $('#p11Main').classList.add('module-open');
     $('#p11Workspace').hidden = false;
     const frame = $('#p11Frame');
-    if (frame.getAttribute('src') !== module.route) frame.setAttribute('src', module.route);
+    if (frame.getAttribute('src') !== targetRoute) frame.setAttribute('src', targetRoute);
     setActive(key);
-    if (updateHistory) history.replaceState({ ...(history.state || {}), p11Module:key }, '', `/app/centro-de-control-v2?module=${encodeURIComponent(key)}`);
+    if (updateHistory) {
+      const url = new URL('/app/centro-de-control-v2', location.origin);
+      url.searchParams.set('module', key);
+      if (section) url.searchParams.set('section', section);
+      history.replaceState({ ...(history.state || {}), p11Module:key, p11Section:section || null }, '', `${url.pathname}${url.search}`);
+    }
   }
   function openDefault(updateHistory = true) {
     const key = defaultModuleKey();
@@ -102,12 +115,77 @@
     openModule(key, updateHistory);
   }
 
+  function hybridInstallations(payload) {
+    return Array.isArray(payload) ? payload : [];
+  }
+  function setHybridStatus(kind, label, detail) {
+    const button = $('#p11HybridStatus');
+    if (!button) return;
+    button.classList.remove('is-checking','is-online','is-offline','is-cloud','is-unknown');
+    button.classList.add(`is-${kind}`);
+    $('#p11HybridLabel').textContent = label;
+    $('#p11HybridDetail').textContent = detail;
+  }
+  function renderHybridStatus(rows) {
+    const installations = hybridInstallations(rows);
+    const online = installations.find((item) => String(item?.heartbeat || item?.agent?.heartbeat || '').toUpperCase() === 'ONLINE');
+    if (online) {
+      const version = online.agent?.version || online.version || null;
+      setHybridStatus('online', 'HÍBRIDO · Edge en línea', `Nube y Edge local disponibles${version ? ` · Edge ${version}` : ''}`);
+      return;
+    }
+    if (installations.length) {
+      setHybridStatus('offline', 'HÍBRIDO · Edge sin conexión', 'Nube activa · la operación sigue por Internet');
+      return;
+    }
+    setHybridStatus('cloud', 'HÍBRIDO · Edge no instalado', 'Nube activa · este restaurante depende de Internet');
+  }
+  async function refreshHybridStatus() {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch('/api/v1/edge/installations', {
+        method:'GET',
+        cache:'no-store',
+        signal:controller.signal,
+        headers:{
+          Accept:'application/json',
+          Authorization:`Bearer ${session.token}`,
+          'x-tenant-subdomain':session.subdomain
+        }
+      });
+      let body = {};
+      try { body = await response.json(); } catch {}
+      if (!response.ok) throw new Error(body?.error?.message || `HTTP ${response.status}`);
+      renderHybridStatus(body?.data);
+    } catch (_error) {
+      setHybridStatus('unknown', 'HÍBRIDO · Estado Edge no disponible', 'Nube activa · no se pudo consultar el acceso local');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  function openHybridDevices() {
+    const devices = MODULES.devices;
+    if (!allowed(devices)) {
+      setMessage('El estado es informativo. Sólo Administración puede abrir Dispositivos.');
+      return;
+    }
+    openModule('devices', true, HYBRID_SECTION);
+  }
+
   function bindStatic() {
+    $('#p11HybridStatus')?.addEventListener('click', openHybridDevices);
     window.addEventListener('popstate', () => {
-      const key = moduleKey(new URLSearchParams(location.search).get('module'));
-      if (key && MODULES[key] && allowed(MODULES[key])) openModule(key, false);
+      const params = new URLSearchParams(location.search);
+      const key = moduleKey(params.get('module'));
+      const section = sectionKey(params.get('section'));
+      if (key && MODULES[key] && allowed(MODULES[key])) openModule(key, false, section);
       else openDefault(false);
     });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshHybridStatus();
+    });
+    window.setInterval(refreshHybridStatus, 30000);
   }
 
   function boot() {
@@ -117,9 +195,12 @@
       renderIdentity();
       renderNav();
       bindStatic();
-      const initial = moduleKey(new URLSearchParams(location.search).get('module'));
-      if (initial && MODULES[initial] && allowed(MODULES[initial])) openModule(initial, false);
+      const params = new URLSearchParams(location.search);
+      const initial = moduleKey(params.get('module'));
+      const section = sectionKey(params.get('section'));
+      if (initial && MODULES[initial] && allowed(MODULES[initial])) openModule(initial, false, section);
       else openDefault(true);
+      refreshHybridStatus();
     } catch (error) {
       setMessage(error.message || 'No fue posible abrir la operación V2.');
     }
