@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const { restaurantSelfServicePublicRouter } = require('../self-service/restaurant-self-service.routes');
+const { restaurantPublicDemoAccessRouter } = require('../restaurant/restaurant-public-demo-access.public.routes');
 const windowsInstaller = require('./windows-installer-v27.service');
 
 const router = express.Router();
@@ -15,6 +16,7 @@ const restaurantPublicThemePath = path.join(webRoot, 'restaurant-public-theme.cs
 const edgeReleaseRoot = path.resolve(__dirname, '..', '..', '..', 'public', 'edge-releases');
 const edgeManifestPath = path.join(edgeReleaseRoot, 'manifest.json');
 
+router.use('/api/public/restaurantes', restaurantPublicDemoAccessRouter);
 router.use('/api/public/restaurantes', restaurantSelfServicePublicRouter);
 
 function publicBaseUrl(req) {
