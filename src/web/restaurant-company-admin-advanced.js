@@ -3,6 +3,7 @@
 
   const MARKER = 'VANTIX_RESTAURANT_COMPANY_ADMIN_ADVANCED_V3';
   const RESET_MARKER = 'VANTIX_RESTAURANT_TEST_DATA_RESET_V68';
+  const POS_RESET_MARKER = 'VANTIX_RESTAURANT_POS_SEQUENCE_RESET_C83';
   const RESET_CONFIRMATION = 'ELIMINAR PRUEBAS';
   // Compatibilidad histórica V66. El flujo activo usa V68 para todo el nicho Restaurante.
   const LEGACY_RESET_MARKER = 'VANTIX_RESTAURANT_TEST_DATA_RESET_V66';
@@ -13,14 +14,17 @@
   });
   const RESET_ENDPOINTS = Object.freeze({
     summary:'/api/v1/restaurante/limpieza-pruebas/v68/resumen',
-    execute:'/api/v1/restaurante/limpieza-pruebas/v68/ejecutar'
+    execute:'/api/v1/restaurante/limpieza-pruebas/v68/ejecutar',
+    posStatus:'/api/v1/restaurante/limpieza-pruebas/v68/consecutivo-pos',
+    posReset:'/api/v1/restaurante/limpieza-pruebas/v68/consecutivo-pos/reiniciar'
   });
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const PAGE_PATH = '/app/configuracion-avanzada';
   if (window[MARKER] || location.pathname !== PAGE_PATH) return;
-  window[MARKER] = Object.freeze({ version:'3.0.0', surface:'ADMIN_ADVANCED', source:'TRIAL_COMPANY_AND_POS_RECEIPT' });
+  window[MARKER] = Object.freeze({ version:'3.1.0', surface:'ADMIN_ADVANCED', source:'TRIAL_COMPANY_AND_POS_RECEIPT' });
   window[LEGACY_RESET_MARKER] = Object.freeze({ version:'66.0.0', surface:'ADMIN_ADVANCED', scope:'DEMO_TRANSACTION_RESET_LEGACY' });
   window[RESET_MARKER] = Object.freeze({ version:'68.0.0', surface:'ADMIN_ADVANCED', scope:'RESTAURANT_NICHE_TRANSACTION_RESET' });
+  window[POS_RESET_MARKER] = Object.freeze({ version:'83.0.0', surface:'ADMIN_ADVANCED', scope:'RESTAURANT_INTERNAL_POS_SEQUENCE' });
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
@@ -84,8 +88,15 @@
       .rca-reset-button{background:#b42318!important;border-color:#b42318!important;color:#fff!important}
       .rca-reset-button:disabled{opacity:.5!important;cursor:not-allowed!important}
       .rca-reset-result{font-size:12px;font-weight:750}.rca-reset-result.ok{color:#027a48}.rca-reset-result.bad{color:#b42318}
+      .rca-pos-reset-box{margin-top:20px;padding:16px;border:1px solid #d7dde1;border-radius:12px;background:#fff}
+      .rca-pos-reset-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px}
+      .rca-pos-reset-next{font-size:24px;font-weight:950;color:#10233f;letter-spacing:.05em}
+      .rca-pos-reset-box textarea{width:100%;min-height:76px;resize:vertical;margin:10px 0;border:1px solid #cbd5e1;border-radius:9px;padding:10px 11px;font:inherit;background:#fff;color:#18221d}
+      .rca-pos-reset-button{background:#172554!important;border-color:#172554!important;color:#fff!important}
+      .rca-pos-reset-button:disabled{opacity:.5!important;cursor:not-allowed!important}
+      .rca-pos-reset-history{font-size:11px;color:#64748b;line-height:1.45;margin-top:10px}
       @media(max-width:850px){.rca-reset-counts{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:700px){.rca-company-grid{grid-template-columns:1fr}.rca-company-grid .wide{grid-column:auto}}
+      @media(max-width:700px){.rca-company-grid{grid-template-columns:1fr}.rca-company-grid .wide{grid-column:auto}.rca-pos-reset-head{display:block}}
       @media(max-width:430px){.rca-reset-counts{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -121,10 +132,12 @@
     return Number(value || 0).toLocaleString('es-CO');
   }
 
-  function cleanupMarkup(data = {}, message = '') {
+  function cleanupMarkup(data = {}, pos = {}, message = '') {
     const counts = data.counts || {};
     const blocked = Number(data.productionDianDocuments || 0) > 0 || data.allowed === false;
     const confirmation = String(data.confirmation || `${RESET_CONFIRMATION} ${session()?.subdomain || ''}`).trim();
+    const lastReset = pos.lastReset || null;
+    const posBlocked = pos.resetAllowed === false;
     return `<div class="panel" data-restaurant-test-reset="${RESET_MARKER}" data-reset-confirmation="${esc(confirmation)}">
       <div class="ph">
         <div><strong>Limpieza de datos de prueba</strong><div class="muted" style="font-size:12px;margin-top:4px">Deja la operación, la contabilidad y la administración transaccional listas para comenzar desde cero.</div></div>
@@ -149,6 +162,21 @@
           <span class="rca-reset-result ${message ? 'ok' : ''}" id="rcaResetStatus">${esc(message)}</span>
         </div>
         <div class="muted" style="font-size:11px;margin-top:12px">Disponible para todos los tenants del nicho <strong>Restaurante</strong>. Exige permiso de Administración y, para evitar borrados accidentales, debes escribir exactamente “${esc(confirmation)}”. Si existen documentos DIAN de PRODUCCIÓN, la limpieza queda bloqueada.</div>
+
+        <div class="rca-pos-reset-box" data-pos-sequence-reset="${POS_RESET_MARKER}">
+          <div class="rca-pos-reset-head">
+            <div><strong>Reiniciar contador de facturación interna</strong><div class="muted" style="font-size:12px;margin-top:4px">Reinicia únicamente el consecutivo POS interno del restaurante. No modifica comprobantes ya emitidos y no toca DIAN ni consecutivos fiscales.</div></div>
+            <div style="text-align:right"><div class="muted" style="font-size:10px;font-weight:800;text-transform:uppercase">Próximo POS</div><div class="rca-pos-reset-next">${esc(pos.nextNumber || '000000')}</div></div>
+          </div>
+          ${posBlocked ? `<div class="error" style="margin:8px 0 10px">${esc(pos.blockedReason || 'El contador no puede reiniciarse mientras existan comprobantes POS internos numerados.')}</div>` : '<div class="rca-reset-safe" style="margin:8px 0 10px"><strong>Listo para reiniciar a 000000.</strong> Los documentos históricos con numeración antigua FV-… no se alteran.</div>'}
+          <label for="rcaPosResetReason" style="font-size:12px;font-weight:800">Motivo del reinicio *</label>
+          <textarea id="rcaPosResetReason" maxlength="500" placeholder="Ej. Inicio de operación real después de finalizar las pruebas"></textarea>
+          <div class="rca-reset-actions">
+            <button class="btn rca-pos-reset-button" type="button" id="rcaPosResetButton" ${posBlocked ? 'disabled' : ''}>Reiniciar contador a 000000</button>
+            <span class="rca-reset-result" id="rcaPosResetStatus"></span>
+          </div>
+          <div class="rca-pos-reset-history">${lastReset ? `Último reinicio: ${esc(new Date(lastReset.at).toLocaleString('es-CO'))} · ${esc(lastReset.userName || lastReset.userEmail || 'Usuario')} · Motivo: ${esc(lastReset.reason || 'Sin detalle')}` : 'Aún no hay reinicios registrados.'} Cada reinicio guarda fecha, usuario y motivo en auditoría.</div>
+        </div>
       </div>
     </div>`;
   }
@@ -171,9 +199,13 @@
     if (!view) return;
     view.innerHTML = '<div class="panel"><div class="pb">Revisando documentos y transacciones de prueba…</div></div>';
     try {
-      const data = await api(RESET_ENDPOINTS.summary);
-      view.innerHTML = cleanupMarkup(data || {}, message);
+      const [data, pos] = await Promise.all([
+        api(RESET_ENDPOINTS.summary),
+        api(RESET_ENDPOINTS.posStatus)
+      ]);
+      view.innerHTML = cleanupMarkup(data || {}, pos || {}, message);
       document.getElementById('rcaResetButton')?.addEventListener('click', executeCleanup);
+      document.getElementById('rcaPosResetButton')?.addEventListener('click', executePosReset);
     } catch (error) {
       view.innerHTML = `<div class="error">${esc(error.message)}</div>`;
     }
@@ -235,6 +267,26 @@
       });
       const removed = Object.values(result?.removed || {}).reduce((sum, value) => sum + Number(value || 0), 0);
       await loadCleanup(`Limpieza completada: ${n(removed)} registros transaccionales eliminados. Productos y configuración conservados.`);
+    } catch (error) {
+      if (status) { status.className = 'rca-reset-result bad'; status.textContent = error.message; }
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function executePosReset() {
+    const button = document.getElementById('rcaPosResetButton');
+    const status = document.getElementById('rcaPosResetStatus');
+    const reason = String(document.getElementById('rcaPosResetReason')?.value || '').replace(/\s+/g, ' ').trim();
+    if (reason.length < 5) {
+      if (status) { status.className = 'rca-reset-result bad'; status.textContent = 'Escribe un motivo de al menos 5 caracteres.'; }
+      return;
+    }
+    if (!window.confirm('El próximo comprobante POS interno comenzará en 000000. Los comprobantes ya emitidos no cambiarán y DIAN no se tocará. ¿Continuar?')) return;
+    if (button) button.disabled = true;
+    if (status) { status.className = 'rca-reset-result'; status.textContent = 'Reiniciando contador…'; }
+    try {
+      await api(RESET_ENDPOINTS.posReset, { method:'POST', body:JSON.stringify({ reason }) });
+      await loadCleanup('Consecutivo POS interno reiniciado. El próximo comprobante nuevo será 000000.');
     } catch (error) {
       if (status) { status.className = 'rca-reset-result bad'; status.textContent = error.message; }
       if (button) button.disabled = false;

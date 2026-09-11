@@ -52,6 +52,7 @@ async function assignedSequenceState(tx, tenantId) {
        FROM "ComprobanteComercial"
       WHERE "tenantId" = $1
         AND "tipo" = 'FACTURA_VENTA'
+        AND "sourceId" LIKE 'REST-TABLE-%'
         AND "numero" ~ '^[0-9]{6,}$'`,
     tenantId
   );
@@ -88,8 +89,8 @@ async function assignRestaurantPosNumberInTx(tx, tenantId, saleId) {
 
   const sequence = await assignedSequenceState(tx, tenantId);
   // Cada restaurante nace hoy con su propio POS interno: la primera venta cerrada
-  // es 000000. A partir de ahí continúa 000001, 000002... por tenant. Restaurantes
-  // que ya tienen ventas numeradas conservan su secuencia actual sin renumeración.
+  // es 000000. A partir de ahí continúa 000001, 000002... por tenant. Sólo las
+  // ventas REST-TABLE participan; otros comprobantes de Super Core no mueven este contador.
   const nextNumber = formatPosNumber(sequence.assignedCount === 0n ? 0n : sequence.maxNumber + 1n);
   return tx.comprobanteComercial.update({
     where: { id: sale.id },
