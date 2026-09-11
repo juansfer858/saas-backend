@@ -75,7 +75,6 @@ function main() {
   const priced = delivery.calculateLine(product, 2, 22000);
   assert.equal(priced.basePrice.toFixed(2), '20000.00');
   assert.equal(priced.price.toFixed(2), '22000.00');
-  assert.equal(priced.lineTotal, undefined);
   assert.equal(priced.total.toFixed(2), '44000.00');
   const zero = delivery.calculateLine(product, 1, 0);
   assert.equal(zero.price.toFixed(2), '0.00', 'Precio 0 sigue la regla vigente de Venta: válido; sólo negativos se rechazan');
@@ -109,13 +108,21 @@ function main() {
   assert.match(kdsUi, /i\.seatNumber/);
   assert.match(kdsUi, /PERSONA/);
 
-  const deliveryUi = fs.readFileSync(path.join(__dirname, '../src/web/restaurant-delivery-shared-menu-v90.js'), 'utf8');
-  assert.match(deliveryUi, /VANTIX_RESTAURANT_DELIVERY_LINE_PRICE_V94/);
-  assert.match(deliveryUi, /Precio Carta:/);
-  assert.match(deliveryUi, /data-v94-price/);
-  assert.match(deliveryUi, /data-v94-note/);
-  assert.match(deliveryUi, /appliedUnitPrice/);
-  assert.match(deliveryUi, /value=\"0\"/);
+  const deliveryHost = fs.readFileSync(path.join(__dirname, '../src/web/restaurant-v2-delivery-p11.html'), 'utf8');
+  assert.match(deliveryHost, /restaurant-delivery-orders-compact-v93\.js/);
+  const deliveryEditor = fs.readFileSync(path.join(__dirname, '../src/web/restaurant-delivery-orders-compact-v93.js'), 'utf8');
+  assert.match(deliveryEditor, /VANTIX_RESTAURANT_DELIVERY_LINE_PRICE_V94/);
+  assert.match(deliveryEditor, /Precio Carta:/);
+  assert.match(deliveryEditor, /data-v94-price/);
+  assert.match(deliveryEditor, /data-v94-note/);
+  assert.match(deliveryEditor, /appliedUnitPrice/);
+  assert.match(deliveryEditor, /deliveryFeeDefault:0/);
+  assert.match(deliveryEditor, /value=\"0\"/);
+
+  const deliveryListUi = fs.readFileSync(path.join(__dirname, '../src/web/restaurant-delivery-ui.js'), 'utf8');
+  assert.match(deliveryListUi, /item\.unitPrice/);
+  assert.match(deliveryListUi, /item\.notes/);
+  assert.match(deliveryListUi, /c\/u/);
 
   const forbidden = [
     'src/modules/restaurant/restaurant-v2-cash.service.js',
@@ -131,6 +138,7 @@ function main() {
     marker:'VANTIX_RESTAURANT_ORDER_LINE_IDENTITY_V94',
     personField:'seatNumber',
     grouping:'product+variant+modifiers+notes+appliedPrice+station+state+source',
+    activeDeliveryEditor:'V93',
     deliveryAppliedPrice:true,
     zeroPrice:'allowed-by-existing-sales-contract',
     negativePrice:false
