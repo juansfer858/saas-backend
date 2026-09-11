@@ -8,11 +8,11 @@ const guard = fs.readFileSync('src/web/restaurant-delivery-menu-guard-v88.js', '
 const routes = fs.readFileSync('src/modules/restaurant/restaurant-delivery.public.routes.js', 'utf8');
 
 const guardSrc = '/app/restaurant-delivery-menu-guard-v88.js?v=v88';
-const uiSrc = '/app/restaurant-delivery-ui.js?v=v88';
+const uiSrcPrefix = '/app/restaurant-delivery-ui.js?v=';
 
 assert.ok(html.includes(guardSrc), 'Domicilios debe cargar el guard V88');
-assert.ok(html.includes(uiSrc), 'Domicilios debe invalidar cache del UI junto con V88');
-assert.ok(html.indexOf(guardSrc) < html.indexOf(uiSrc), 'El guard debe instalarse antes del UI de Domicilios');
+assert.ok(html.includes(uiSrcPrefix), 'Domicilios debe invalidar cache del UI');
+assert.ok(html.indexOf(guardSrc) < html.indexOf(uiSrcPrefix), 'El guard debe instalarse antes del UI de Domicilios');
 
 assert.match(guard, /MENU_PATH\s*=\s*['"]\/api\/v1\/restaurante\/menu['"]/);
 assert.match(guard, /MENU_TIMEOUT_MS\s*=\s*12000/);
