@@ -10,6 +10,7 @@ const customerSaleLink = require('./restaurant-customer-sale-link.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
 const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
 const shiftCloseHistory = require('./restaurant-shift-close-history-c86.service');
+const { restaurantShiftCloseHistoryC86Router } = require('./restaurant-shift-close-history-c86.routes');
 
 const router = express.Router();
 
@@ -167,6 +168,10 @@ router.post('/v2/caja/clientes', requirePermission('RESTAURANTE.CERRAR'), async 
     res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
 });
+
+// El historial C86 vive dentro de la frontera de Caja V2. Así no altera el montaje
+// global del Core ni toca rutas de migración, producción, Mesero, Edge o DIAN.
+router.use(restaurantShiftCloseHistoryC86Router);
 
 module.exports = {
   restaurantV2CashRouter: router,
