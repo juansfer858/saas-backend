@@ -50,11 +50,16 @@ for (const forbidden of [
   /<iframe/i
 ]) assert.doesNotMatch(demo, forbidden, `Demo standalone must not contain ${forbidden}`);
 
+const inlineScripts = [...demo.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+assert.equal(inlineScripts.length, 1, 'Standalone demo must keep one auditable inline runtime');
+new Function(inlineScripts[0]);
+
 assert.match(modal, /DEMO_PATH = '\/restaurantes\/demo\?embedded=1'/);
 assert.match(modal, /sandbox=\"allow-scripts\"/);
 assert.doesNotMatch(modal, /allow-same-origin/);
 assert.match(modal, /referrerpolicy=\"no-referrer\"/);
 assert.match(modal, /Showcase autónomo/);
+new Function(modal);
 
 console.log('RESTAURANT PUBLIC STANDALONE DEMO SMOKE OK', JSON.stringify({
   standalone:true,
@@ -62,5 +67,6 @@ console.log('RESTAURANT PUBLIC STANDALONE DEMO SMOKE OK', JSON.stringify({
   noCoreApi:true,
   cspNoConnect:true,
   modalSandbox:true,
-  adminShowcaseProtected:true
+  adminShowcaseProtected:true,
+  browserRuntimeParses:true
 }));
