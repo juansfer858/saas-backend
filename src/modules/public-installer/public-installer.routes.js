@@ -10,6 +10,7 @@ const landingPath = path.join(webRoot, 'public-installer.html');
 const restaurantLandingPath = path.join(webRoot, 'restaurant-public.html');
 const restaurantDemoPath = path.join(webRoot, 'restaurant-public-demo.html');
 const restaurantDemoModalPath = path.join(webRoot, 'restaurant-public-demo-modal.js');
+const restaurantHeroImagePath = path.join(webRoot, 'restaurant-public-hero-customer-order-v1.webp');
 const restaurantSignupPath = path.join(webRoot, 'restaurant-signup.html');
 const restaurantOnboardingPath = path.join(webRoot, 'restaurant-onboarding.html');
 const restaurantPublicThemePath = path.join(webRoot, 'restaurant-public-theme.css');
@@ -61,6 +62,11 @@ router.get('/restaurantes/theme-v1.css', (_req, res) => {
 router.get('/restaurantes/demo-modal-v1.js', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
   res.type('application/javascript').sendFile(restaurantDemoModalPath);
+});
+
+router.get('/restaurantes/hero-cliente-pedido-v1.webp', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400, immutable');
+  res.type('image/webp').sendFile(restaurantHeroImagePath);
 });
 
 router.get('/restaurantes', (_req, res, next) => sendRestaurantPublicHtml(restaurantLandingPath, res, next));
