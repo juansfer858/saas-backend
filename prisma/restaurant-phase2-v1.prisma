@@ -128,19 +128,21 @@ model RestaurantTable {
 }
 
 model RestaurantMenuItem {
-  id              String                 @id @default(uuid())
-  tenantId        String
-  productId       String
-  category        RestaurantMenuCategory
-  station         RestaurantStation
-  requiresRecipe  Boolean                @default(true)
-  active           Boolean               @default(true)
-  sortOrder       Int                    @default(0)
-  creadoEn        DateTime               @default(now())
-  actualizadoEn   DateTime               @updatedAt
+  id                   String                 @id @default(uuid())
+  tenantId             String
+  productId            String
+  category             RestaurantMenuCategory
+  commercialCategoryId String?
+  station              RestaurantStation
+  requiresRecipe       Boolean                @default(true)
+  active               Boolean                @default(true)
+  sortOrder            Int                    @default(0)
+  creadoEn             DateTime               @default(now())
+  actualizadoEn        DateTime               @updatedAt
 
   @@unique([tenantId, productId])
   @@index([tenantId, category, active, sortOrder])
+  @@index([tenantId, commercialCategoryId, active, sortOrder])
   @@index([tenantId, station, active])
 }
 
