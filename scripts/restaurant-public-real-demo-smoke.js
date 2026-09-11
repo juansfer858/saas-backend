@@ -34,6 +34,25 @@ assert.match(demo, /PROTEGIDO/);
 assert.match(demo, /const initialState/);
 assert.match(demo, /renderProtected/);
 
+// El showcase debe verse como la interfaz V2 que recibe el cliente, no como un rediseño comercial paralelo.
+assert.match(demo, /data-demo-ui-parity="restaurant-v2-native-control-p11"/);
+assert.match(demo, /RESTAURANTES · V2/);
+assert.match(demo, /--side:#111827/);
+assert.match(demo, /--side-active:#1f2937/);
+assert.match(demo, /--side-accent:#3b82f6/);
+assert.match(demo, /--rv2-primary:#ea580c/);
+assert.match(demo, /--rv2-table-occupied:#c2410c/);
+assert.match(demo, /--rv2-table-account:#dc2626/);
+assert.match(demo, /HÍBRIDO · Edge en línea/);
+for (const moduleLabel of ['Mesas','Pedidos','Producción','División','Caja','Domicilios','Carta','Empleados','QR de mesas','Dispositivos']) {
+  assert.ok(demo.includes(`label:'${moduleLabel}'`), `Falta módulo real V2 en el demo: ${moduleLabel}`);
+}
+assert.match(demo, /header\('MESAS'/);
+assert.match(demo, /header\('PEDIDOS'/);
+assert.match(demo, /COCINA\/KDS\/PUSH P6/);
+assert.match(demo, /CAJA P4/);
+assert.match(demo, /CUENTA SOLICITADA/);
+
 for (const forbidden of [
   /fetch\s*\(/,
   /XMLHttpRequest/,
@@ -68,5 +87,6 @@ console.log('RESTAURANT PUBLIC STANDALONE DEMO SMOKE OK', JSON.stringify({
   cspNoConnect:true,
   modalSandbox:true,
   adminShowcaseProtected:true,
+  visualParity:'RESTAURANT_V2_P11_CURRENT',
   browserRuntimeParses:true
 }));
