@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const express = require('express');
 const path = require('node:path');
 const { prisma } = require('../../config/prisma');
@@ -31,11 +32,10 @@ async function commercializeQrContext(context){
   return {...context,menu:decorateMenuCategories(menu,menuRows,products,categoryRows)};
 }
 
-router.get('/r/:token',(_req,res)=>send(res,'restaurant-v2-client-qr.html','html'));
+router.get('/r/:token',(_req,res)=>{const html=fs.readFileSync(path.join(webRoot,'restaurant-v2-client-qr.html'),'utf8').replace('</body>','<script src="/app/restaurant-v2-client-promo-v28.js?v=v28"></script></body>');res.set('Cache-Control','no-store, max-age=0');res.set('X-VantixGC-Restaurant-V2-Client-QR',HEADER_VALUE);res.type('html').send(html);});
 router.get('/api/public/restaurante/qr/:token',async(req,res,next)=>{try{const context=await identity.publicQrContext(req.params.token);const data=await commercializeQrContext(context);res.set('Cache-Control','no-store, max-age=0');res.set('X-VantixGC-Restaurant-QR-Categories',`${CATEGORY_MARKER}; v26-central`);res.json({ok:true,data});}catch(error){next(error);}});
 router.get('/app/restaurant-v2-client-qr.js',(_req,res)=>send(res,'restaurant-v2-client-qr.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-client-qr-open-request.js',(_req,res)=>send(res,'restaurant-v2-client-qr-open-request.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-client-qr.css',(_req,res)=>send(res,'restaurant-v2-client-qr.css','text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-client-promo-v28.js',(_req,res)=>{res.set('X-VantixGC-Restaurant-Promo','image-popup-v28');return send(res,'restaurant-v2-client-promo-v28.js','application/javascript; charset=utf-8');});
-
 module.exports={HEADER_VALUE,MARKER,CATEGORY_MARKER,defaultCommercialCategory,decorateMenuCategories,commercializeQrContext,restaurantV2ClientQrPublicRouter:router};
