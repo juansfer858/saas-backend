@@ -19,7 +19,7 @@
     const nav=document.querySelector('.nav');
     if(nav&&!nav.querySelector('a[href="#autopedido"]')){
       const a=document.createElement('a');a.href='#autopedido';a.textContent='Autoatención';
-      const plans=nav.querySelector('a[href="#membresia"]');nav.insertBefore(a,plans||nav.firstChild);
+      const membership=nav.querySelector('a[href="#membresia"]');nav.insertBefore(a,membership||nav.firstChild);
     }
 
     const section=document.createElement('section');
@@ -35,7 +35,7 @@
           <div><b>Más capacidad operativa</b><span>El personal dedica menos tiempo a tomar pedidos repetitivos y más a servir.</span></div>
           <div><b>Menos doble digitación</b><span>El pedido entra al flujo operativo sin volver a copiarlo en otra pantalla.</span></div>
         </div>
-        <div class="vr-auto-cta"><a class="btn primary" href="/restaurantes/demo">Ver el flujo interactivo</a><a class="btn" href="#membresia">Ver planes con autoatención</a></div>
+        <div class="vr-auto-cta"><a class="btn primary" href="/restaurantes/demo">Ver el flujo interactivo</a><a class="btn" href="#membresia">Ver membresía completa</a></div>
       </div>
       <div class="vr-auto-flow" aria-label="Flujo de autoatención del cliente">
         <div class="vr-auto-flow-title"><strong>De la mesa a producción</strong><span>Automatizado</span></div>
