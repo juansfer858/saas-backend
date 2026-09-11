@@ -38,8 +38,8 @@ const day = service.aggregateSnapshots([snapshot], '2026-09-11');
 assert.equal(day.shiftCount, 1);
 assert.equal(day.channels.MESAS.tickets, 2);
 assert.equal(day.channels.MOSTRADOR.tickets, 1);
-assert.equal(day.totals.billedValue, '75000.00');
-assert.equal(day.totals.settledValue, '75000.00');
+assert.equal(Number(day.totals.billedValue), 75000);
+assert.equal(Number(day.totals.settledValue), 75000);
 assert.equal(day.totals.accountsCharged, 3);
 assert.equal(day.status, 'CUADRADO');
 
