@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { z } = require('zod');
+const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-shift-close-history-c86.service');
 
@@ -25,13 +26,7 @@ const printSchema = z.object({
 
 function parse(schema, value) {
   const parsed = schema.safeParse(value || {});
-  if (!parsed.success) {
-    const error = new Error('Datos de cierres inválidos');
-    error.statusCode = 400;
-    error.code = 'RESTAURANT_SHIFT_CLOSE_VALIDATION_ERROR';
-    error.details = parsed.error.flatten();
-    throw error;
-  }
+  if (!parsed.success) throw new AppError(400, 'Datos de cierres inválidos', 'RESTAURANT_SHIFT_CLOSE_VALIDATION_ERROR', parsed.error.flatten());
   return parsed.data;
 }
 
