@@ -16,10 +16,18 @@ function parse(schema, value) {
   return result.data;
 }
 
+function presentDeliveryResponse(row) {
+  if (!row) return row;
+  const rawItems = Array.isArray(row.items) ? row.items : [];
+  const operationalItems = Array.isArray(row.operationalItems) ? row.operationalItems : rawItems;
+  return { ...row, rawItems, items: operationalItems, operationalItems };
+}
+
 const itemSchema = z.object({
   menuItemId: z.string().uuid(),
   quantity: z.coerce.number().positive().max(99),
-  notes: z.string().trim().max(240).optional().nullable()
+  notes: z.string().trim().max(240).optional().nullable(),
+  appliedUnitPrice: z.coerce.number().min(0).max(100000000).optional()
 });
 
 const createSchema = z.object({
@@ -71,7 +79,7 @@ router.patch('/comandas/:id', requirePermission('COMANDAS.EDITAR'), async (req, 
     const deliveryCommand = await prisma.restaurantDeliveryCommand.findFirst({ where: { id: req.params.id, tenantId: req.tenantId }, select: { id: true } });
     if (deliveryCommand) {
       const row = await delivery.updateDeliveryCommandState(req.tenantId, req.user, req.params.id, input.state);
-      res.json({ ok: true, data: { delivery: row, notification: null } });
+      res.json({ ok: true, data: { delivery: presentDeliveryResponse(row), notification: null } });
       return;
     }
     res.json({ ok: true, data: await restaurant.updateCommandState(req.tenantId, req.user, req.params.id, input.state) });
@@ -130,40 +138,38 @@ router.get('/domicilios/carta', requirePermission('DOMICILIOS.VER'), async (req,
 
 router.get('/domicilios', requirePermission('DOMICILIOS.VER'), async (req, res, next) => {
   try {
-    res.json({
-      ok: true,
-      data: await delivery.listDeliveries(req.tenantId, {
-        state: req.query.state || undefined,
-        paymentStatus: req.query.paymentStatus || undefined,
-        activeOnly: String(req.query.activeOnly || '').toLowerCase() === 'true',
-        limit: req.query.limit
-      })
+    const rows = await delivery.listDeliveries(req.tenantId, {
+      state: req.query.state || undefined,
+      paymentStatus: req.query.paymentStatus || undefined,
+      activeOnly: String(req.query.activeOnly || '').toLowerCase() === 'true',
+      limit: req.query.limit
     });
+    res.json({ ok: true, data: rows.map(presentDeliveryResponse) });
   } catch (error) { next(error); }
 });
 
 router.get('/domicilios/:id', requirePermission('DOMICILIOS.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await delivery.loadDelivery(req.tenantId, req.params.id) }); }
+  try { res.json({ ok: true, data: presentDeliveryResponse(await delivery.loadDelivery(req.tenantId, req.params.id)) }); }
   catch (error) { next(error); }
 });
 
 router.post('/domicilios', requirePermission('DOMICILIOS.CREAR'), async (req, res, next) => {
-  try { res.status(201).json({ ok: true, data: await delivery.createDelivery(req.tenantId, req.user, parse(createSchema, req.body || {})) }); }
+  try { res.status(201).json({ ok: true, data: presentDeliveryResponse(await delivery.createDelivery(req.tenantId, req.user, parse(createSchema, req.body || {}))) }); }
   catch (error) { next(error); }
 });
 
 router.post('/domicilios/:id/aceptar', requirePermission('DOMICILIOS.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await delivery.acceptDelivery(req.tenantId, req.user, req.params.id) }); }
+  try { res.json({ ok: true, data: presentDeliveryResponse(await delivery.acceptDelivery(req.tenantId, req.user, req.params.id)) }); }
   catch (error) { next(error); }
 });
 
 router.post('/domicilios/:id/en-camino', requirePermission('DOMICILIOS.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await delivery.markOnRoute(req.tenantId, req.user, req.params.id, parse(routeSchema, req.body || {})) }); }
+  try { res.json({ ok: true, data: presentDeliveryResponse(await delivery.markOnRoute(req.tenantId, req.user, req.params.id, parse(routeSchema, req.body || {}))) }); }
   catch (error) { next(error); }
 });
 
 router.post('/domicilios/:id/entregado', requirePermission('DOMICILIOS.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await delivery.markDelivered(req.tenantId, req.user, req.params.id) }); }
+  try { res.json({ ok: true, data: presentDeliveryResponse(await delivery.markDelivered(req.tenantId, req.user, req.params.id)) }); }
   catch (error) { next(error); }
 });
 
@@ -173,8 +179,8 @@ router.post('/domicilios/:id/pago', requirePermission('DOMICILIOS.PAGAR'), requi
 });
 
 router.post('/domicilios/:id/cancelar', requirePermission('DOMICILIOS.EDITAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await delivery.cancelDelivery(req.tenantId, req.user, req.params.id) }); }
+  try { res.json({ ok: true, data: presentDeliveryResponse(await delivery.cancelDelivery(req.tenantId, req.user, req.params.id)) }); }
   catch (error) { next(error); }
 });
 
-module.exports = { restaurantDeliveryRouter: router };
+module.exports = { restaurantDeliveryRouter: router, createSchema, itemSchema, presentDeliveryResponse };
