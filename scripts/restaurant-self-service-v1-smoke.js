@@ -73,6 +73,7 @@ assert.match(landing, /Preguntas frecuentes/);
 assert.match(landing, /#f97316/i);
 assert.match(landing, /#ea580c/i);
 assert.doesNotMatch(landing, /--green/i);
+assert.match(landing, /\/restaurantes\/demo-modal-v1\.js/);
 
 // Public Restaurant membership positioning must remain SaaS-first and truthful while billing is pre-launch.
 assert.match(landing, /Membresía SaaS para restaurantes/);
