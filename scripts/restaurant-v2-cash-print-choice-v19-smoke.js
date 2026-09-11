@@ -31,7 +31,10 @@ expect(cashHtml.indexOf('restaurant-v2-cash-tender-v18.js?v=v18') < cashHtml.ind
 expect(aggregator.includes("'/app/restaurant-v2-cash-print-choice-v19.js'"), 'falta ruta pública del asset V19');
 
 expect(hooks.includes('input?.deferPosReceipt !== true'), 'el hook no respeta la impresión diferida');
-expect(hooks.includes('queueReceiptForTableIfClosed'), 'División perdió su comportamiento de impresión existente');
+// Caja normal conserva V19. División V20 cambia únicamente su salida: cada parte
+// tiene comprobante propio y la última parte no vuelve a imprimir el total completo.
+expect(hooks.includes('queueSplitPartReceiptIntent'), 'División debe encolar el comprobante individual de cada parte');
+expect(!hooks.includes('await receipts.queueReceiptForTableIfClosed(tenantId, tableId)'), 'División no debe encolar otra tirilla total al finalizar');
 expect(methods.includes('deferPosReceipt: input.deferPosReceipt === true'), 'métodos de pago no propagan la decisión diferida');
 
 const deferredCount = (cashService.match(/deferPosReceipt: true/g) || []).length;
