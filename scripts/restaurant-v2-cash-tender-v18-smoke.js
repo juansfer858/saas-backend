@@ -90,7 +90,11 @@ expect(receiptSource.includes("labelValueLines('Cliente'"), 'la tirilla no inclu
 
 expect(cashHtml.includes('/app/restaurant-v2-cash-tender-v18.js?v=v18'), 'Caja no carga V18 desde su plantilla canónica');
 expect(splitHtml.includes('/app/restaurant-v2-cash-tender-v18.js?v=v18'), 'División no carga V18 desde su plantilla canónica');
-expect(cashPublic.includes("sendAsset(res, 'restaurant-v2-cash.html'"), 'la ruta canónica de Caja fue reemplazada innecesariamente');
+expect(
+  cashPublic.includes("readFile(path.join(WEB_ROOT, 'restaurant-v2-cash.html'), 'utf8')")
+    && cashPublic.includes("router.get('/app/restaurante-v2/caja', sendCashHtml)"),
+  'la ruta canónica de Caja debe seguir sirviendo restaurant-v2-cash.html aunque inyecte capas compatibles'
+);
 expect(splitPublic.includes("sendAsset(res, 'restaurant-v2-split.html'"), 'la ruta canónica de División fue reemplazada innecesariamente');
 expect(aggregator.includes("'/app/restaurant-v2-cash-tender-v18.js'"), 'falta ruta pública V18');
 
