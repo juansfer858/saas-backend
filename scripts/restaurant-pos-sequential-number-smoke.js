@@ -9,6 +9,7 @@ const numbers = require('../src/modules/restaurant/restaurant-pos-number.service
 function fakeTx({
   current = 'FV-1788733464654-ABC123',
   max = '0',
+  count = '0',
   sourceId = 'REST-TABLE-table-1-123',
   lockResults = [true]
 } = {}) {
@@ -23,7 +24,7 @@ function fakeTx({
         lockIndex += 1;
         return [{ locked }];
       }
-      return [{ maxNumber:max }];
+      return [{ assignedCount:count, maxNumber:max }];
     },
     comprobanteComercial: {
       findFirst: async () => ({ id:'sale-1', numero:currentNumber, sourceId }),
@@ -40,27 +41,39 @@ function fakeTx({
   assert.equal(numbers.POS_NUMBER_WIDTH, 6);
   assert.equal(numbers.POS_LOCK_ATTEMPTS, 25);
   assert.equal(numbers.POS_LOCK_RETRY_MS, 40);
+  assert.equal(numbers.formatPosNumber(0n), '000000');
   assert.equal(numbers.formatPosNumber(1n), '000001');
   assert.equal(numbers.formatPosNumber(42n), '000042');
   assert.equal(numbers.formatPosNumber(999999n), '999999');
   assert.equal(numbers.formatPosNumber(1000000n), '1000000');
+  assert.equal(numbers.isFinalPosNumber('000000'), true);
   assert.equal(numbers.isFinalPosNumber('000001'), true);
   assert.equal(numbers.isFinalPosNumber('FV-1788733464654'), false);
 
-  const first = fakeTx({ max:'0' });
+  const first = fakeTx({ count:'0', max:'0' });
   const assignedFirst = await numbers.assignRestaurantPosNumberInTx(first.tx, 'tenant-1', 'sale-1');
-  assert.equal(assignedFirst.numero, '000001');
+  assert.equal(assignedFirst.numero, '000000');
   assert.equal(first.calls[0].value, 'vantixgc:restaurant-pos:v2:tenant-1');
   assert.match(first.calls[0].query, /pg_try_advisory_xact_lock/);
   assert.match(first.calls[0].query, /hashtextextended/);
+  assert.match(first.calls[1].query, /COUNT\(\*\)/);
   assert.match(first.calls[1].query, /MAX\(CAST\("numero" AS BIGINT\)\)/);
   assert.match(first.calls[1].query, /"numero" ~ '\^\[0-9\]\{6,\}\$'/);
 
-  const next = fakeTx({ max:'41' });
+  const second = fakeTx({ count:'1', max:'0' });
+  const assignedSecond = await numbers.assignRestaurantPosNumberInTx(second.tx, 'tenant-1', 'sale-1');
+  assert.equal(assignedSecond.numero, '000001');
+
+  const next = fakeTx({ count:'42', max:'41' });
   const assignedNext = await numbers.assignRestaurantPosNumberInTx(next.tx, 'tenant-1', 'sale-1');
   assert.equal(assignedNext.numero, '000042');
 
-  const existing = fakeTx({ current:'000777', max:'999' });
+  const anotherTenant = fakeTx({ count:'0', max:'0' });
+  const otherFirst = await numbers.assignRestaurantPosNumberInTx(anotherTenant.tx, 'tenant-2', 'sale-1');
+  assert.equal(otherFirst.numero, '000000', 'cada tenant debe iniciar su propia secuencia en cero');
+  assert.equal(anotherTenant.calls[0].value, 'vantixgc:restaurant-pos:v2:tenant-2');
+
+  const existing = fakeTx({ current:'000777', count:'1000', max:'999' });
   const preserved = await numbers.assignRestaurantPosNumberInTx(existing.tx, 'tenant-1', 'sale-1');
   assert.equal(preserved.numero, '000777');
   assert.equal(existing.calls.length, 0, 'an already-final POS number must not acquire or consume the sequence');
@@ -95,6 +108,7 @@ function fakeTx({
   assert.match(numberSource, /hashtextextended/);
   assert.doesNotMatch(numberSource, /SELECT pg_advisory_xact_lock\(/, 'blocking advisory lock must not return');
   assert.match(numberSource, /RESTAURANT_POS_SEQUENCE_BUSY/);
+  assert.match(numberSource, /sequence\.assignedCount === 0n \? 0n/);
 
   const restaurant = fs.readFileSync('src/modules/restaurant/restaurant.service.js', 'utf8');
   const split = fs.readFileSync('src/modules/restaurant/restaurant-visit-payments.service.js', 'utf8');
@@ -104,9 +118,11 @@ function fakeTx({
   const commercial = fs.readFileSync('src/modules/commercial/commercial.service.js', 'utf8');
   assert.match(commercial, /generateNumber\(input\.tipo\)/, 'non-restaurant commercial numbering must stay unchanged');
 
-  console.log('RESTAURANT POS SEQUENTIAL NUMBER V2 NONBLOCKING SMOKE OK', JSON.stringify({
-    firstClosedSale:'000001',
+  console.log('RESTAURANT POS SEQUENTIAL NUMBER V2 ZERO-START SMOKE OK', JSON.stringify({
+    firstClosedSale:'000000',
+    secondClosedSale:'000001',
     sequentialPerTenant:true,
+    existingTenantSequencePreserved:true,
     nonBlockingTryLock:true,
     boundedContention:true,
     lockKey64Bit:true,
