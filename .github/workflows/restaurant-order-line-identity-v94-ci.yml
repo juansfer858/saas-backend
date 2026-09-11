@@ -9,7 +9,9 @@ on:
       - 'src/modules/restaurant/restaurant-delivery.routes.js'
       - 'src/modules/restaurant/restaurant-delivery.service.js'
       - 'src/web/restaurant-v2-orders.js'
-      - 'src/web/restaurant-delivery-shared-menu-v90.js'
+      - 'src/web/restaurant-delivery-ui.js'
+      - 'src/web/restaurant-delivery-orders-compact-v93.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
       - 'scripts/restaurant-order-line-identity-v94-smoke.js'
       - 'scripts/restaurant-order-line-identity-v94-db-smoke.js'
       - '.github/workflows/restaurant-order-line-identity-v94-ci.yml'
@@ -21,7 +23,9 @@ on:
       - 'src/modules/restaurant/restaurant-delivery.routes.js'
       - 'src/modules/restaurant/restaurant-delivery.service.js'
       - 'src/web/restaurant-v2-orders.js'
-      - 'src/web/restaurant-delivery-shared-menu-v90.js'
+      - 'src/web/restaurant-delivery-ui.js'
+      - 'src/web/restaurant-delivery-orders-compact-v93.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
       - 'scripts/restaurant-order-line-identity-v94-smoke.js'
       - 'scripts/restaurant-order-line-identity-v94-db-smoke.js'
       - '.github/workflows/restaurant-order-line-identity-v94-ci.yml'
@@ -79,7 +83,8 @@ jobs:
           node --check src/modules/restaurant/restaurant-delivery.routes.js
           node --check src/modules/restaurant/restaurant-delivery.service.js
           node --check src/web/restaurant-v2-orders.js
-          node --check src/web/restaurant-delivery-shared-menu-v90.js
+          node --check src/web/restaurant-delivery-ui.js
+          node --check src/web/restaurant-delivery-orders-compact-v93.js
           node --check scripts/restaurant-order-line-identity-v94-smoke.js
           node --check scripts/restaurant-order-line-identity-v94-db-smoke.js
 
