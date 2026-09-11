@@ -22,7 +22,7 @@ assert.match(kdsRoutes, /restaurant-v2-kds-stations-v23\.js/);
 assert.match(kdsRoutes, /X-VantixGC-Print-Template-Editor/);
 assert.match(kdsRoutes, /printTemplateBrowserRuntime/);
 assert.match(kdsRoutes, /VANTIX_RESTAURANT_PRINT_TEMPLATE_KDS_V4_1/);
-assert.match(kdsRoutes, /data\.rkdsPrintTemplate\s*=\s*'true'/);
+assert.match(kdsRoutes, /dataset\.rkdsPrintTemplate\s*=\s*'true'/);
 assert.match(kdsRoutes, /Plantilla comanda/);
 assert.match(kdsRoutes, /RestaurantPrintTemplates\?\.open/);
 assert.match(kdsRoutes, /vantix:restaurant-print-template:open/);
