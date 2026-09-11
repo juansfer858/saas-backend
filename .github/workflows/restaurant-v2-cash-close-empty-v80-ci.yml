@@ -5,14 +5,18 @@ on:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash-close-empty-v80.service.js'
       - 'src/web/restaurant-v2-cash-close-empty-v80.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-smoke.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js'
       - '.github/workflows/restaurant-v2-cash-close-empty-v80-ci.yml'
   push:
-    branches: [main, fix/rest-cash-close-empty-v80]
+    branches: [main, fix/rest-cash-close-empty-v80, fix/rest-cash-close-empty-cashier-v80-1]
     paths:
       - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash-close-empty-v80.service.js'
       - 'src/web/restaurant-v2-cash-close-empty-v80.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-smoke.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js'
@@ -68,6 +72,8 @@ jobs:
         run: |
           node --check src/web/restaurant-v2-cash-close-empty-v80.js
           node --check src/modules/restaurant/restaurant-v2-cash.public.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash-close-empty-v80.service.js
 
   verify-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -89,7 +95,7 @@ jobs:
             sleep 10
           done
           exit 1
-      - name: Verify Caja V80 surface in production
+      - name: Verify Caja V80.1 surface in production
         shell: bash
         run: |
           set -euo pipefail
@@ -98,8 +104,11 @@ jobs:
           curl -fsSL --max-time 20 -o /tmp/v80.js "$BASE/app/restaurant-v2-cash-close-empty-v80.js?v=v80"
           grep -qi '^X-VantixGC-Restaurant-Cash-Close-Empty: v80' /tmp/cash.headers
           grep -q 'restaurant-v2-cash-close-empty-v80.js?v=v80' /tmp/cash.html
-          grep -q 'VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80' /tmp/v80.js
+          grep -q 'VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_1' /tmp/v80.js
           grep -q 'CERRAR MESA SIN CONSUMO' /tmp/v80.js
-          grep -q '/cerrar-vacia-v21' /tmp/v80.js
+          grep -q '/v2/caja/mesas/' /tmp/v80.js
+          grep -q 'cerrar-vacia-v80' /tmp/v80.js
+          grep -q 'cashierAllowed:true' /tmp/v80.js
+          grep -q 'zeroAndNoProducts:true' /tmp/v80.js
           grep -q 'noPaymentSideEffects:true' /tmp/v80.js
-          echo 'PRODUCTION_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_OK'
+          echo 'PRODUCTION_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_1_OK'
