@@ -1,0 +1,13 @@
+model RestaurantCommercialCategory {
+  id             String   @id @default(uuid())
+  tenantId       String
+  name           String
+  normalizedName String
+  sortOrder      Int      @default(0)
+  active         Boolean  @default(true)
+  creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @updatedAt
+
+  @@unique([tenantId, normalizedName])
+  @@index([tenantId, active, sortOrder])
+}
