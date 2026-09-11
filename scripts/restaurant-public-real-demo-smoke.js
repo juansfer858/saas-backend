@@ -47,8 +47,8 @@ assert.match(demo, /HÍBRIDO · Edge en línea/);
 for (const moduleLabel of ['Mesas','Pedidos','Producción','División','Caja','Domicilios','Carta','Empleados','QR de mesas','Dispositivos']) {
   assert.ok(demo.includes(`label:'${moduleLabel}'`), `Falta módulo real V2 en el demo: ${moduleLabel}`);
 }
-assert.match(demo, /RESTAURANTE V2 · MESAS/);
-assert.match(demo, /RESTAURANTE V2 · PEDIDOS/);
+assert.match(demo, /header\('MESAS'/);
+assert.match(demo, /header\('PEDIDOS'/);
 assert.match(demo, /COCINA\/KDS\/PUSH P6/);
 assert.match(demo, /CAJA P4/);
 assert.match(demo, /CUENTA SOLICITADA/);
