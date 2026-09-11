@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cierres · Restaurante</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-shift-closures-c86.css?v=86">
+</head>
+<body>
+  <header class="c86-top">
+    <div><small>RESTAURANTE · CONTROL OPERATIVO</small><h1>Cierres</h1><p>Historial de turnos, conciliación de operación y recaudo.</p></div>
+    <nav><a class="rv2-btn" href="/app/dashboard">← Dashboard</a><a class="rv2-btn" href="/app/restaurante-v2/caja">Caja</a><button id="refresh" class="rv2-btn" type="button">Actualizar</button></nav>
+  </header>
+  <main class="c86-main">
+    <section id="notice" class="c86-notice">Cargando cierres…</section>
+    <section class="c86-filters">
+      <label>Desde<input id="from" type="date"></label>
+      <label>Hasta<input id="to" type="date"></label>
+      <button id="apply" class="rv2-btn rv2-btn-primary" type="button">Aplicar</button>
+      <button id="today" class="rv2-btn" type="button">Hoy</button>
+    </section>
+    <section class="c86-shell">
+      <aside class="c86-list-panel">
+        <div class="c86-panel-head"><div><small>HISTORIAL</small><h2>Cierres del día</h2></div><span id="count" class="c86-count">0</span></div>
+        <div id="days" class="c86-days"></div>
+      </aside>
+      <section class="c86-detail-panel">
+        <div id="empty" class="c86-empty"><strong>Selecciona un día</strong><span>Verás sus turnos, canales, producción, recaudo y excepciones.</span></div>
+        <div id="detail" hidden></div>
+      </section>
+    </section>
+  </main>
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-shift-closures-c86.js?v=86"></script>
+</body>
+</html>

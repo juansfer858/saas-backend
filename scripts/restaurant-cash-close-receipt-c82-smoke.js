@@ -102,9 +102,14 @@ const intent = {
 assert.equal(receipt.cashCloseSnapshotFromIntent(intent).shift.id, snapshot.shift.id);
 
 const routes = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.routes.js', 'utf8');
-assert.match(routes, /queueShiftCloseIntent\(req\.tenantId, shiftId\)/);
-assert.match(routes, /closeReceipt/);
-assert.match(routes, /QUEUE_ERROR/);
+assert.match(routes, /USER_DECISION_REQUIRED/);
+assert.match(routes, /shiftClosures\.ensureSnapshot/);
+assert.match(routes, /restaurantShiftCloseHistoryC86Router/);
+assert.doesNotMatch(routes, /queueShiftCloseIntent\(req\.tenantId, shiftId\)/, 'cerrar turno no debe gastar papel automáticamente');
+
+const c86Runtime = fs.readFileSync('src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js', 'utf8');
+assert.match(c86Runtime, /posReceiptPrint\.queueShiftCloseIntent\(tenantId, shiftId, client\)/, 'la impresión explícita debe reutilizar el outbox C82');
+assert.match(c86Runtime, /PRINT_ACTION/);
 
 const printService = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
 assert.match(printService, /originType: \{ in: \[ORIGIN_TYPE, CASH_SHIFT_ORIGIN_TYPE\] \}/);
@@ -123,6 +128,7 @@ console.log('RESTAURANT CASH CLOSE RECEIPT C82 SMOKE OK', JSON.stringify({
   cashReconciliation:true,
   salesDetail:true,
   stablePrintJob:true,
+  optionalPrintDecision:true,
   sameExistingPosOutbox:true,
   edgeUntouched:true
 }));
