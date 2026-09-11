@@ -20,6 +20,8 @@ must(shellHtml, 'id="p11HybridStatus"', 'shell');
 must(shellHtml, '/app/restaurant-v2-hybrid-status-v84.css?v=v84', 'shell css');
 must(shellJs, 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84', 'marker shell');
 must(shellJs, '/api/v1/edge/installations', 'telemetría Edge shell');
+must(shellJs, 'item?.installation?.online === true', 'payload real Edge online');
+must(shellJs, 'item?.installation?.softwareVersion', 'versión Edge real');
 must(shellJs, 'HÍBRIDO · Edge en línea', 'estado online');
 must(shellJs, 'HÍBRIDO · Edge sin conexión', 'estado offline');
 must(shellJs, 'Nube activa · la operación sigue por Internet', 'fallback nube');
