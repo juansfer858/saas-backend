@@ -103,7 +103,7 @@ assert.match(ui.browserRuntime, /Plantilla de comanda/);
 assert.match(ui.browserRuntime, /Plantilla comanda/);
 assert.match(ui.browserRuntime, /Texto adicional arriba/);
 assert.match(ui.browserRuntime, /Texto adicional abajo/);
-assert.match(ui.browserRuntime, /NOMBRE DEL CLIENTE y DIRECCIÓN/);
+assert.match(ui.browserRuntime, /NOMBRE DEL CLIENTE, TELÉFONO y DIRECCIÓN/);
 assert.match(ui.browserRuntime, /Restaurar diseño recomendado/);
 assert.match(ui.browserRuntime, /Alineación del producto/);
 assert.match(ui.browserRuntime, /Vista previa térmica/);
