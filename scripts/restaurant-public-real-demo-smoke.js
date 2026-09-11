@@ -4,46 +4,63 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const read = (path) => fs.readFileSync(path, 'utf8');
-const access = read('src/modules/restaurant/restaurant-public-demo-access.public.routes.js');
-const guard = read('src/middleware/restaurant-public-demo-guard.js');
 const installer = read('src/modules/public-installer/public-installer.routes.js');
 const core = read('src/routes/core.routes.js');
 const demo = read('src/web/restaurant-public-demo.html');
+const modal = read('src/web/restaurant-public-demo-modal.js');
+const landing = read('src/web/restaurant-public.html');
 
-assert.match(access, /DEMO_SUBDOMAIN = 'demo-restaurante'/);
-assert.match(access, /DEMO_ADMIN_EMAIL = 'admin@demo-restaurante\.vantixgc\.com'/);
-assert.match(access, /DEMO_AUTH_TYPE = 'PUBLIC_RESTAURANT_DEMO'/);
-assert.match(access, /expiresIn: '45m'/);
-assert.match(access, /demoMode: 'PUBLIC_REAL_V2'/);
-assert.match(access, /router\.get\('\/demo-session'/);
+assert.equal(fs.existsSync('src/modules/restaurant/restaurant-public-demo-access.public.routes.js'), false, 'El demo comercial no debe emitir sesiones/JWT');
+assert.equal(fs.existsSync('src/middleware/restaurant-public-demo-guard.js'), false, 'El demo comercial no debe necesitar middleware dentro del Core');
 
-assert.match(installer, /restaurantPublicDemoAccessRouter/);
-assert.ok(
-  installer.indexOf("router.use('/api/public/restaurantes', restaurantPublicDemoAccessRouter)") <
-  installer.indexOf("router.use('/api/public/restaurantes', restaurantSelfServicePublicRouter)"),
-  'Demo access router must be mounted before self-service router'
-);
+assert.doesNotMatch(installer, /restaurantPublicDemoAccessRouter/);
+assert.doesNotMatch(core, /restaurantPublicDemoGuard/);
 assert.match(installer, /router\.get\('\/restaurantes\/demo'/);
+assert.match(installer, /X-VantixGC-Restaurant-Demo-Isolation/);
+assert.match(installer, /standalone-commercial-v1/);
+assert.match(installer, /connect-src 'none'/);
+assert.match(installer, /frame-src 'none'/);
+assert.match(installer, /restaurant-public-demo-modal\.js/);
+assert.match(installer, /\/restaurantes\/demo-modal-v1\.js/);
+assert.match(installer, /filePath === restaurantLandingPath/);
 
-assert.match(core, /restaurantPublicDemoGuard/);
-assert.ok(core.indexOf('router.use(authMiddleware)') < core.indexOf('router.use(restaurantPublicDemoGuard)'));
-assert.ok(core.indexOf('router.use(restaurantPublicDemoGuard)') < core.indexOf('router.use(enforceTenantPermissions)'));
-
-assert.match(guard, /DEMO_AUTH_TYPE/);
-assert.match(guard, /DEMO_ADMIN_EMAIL/);
-assert.match(guard, /RESTAURANT_PUBLIC_DEMO_WRITE_BLOCKED/);
-for (const token of ['mesas','sesiones','caja','division','kds']) assert.ok(guard.includes(token), `Missing safe demo mutation family ${token}`);
-assert.ok(guard.includes("url === '/api/v1/restaurante/v2/caja/recibo/imprimir'"));
-
+assert.match(landing, /\/restaurantes\/demo/);
 assert.match(demo, /MODO DEMOSTRACIÓN/);
-assert.match(demo, /\/api\/public\/restaurantes\/demo-session/);
-assert.match(demo, /vantixgc_public_demo_session_backup_v1/);
-assert.match(demo, /restoreSession/);
-assert.match(demo, /frame\.src='\/app\/centro-de-control-v2'/);
-assert.match(demo, /\.demo-loading\[hidden\]\{display:none!important\}/);
-assert.match(demo, /loading\.hidden=true/);
-assert.match(demo, /loading\.style\.display='none'/);
-assert.doesNotMatch(demo, /const state=\{view:'dashboard'/);
-assert.doesNotMatch(demo, /Ventas demo/);
+assert.match(demo, /AISLADO DEL SISTEMA REAL/);
+assert.match(demo, /Showcase comercial/);
+assert.match(demo, /ENVIAR A COCINA \/ BARRA/);
+assert.match(demo, /COBRAR EN EL DEMO/);
+assert.match(demo, /PROTEGIDO/);
+assert.match(demo, /const initialState/);
+assert.match(demo, /renderProtected/);
 
-console.log('RESTAURANT PUBLIC REAL DEMO SMOKE OK');
+for (const forbidden of [
+  /fetch\s*\(/,
+  /XMLHttpRequest/,
+  /WebSocket/,
+  /EventSource/,
+  /\/api\//,
+  /\/app\//,
+  /vantixgc_core_session/i,
+  /localStorage/,
+  /sessionStorage/,
+  /document\.cookie/,
+  /demo-restaurante/,
+  /PUBLIC_RESTAURANT_DEMO/,
+  /<iframe/i
+]) assert.doesNotMatch(demo, forbidden, `Demo standalone must not contain ${forbidden}`);
+
+assert.match(modal, /DEMO_PATH = '\/restaurantes\/demo\?embedded=1'/);
+assert.match(modal, /sandbox=\"allow-scripts\"/);
+assert.doesNotMatch(modal, /allow-same-origin/);
+assert.match(modal, /referrerpolicy=\"no-referrer\"/);
+assert.match(modal, /Showcase autónomo/);
+
+console.log('RESTAURANT PUBLIC STANDALONE DEMO SMOKE OK', JSON.stringify({
+  standalone:true,
+  noTenantSession:true,
+  noCoreApi:true,
+  cspNoConnect:true,
+  modalSandbox:true,
+  adminShowcaseProtected:true
+}));
