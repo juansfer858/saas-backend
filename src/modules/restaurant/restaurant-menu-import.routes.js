@@ -137,7 +137,7 @@ router.patch('/carta-importacion/categorias/:id', requirePermission('RESTAURANTE
 
 router.get('/carta-importacion/lista', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
   try {
-    const rows = await service.listCarta(req.tenantId);
+    const rows = (await service.listCarta(req.tenantId)).map((row) => ({ ...row, menuItemId: row.menuItemId || row.id }));
     res.json({ ok: true, data: await commercialCategories.decorateCartaRows(req.tenantId, rows) });
   } catch (error) { next(error); }
 });
@@ -156,7 +156,7 @@ router.patch('/carta-importacion/items/:id', requirePermission('RESTAURANTE.ADMI
     const assignment = await commercialCategories.assignMenuItemByName(req.tenantId, updated.id, input.category);
     res.json({
       ok: true,
-      data: { ...updated, categoryId: assignment.category.id, category: assignment.category.name }
+      data: { ...updated, menuItemId: updated.id, categoryId: assignment.category.id, category: assignment.category.name }
     });
   } catch (error) { next(error); }
 });
