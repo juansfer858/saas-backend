@@ -1,0 +1,99 @@
+name: Restaurant Shift Closures C86 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-shift-close-history-c86.service.js'
+      - 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'
+      - 'src/modules/restaurant/restaurant-shift-close-history-c86.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
+      - 'src/web/restaurant-shift-close-c86.css'
+      - 'src/web/restaurant-shift-close-c86-cash.js'
+      - 'src/web/restaurant-shift-closures-c86.html'
+      - 'src/web/restaurant-shift-closures-c86.css'
+      - 'src/web/restaurant-shift-closures-c86.js'
+      - 'src/web/restaurant-shift-closures-c86-dashboard.js'
+      - 'scripts/restaurant-shift-closures-c86-smoke.js'
+      - '.github/workflows/restaurant-shift-closures-c86-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-shift-close-history-c86.service.js'
+      - 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'
+      - 'src/modules/restaurant/restaurant-shift-close-history-c86.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
+      - 'src/web/restaurant-shift-close-c86.css'
+      - 'src/web/restaurant-shift-close-c86-cash.js'
+      - 'src/web/restaurant-shift-closures-c86.html'
+      - 'src/web/restaurant-shift-closures-c86.css'
+      - 'src/web/restaurant-shift-closures-c86.js'
+      - 'src/web/restaurant-shift-closures-c86-dashboard.js'
+      - 'scripts/restaurant-shift-closures-c86-smoke.js'
+      - '.github/workflows/restaurant-shift-closures-c86-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Validate C86 syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-shift-close-history-c86.service.js
+          node --check src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js
+          node --check src/modules/restaurant/restaurant-shift-close-history-c86.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash.public.routes.js
+          node --check src/web/restaurant-shift-close-c86-cash.js
+          node --check src/web/restaurant-shift-closures-c86.js
+          node --check src/web/restaurant-shift-closures-c86-dashboard.js
+      - name: Validate C86 close/history contract
+        run: node scripts/restaurant-shift-closures-c86-smoke.js
+      - name: Validate Caja P4 existing DB contract source graph
+        run: node -e "require('./src/modules/restaurant/restaurant-v2-cash.routes')"
+      - name: Load application graph
+        run: node -e "require('./src/app')"
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact C86 commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
+              HISTORY="$(curl -fsS "$BASE/app/restaurant-shift-closures-c86.js?v=86-$GITHUB_SHA" 2>/dev/null || true)"
+              CASH="$(curl -fsS "$BASE/app/restaurant-shift-close-c86-cash.js?v=86-$GITHUB_SHA" 2>/dev/null || true)"
+              DASH="$(curl -fsS "$BASE/app/restaurant-shift-closures-c86-dashboard.js?v=86-$GITHUB_SHA" 2>/dev/null || true)"
+              if echo "$HISTORY" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSURES_C86' \
+                && echo "$CASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSE_C86_CASH' \
+                && echo "$DASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSURES_C86_DASHBOARD'; then
+                echo "C86 closures are live for exact commit $GITHUB_SHA"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "C86 did not become live for exact commit $GITHUB_SHA" >&2
+          exit 1
