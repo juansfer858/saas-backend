@@ -22,6 +22,7 @@ const snapshot = {
     DOMICILIOS: { tickets: 0, deliveredItems: '0', kitchenItems: '0', productionValue: '0', billedValue: '0', tips: '0', expectedSettlement: '0', settledValue: '0' },
     PARA_LLEVAR: { tickets: 0, deliveredItems: '0', kitchenItems: '0', productionValue: '0', billedValue: '0', tips: '0', expectedSettlement: '0', settledValue: '0' }
   },
+  totals: { tickets: 3, deliveredItems: '5', kitchenItems: '4', productionValue: '65000', billedValue: '75000', tips: '0', expectedSettlement: '75000', settledValue: '75000', difference: '0', accountsCharged: 3, kitchenDeliveredItems: '4' },
   production: {
     COCINA: { station: 'COCINA', commands: 2, deliveredItems: '4', value: '65000', readyNotDelivered: 0 },
     BARRA: { station: 'BARRA', commands: 0, deliveredItems: '0', value: '0', readyNotDelivered: 0 },
