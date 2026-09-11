@@ -13,7 +13,7 @@ function isFinalPosNumber(value) {
 
 function formatPosNumber(value) {
   const number = BigInt(value);
-  if (number < 1n) throw new AppError(500, 'Consecutivo POS inválido', 'RESTAURANT_POS_NUMBER_INVALID');
+  if (number < 0n) throw new AppError(500, 'Consecutivo POS inválido', 'RESTAURANT_POS_NUMBER_INVALID');
   return number.toString().padStart(POS_NUMBER_WIDTH, '0');
 }
 
@@ -45,16 +45,20 @@ async function lockTenantSequence(tx, tenantId, options = {}) {
   );
 }
 
-async function maxAssignedNumber(tx, tenantId) {
+async function assignedSequenceState(tx, tenantId) {
   const rows = await tx.$queryRawUnsafe(
-    `SELECT COALESCE(MAX(CAST("numero" AS BIGINT)), 0)::text AS "maxNumber"
+    `SELECT COUNT(*)::text AS "assignedCount",
+            COALESCE(MAX(CAST("numero" AS BIGINT)), 0)::text AS "maxNumber"
        FROM "ComprobanteComercial"
       WHERE "tenantId" = $1
         AND "tipo" = 'FACTURA_VENTA'
         AND "numero" ~ '^[0-9]{6,}$'`,
     tenantId
   );
-  return BigInt(rows?.[0]?.maxNumber || '0');
+  return {
+    assignedCount: BigInt(rows?.[0]?.assignedCount || '0'),
+    maxNumber: BigInt(rows?.[0]?.maxNumber || '0')
+  };
 }
 
 async function loadRestaurantSale(tx, tenantId, saleId) {
@@ -82,7 +86,11 @@ async function assignRestaurantPosNumberInTx(tx, tenantId, saleId) {
   sale = await loadRestaurantSale(tx, tenantId, saleId);
   if (isFinalPosNumber(sale.numero)) return sale;
 
-  const nextNumber = formatPosNumber((await maxAssignedNumber(tx, tenantId)) + 1n);
+  const sequence = await assignedSequenceState(tx, tenantId);
+  // Cada restaurante nace hoy con su propio POS interno: la primera venta cerrada
+  // es 000000. A partir de ahí continúa 000001, 000002... por tenant. Restaurantes
+  // que ya tienen ventas numeradas conservan su secuencia actual sin renumeración.
+  const nextNumber = formatPosNumber(sequence.assignedCount === 0n ? 0n : sequence.maxNumber + 1n);
   return tx.comprobanteComercial.update({
     where: { id: sale.id },
     data: { numero: nextNumber },
@@ -98,5 +106,6 @@ module.exports = {
   isFinalPosNumber,
   formatPosNumber,
   lockTenantSequence,
+  assignedSequenceState,
   assignRestaurantPosNumberInTx
 };
