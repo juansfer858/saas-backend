@@ -3,116 +3,113 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Demo real · VantixGC Restaurantes</title>
-<meta name="description" content="Prueba la interfaz real V2 de VantixGC Restaurantes sobre un tenant demo aislado.">
-<!-- DEMO INTERACTIVO · contrato histórico conservado; la experiencia ahora usa la interfaz V2 real -->
+<title>Demo interactivo · VantixGC Restaurantes</title>
+<meta name="description" content="Demo comercial autónomo de VantixGC Restaurantes. Datos 100% ficticios y sin conexión al sistema real.">
 <style>
-:root{--ink:#171717;--orange:#f97316;--orange-deep:#ea580c;--cream:#fff7ed;--line:#e7e5e4;--muted:#78716c;--white:#fff}
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f5f5f4;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink)}
-.demo-shell{height:100dvh;display:grid;grid-template-rows:auto 1fr;min-height:0}
-.demo-bar{position:relative;z-index:20;min-height:58px;padding:8px max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left));display:flex;align-items:center;gap:14px;justify-content:space-between;background:var(--ink);color:#fff;border-bottom:2px solid var(--orange)}
-.demo-brand{display:flex;align-items:center;gap:10px;min-width:0}.demo-mark{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:var(--orange);font-weight:950;flex:0 0 auto}.demo-copy{min-width:0}.demo-copy b{display:block;font-size:13px;line-height:1.15}.demo-copy span{display:block;margin-top:2px;color:#d6d3d1;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.demo-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #78350f;border-radius:999px;background:#431407;color:#fed7aa;font-size:10px;font-weight:950;letter-spacing:.08em;white-space:nowrap}.demo-pill:before{content:'';width:7px;height:7px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 4px rgba(249,115,22,.18)}
-.demo-actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}.demo-btn{min-height:38px;padding:8px 12px;border-radius:10px;border:1px solid #444;background:#2a2a2a;color:#fff;text-decoration:none;font-size:12px;font-weight:850;cursor:pointer}.demo-btn:hover{background:#363636}.demo-btn.primary{border-color:var(--orange);background:var(--orange);color:#fff}.demo-btn.primary:hover{background:var(--orange-deep)}
-.demo-stage{position:relative;min-height:0;background:#f5f5f4}.demo-frame{display:block;width:100%;height:100%;border:0;background:#fff}
-.demo-loading{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;background:#fafaf9}.demo-loading[hidden]{display:none!important}.demo-card{width:min(520px,100%);padding:28px;border:1px solid var(--line);border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(23,23,23,.10);text-align:center}.demo-spinner{width:42px;height:42px;margin:0 auto 18px;border:4px solid #ffedd5;border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}.demo-card h1{margin:0 0 8px;font-size:24px;letter-spacing:-.025em}.demo-card p{margin:0;color:var(--muted);line-height:1.55}.demo-error{margin-top:18px;padding:12px;border:1px solid #fecaca;border-radius:12px;background:#fff1f2;color:#991b1b;font-size:13px;text-align:left}.demo-retry{margin-top:16px;border:0;border-radius:10px;background:var(--orange);color:#fff;padding:10px 14px;font-weight:850;cursor:pointer}
-@keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:760px){.demo-bar{align-items:flex-start;flex-wrap:wrap;gap:8px}.demo-copy span{max-width:220px}.demo-pill{order:3}.demo-actions{margin-left:auto}.demo-btn{padding:8px 9px}.demo-btn.primary{display:none}}
+:root{--bg:#f5f5f4;--panel:#fff;--panel2:#fafaf9;--ink:#171717;--ink2:#292524;--muted:#78716c;--line:#e7e5e4;--orange:#f97316;--orange2:#ea580c;--orange-soft:#fff7ed;--amber:#fb923c;--green:#15803d;--green-soft:#f0fdf4;--red:#b91c1c;--red-soft:#fff1f2;--blue:#1d4ed8;--blue-soft:#eff6ff;--shadow:0 18px 50px rgba(23,23,23,.09)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}button,a,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}.hidden{display:none!important}
+.demo{min-height:100vh;display:grid;grid-template-columns:236px minmax(0,1fr)}
+.sidebar{position:sticky;top:0;height:100vh;background:#171717;color:#e7e5e4;padding:16px 12px;display:flex;flex-direction:column;overflow:auto}.brand{display:flex;align-items:center;gap:10px;padding:5px 8px 17px}.brandmark{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,var(--orange),var(--orange2));color:#fff;font-weight:950;box-shadow:0 8px 20px rgba(249,115,22,.26)}.brand b{display:block;color:#fff;font-size:13px}.brand small{display:block;color:#a8a29e;font-size:10px;margin-top:2px}.navlabel{padding:12px 10px 6px;color:#78716c;font-size:9px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}.navbtn{width:100%;border:0;background:transparent;color:#d6d3d1;border-radius:10px;padding:10px 11px;margin:2px 0;text-align:left;font-size:12px;font-weight:780;display:flex;justify-content:space-between;align-items:center;gap:8px}.navbtn:hover{background:#262626;color:#fff}.navbtn.active{background:rgba(249,115,22,.14);color:#fdba74;box-shadow:inset 3px 0 0 var(--orange)}.navbtn .lock{font-size:10px;color:#a8a29e}.sidebar-foot{margin-top:auto;border-top:1px solid #2e2e2e;padding:13px 8px 3px}.sidebar-foot small{display:block;color:#78716c;line-height:1.35}.reset{margin-top:10px;width:100%;border:1px solid #444;background:#242424;color:#fff;border-radius:9px;padding:9px 10px;font-size:11px;font-weight:800}
+.main{min-width:0}.topbar{height:66px;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 20px;position:sticky;top:0;z-index:15}.top-id{min-width:0}.top-id b{display:block;font-size:13px}.top-id small{display:block;color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.demo-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:7px 9px;font-size:9px;font-weight:950;letter-spacing:.07em}.pill.demo{background:#431407;color:#fed7aa;border:1px solid #9a3412;min-height:0}.pill.safe{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}.dot{width:6px;height:6px;border-radius:50%;background:currentColor}.top-actions{display:flex;gap:7px}.smallbtn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 10px;font-size:11px;font-weight:800}.smallbtn.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.workspace{padding:22px;max-width:1500px;margin:0 auto}.pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}.pagehead h1{font-size:27px;letter-spacing:-.035em;margin:0 0 5px}.pagehead p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:850;color:var(--ink)}.btn:hover{border-color:#fdba74}.btn.primary{background:var(--orange);border-color:var(--orange);color:#fff}.btn.dark{background:#171717;border-color:#171717;color:#fff}.btn.good{background:var(--green);border-color:var(--green);color:#fff}.btn.danger{background:#fff;border-color:#fecaca;color:var(--red)}.btn:disabled{opacity:.45;cursor:not-allowed}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:14px}.metric{background:#fff;border:1px solid var(--line);border-radius:15px;padding:15px;box-shadow:0 3px 10px rgba(23,23,23,.03)}.metric small{display:block;color:var(--muted);font-size:10px;font-weight:750}.metric strong{display:block;margin-top:5px;font-size:24px;letter-spacing:-.03em}.metric span{font-size:9px;color:#a8a29e}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 4px 14px rgba(23,23,23,.035)}.cardhead{padding:14px 16px;border-bottom:1px solid #f0efed;display:flex;align-items:center;justify-content:space-between;gap:10px}.cardhead b{font-size:13px}.cardbody{padding:15px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}.tables{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.tablecard{border:1px solid var(--line);background:#fff;border-radius:13px;padding:13px;text-align:left;min-height:105px;transition:.14s;position:relative}.tablecard:hover{transform:translateY(-2px);border-color:#fdba74;box-shadow:0 10px 24px rgba(23,23,23,.06)}.tablecard.free{background:#fff}.tablecard.busy{background:#fffaf5;border-color:#fdba74}.tablecard.account{background:#fff7ed;border-color:#fb923c}.tablecard b{display:block;font-size:14px}.tablecard small{display:block;color:var(--muted);font-size:10px;margin-top:4px}.tablecard strong{display:block;margin-top:12px;font-size:15px}.statusline{position:absolute;right:10px;top:10px;border-radius:999px;padding:5px 7px;font-size:8px;font-weight:950}.statusline.free{background:#f5f5f4;color:#57534e}.statusline.busy{background:#ffedd5;color:#c2410c}.statusline.account{background:#431407;color:#fed7aa}
+.orderlayout{display:grid;grid-template-columns:220px minmax(0,1fr) 330px;gap:12px;align-items:start}.tablelist{display:grid;gap:7px}.tablepick{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px;text-align:left}.tablepick.active{border-color:var(--orange);background:var(--orange-soft)}.tablepick b{font-size:11px}.tablepick small{display:block;color:var(--muted);margin-top:2px;font-size:9px}.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.product{position:relative;border:1px solid var(--line);background:#fff;border-radius:13px;padding:13px;min-height:104px;text-align:left}.product:hover{border-color:var(--orange);box-shadow:0 10px 22px rgba(249,115,22,.08)}.product b{display:block;font-size:12px;padding-right:34px}.product small{display:block;color:var(--muted);font-size:9px;margin:4px 0 12px}.product strong{font-size:12px}.product .plus{position:absolute;right:10px;top:10px;width:29px;height:29px;border:0;border-radius:9px;background:var(--orange-soft);color:var(--orange2);font-weight:950}.cartempty{padding:25px 8px;text-align:center;color:var(--muted);font-size:11px}.cartline{padding:11px 0;border-bottom:1px solid #eee;display:grid;grid-template-columns:1fr auto;gap:8px}.cartline b{font-size:10px}.cartline small{display:block;color:var(--muted);font-size:9px;margin-top:2px}.qty{display:flex;align-items:center;gap:5px}.qty button{width:26px;height:26px;border:1px solid var(--line);background:#fff;border-radius:7px;font-weight:900}.carttotal{display:flex;justify-content:space-between;align-items:center;padding:14px 0;font-weight:900}.sendbtn{width:100%;min-height:44px;border:0;border-radius:10px;background:var(--orange);color:#fff;font-weight:900}
+.kdsgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.kdscol{background:#f7f7f6;border:1px solid var(--line);border-radius:15px;padding:10px;min-height:390px}.kdstitle{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 10px}.kdstitle b{font-size:11px}.count{min-width:24px;height:24px;border-radius:999px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;font-size:9px;font-weight:900}.command{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;box-shadow:0 3px 10px rgba(23,23,23,.03)}.command .meta{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.command b{display:block;font-size:11px;margin:4px 0}.command small{font-size:9px;color:var(--muted)}.command .cmd-actions{display:flex;gap:6px;margin-top:10px}.command .cmd-actions button{flex:1;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px;font-size:9px;font-weight:850}.command .cmd-actions button.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.cashlayout{display:grid;grid-template-columns:1fr 360px;gap:12px}.cashrows{display:grid;gap:8px}.cashrow{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.cashrow.active{border-color:var(--orange);background:var(--orange-soft)}.cashrow b{font-size:11px}.cashrow small{display:block;color:var(--muted);font-size:9px;margin-top:3px}.cashrow strong{font-size:13px}.payment-options{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}.pay{border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px;font-size:10px;font-weight:800}.pay.active{border-color:var(--orange);background:var(--orange-soft);color:#c2410c}.receipt{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#fbfbfa;border:1px dashed #d6d3d1;border-radius:12px;padding:14px;font-size:10px;line-height:1.55}.receipt hr{border:0;border-top:1px dashed #d6d3d1}.receipt .rline{display:flex;justify-content:space-between;gap:12px}.receipt .total{font-weight:950;font-size:12px}
+.splitbox{display:grid;grid-template-columns:1.05fr .95fr;gap:12px}.splititems{display:grid;gap:7px}.splititem{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;justify-content:space-between;gap:10px}.splititem b{font-size:10px}.splititem small{display:block;color:var(--muted);font-size:8px}.parts{display:grid;grid-template-columns:1fr 1fr;gap:8px}.part{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.part b{font-size:11px}.part strong{display:block;font-size:18px;margin-top:6px}.part small{color:var(--muted);font-size:8px}
+.protected-wrap{position:relative;min-height:490px;overflow:hidden;border:1px solid var(--line);border-radius:17px;background:#fff}.protected-content{padding:18px;filter:blur(6px);opacity:.48;pointer-events:none;user-select:none}.fakebar{height:42px;border:1px solid var(--line);border-radius:10px;margin-bottom:11px;background:linear-gradient(90deg,#fafaf9,#fff)}.fakerows{display:grid;gap:8px}.fakerow{display:grid;grid-template-columns:45px 1.4fr 1fr 80px;gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px}.fakecircle{width:32px;height:32px;border-radius:50%;background:#e7e5e4}.fakeline{height:10px;border-radius:999px;background:#e7e5e4}.protect-overlay{position:absolute;inset:0;display:grid;place-items:center;padding:25px;background:rgba(250,250,249,.38);backdrop-filter:blur(2px)}.protect-card{width:min(480px,100%);text-align:center;background:rgba(255,255,255,.95);border:1px solid #fed7aa;border-radius:20px;padding:27px;box-shadow:var(--shadow)}.lockicon{width:48px;height:48px;border-radius:15px;margin:0 auto 13px;display:grid;place-items:center;background:var(--orange-soft);color:var(--orange2);font-size:23px;font-weight:950}.protect-card h2{margin:0 0 8px;font-size:20px}.protect-card p{margin:0 auto 16px;color:var(--muted);font-size:11px;line-height:1.55;max-width:390px}.protect-actions{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+.toast{position:fixed;right:18px;bottom:18px;z-index:80;background:#171717;color:#fff;border-radius:12px;padding:11px 14px;font-size:11px;font-weight:750;box-shadow:0 14px 35px rgba(23,23,23,.22);transform:translateY(20px);opacity:0;pointer-events:none;transition:.18s}.toast.show{transform:none;opacity:1}.modalback{position:fixed;inset:0;z-index:90;background:rgba(23,23,23,.65);display:grid;place-items:center;padding:18px}.modal{width:min(520px,100%);background:#fff;border-radius:18px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.25)}.modal h2{font-size:19px;margin:0 0 6px}.modal p{font-size:11px;color:var(--muted);margin:0 0 14px}.field{margin:10px 0}.field label{display:block;font-size:9px;font-weight:850;margin-bottom:5px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px;background:#fff}.modalactions{display:flex;justify-content:flex-end;gap:7px;margin-top:15px}
+@media(max-width:1100px){.demo{grid-template-columns:200px minmax(0,1fr)}.tables{grid-template-columns:repeat(3,1fr)}.orderlayout{grid-template-columns:180px minmax(0,1fr)}.orderlayout>.card:last-child{grid-column:1/-1}.products{grid-template-columns:repeat(3,1fr)}.cashlayout{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.demo{display:block}.sidebar{position:static;height:auto;padding:10px}.brand{padding-bottom:8px}.navlabel{display:none}.sidebar nav{display:flex;gap:5px;overflow:auto}.navbtn{width:auto;white-space:nowrap;padding:9px}.navbtn .lock{display:none}.sidebar-foot{display:none}.topbar{position:static;height:auto;min-height:62px;padding:9px 12px}.demo-status .pill.safe{display:none}.top-actions{display:none}.workspace{padding:13px}.pagehead{display:block}.toolbar{margin-top:10px}.metrics,.tables,.grid2,.grid3,.kdsgrid,.splitbox{grid-template-columns:1fr}.orderlayout{grid-template-columns:1fr}.products{grid-template-columns:1fr 1fr}.cashlayout{grid-template-columns:1fr}.kdscol{min-height:160px}.protected-wrap{min-height:420px}}
+@media(max-width:480px){.products{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.metric strong{font-size:19px}.pagehead h1{font-size:23px}}
 </style>
 </head>
 <body>
-<div class="demo-shell">
-  <header class="demo-bar">
-    <div class="demo-brand"><span class="demo-mark">V</span><div class="demo-copy"><b>VantixGC Restaurantes</b><span>Estás usando la interfaz real sobre datos de demostración</span></div></div>
-    <span class="demo-pill">MODO DEMOSTRACIÓN</span>
-    <div class="demo-actions"><button class="demo-btn" id="backBtn" type="button">← Volver</button><button class="demo-btn primary" id="createBtn" type="button">Crear mi restaurante</button></div>
-  </header>
-  <main class="demo-stage">
-    <iframe class="demo-frame" id="demoFrame" title="VantixGC Restaurantes · Demo real V2"></iframe>
-    <section class="demo-loading" id="loading">
-      <div class="demo-card"><div class="demo-spinner" id="spinner"></div><h1>Preparando el demo real</h1><p id="status">Conectando un tenant aislado a la interfaz V2…</p><div id="error"></div></div>
-    </section>
+<div class="demo" id="demoRoot">
+  <aside class="sidebar">
+    <div class="brand"><span class="brandmark">V</span><div><b>VantixGC Restaurantes</b><small>Showcase comercial</small></div></div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot"><small>DEMO AUTÓNOMO</small><small>Datos ficticios · sin conexión al sistema real</small><button class="reset" id="resetDemo" type="button">Reiniciar demostración</button></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="top-id"><b>Restaurante Demo VantixGC</b><small>Experiencia comercial simulada · ningún dato sale de esta página</small></div>
+      <div class="demo-status"><span class="pill demo"><span class="dot"></span>MODO DEMOSTRACIÓN</span><span class="pill safe">AISLADO DEL SISTEMA REAL</span></div>
+      <div class="top-actions"><a class="smallbtn" href="/restaurantes">Volver</a><a class="smallbtn primary" href="/restaurantes/crear">Crear mi restaurante</a></div>
+    </header>
+    <section class="workspace" id="view"></section>
   </main>
 </div>
+<div class="toast" id="toast"></div>
+<div id="modalHost"></div>
 <script>
 (() => {
-  'use strict';
-  const SESSION_KEY='vantixgc_core_session_v1';
-  const BACKUP_KEY='vantixgc_public_demo_session_backup_v1';
-  const ACCESS_PREFIX='vantixgc_core_restaurant_access_v2:';
-  const frame=document.querySelector('#demoFrame');
-  const loading=document.querySelector('#loading');
-  const status=document.querySelector('#status');
-  const errorBox=document.querySelector('#error');
-  const spinner=document.querySelector('#spinner');
-  let demoSession=null;
-  let restored=false;
-
-  function backupCurrentSession(){
-    try{
-      const current=localStorage.getItem(SESSION_KEY);
-      if(!current)return;
-      const parsed=JSON.parse(current);
-      if(parsed?.demo===true)return;
-      sessionStorage.setItem(BACKUP_KEY,current);
-    }catch{}
-  }
-
-  function restoreSession(){
-    if(restored)return;
-    restored=true;
-    try{
-      if(demoSession?.subdomain&&demoSession?.user?.id)sessionStorage.removeItem(`${ACCESS_PREFIX}${demoSession.subdomain}:${demoSession.user.id}`);
-      const backup=sessionStorage.getItem(BACKUP_KEY);
-      if(backup)localStorage.setItem(SESSION_KEY,backup);
-      else {
-        const current=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
-        if(current?.demo===true)localStorage.removeItem(SESSION_KEY);
-      }
-      sessionStorage.removeItem(BACKUP_KEY);
-    }catch{}
-  }
-
-  function leave(path){restoreSession();location.href=path}
-  document.querySelector('#backBtn').addEventListener('click',()=>leave('/restaurantes'));
-  document.querySelector('#createBtn').addEventListener('click',()=>leave('/restaurantes/crear'));
-  window.addEventListener('pagehide',restoreSession);
-
-  function showError(message){
-    loading.hidden=false;
-    loading.style.display='grid';
-    spinner.style.display='none';
-    status.textContent='No pudimos abrir el demo en este momento.';
-    errorBox.innerHTML=`<div class="demo-error">${String(message||'Error inesperado').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}</div><button class="demo-retry" type="button" id="retryDemo">Reintentar</button>`;
-    document.querySelector('#retryDemo').onclick=boot;
-  }
-
-  async function boot(){
-    restored=false;
-    loading.hidden=false;
-    loading.style.display='grid';
-    errorBox.innerHTML='';
-    spinner.style.display='block';
-    status.textContent='Conectando un tenant aislado a la interfaz V2…';
-    try{
-      backupCurrentSession();
-      const response=await fetch('/api/public/restaurantes/demo-session',{method:'GET',cache:'no-store',headers:{Accept:'application/json'}});
-      let body={};try{body=await response.json()}catch{}
-      if(!response.ok||!body?.ok||!body?.data?.token)throw new Error(body?.error?.message||body?.message||`HTTP ${response.status}`);
-      demoSession=body.data;
-      localStorage.setItem(SESSION_KEY,JSON.stringify(demoSession));
-      if(demoSession.subdomain&&demoSession.user?.id)sessionStorage.setItem(`${ACCESS_PREFIX}${demoSession.subdomain}:${demoSession.user.id}`,'1');
-      status.textContent='Abriendo el Centro de Control V2 real…';
-      frame.onload=()=>{
-        loading.hidden=true;
-        loading.style.display='none';
-      };
-      frame.src='/app/centro-de-control-v2';
-    }catch(error){showError(error?.message||error)}
-  }
-
-  boot();
+'use strict';
+const money=n=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(n||0));
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+const nav=document.querySelector('#nav'),view=document.querySelector('#view'),toastEl=document.querySelector('#toast'),modalHost=document.querySelector('#modalHost');
+const initialState=()=>({
+  view:'mesas',selectedTable:2,payment:'EFECTIVO',sales:286400,cart:[],
+  tables:[
+    {id:1,name:'Mesa 1',status:'FREE',guests:0,items:[]},
+    {id:2,name:'Mesa 2',status:'BUSY',guests:3,items:[{name:'Hamburguesa de la casa',qty:2,price:22000},{name:'Limonada natural',qty:1,price:7000}]},
+    {id:3,name:'Mesa 3',status:'FREE',guests:0,items:[]},
+    {id:4,name:'Mesa 4',status:'BUSY',guests:2,items:[{name:'Pasta cremosa',qty:2,price:26000}]},
+    {id:5,name:'Mesa 5',status:'ACCOUNT',guests:2,items:[{name:'Papas de entrada',qty:2,price:9000},{name:'Postre de la casa',qty:1,price:10000}]},
+    {id:6,name:'Mesa 6',status:'FREE',guests:0,items:[]},
+    {id:7,name:'Mesa 7',status:'BUSY',guests:4,items:[{name:'Hamburguesa de la casa',qty:1,price:22000},{name:'Gaseosa',qty:3,price:6000}]},
+    {id:8,name:'Mesa 8',status:'FREE',guests:0,items:[]}
+  ],
+  menu:[
+    {id:'p1',name:'Hamburguesa de la casa',price:22000,station:'COCINA',cat:'Fuertes'},
+    {id:'p2',name:'Pasta cremosa',price:26000,station:'COCINA',cat:'Fuertes'},
+    {id:'p3',name:'Papas de entrada',price:9000,station:'COCINA',cat:'Entradas'},
+    {id:'p4',name:'Limonada natural',price:7000,station:'BARRA',cat:'Bebidas'},
+    {id:'p5',name:'Gaseosa',price:6000,station:'BARRA',cat:'Bebidas'},
+    {id:'p6',name:'Postre de la casa',price:10000,station:'POSTRES',cat:'Postres'}
+  ],
+  commands:[
+    {id:1,table:'Mesa 2',item:'2 Hamburguesas de la casa',station:'COCINA',status:'PREPARING'},
+    {id:2,table:'Mesa 2',item:'1 Limonada natural',station:'BARRA',status:'READY'},
+    {id:3,table:'Mesa 4',item:'2 Pasta cremosa',station:'COCINA',status:'PENDING'}
+  ]
+});
+let state=initialState();
+const modules=[
+  ['Operación',[['mesas','Mesas'],['pedidos','Pedidos'],['kds','Producción / KDS'],['division','División'],['caja','Caja']]],
+  ['Gestión',[['carta','Carta',1],['inventario','Inventario',1],['empleados','Empleados',1],['qrs','QR de mesas',1],['reportes','Reportes',1],['dispositivos','Dispositivos',1],['administracion','Administración',1]]]
+];
+function totalTable(t){return (t?.items||[]).reduce((s,i)=>s+(i.price*i.qty),0)}
+function busyTables(){return state.tables.filter(t=>t.status!=='FREE')}
+function notify(text){toastEl.textContent=text;toastEl.classList.add('show');clearTimeout(notify.t);notify.t=setTimeout(()=>toastEl.classList.remove('show'),2200)}
+function renderNav(){nav.innerHTML=modules.map(([label,items])=>`<div class="navlabel">${label}</div>${items.map(([key,name,locked])=>`<button type="button" class="navbtn ${state.view===key?'active':''}" data-view="${key}"><span>${name}</span>${locked?'<span class="lock">PROTEGIDO</span>':''}</button>`).join('')}`).join('');nav.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>go(b.dataset.view))}
+function go(key){state.view=key;renderNav();render()}
+function header(title,desc,actions=''){return `<div class="pagehead"><div><h1>${title}</h1><p>${desc}</p></div>${actions?`<div class="toolbar">${actions}</div>`:''}</div>`}
+function metrics(){const occupied=state.tables.filter(t=>t.status==='BUSY').length,account=state.tables.filter(t=>t.status==='ACCOUNT').length,active=state.commands.filter(c=>c.status!=='DONE').length;return `<div class="metrics"><div class="metric"><small>Mesas ocupadas</small><strong>${occupied}</strong><span>de ${state.tables.length} mesas</span></div><div class="metric"><small>Cuentas pedidas</small><strong>${account}</strong><span>listas para Caja</span></div><div class="metric"><small>Comandas activas</small><strong>${active}</strong><span>Cocina · Barra · Postres</span></div><div class="metric"><small>Ventas demo</small><strong>${money(state.sales)}</strong><span>valor ficticio del turno</span></div></div>`}
+function tableCard(t){const cls=t.status==='FREE'?'free':t.status==='ACCOUNT'?'account':'busy';const label=t.status==='FREE'?'LIBRE':t.status==='ACCOUNT'?'CUENTA':'OCUPADA';return `<button class="tablecard ${cls}" type="button" data-table="${t.id}"><span class="statusline ${cls}">${label}</span><b>${esc(t.name)}</b><small>${t.status==='FREE'?'Disponible':`${t.guests} comensal${t.guests===1?'':'es'}`}</small><strong>${t.status==='FREE'?'—':money(totalTable(t))}</strong></button>`}
+function renderMesas(){view.innerHTML=header('Mesas','Salón interactivo con datos ficticios. Abre una mesa libre o entra a una ocupada.','<button class="btn primary" type="button" id="quickOrder">Nuevo pedido</button>')+metrics()+`<div class="card"><div class="cardhead"><b>Salón principal</b><small>Haz clic en cualquier mesa</small></div><div class="cardbody"><div class="tables">${state.tables.map(tableCard).join('')}</div></div></div>`;view.querySelectorAll('[data-table]').forEach(b=>b.onclick=()=>openTable(Number(b.dataset.table)));document.querySelector('#quickOrder').onclick=()=>go('pedidos')}
+function openTable(id){const t=state.tables.find(x=>x.id===id);state.selectedTable=id;if(t.status==='FREE'){modalHost.innerHTML=`<div class="modalback"><div class="modal"><h2>Abrir ${esc(t.name)}</h2><p>Esta apertura existe solamente dentro del demo comercial.</p><div class="field"><label>Número de comensales</label><input id="guestCount" type="number" min="1" max="20" value="2"></div><div class="modalactions"><button class="btn" id="cancelModal">Cancelar</button><button class="btn primary" id="confirmOpen">Abrir mesa</button></div></div></div>`;document.querySelector('#cancelModal').onclick=()=>modalHost.innerHTML='';document.querySelector('#confirmOpen').onclick=()=>{t.status='BUSY';t.guests=Math.max(1,Number(document.querySelector('#guestCount').value)||1);modalHost.innerHTML='';notify(`${t.name} abierta en el demo`);go('pedidos')}}else if(t.status==='ACCOUNT')go('caja');else go('pedidos')}
+function tablePicks(){return state.tables.filter(t=>t.status!=='FREE').map(t=>`<button type="button" class="tablepick ${state.selectedTable===t.id?'active':''}" data-pick="${t.id}"><b>${esc(t.name)}</b><small>${money(totalTable(t))} · ${t.guests} personas</small></button>`).join('')||'<div class="cartempty">No hay mesas abiertas. Ve a Mesas y abre una.</div>'}
+function cartHtml(){if(!state.cart.length)return '<div class="cartempty">Selecciona productos para construir el pedido.</div>';const lines=state.cart.map((i,idx)=>`<div class="cartline"><div><b>${esc(i.name)}</b><small>${money(i.price)} · ${esc(i.station)}</small></div><div class="qty"><button data-minus="${idx}">−</button><span>${i.qty}</span><button data-plus="${idx}">+</button></div></div>`).join('');const total=state.cart.reduce((s,i)=>s+i.price*i.qty,0);return `${lines}<div class="carttotal"><span>Total pedido</span><span>${money(total)}</span></div><button class="sendbtn" id="sendOrder" type="button">ENVIAR A COCINA / BARRA</button>`}
+function renderPedidos(){const selected=state.tables.find(t=>t.id===state.selectedTable&&t.status!=='FREE')||busyTables()[0];if(selected)state.selectedTable=selected.id;view.innerHTML=header('Pedidos','Flujo comercial simulado: mesa → productos → estaciones.')+`<div class="orderlayout"><div class="card"><div class="cardhead"><b>Mesas abiertas</b></div><div class="cardbody"><div class="tablelist">${tablePicks()}</div></div></div><div class="card"><div class="cardhead"><b>Carta demo</b><small>Productos ficticios</small></div><div class="cardbody"><div class="products">${state.menu.map(p=>`<button class="product" type="button" data-product="${p.id}"><span class="plus">+</span><b>${esc(p.name)}</b><small>${esc(p.cat)} · ${esc(p.station)}</small><strong>${money(p.price)}</strong></button>`).join('')}</div></div></div><div class="card"><div class="cardhead"><b>${selected?`Pedido · ${esc(selected.name)}`:'Pedido'}</b><small>Sin persistencia</small></div><div class="cardbody" id="cart">${cartHtml()}</div></div></div>`;view.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{state.selectedTable=Number(b.dataset.pick);renderPedidos()});view.querySelectorAll('[data-product]').forEach(b=>b.onclick=()=>addProduct(b.dataset.product));bindCart()}
+function addProduct(id){if(!state.tables.find(t=>t.id===state.selectedTable&&t.status!=='FREE')){notify('Primero abre o selecciona una mesa');return}const p=state.menu.find(x=>x.id===id),line=state.cart.find(x=>x.id===id);if(line)line.qty++;else state.cart.push({...p,qty:1});document.querySelector('#cart').innerHTML=cartHtml();bindCart()}
+function bindCart(){document.querySelectorAll('[data-minus]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.minus);state.cart[i].qty--;if(state.cart[i].qty<=0)state.cart.splice(i,1);document.querySelector('#cart').innerHTML=cartHtml();bindCart()});document.querySelectorAll('[data-plus]').forEach(b=>b.onclick=()=>{state.cart[Number(b.dataset.plus)].qty++;document.querySelector('#cart').innerHTML=cartHtml();bindCart()});const send=document.querySelector('#sendOrder');if(send)send.onclick=sendOrder}
+function sendOrder(){const t=state.tables.find(x=>x.id===state.selectedTable);if(!t||!state.cart.length)return;state.cart.forEach(i=>{const existing=t.items.find(x=>x.name===i.name);if(existing)existing.qty+=i.qty;else t.items.push({name:i.name,qty:i.qty,price:i.price});state.commands.push({id:Date.now()+Math.random(),table:t.name,item:`${i.qty} ${i.name}`,station:i.station,status:'PENDING'})});state.cart=[];notify('Pedido enviado a las estaciones del demo');go('kds')}
+function commandCard(c){const action=c.status==='PENDING'?'<button class="primary" data-next="PREPARING">PREPARAR</button>':c.status==='PREPARING'?'<button class="primary" data-next="READY">MARCAR LISTO</button>':c.status==='READY'?'<button class="primary" data-next="DONE">ENTREGAR</button>':'';return `<div class="command" data-command="${c.id}"><span class="meta">${esc(c.station)} · ${esc(c.table)}</span><b>${esc(c.item)}</b><small>${c.status==='PENDING'?'Pendiente':c.status==='PREPARING'?'En preparación':'Listo para entregar'}</small>${action?`<div class="cmd-actions">${action}</div>`:''}</div>`}
+function renderKds(){const cols=[['PENDING','PENDIENTES'],['PREPARING','EN PREPARACIÓN'],['READY','LISTOS']];view.innerHTML=header('Producción / KDS','Mueve comandas ficticias entre estados para ver el flujo.')+`<div class="kdsgrid">${cols.map(([key,label])=>{const rows=state.commands.filter(c=>c.status===key);return `<section class="kdscol"><div class="kdstitle"><b>${label}</b><span class="count">${rows.length}</span></div>${rows.map(commandCard).join('')||'<div class="cartempty">Sin comandas</div>'}</section>`}).join('')}</div>`;view.querySelectorAll('[data-next]').forEach(b=>b.onclick=()=>{const c=state.commands.find(x=>String(x.id)===String(b.closest('[data-command]').dataset.command));c.status=b.dataset.next;notify(c.status==='DONE'?'Producto entregado':'Comanda actualizada');renderKds()})}
+function renderDivision(){const t=state.tables.find(x=>x.id===state.selectedTable&&x.status!=='FREE')||busyTables()[0];if(t)state.selectedTable=t.id;const total=totalTable(t);view.innerHTML=header('División','Simula una cuenta conjunta o dividida sin generar cobros reales.',`<button class="btn" type="button" id="equal2">Dividir en 2</button><button class="btn" type="button" id="equal3">Dividir en 3</button>`)+`<div class="splitbox"><div class="card"><div class="cardhead"><b>${t?esc(t.name):'Sin mesa seleccionada'}</b><small>${t?money(total):''}</small></div><div class="cardbody"><div class="splititems">${t?t.items.map(i=>`<div class="splititem"><div><b>${i.qty} × ${esc(i.name)}</b><small>Producto de demostración</small></div><strong>${money(i.qty*i.price)}</strong></div>`).join(''):'<div class="cartempty">Abre una mesa para probar División.</div>'}</div></div></div><div class="card"><div class="cardhead"><b>Partes de la cuenta</b><small id="splitLabel">2 partes</small></div><div class="cardbody"><div class="parts" id="parts">${partsHtml(total,2)}</div></div></div></div>`;document.querySelector('#equal2').onclick=()=>setParts(total,2);document.querySelector('#equal3').onclick=()=>setParts(total,3)}
+function partsHtml(total,n){if(!total)return '<div class="cartempty">Sin valor para dividir.</div>';return Array.from({length:n},(_,i)=>`<div class="part"><b>Persona ${i+1}</b><strong>${money(Math.round(total/n))}</strong><small>Pago pendiente · demo</small></div>`).join('')}
+function setParts(total,n){document.querySelector('#splitLabel').textContent=`${n} partes`;document.querySelector('#parts').innerHTML=partsHtml(total,n);notify(`Cuenta dividida en ${n} partes ficticias`)}
+function cashRows(){return state.tables.filter(t=>t.status!=='FREE').map(t=>`<button class="cashrow ${state.selectedTable===t.id?'active':''}" type="button" data-cash-table="${t.id}"><div><b>${esc(t.name)}</b><small>${t.status==='ACCOUNT'?'Cuenta solicitada':'Cuenta abierta'} · ${t.items.length} líneas</small></div><strong>${money(totalTable(t))}</strong></button>`).join('')||'<div class="cartempty">No hay cuentas abiertas.</div>'}
+function renderCaja(){let t=state.tables.find(x=>x.id===state.selectedTable&&x.status!=='FREE')||state.tables.find(x=>x.status==='ACCOUNT')||busyTables()[0];if(t)state.selectedTable=t.id;view.innerHTML=header('Caja','Cobro visual y ficticio. No registra ventas, tesorería ni contabilidad real.')+`<div class="cashlayout"><div class="card"><div class="cardhead"><b>Cuentas del turno demo</b><small>Selecciona una mesa</small></div><div class="cardbody"><div class="cashrows">${cashRows()}</div></div></div><div class="card"><div class="cardhead"><b>Cobrar ${t?esc(t.name):''}</b><small>SIMULACIÓN</small></div><div class="cardbody">${t?`<div class="receipt"><div class="rline"><span>Subtotal</span><span>${money(totalTable(t))}</span></div><div class="rline"><span>Servicio</span><span>${money(0)}</span></div><hr><div class="rline total"><span>TOTAL</span><span>${money(totalTable(t))}</span></div></div><div class="payment-options"><button class="pay ${state.payment==='EFECTIVO'?'active':''}" data-pay="EFECTIVO">Efectivo</button><button class="pay ${state.payment==='TARJETA'?'active':''}" data-pay="TARJETA">Tarjeta</button><button class="pay ${state.payment==='TRANSFERENCIA'?'active':''}" data-pay="TRANSFERENCIA">Transferencia</button><button class="pay ${state.payment==='CREDITO'?'active':''}" data-pay="CREDITO">Crédito</button></div><button class="sendbtn" id="chargeDemo">COBRAR EN EL DEMO</button>`:'<div class="cartempty">Sin mesa seleccionada.</div>'}</div></div></div>`;view.querySelectorAll('[data-cash-table]').forEach(b=>b.onclick=()=>{state.selectedTable=Number(b.dataset.cashTable);renderCaja()});view.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>{state.payment=b.dataset.pay;renderCaja()});const charge=document.querySelector('#chargeDemo');if(charge)charge.onclick=()=>chargeDemo(t)}
+function chargeDemo(t){const total=totalTable(t);state.sales+=total;modalHost.innerHTML=`<div class="modalback"><div class="modal"><h2>Cobro simulado</h2><p>La operación terminó únicamente dentro de esta demostración.</p><div class="receipt"><div style="text-align:center;font-weight:900">VANTIXGC RESTAURANTES · DEMO</div><div style="text-align:center">${esc(t.name)} · ${esc(state.payment)}</div><hr>${t.items.map(i=>`<div class="rline"><span>${i.qty} ${esc(i.name)}</span><span>${money(i.qty*i.price)}</span></div>`).join('')}<hr><div class="rline total"><span>TOTAL</span><span>${money(total)}</span></div><div style="text-align:center;margin-top:8px">DOCUMENTO FICTICIO · NO VÁLIDO</div></div><div class="modalactions"><button class="btn primary" id="finishCharge">Terminar</button></div></div></div>`;document.querySelector('#finishCharge').onclick=()=>{t.status='FREE';t.guests=0;t.items=[];modalHost.innerHTML='';notify('Mesa liberada en el demo');renderCaja()}}
+function renderProtected(key){const names={carta:'Carta',inventario:'Inventario',empleados:'Empleados',qrs:'QR de mesas',reportes:'Reportes',dispositivos:'Dispositivos',administracion:'Administración'};const title=names[key]||'Administración';view.innerHTML=header(title,'La existencia del módulo se muestra, pero su contenido administrativo no se expone en el demo público.')+`<div class="protected-wrap"><div class="protected-content"><div class="fakebar"></div><div class="grid3"><div class="metric"><small>Configuración</small><strong>24</strong></div><div class="metric"><small>Registros</small><strong>128</strong></div><div class="metric"><small>Estado</small><strong>Activo</strong></div></div><div class="fakerows" style="margin-top:14px">${Array.from({length:7},()=>'<div class="fakerow"><span class="fakecircle"></span><span class="fakeline"></span><span class="fakeline"></span><span class="fakeline"></span></div>').join('')}</div></div><div class="protect-overlay"><div class="protect-card"><div class="lockicon">⌁</div><h2>${esc(title)} está protegido en el demo</h2><p>Mostramos que este módulo existe, pero no cargamos datos, configuración ni lógica administrativa del sistema real. En una cuenta activa tendrás acceso según tu rol.</p><div class="protect-actions"><button class="btn" type="button" id="backOperation">Volver a Mesas</button><a class="btn primary" href="/restaurantes/crear">Crear mi restaurante</a></div></div></div></div>`;document.querySelector('#backOperation').onclick=()=>go('mesas')}
+function render(){if(['carta','inventario','empleados','qrs','reportes','dispositivos','administracion'].includes(state.view))return renderProtected(state.view);if(state.view==='pedidos')return renderPedidos();if(state.view==='kds')return renderKds();if(state.view==='division')return renderDivision();if(state.view==='caja')return renderCaja();return renderMesas()}
+function resetDemo(){state=initialState();renderNav();render();notify('Demostración reiniciada')}
+document.querySelector('#resetDemo').onclick=resetDemo;
+if(new URLSearchParams(location.search).get('embedded')==='1')document.body.classList.add('embedded');
+renderNav();render();
 })();
 </script>
 </body>
