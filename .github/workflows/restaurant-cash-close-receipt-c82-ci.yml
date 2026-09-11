@@ -1,0 +1,62 @@
+name: Restaurant Cash Close Receipt C82 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'scripts/restaurant-cash-close-receipt-c82-smoke.js'
+      - '.github/workflows/restaurant-cash-close-receipt-c82-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'scripts/restaurant-cash-close-receipt-c82-smoke.js'
+      - '.github/workflows/restaurant-cash-close-receipt-c82-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Validate cash-close receipt syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
+          node --check src/modules/restaurant/restaurant-v2-cash.routes.js
+          node --check scripts/restaurant-cash-close-receipt-c82-smoke.js
+      - name: Validate Epson full-width cash-close receipt contract
+        run: node scripts/restaurant-cash-close-receipt-c82-smoke.js
+      - name: Validate existing POS receipt contract remains intact
+        run: node scripts/restaurant-pos-receipt-v38-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/runtime-info'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$URL" 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo PRODUCTION_EXACT_COMMIT_OK
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          exit 1
