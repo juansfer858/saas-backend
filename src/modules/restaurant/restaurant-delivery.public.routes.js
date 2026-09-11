@@ -12,6 +12,7 @@ const deliveryMenuGuard = path.join(__dirname, '../../web/restaurant-delivery-me
 const deliveryMenuCompact = path.join(__dirname, '../../web/restaurant-delivery-menu-compact-v89.js');
 const deliverySharedMenu = path.join(__dirname, '../../web/restaurant-delivery-shared-menu-v90.js');
 const deliveryOrdersMenu = path.join(__dirname, '../../web/restaurant-delivery-orders-menu-v91.js');
+const deliveryLazyMenu = path.join(__dirname, '../../web/restaurant-delivery-lazy-menu-v92.js');
 
 router.get('/app/restaurant-delivery-menu-guard-v88.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -39,15 +40,17 @@ router.get('/app/restaurant-delivery-orders-menu-v91.js', (_req, res) => {
 
 router.get('/app/restaurant-delivery-ui.js', async (_req, res, next) => {
   try {
-    const [baseUi, customerAutofill, sendProduction] = await Promise.all([
+    const [baseUi, customerAutofill, sendProduction, lazyMenu] = await Promise.all([
       fs.promises.readFile(deliveryUi, 'utf8'),
       fs.promises.readFile(deliveryCustomerAutofill, 'utf8'),
-      fs.promises.readFile(deliverySendProduction, 'utf8')
+      fs.promises.readFile(deliverySendProduction, 'utf8'),
+      fs.promises.readFile(deliveryLazyMenu, 'utf8')
     ]);
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Restaurant-Delivery-Customer-Autofill', 'v83');
     res.set('X-VantixGC-Restaurant-Delivery-Send-Production', 'v86');
-    res.type('application/javascript').send(`${baseUi}\n\n${customerAutofill}\n\n${sendProduction}\n`);
+    res.set('X-VantixGC-Restaurant-Delivery-Lazy-Menu', 'v92');
+    res.type('application/javascript').send(`${baseUi}\n\n${customerAutofill}\n\n${sendProduction}\n\n${lazyMenu}\n`);
   } catch (error) {
     next(error);
   }
