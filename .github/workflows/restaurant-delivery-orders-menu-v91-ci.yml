@@ -1,0 +1,39 @@
+name: Restaurant Delivery Orders Menu V91 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/web/restaurant-delivery-orders-menu-v91.js'
+      - 'src/web/restaurant-v2-orders.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
+      - 'scripts/restaurant-delivery-orders-menu-v91-smoke.js'
+      - 'scripts/restaurant-delivery-shared-menu-v90-smoke.js'
+      - '.github/workflows/restaurant-delivery-orders-menu-v91-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-delivery-orders-menu-v91.js'
+      - 'src/web/restaurant-v2-orders.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
+      - 'scripts/restaurant-delivery-orders-menu-v91-smoke.js'
+      - 'scripts/restaurant-delivery-shared-menu-v90-smoke.js'
+      - '.github/workflows/restaurant-delivery-orders-menu-v91-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check Delivery orders menu V91
+        run: node --check src/web/restaurant-delivery-orders-menu-v91.js
+      - name: Syntax check public Delivery routes
+        run: node --check src/modules/restaurant/restaurant-delivery.public.routes.js
+      - name: Validate Orders menu V91 contract
+        run: node scripts/restaurant-delivery-orders-menu-v91-smoke.js
+      - name: Validate V90 rollback source
+        run: node --check src/web/restaurant-delivery-shared-menu-v90.js

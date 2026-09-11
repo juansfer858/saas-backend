@@ -24,12 +24,16 @@ assert.ok(publicRoutes.includes("X-VantixGC-Restaurant-Delivery-Menu-Compact', '
 const guardSrc = '/app/restaurant-delivery-menu-guard-v88.js?v=v88';
 const compactSrc = '/app/restaurant-delivery-menu-compact-v89.js?v=v89';
 const sharedSrc = '/app/restaurant-delivery-shared-menu-v90.js?v=v90';
+const ordersSrc = '/app/restaurant-delivery-orders-menu-v91.js?v=v91';
 assert.ok(html.includes(guardSrc), 'Se conserva el guard V88');
 
-if (html.includes(sharedSrc)) {
+if (html.includes(ordersSrc)) {
+  assert.ok(!html.includes(compactSrc), 'V91 debe mantener V89 sólo como rollback');
+  assert.ok(!html.includes(sharedSrc), 'V91 reemplaza a V90 en la superficie activa');
+} else if (html.includes(sharedSrc)) {
   assert.ok(!html.includes(compactSrc), 'V90 debe desactivar el interceptor compacto V89 en la superficie activa');
 } else {
-  assert.ok(html.includes(compactSrc), 'Sin V90, Domicilios debe seguir cargando V89');
+  assert.ok(html.includes(compactSrc), 'Sin V90/V91, Domicilios debe seguir cargando V89');
 }
 
-console.log('RESTAURANT DELIVERY MENU COMPACT V89 / V90 COMPAT SMOKE OK');
+console.log(`RESTAURANT DELIVERY MENU COMPACT V89 COMPAT SMOKE OK · ${html.includes(ordersSrc) ? 'ROLLBACK BEHIND V91' : html.includes(sharedSrc) ? 'ROLLBACK BEHIND V90' : 'ACTIVE'}`);

@@ -19,16 +19,25 @@ assert.ok(shared.includes("const DELIVERY_PATH = '/api/v1/restaurante/domicilios
 assert.ok(!shared.includes('/api/v1/restaurante/domicilios/carta'), 'V90 no debe usar la carta compacta separada');
 
 const guardSrc = '/app/restaurant-delivery-menu-guard-v88.js?v=v88';
-const uiSrc = '/app/restaurant-delivery-ui.js?v=v90';
-const sharedSrc = '/app/restaurant-delivery-shared-menu-v90.js?v=v90';
 const compactSrc = '/app/restaurant-delivery-menu-compact-v89.js?v=v89';
-assert.ok(html.includes(guardSrc), 'Se conserva el timeout recuperable V88');
-assert.ok(html.includes(uiSrc), 'El UI base debe invalidar caché en V90');
-assert.ok(html.includes(sharedSrc), 'Domicilios debe cargar la carta compartida V90');
-assert.ok(!html.includes(compactSrc), 'La carta compacta V89 ya no debe interceptar Domicilios');
-assert.ok(html.indexOf(uiSrc) < html.indexOf(sharedSrc), 'V90 debe capturar el botón después de cargar el UI base');
+const sharedSrc = '/app/restaurant-delivery-shared-menu-v90.js?v=v90';
+const successorSrc = '/app/restaurant-delivery-orders-menu-v91.js?v=v91';
+const successorActive = html.includes(successorSrc);
+const uiSrc = successorActive ? '/app/restaurant-delivery-ui.js?v=v91' : '/app/restaurant-delivery-ui.js?v=v90';
 
-assert.ok(publicRoutes.includes("router.get('/app/restaurant-delivery-shared-menu-v90.js'"), 'El asset V90 debe servirse por el router público');
+assert.ok(html.includes(guardSrc), 'Se conserva el timeout recuperable V88');
+assert.ok(html.includes(uiSrc), 'El UI base debe usar el cache bust de la superficie activa');
+assert.ok(!html.includes(compactSrc), 'La carta compacta V89 ya no debe interceptar Domicilios');
+
+if (successorActive) {
+  assert.ok(!html.includes(sharedSrc), 'Con V91 activo, V90 debe quedar sólo como rollback servido');
+  assert.ok(html.indexOf(uiSrc) < html.indexOf(successorSrc), 'V91 debe capturar el botón después de cargar el UI base');
+} else {
+  assert.ok(html.includes(sharedSrc), 'Sin sucesor activo, Domicilios debe cargar la carta compartida V90');
+  assert.ok(html.indexOf(uiSrc) < html.indexOf(sharedSrc), 'V90 debe capturar el botón después de cargar el UI base');
+}
+
+assert.ok(publicRoutes.includes("router.get('/app/restaurant-delivery-shared-menu-v90.js'"), 'El asset V90 debe seguir servido para rollback');
 assert.ok(publicRoutes.includes("X-VantixGC-Restaurant-Delivery-Shared-Menu', 'v90'"), 'El asset V90 debe exponer marcador verificable');
 
-console.log('RESTAURANT DELIVERY SHARED MENU V90 SMOKE OK');
+console.log(`RESTAURANT DELIVERY SHARED MENU V90 SMOKE OK · ${successorActive ? 'ROLLBACK BEHIND V91' : 'ACTIVE'}`);

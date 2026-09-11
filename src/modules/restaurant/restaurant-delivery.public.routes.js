@@ -11,6 +11,7 @@ const deliverySendProduction = path.join(__dirname, '../../web/restaurant-delive
 const deliveryMenuGuard = path.join(__dirname, '../../web/restaurant-delivery-menu-guard-v88.js');
 const deliveryMenuCompact = path.join(__dirname, '../../web/restaurant-delivery-menu-compact-v89.js');
 const deliverySharedMenu = path.join(__dirname, '../../web/restaurant-delivery-shared-menu-v90.js');
+const deliveryOrdersMenu = path.join(__dirname, '../../web/restaurant-delivery-orders-menu-v91.js');
 
 router.get('/app/restaurant-delivery-menu-guard-v88.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -28,6 +29,12 @@ router.get('/app/restaurant-delivery-shared-menu-v90.js', (_req, res) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-VantixGC-Restaurant-Delivery-Shared-Menu', 'v90');
   res.type('application/javascript').sendFile(deliverySharedMenu);
+});
+
+router.get('/app/restaurant-delivery-orders-menu-v91.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-VantixGC-Restaurant-Delivery-Orders-Menu', 'v91');
+  res.type('application/javascript').sendFile(deliveryOrdersMenu);
 });
 
 router.get('/app/restaurant-delivery-ui.js', async (_req, res, next) => {
