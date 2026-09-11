@@ -175,6 +175,8 @@
 
   function bindStatic() {
     $('#p11HybridStatus')?.addEventListener('click', openHybridDevices);
+    $('#p11Frame')?.addEventListener('load', refreshHybridStatus);
+    window.addEventListener('focus', refreshHybridStatus);
     window.addEventListener('popstate', () => {
       const params = new URLSearchParams(location.search);
       const key = moduleKey(params.get('module'));
@@ -185,7 +187,6 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') refreshHybridStatus();
     });
-    window.setInterval(refreshHybridStatus, 30000);
   }
 
   function boot() {
