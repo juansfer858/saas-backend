@@ -1,0 +1,37 @@
+name: Restaurant Delivery Menu Compact V89 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/restaurant-delivery.routes.js'
+      - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
+      - 'src/web/restaurant-delivery-menu-compact-v89.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'scripts/restaurant-delivery-menu-compact-v89-smoke.js'
+      - '.github/workflows/restaurant-delivery-menu-compact-v89-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-delivery.routes.js'
+      - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
+      - 'src/web/restaurant-delivery-menu-compact-v89.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'scripts/restaurant-delivery-menu-compact-v89-smoke.js'
+      - '.github/workflows/restaurant-delivery-menu-compact-v89-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check compact menu redirect
+        run: node --check src/web/restaurant-delivery-menu-compact-v89.js
+      - name: Syntax check delivery routes
+        run: node --check src/modules/restaurant/restaurant-delivery.routes.js
+      - name: Syntax check delivery public routes
+        run: node --check src/modules/restaurant/restaurant-delivery.public.routes.js
+      - name: Validate compact Delivery menu V89 contract
+        run: node scripts/restaurant-delivery-menu-compact-v89-smoke.js
