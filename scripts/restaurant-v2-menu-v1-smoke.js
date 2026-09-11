@@ -9,6 +9,7 @@ const aggregator = fs.readFileSync('src/modules/restaurant/restaurant-operationa
 const shell = fs.readFileSync('src/web/restaurant-v2-native-control-p11.js', 'utf8');
 const html = fs.readFileSync('src/web/restaurant-v2-menu.html', 'utf8');
 const js = fs.readFileSync('src/web/restaurant-v2-menu.js', 'utf8');
+const deleteUi = fs.readFileSync('src/web/restaurant-v2-menu-delete-v2.js', 'utf8');
 const css = fs.readFileSync('src/web/restaurant-v2-menu.css', 'utf8');
 const commercial = fs.readFileSync('src/modules/commercial/commercial.routes.js', 'utf8');
 const salesService = fs.readFileSync('src/modules/commercial/sales.service.js', 'utf8');
@@ -21,6 +22,7 @@ const consumptionService = fs.readFileSync('src/modules/consumption/consumption.
 assert.match(route, /restaurantV2MenuPublicRouter/);
 assert.match(route, /\/app\/restaurante-v2\/carta/);
 assert.match(route, /restaurant-v2-menu\.html/);
+assert.match(route, /restaurant-v2-menu-delete-v2\.js/);
 assert.match(aggregator, /restaurantV2MenuPublicRouter/);
 assert.match(aggregator, /use\(restaurantV2MenuPublicRouter\)/);
 
@@ -61,6 +63,21 @@ assert.match(js, /restaurant-menu-import-ui\.js/);
 assert.match(js, /canonicalOcrReused:true/);
 assert.doesNotThrow(() => new vm.Script(js));
 assert.match(css, /VANTIX_RESTAURANT_V2_MENU_CSS_V1/);
+
+// V2: Eliminar es distinto de Ocultar. Se retira únicamente el vínculo de Carta,
+// preservando el producto maestro y los pedidos/ventas históricos.
+assert.match(deleteUi, /VANTIX_RESTAURANT_V2_MENU_DELETE_V2/);
+assert.match(deleteUi, /dataset\.deleteMenu/);
+assert.match(deleteUi, /textContent = 'Eliminar'/);
+assert.match(deleteUi, /method:'DELETE'/);
+assert.match(deleteUi, /productPreserved !== true/);
+assert.match(deleteUi, /historial de ventas se conservarán/);
+assert.doesNotMatch(deleteUi, /inventario\/productos\/.*method:'DELETE'/);
+assert.doesNotThrow(() => new vm.Script(deleteUi));
+assert.match(menuRoutes, /router\.delete\('\/menu\/:id'/);
+assert.match(menuRoutes, /restaurantMenuItem\.delete/);
+assert.match(menuRoutes, /removedFromMenu:\s*true/);
+assert.match(menuRoutes, /productPreserved:\s*true/);
 
 // Inventario/Kardex vuelve a ser una superficie administrativa pura: Carta no se
 // inyecta dentro de su runtime ni ofrece una navegación de administración desde
@@ -103,5 +120,7 @@ console.log('RESTAURANT V2 MENU V1 SMOKE OK', JSON.stringify({
   recipesPreservedWhenDisabled: true,
   salesEngineDirectOrRecipeVerified: true,
   canonicalOcrReused: true,
-  legacyOcrGridExcludedFromV2Layout: true
+  legacyOcrGridExcludedFromV2Layout: true,
+  safeMenuDelete: true,
+  deletePreservesMasterProduct: true
 }));

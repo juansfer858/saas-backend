@@ -248,7 +248,12 @@ router.put('/menu/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req
   } catch (error) { next(error); }
 });
 router.delete('/menu/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.deactivateMenuItem(req.tenantId, req.params.id) }); } catch (error) { next(error); }
+  try {
+    const row = await prisma.restaurantMenuItem.findFirst({ where: { id: req.params.id, tenantId: req.tenantId } });
+    if (!row) throw new AppError(404, 'Ítem de menú no encontrado', 'RESTAURANT_MENU_ITEM_NOT_FOUND');
+    await prisma.restaurantMenuItem.delete({ where: { id: row.id } });
+    res.json({ ok: true, data: { ...row, removedFromMenu: true, productPreserved: true } });
+  } catch (error) { next(error); }
 });
 
 router.get('/sesiones/:sessionId/pedido-borrador', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
