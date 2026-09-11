@@ -27,6 +27,24 @@ function publicBaseUrl(req) {
   return `${protocol}://${req.get('host')}`;
 }
 
+function applyRestaurantLandingMarketingCopy(html) {
+  return html
+    .replace(
+      'El mesero toma el pedido, Producción recibe la comanda, Caja cobra y el resto del negocio se actualiza desde la misma plataforma.',
+      'El pedido puede nacer con el mesero o por autoatención desde la mesa. Producción recibe la comanda, Caja gestiona el cobro y el resto del negocio se actualiza desde la misma plataforma.'
+    )
+    .replace(
+      '<article class="feature"><div class="n">04</div><h3>Gestión completa</h3><p>Carta, inventario, empleados, domicilios, reportes y administración conectados.</p></article>',
+      '<article class="feature"><div class="n">04</div><h3>Autoatención del cliente</h3><p>El cliente consulta la carta, hace su pedido y gestiona el pago desde la mesa, reduciendo esperas, filas y carga operativa del personal.</p></article>'
+    )
+    .replace('<li>QR de mesas</li>', '<li>Autoatención: pedido y pago desde la mesa</li>')
+    .replace('<td>Clientes, crédito y QR</td>', '<td>Clientes, crédito y autoatención</td>')
+    .replace(
+      'Profesional agrega gestión, inventario, domicilios, división, clientes, QR y reportes;',
+      'Profesional agrega gestión, inventario, domicilios, división, clientes, autoatención desde la mesa y reportes;'
+    );
+}
+
 async function readEdgeManifest() {
   const raw = await fs.promises.readFile(edgeManifestPath, 'utf8');
   const manifest = JSON.parse(raw);
@@ -38,7 +56,8 @@ async function readEdgeManifest() {
 
 async function sendRestaurantPublicHtml(filePath, res, next) {
   try {
-    const html = await fs.promises.readFile(filePath, 'utf8');
+    const rawHtml = await fs.promises.readFile(filePath, 'utf8');
+    const html = filePath === restaurantLandingPath ? applyRestaurantLandingMarketingCopy(rawHtml) : rawHtml;
     const themeTag = '<link rel="stylesheet" href="/restaurantes/theme-v1.css">';
     let themed = (html.includes('</head>') ? html.replace('</head>', `${themeTag}</head>`) : `${themeTag}${html}`)
       .replace(/<body(\s[^>]*)?>/i, (match, attrs = '') => {
