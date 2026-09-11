@@ -9,7 +9,7 @@ const customerDisplay = require('./restaurant-customer-display-name.service');
 const customerSaleLink = require('./restaurant-customer-sale-link.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
 const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
-const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
+const shiftCloseHistory = require('./restaurant-shift-close-history-c86.service');
 
 const router = express.Router();
 
@@ -25,7 +25,9 @@ const openShiftSchema = z.object({
 });
 
 const closeShiftSchema = z.object({
-  saldoFinal: z.coerce.number().min(0).max(1000000000000)
+  saldoFinal: z.coerce.number().min(0).max(1000000000000),
+  printReceipt: z.boolean().optional().default(false),
+  tzOffsetMinutes: z.coerce.number().int().min(-840).max(840).optional().default(300)
 });
 
 const chargeSchema = z.object({
@@ -81,16 +83,38 @@ router.get('/v2/caja/turno/resumen', requirePermission('RESTAURANTE.CERRAR'), as
 
 router.post('/v2/caja/turno/cerrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
-    const data = await service.closeShift(req.tenantId, req.user, parse(closeShiftSchema, req.body));
+    const input = parse(closeShiftSchema, req.body);
+    const data = await service.closeShift(req.tenantId, req.user, input);
     const shiftId = data?.closed?.id;
-    const closeReceipt = shiftId
-      ? await posReceiptPrint.queueShiftCloseIntent(req.tenantId, shiftId).catch((error) => ({
-        queued: false,
-        reason: 'QUEUE_ERROR',
-        code: String(error?.code || error?.message || 'CASH_CLOSE_RECEIPT_QUEUE_ERROR').slice(0, 120)
-      }))
-      : { queued: false, reason: 'SHIFT_ID_MISSING' };
-    res.json({ ok: true, data: { ...data, closeReceipt } });
+    let closeHistory = { persisted: false, reason: shiftId ? 'SNAPSHOT_PENDING' : 'SHIFT_ID_MISSING' };
+    let closeReceipt = { queued: false, reason: input.printReceipt ? 'QUEUE_PENDING' : 'NOT_REQUESTED' };
+
+    if (shiftId) {
+      try {
+        const snapshot = await shiftCloseHistory.ensureSnapshot(req.tenantId, req.user.id, shiftId, { tzOffsetMinutes: input.tzOffsetMinutes });
+        closeHistory = {
+          persisted: true,
+          marker: snapshot.marker,
+          businessDate: snapshot.businessDate,
+          status: snapshot.status
+        };
+        if (input.printReceipt) {
+          closeReceipt = await shiftCloseHistory.queuePrint(req.tenantId, req.user.id, shiftId, {
+            tzOffsetMinutes: input.tzOffsetMinutes,
+            origin: 'CLOSE_FLOW'
+          });
+        }
+      } catch (error) {
+        closeHistory = {
+          persisted: false,
+          reason: 'SNAPSHOT_ERROR',
+          code: String(error?.code || error?.message || 'RESTAURANT_SHIFT_CLOSE_SNAPSHOT_ERROR').slice(0, 120)
+        };
+        if (input.printReceipt) closeReceipt = { queued: false, reason: 'SNAPSHOT_ERROR' };
+      }
+    }
+
+    res.json({ ok: true, data: { ...data, closeHistory, closeReceipt } });
   } catch (error) { next(error); }
 });
 
