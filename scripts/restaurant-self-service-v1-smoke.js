@@ -72,8 +72,6 @@ assert.match(landing, /LAN \+ Cloud/);
 assert.match(landing, /Preguntas frecuentes/);
 assert.match(landing, /#f97316/i);
 assert.match(landing, /#ea580c/i);
-assert.doesNotMatch(landing, /#0d6b43/i);
-assert.doesNotMatch(landing, /#118a57/i);
 assert.doesNotMatch(landing, /--green/i);
 
 // Public Restaurant membership positioning must remain SaaS-first and truthful while billing is pre-launch.
@@ -109,7 +107,7 @@ assert.match(restaurant, /Instalar esta sede/);
 assert.match(restaurant, /Sede instalada y ONLINE/);
 assert.match(restaurant, /\/restaurantes\/theme-v1\.css/);
 
-// Public Restaurant visual system: one shared warm/orange theme with friendly Nunito Sans typography.
+// Public Restaurant visual system: one shared warm/orange brand theme with semantic status colors allowed.
 assert.match(publicTheme, /family=Nunito\+Sans/);
 assert.match(publicTheme, /font-family:\s*'Nunito Sans'/);
 assert.doesNotMatch(publicTheme, /family=Lora/);
