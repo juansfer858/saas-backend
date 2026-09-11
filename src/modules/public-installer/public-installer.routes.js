@@ -2,7 +2,6 @@ const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
 const { restaurantSelfServicePublicRouter } = require('../self-service/restaurant-self-service.routes');
-const { restaurantPublicDemoAccessRouter } = require('../restaurant/restaurant-public-demo-access.public.routes');
 const windowsInstaller = require('./windows-installer-v27.service');
 
 const router = express.Router();
@@ -10,13 +9,13 @@ const webRoot = path.join(__dirname, '..', '..', 'web');
 const landingPath = path.join(webRoot, 'public-installer.html');
 const restaurantLandingPath = path.join(webRoot, 'restaurant-public.html');
 const restaurantDemoPath = path.join(webRoot, 'restaurant-public-demo.html');
+const restaurantDemoModalPath = path.join(webRoot, 'restaurant-public-demo-modal.js');
 const restaurantSignupPath = path.join(webRoot, 'restaurant-signup.html');
 const restaurantOnboardingPath = path.join(webRoot, 'restaurant-onboarding.html');
 const restaurantPublicThemePath = path.join(webRoot, 'restaurant-public-theme.css');
 const edgeReleaseRoot = path.resolve(__dirname, '..', '..', '..', 'public', 'edge-releases');
 const edgeManifestPath = path.join(edgeReleaseRoot, 'manifest.json');
 
-router.use('/api/public/restaurantes', restaurantPublicDemoAccessRouter);
 router.use('/api/public/restaurantes', restaurantSelfServicePublicRouter);
 
 function publicBaseUrl(req) {
@@ -40,11 +39,15 @@ async function sendRestaurantPublicHtml(filePath, res, next) {
   try {
     const html = await fs.promises.readFile(filePath, 'utf8');
     const themeTag = '<link rel="stylesheet" href="/restaurantes/theme-v1.css">';
-    const themed = (html.includes('</head>') ? html.replace('</head>', `${themeTag}</head>`) : `${themeTag}${html}`)
+    let themed = (html.includes('</head>') ? html.replace('</head>', `${themeTag}</head>`) : `${themeTag}${html}`)
       .replace(/<body(\s[^>]*)?>/i, (match, attrs = '') => {
         if (/class\s*=/.test(attrs)) return match.replace(/class=(['"])(.*?)\1/i, (_m, q, classes) => `class=${q}${classes} vr-public-theme${q}`);
         return `<body${attrs} class="vr-public-theme">`;
       });
+    if (filePath === restaurantLandingPath) {
+      const demoModalTag = '<script src="/restaurantes/demo-modal-v1.js" defer></script>';
+      themed = themed.includes('</body>') ? themed.replace('</body>', `${demoModalTag}</body>`) : `${themed}${demoModalTag}`;
+    }
     res.set('Cache-Control', 'no-store, max-age=0');
     res.type('html').send(themed);
   } catch (error) { next(error); }
@@ -55,8 +58,20 @@ router.get('/restaurantes/theme-v1.css', (_req, res) => {
   res.type('text/css').sendFile(restaurantPublicThemePath);
 });
 
+router.get('/restaurantes/demo-modal-v1.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.type('application/javascript').sendFile(restaurantDemoModalPath);
+});
+
 router.get('/restaurantes', (_req, res, next) => sendRestaurantPublicHtml(restaurantLandingPath, res, next));
-router.get('/restaurantes/demo', (_req, res, next) => sendRestaurantPublicHtml(restaurantDemoPath, res, next));
+router.get('/restaurantes/demo', (_req, res) => {
+  // Demo comercial autónomo: no comparte sesión, no carga el shell operativo y
+  // el navegador tiene prohibido abrir conexiones HTTP/XHR/WebSocket desde esta página.
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'");
+  res.set('X-VantixGC-Restaurant-Demo-Isolation', 'standalone-commercial-v1');
+  res.type('html').sendFile(restaurantDemoPath);
+});
 router.get('/restaurantes/crear', (_req, res, next) => sendRestaurantPublicHtml(restaurantSignupPath, res, next));
 router.get('/app/onboarding', (_req, res, next) => sendRestaurantPublicHtml(restaurantOnboardingPath, res, next));
 
