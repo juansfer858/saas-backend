@@ -1,0 +1,37 @@
+name: Restaurant Delivery Shared Menu V90 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/web/restaurant-delivery-shared-menu-v90.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
+      - 'scripts/restaurant-delivery-shared-menu-v90-smoke.js'
+      - 'scripts/restaurant-delivery-menu-compact-v89-smoke.js'
+      - '.github/workflows/restaurant-delivery-shared-menu-v90-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-delivery-shared-menu-v90.js'
+      - 'src/web/restaurant-v2-delivery-p11.html'
+      - 'src/modules/restaurant/restaurant-delivery.public.routes.js'
+      - 'scripts/restaurant-delivery-shared-menu-v90-smoke.js'
+      - 'scripts/restaurant-delivery-menu-compact-v89-smoke.js'
+      - '.github/workflows/restaurant-delivery-shared-menu-v90-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check Delivery shared menu V90
+        run: node --check src/web/restaurant-delivery-shared-menu-v90.js
+      - name: Syntax check public Delivery routes
+        run: node --check src/modules/restaurant/restaurant-delivery.public.routes.js
+      - name: Validate shared menu V90 contract
+        run: node scripts/restaurant-delivery-shared-menu-v90-smoke.js
+      - name: Validate V89 rollback compatibility
+        run: node scripts/restaurant-delivery-menu-compact-v89-smoke.js
