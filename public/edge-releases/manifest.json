@@ -27,8 +27,14 @@
     "2.1.14-qr-product-notes.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.14-qr-product-notes.1.zip",
-      "sha256": "ca11b8d2b0890ccff2adb9f408ef30087882af9588bb1cf6492fb431a48f5809",
-      "sourceCommit": "ae95aa08c4d5ed22d5eafc15c890f78af2af6412"
+      "sha256": "c89462a87f9d4ecacb8cf4ab432d315d176e6fb2d8f7274e9b09fa16a7fd2884",
+      "sourceCommit": "50ee2f23571121aa545c0e05022c25231059d893"
+    },
+    "2.1.15-offline-print.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.15-offline-print.1.zip",
+      "sha256": "89d9ebe50239cf328bc6c2b5e76a2386e7e9321b80ddcebe5c12f9b105e2bef0",
+      "sourceCommit": "c3513f049cc2462943ffac4bc5dba7a3c2c03450"
     },
     "2.1.8-large-command.1": {
       "channel": "PILOT",

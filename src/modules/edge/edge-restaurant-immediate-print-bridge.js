@@ -1,5 +1,6 @@
 'use strict';
 
+require('./edge-restaurant-offline-print-routing');
 const { prisma } = require('../../config/prisma');
 const restaurant = require('../restaurant/restaurant.service');
 const identity = require('../restaurant/restaurant-identity.service');
