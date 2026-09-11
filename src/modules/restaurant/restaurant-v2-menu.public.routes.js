@@ -30,6 +30,11 @@ router.get('/app/restaurant-v2-menu-category-selector-v14.js', (_req, res) => {
   return send(res, 'restaurant-v2-menu-category-selector-v14.js', 'application/javascript; charset=utf-8');
 });
 
+router.get('/app/restaurant-v2-menu-edit-v27.js', (_req, res) => {
+  res.set('X-VantixGC-Restaurant-Carta-Edit', 'v27');
+  return send(res, 'restaurant-v2-menu-edit-v27.js', 'application/javascript; charset=utf-8');
+});
+
 module.exports = {
   HEADER_VALUE,
   restaurantV2MenuPublicRouter: router
