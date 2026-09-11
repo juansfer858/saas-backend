@@ -8,6 +8,7 @@ const service = require('./restaurant-v2-cash.service');
 const customerDisplay = require('./restaurant-customer-display-name.service');
 const customerSaleLink = require('./restaurant-customer-sale-link.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
+const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
 
 const router = express.Router();
 
@@ -57,6 +58,11 @@ router.get('/v2/caja', requirePermission('RESTAURANTE.CERRAR'), async (req, res,
 
 router.get('/v2/caja/mesas/:tableId', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try { res.json({ ok: true, data: await service.tableDetail(req.tenantId, req.user, req.params.tableId) }); }
+  catch (error) { next(error); }
+});
+
+router.post('/v2/caja/mesas/:tableId/cerrar-vacia-v80', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try { res.json({ ok: true, data: await cashCloseEmpty.closeEmptyFromCash(req.tenantId, req.user, req.params.tableId) }); }
   catch (error) { next(error); }
 });
 
