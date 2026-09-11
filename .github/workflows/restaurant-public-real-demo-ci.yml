@@ -49,6 +49,11 @@ jobs:
         run: node scripts/restaurant-public-real-demo-smoke.js
       - name: Validate public self-service compatibility
         run: node scripts/restaurant-self-service-v1-smoke.js
+      - name: Validate self-service marketing copy
+        run: |
+          grep -Fq 'Autoatención del cliente' src/modules/public-installer/public-installer.routes.js
+          grep -Fq 'Autoatención: pedido y pago desde la mesa' src/modules/public-installer/public-installer.routes.js
+          grep -Fq 'reduciendo esperas, filas y carga operativa del personal' src/modules/public-installer/public-installer.routes.js
 
   verify-production:
     if: github.event_name == 'push'
@@ -83,6 +88,10 @@ jobs:
 
               LANDING="$(curl -fsS "$BASE/restaurantes")"
               [[ "$LANDING" == *'/restaurantes/demo-modal-v1.js'* ]]
+              [[ "$LANDING" == *'Autoatención del cliente'* ]]
+              [[ "$LANDING" == *'Autoatención: pedido y pago desde la mesa'* ]]
+              [[ "$LANDING" == *'reduciendo esperas, filas y carga operativa del personal'* ]]
+              [[ "$LANDING" != *'QR de mesas'* ]]
 
               SESSION_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/api/public/restaurantes/demo-session")"
               [[ "$SESSION_STATUS" == '404' ]]
