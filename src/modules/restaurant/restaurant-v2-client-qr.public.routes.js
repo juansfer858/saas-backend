@@ -43,9 +43,11 @@ function decorateMenuCategories(menu, menuRows, products, categoryRows = []) {
       commercialCategoryId: central?.id || source?.commercialCategoryId || null,
       operationalCategory,
       sortOrder: Number(source?.sortOrder ?? originalIndex),
+      __categoryOrder: Number.isFinite(Number(central?.sortOrder)) ? Number(central.sortOrder) : Number.MAX_SAFE_INTEGER,
       __rank: Number(source?.rank ?? originalIndex)
     };
-  }).sort((a, b) => a.__rank - b.__rank).map(({ __rank, ...item }) => item);
+  }).sort((a, b) => a.__categoryOrder - b.__categoryOrder || a.sortOrder - b.sortOrder || a.__rank - b.__rank)
+    .map(({ __categoryOrder, __rank, ...item }) => item);
 }
 
 async function commercializeQrContext(context) {
