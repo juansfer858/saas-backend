@@ -213,13 +213,15 @@ async function summary(tenantId) {
       printers: true,
       notificationConfig: true,
       pushDevices: true,
-      dianConfig: true
+      dianConfig: true,
+      auditHistory: true
     },
     operationalReset: {
       tablesBecomeFree: true,
       cashAndBankBalancesBecomeZero: true,
       posNumberingRestartsFromExistingDocuments: true,
-      productsAreNotUpdated: true
+      productsAreNotUpdated: true,
+      auditHistoryPreserved: true
     }
   };
 }
@@ -308,7 +310,6 @@ async function execute(tenantId, userId, confirmation) {
       await removeMany(tx, removed, 'asientoContable', { tenantId });
       await removeMany(tx, removed, 'periodoContable', { tenantId });
       await removeMany(tx, removed, 'consecutivoContable', { tenantId });
-      await removeMany(tx, removed, 'auditoriaContable', { tenantId });
 
       await removeMany(tx, removed, 'pago', { tenantId });
       await removeMany(tx, removed, 'movimientoCartera', { tenantId });
@@ -338,7 +339,7 @@ async function execute(tenantId, userId, confirmation) {
             subdomain: tenant.subdomain,
             before,
             removed,
-            preserved: ['PRODUCTOS', 'CARTA', 'RECETAS', 'MESAS', 'ZONAS', 'USUARIOS', 'TERCEROS', 'CONFIGURACION', 'IMPRESORAS', 'DISPOSITIVOS_PUSH']
+            preserved: ['PRODUCTOS', 'CARTA', 'RECETAS', 'MESAS', 'ZONAS', 'USUARIOS', 'TERCEROS', 'CONFIGURACION', 'IMPRESORAS', 'DISPOSITIVOS_PUSH', 'AUDITORIA']
           }
         }
       });
@@ -377,7 +378,8 @@ async function execute(tenantId, userId, confirmation) {
       thirdParties: true,
       configuration: true,
       printers: true,
-      pushDevices: true
+      pushDevices: true,
+      auditHistory: true
     }
   };
 }

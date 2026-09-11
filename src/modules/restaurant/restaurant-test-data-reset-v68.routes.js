@@ -4,6 +4,7 @@ const express = require('express');
 const { requirePermission } = require('../../middleware/require-permission');
 const reset = require('./restaurant-test-data-reset-v68.service');
 const posSequenceReset = require('./restaurant-pos-sequence-reset-c83.service');
+const auditLog = require('./restaurant-audit-log-c84.service');
 
 const router = express.Router();
 
@@ -35,6 +36,15 @@ router.get('/limpieza-pruebas/v68/consecutivo-pos', requirePermission('RESTAURAN
 router.post('/limpieza-pruebas/v68/consecutivo-pos/reiniciar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
   try {
     const data = await posSequenceReset.reset(req.tenantId, req.userId, req.body?.reason);
+    res.json({ ok: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/auditoria/v84', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const data = await auditLog.list(req.tenantId, { limit: req.query?.limit });
     res.json({ ok: true, data });
   } catch (error) {
     next(error);
