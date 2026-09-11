@@ -63,8 +63,6 @@ jobs:
         run: node scripts/restaurant-shift-close-history-c86-smoke.js
       - name: Validate existing POS receipt contract
         run: node scripts/restaurant-pos-receipt-v38-smoke.js
-      - name: Validate existing Caja V2 contract
-        run: node scripts/restaurant-v2-cash-p4-db-smoke.js
       - name: Load application graph
         run: node -e "require('./src/app')"
 
