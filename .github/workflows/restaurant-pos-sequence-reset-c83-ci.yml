@@ -1,0 +1,76 @@
+name: Restaurant POS Sequence Reset C83 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-number.service.js'
+      - 'src/modules/restaurant/restaurant-pos-sequence-reset-c83.service.js'
+      - 'src/modules/restaurant/restaurant-test-data-reset-v68.routes.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
+      - 'scripts/restaurant-pos-sequence-reset-c83-smoke.js'
+      - '.github/workflows/restaurant-pos-sequence-reset-c83-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-number.service.js'
+      - 'src/modules/restaurant/restaurant-pos-sequence-reset-c83.service.js'
+      - 'src/modules/restaurant/restaurant-test-data-reset-v68.routes.js'
+      - 'src/web/restaurant-company-admin-advanced.js'
+      - 'scripts/restaurant-pos-sequence-reset-c83-smoke.js'
+      - '.github/workflows/restaurant-pos-sequence-reset-c83-ci.yml'
+
+env:
+  DATABASE_URL: postgresql://localhost:5432/unused
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Validate C83 syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-pos-number.service.js
+          node --check src/modules/restaurant/restaurant-pos-sequence-reset-c83.service.js
+          node --check src/modules/restaurant/restaurant-test-data-reset-v68.routes.js
+          node --check src/web/restaurant-company-admin-advanced.js
+          node --check scripts/restaurant-pos-sequence-reset-c83-smoke.js
+      - name: Validate audited internal POS reset contract
+        run: node scripts/restaurant-pos-sequence-reset-c83-smoke.js
+      - name: Validate existing sequential POS contract
+        run: node scripts/restaurant-pos-sequential-number-smoke.js
+      - name: Validate advanced configuration surface remains intact
+        run: node scripts/restaurant-company-config-control-center-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit and C83 asset in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for attempt in $(seq 1 60); do
+            INFO="$(curl -fsSL --max-time 12 "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$INFO" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+              PAGE="$(curl -fsSL --max-time 12 "$BASE/app/restaurant-company-admin-advanced.js" 2>/dev/null || true)"
+              if echo "$PAGE" | grep -q 'VANTIX_RESTAURANT_POS_SEQUENCE_RESET_C83' \
+                && echo "$PAGE" | grep -q 'Reiniciar contador a 000000' \
+                && echo "$PAGE" | grep -q 'consecutivo-pos/reiniciar'; then
+                echo RESTAURANT_POS_SEQUENCE_RESET_C83_PRODUCTION_OK
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          exit 1
