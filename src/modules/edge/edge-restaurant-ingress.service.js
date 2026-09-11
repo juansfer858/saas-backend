@@ -1,7 +1,6 @@
 'use strict';
 
 const { prisma } = require('../../config/prisma');
-const { AppError } = require('../../utils/app-error');
 
 // Keep this aligned with the Core's existing Edge online definition.
 // Edge heartbeats every 15 s and the platform considers it online for 90 s.
@@ -41,9 +40,15 @@ async function installationFor(client, edgeAgentId) {
 }
 
 function managedStatus(qrToken, edgeAgentId, source, installation, now) {
+  const edgeOnline = heartbeatOnline(installation?.lastHeartbeatAt, now);
   return {
     managedByEdge: true,
-    available: heartbeatOnline(installation?.lastHeartbeatAt, now),
+    // Public Core is already reachable when this resolver runs. A stale Edge heartbeat
+    // must therefore degrade to durable cloud ingress instead of rejecting the order.
+    available: true,
+    edgeOnline,
+    cloudFallback: !edgeOnline,
+    transportMode: edgeOnline ? 'EDGE_ONLINE' : 'CLOUD_FALLBACK',
     source,
     edgeAgentId,
     localFallbackUrl: lanFallbackUrl(qrToken, installation)
@@ -74,11 +79,11 @@ async function qrOrderIngressStatus(qrToken, options = {}) {
     return managedStatus(token, mappedChannel.edgeAgentId, 'TABLE_EDGE_CHANNEL', installation, now);
   }
 
-  // Most restaurant tenants have one Edge point. If that Edge has never completed
-  // a heartbeat we do not change existing cloud behaviour during onboarding.
-  // Once an installation exists, a stale heartbeat means the restaurant may be
-  // operating locally and customer QR orders must fail closed instead of becoming
-  // invisible to the local KDS.
+  // Most restaurant tenants have one Edge point. If it has never completed a
+  // heartbeat, cloud behaviour remains available during onboarding. Once installed,
+  // heartbeat freshness describes local reachability only; it is no longer a hard
+  // gate for cloud QR ingress. Pending Core commands are included in the Edge
+  // restaurant bootstrap when connectivity returns.
   const agents = await client.edgeAgent.findMany({
     where: { tenantId: table.tenantId, state: 'ACTIVE' },
     orderBy: { creadoEn: 'asc' },
@@ -101,17 +106,11 @@ async function qrOrderIngressStatus(qrToken, options = {}) {
   return managedStatus(token, agents[0].id, 'SINGLE_EDGE_INSTALLATION', installation, now);
 }
 
+// Kept under the historical name because the public Restaurant route already calls it.
+// The contract is now hybrid: local Edge health is advisory; when Core is reachable,
+// cloud ingress remains available and the Edge catches up through normal bootstrap/sync.
 async function assertQrOrderIngressAvailable(qrToken, options = {}) {
-  const status = await qrOrderIngressStatus(qrToken, options);
-  if (status.managedByEdge && !status.available) {
-    throw new AppError(
-      503,
-      'El restaurante está trabajando temporalmente sin conexión. Este pedido no se envió. Conéctate al Wi-Fi del restaurante para continuar en modo local o pídele al mesero que lo registre desde su tablet.',
-      'RESTAURANT_QR_EDGE_OFFLINE',
-      { localFallbackUrl: status.localFallbackUrl || null }
-    );
-  }
-  return status;
+  return qrOrderIngressStatus(qrToken, options);
 }
 
 module.exports = {
