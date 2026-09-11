@@ -9,6 +9,7 @@ const posReceipt = require('../restaurant/restaurant-pos-receipt-print.service')
 
 const INSTALL_FLAG = Symbol.for('vantixgc.edge.restaurant.print.bridge.v1');
 const QUEUES = new Set(['COCINA', 'BARRA', 'POSTRES']);
+const ACTIVE_COMMAND_STATES = ['PENDIENTE', 'EN_PREPARACION', 'LISTA'];
 
 function endpointKey(printer) {
   const transport = String(printer?.transport || 'LAN').trim().toUpperCase();
@@ -28,13 +29,15 @@ function normalizedCategory(value) {
 }
 
 function printItemName(item) {
-  const name = String(item?.description || '').trim();
-  const category = normalizedCategory(item?.category);
-  return category ? `${name}\nCAT: ${category}` : name;
+  return String(item?.description || '').trim();
 }
 
-function commandLines(command) {
-  return (Array.isArray(command?.items) ? command.items : [])
+function cleanPrintContext(value) {
+  return String(value ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 96);
+}
+
+function commandLines(command, layout = {}) {
+  const products = (Array.isArray(command?.items) ? command.items : [])
     .filter((item) => Number(item?.quantity || 0) > 0 && String(item?.description || '').trim())
     .map((item) => ({
       quantity: Number(item.quantity),
@@ -44,6 +47,17 @@ function commandLines(command) {
       seatNumber: item.seatNumber ? Number(item.seatNumber) : null,
       seatLabel: item.seatNumber ? `PERSONA ${Number(item.seatNumber)}` : null
     }));
+
+  const context = [];
+  const customHeader = cleanPrintContext(layout?.customHeaderText);
+  if (customHeader) context.push(customHeader);
+  if (command?.delivery?.customerName) context.push(`CLIENTE: ${cleanPrintContext(command.delivery.customerName)}`);
+  if (command?.delivery?.address) context.push(`DIRECCIÓN: ${cleanPrintContext(command.delivery.address)}`);
+
+  const prefix = context.length ? [context.join('\n')] : [];
+  const customFooter = cleanPrintContext(layout?.customFooterText);
+  const suffix = customFooter ? [customFooter] : [];
+  return [...prefix, ...products, ...suffix];
 }
 
 async function commandsWithCategories(tenantId, commands) {
@@ -102,6 +116,42 @@ async function commandsWithCategories(tenantId, commands) {
   }
 }
 
+async function deliveryCommandsForPrint(tenantId) {
+  const rows = await prisma.restaurantDeliveryCommand.findMany({
+    where: { tenantId, state: { in: ACTIVE_COMMAND_STATES } },
+    include: { delivery: { include: { items: { orderBy: { creadoEn: 'asc' } } } } },
+    orderBy: { creadoEn: 'asc' },
+    take: 500
+  });
+
+  return rows.map((command) => ({
+    id: command.id,
+    orderId: null,
+    station: command.station,
+    state: command.state,
+    createdAt: command.creadoEn,
+    source: 'DOMICILIO',
+    table: {
+      id: command.delivery?.id || null,
+      code: command.delivery?.code || 'DOMICILIO',
+      name: `DOMICILIO ${String(command.delivery?.code || '').trim()}`.trim()
+    },
+    delivery: {
+      customerName: command.delivery?.customerName || null,
+      address: command.delivery?.address || null
+    },
+    items: (command.delivery?.items || [])
+      .filter((item) => String(item.station || '').toUpperCase() === String(command.station || '').toUpperCase())
+      .map((item) => ({
+        description: item.description,
+        quantity: Number(item.quantity || 0),
+        notes: item.notes || null,
+        seatNumber: null,
+        category: null
+      }))
+  }));
+}
+
 function buildCommandPrintJobs(commands, printers, layout = null) {
   const byQueue = new Map();
   const normalizedLayout = printTemplate.normalizePrintTemplate(layout || printTemplate.DEFAULT_COMMAND_TEMPLATE);
@@ -116,7 +166,7 @@ function buildCommandPrintJobs(commands, printers, layout = null) {
   for (const command of Array.isArray(commands) ? commands : []) {
     const queue = String(command?.station || '').trim().toUpperCase();
     if (!QUEUES.has(queue) || !command?.id) continue;
-    const lines = commandLines(command);
+    const lines = commandLines(command, normalizedLayout);
     if (!lines.length) continue;
     const seenTargets = new Set();
     for (const printer of byQueue.get(queue) || []) {
@@ -159,25 +209,39 @@ function buildCommandPrintJobs(commands, printers, layout = null) {
   return jobs;
 }
 
-async function commandRouting(tenantId, bootstrap, queues) {
-  if (!queues.length) return { jobs: [], printers: [], layout: null, error: null };
+async function commandRouting(tenantId, bootstrap, requestedQueues = []) {
   try {
+    const deliveryCommands = await deliveryCommandsForPrint(tenantId).catch(() => []);
+    const queues = [...new Set([
+      ...(requestedQueues || []),
+      ...deliveryCommands.map((command) => String(command.station || '').toUpperCase())
+    ].filter((queue) => QUEUES.has(queue)))];
+    if (!queues.length) return { jobs: [], printers: [], layout: null, queues: [], deliveryCommandCount: 0, error: null };
+
     const [printers, configuredLayout, categorizedCommands] = await Promise.all([
       printing.printersForRoles(tenantId, queues),
       printTemplate.getPrintTemplate(tenantId).catch(() => printTemplate.DEFAULT_COMMAND_TEMPLATE),
       commandsWithCategories(tenantId, bootstrap.commands)
     ]);
     const layout = printTemplate.normalizePrintTemplate(configuredLayout);
-    return { jobs: buildCommandPrintJobs(categorizedCommands, printers, layout), printers, layout, error: null };
+    const allCommands = [...categorizedCommands, ...deliveryCommands];
+    return {
+      jobs: buildCommandPrintJobs(allCommands, printers, layout),
+      printers,
+      layout,
+      queues,
+      deliveryCommandCount: deliveryCommands.length,
+      error: null
+    };
   } catch (error) {
-    return { jobs: [], printers: [], layout: null, error: String(error?.code || error?.message || 'COMMAND_PRINT_ROUTING_ERROR').slice(0, 160) };
+    return { jobs: [], printers: [], layout: null, queues: [], deliveryCommandCount: 0, error: String(error?.code || error?.message || 'COMMAND_PRINT_ROUTING_ERROR').slice(0, 160) };
   }
 }
 
 async function printRoutingForBootstrap(agent, bootstrap) {
-  const queues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
+  const requestedQueues = [...new Set((bootstrap?.commands || []).map((command) => String(command?.station || '').toUpperCase()).filter((queue) => QUEUES.has(queue)))];
   const [commands, receipts] = await Promise.all([
-    commandRouting(agent.tenantId, bootstrap, queues),
+    commandRouting(agent.tenantId, bootstrap, requestedQueues),
     posReceipt.buildRecentReceiptJobs(agent.tenantId).catch((error) => ({
       jobs: [], routing: 'ERROR', receiptCount: 0, printerCount: 0,
       error: String(error?.code || error?.message || 'POS_RECEIPT_ROUTING_ERROR').slice(0, 160)
@@ -191,14 +255,15 @@ async function printRoutingForBootstrap(agent, bootstrap) {
   return {
     printJobs,
     printRouting: {
-      version: 'V3',
-      queues,
+      version: 'V4',
+      queues: commands.queues || requestedQueues,
       printerCount: new Set(commands.printers.map(endpointKey)).size,
       jobCount: printJobs.length,
       transports,
       templateVersion: commands.layout?.version || null,
       localSpoolerRequired: true,
       commandJobCount: commands.jobs.length,
+      deliveryCommandCount: commands.deliveryCommandCount || 0,
       posReceiptJobCount: (receipts.jobs || []).length,
       posReceiptCount: receipts.receiptCount || 0,
       posReceiptRouting: receipts.routing || 'NO_PHYSICAL_PRINTER',
@@ -228,6 +293,7 @@ module.exports = {
   endpointKey,
   commandLines,
   commandsWithCategories,
+  deliveryCommandsForPrint,
   buildCommandPrintJobs,
   commandRouting,
   printRoutingForBootstrap,
