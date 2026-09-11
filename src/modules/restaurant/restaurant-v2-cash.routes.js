@@ -9,7 +9,8 @@ const customerDisplay = require('./restaurant-customer-display-name.service');
 const customerSaleLink = require('./restaurant-customer-sale-link.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
 const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
-const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
+const shiftClosures = require('./restaurant-shift-close-history-c86.runtime');
+const { restaurantShiftCloseHistoryC86Router } = require('./restaurant-shift-close-history-c86.routes');
 
 const router = express.Router();
 
@@ -25,7 +26,8 @@ const openShiftSchema = z.object({
 });
 
 const closeShiftSchema = z.object({
-  saldoFinal: z.coerce.number().min(0).max(1000000000000)
+  saldoFinal: z.coerce.number().min(0).max(1000000000000),
+  tzOffsetMinutes: z.coerce.number().int().min(-840).max(840).optional()
 });
 
 const chargeSchema = z.object({
@@ -81,16 +83,21 @@ router.get('/v2/caja/turno/resumen', requirePermission('RESTAURANTE.CERRAR'), as
 
 router.post('/v2/caja/turno/cerrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
-    const data = await service.closeShift(req.tenantId, req.user, parse(closeShiftSchema, req.body));
+    const input = parse(closeShiftSchema, req.body);
+    const data = await service.closeShift(req.tenantId, req.user, input);
     const shiftId = data?.closed?.id;
-    const closeReceipt = shiftId
-      ? await posReceiptPrint.queueShiftCloseIntent(req.tenantId, shiftId).catch((error) => ({
-        queued: false,
-        reason: 'QUEUE_ERROR',
-        code: String(error?.code || error?.message || 'CASH_CLOSE_RECEIPT_QUEUE_ERROR').slice(0, 120)
-      }))
-      : { queued: false, reason: 'SHIFT_ID_MISSING' };
-    res.json({ ok: true, data: { ...data, closeReceipt } });
+    const closure = shiftId
+      ? await shiftClosures.ensureSnapshot(req.tenantId, req.user.id, shiftId, { tzOffsetMinutes: input.tzOffsetMinutes })
+      : null;
+    res.json({
+      ok: true,
+      data: {
+        ...data,
+        closure,
+        printDecisionRequired: Boolean(shiftId),
+        closeReceipt: { queued: false, reason: 'USER_DECISION_REQUIRED' }
+      }
+    });
   } catch (error) { next(error); }
 });
 
@@ -143,6 +150,8 @@ router.post('/v2/caja/clientes', requirePermission('RESTAURANTE.CERRAR'), async 
     res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
 });
+
+router.use(restaurantShiftCloseHistoryC86Router);
 
 module.exports = {
   restaurantV2CashRouter: router,
