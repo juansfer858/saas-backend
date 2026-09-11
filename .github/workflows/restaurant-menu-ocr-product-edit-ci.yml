@@ -8,7 +8,10 @@ on:
       - 'src/modules/restaurant/restaurant-menu-item-edit.service.js'
       - 'src/modules/restaurant/restaurant-menu-import.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
       - 'src/web/restaurant-menu-ocr-product-edit-v6.js'
+      - 'src/web/restaurant-v2-menu-edit-v27.js'
+      - 'src/web/restaurant-v2-menu.html'
       - 'scripts/restaurant-menu-ocr-product-edit-smoke.js'
       - 'scripts/restaurant-menu-ocr-product-edit-db-smoke.js'
       - '.github/workflows/restaurant-menu-ocr-product-edit-ci.yml'
@@ -19,7 +22,10 @@ on:
       - 'src/modules/restaurant/restaurant-menu-item-edit.service.js'
       - 'src/modules/restaurant/restaurant-menu-import.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
       - 'src/web/restaurant-menu-ocr-product-edit-v6.js'
+      - 'src/web/restaurant-v2-menu-edit-v27.js'
+      - 'src/web/restaurant-v2-menu.html'
       - 'scripts/restaurant-menu-ocr-product-edit-smoke.js'
       - 'scripts/restaurant-menu-ocr-product-edit-db-smoke.js'
       - '.github/workflows/restaurant-menu-ocr-product-edit-ci.yml'
@@ -62,14 +68,16 @@ jobs:
         run: npm run build
       - name: Sync test database
         run: npx prisma db push
-      - name: Validate OCR product editor syntax and contract
+      - name: Validate OCR and Carta product editor syntax and contract
         run: |
           node --check src/modules/restaurant/restaurant-menu-item-edit.service.js
           node --check src/modules/restaurant/restaurant-menu-import.routes.js
           node --check src/modules/restaurant/restaurant-menu-import.public.routes.js
+          node --check src/modules/restaurant/restaurant-v2-menu.public.routes.js
           node --check src/web/restaurant-menu-ocr-product-edit-v6.js
+          node --check src/web/restaurant-v2-menu-edit-v27.js
           node scripts/restaurant-menu-ocr-product-edit-smoke.js
-      - name: Validate persisted OCR product edits against PostgreSQL
+      - name: Validate persisted OCR and Carta product edits against PostgreSQL
         run: node scripts/restaurant-menu-ocr-product-edit-db-smoke.js
 
   verify-production:
@@ -125,3 +133,16 @@ jobs:
           grep -q 'carta-importacion/items/' /tmp/menu-ui.js
           grep -q 'Guardar cambios' /tmp/menu-ui.js
           echo "PRODUCTION_MENU_OCR_EDIT_BROWSER_OK"
+
+      - name: Verify Carta V27 editor asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 15 -o /tmp/carta.html https://core.vantixgc.com/app/restaurante-v2/carta
+          curl -fsSL --max-time 15 -D /tmp/carta-edit.headers -o /tmp/carta-edit.js https://core.vantixgc.com/app/restaurant-v2-menu-edit-v27.js
+          grep -q 'restaurant-v2-menu.js?v=v27' /tmp/carta.html
+          grep -q 'restaurant-v2-menu-edit-v27.js?v=v27' /tmp/carta.html
+          grep -qi '^X-VantixGC-Restaurant-Carta-Edit: v27' /tmp/carta-edit.headers
+          grep -q 'VANTIX_RESTAURANT_CARTA_EDIT_V27' /tmp/carta-edit.js
+          grep -q 'editar-v27' /tmp/carta-edit.js
+          echo "PRODUCTION_RESTAURANT_CARTA_EDIT_V27_OK"

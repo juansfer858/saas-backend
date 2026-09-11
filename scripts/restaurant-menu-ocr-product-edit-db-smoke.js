@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const menuImport = require('../src/modules/restaurant/restaurant-menu-import.service');
 const editService = require('../src/modules/restaurant/restaurant-menu-item-edit.service');
+const categories = require('../src/modules/restaurant/restaurant-commercial-categories-v26.service');
 
 async function main() {
   const stamp = Date.now();
@@ -60,18 +61,52 @@ async function main() {
     assert.equal(updatedMenu.requiresRecipe, originalMenu.requiresRecipe, 'edit must preserve recipe policy');
     assert.equal(updatedMenu.active, originalMenu.active, 'edit must preserve visibility');
 
+    const assignment = await categories.assignMenuItemByName(tenant.id, before.id, 'Girasoles - Helados');
+    const cartaEdited = await editService.updateCartaItem(tenant.id, user.id, before.id, {
+      name:'Vaso de helado vainillas',
+      price:7000,
+      categoryId:assignment.category.id,
+      category:assignment.category.name,
+      operationalCategory:'POSTRES',
+      station:'POSTRES',
+      mode:'PREPARED',
+      active:true
+    });
+
+    assert.equal(cartaEdited.marker, editService.CARTA_EDIT_MARKER);
+    assert.equal(cartaEdited.id, before.id);
+    assert.equal(cartaEdited.productId, before.productId);
+    assert.equal(cartaEdited.subcategory, 'Vaso de helado vainillas');
+    assert.equal(cartaEdited.price, 7000);
+    assert.equal(cartaEdited.category, 'Girasoles - Helados');
+    assert.equal(cartaEdited.operationalCategory, 'POSTRES');
+    assert.equal(cartaEdited.station, 'POSTRES');
+    assert.equal(cartaEdited.mode, 'PREPARED');
+
+    const afterV27Product = await prisma.producto.findUnique({ where:{ id:before.productId } });
+    const afterV27Menu = await prisma.restaurantMenuItem.findUnique({ where:{ id:before.id } });
+    assert.equal(afterV27Product.sku, originalSku, 'V27 must preserve OCR identity');
+    assert.equal(afterV27Product.nombre, 'Vaso de helado vainillas');
+    assert.equal(afterV27Product.descripcion, 'Categoría de carta: Girasoles - Helados');
+    assert.equal(Number(afterV27Product.precio1), 7000);
+    assert.equal(afterV27Product.controlaInventario, false);
+    assert.equal(afterV27Menu.category, 'POSTRES');
+    assert.equal(afterV27Menu.station, 'POSTRES');
+    assert.equal(afterV27Menu.requiresRecipe, false);
+    assert.equal(afterV27Menu.commercialCategoryId, assignment.category.id);
+
     const afterList = await menuImport.listCarta(tenant.id);
     const after = afterList.find((row) => row.id === before.id);
     assert.ok(after);
-    assert.equal(after.category, 'Hamburguesas premium');
-    assert.equal(after.subcategory, 'Ranchera especial');
-    assert.equal(after.price, 28900);
+    assert.equal(after.subcategory, 'Vaso de helado vainillas');
+    assert.equal(after.price, 7000);
 
     const audit = await prisma.auditoriaContable.findFirst({
-      where:{ tenantId:tenant.id, entidad:'RESTAURANT_MENU_OCR_ITEM', entidadId:before.id, accion:'UPDATE' },
+      where:{ tenantId:tenant.id, entidad:'RESTAURANT_CARTA_ITEM', entidadId:before.id, accion:'UPDATE' },
       orderBy:{ creadoEn:'desc' }
     });
-    assert.ok(audit, 'persisted OCR edit must be audited');
+    assert.ok(audit, 'V27 Carta edit must be audited');
+    assert.equal(audit.metadata?.marker, editService.CARTA_EDIT_MARKER);
 
     const manualProduct = await prisma.producto.create({
       data: {
@@ -104,10 +139,11 @@ async function main() {
     assert.equal(manualAfter.nombre, 'Manual');
     assert.equal(Number(manualAfter.precio1), 15000);
 
-    console.log('RESTAURANT MENU OCR PRODUCT EDIT DB OK');
+    console.log('RESTAURANT MENU OCR PRODUCT EDIT DB OK', JSON.stringify({ cartaEditV27:true, importedRename:true, commercialCategorySync:true }));
   } finally {
     await prisma.auditoriaContable.deleteMany({ where:{ tenantId:tenant.id } }).catch(() => {});
     await prisma.restaurantMenuItem.deleteMany({ where:{ tenantId:tenant.id } }).catch(() => {});
+    await prisma.restaurantCommercialCategory.deleteMany({ where:{ tenantId:tenant.id } }).catch(() => {});
     await prisma.producto.deleteMany({ where:{ tenantId:tenant.id } }).catch(() => {});
     await prisma.user.deleteMany({ where:{ tenantId:tenant.id } }).catch(() => {});
     await prisma.tenant.delete({ where:{ id:tenant.id } }).catch(() => {});

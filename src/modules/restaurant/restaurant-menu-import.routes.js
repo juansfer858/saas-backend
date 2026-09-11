@@ -80,6 +80,17 @@ const editImportedItemSchema = z.object({
   station: z.enum(['COCINA', 'BARRA', 'POSTRES'])
 });
 
+const editCartaItemSchema = z.object({
+  name: z.string().trim().min(2).max(180),
+  price: z.coerce.number().min(0).max(1000000000),
+  categoryId: z.string().uuid(),
+  category: z.string().trim().min(1).max(80),
+  operationalCategory: z.enum(['ENTRADAS', 'FUERTES', 'BEBIDAS', 'POSTRES']),
+  station: z.enum(['COCINA', 'BARRA', 'POSTRES']),
+  mode: z.enum(['PREPARED', 'DIRECT', 'RECIPE']),
+  active: z.boolean()
+});
+
 const commercialCategoryCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   sortOrder: z.coerce.number().int().min(0).max(10000).optional()
@@ -146,6 +157,17 @@ router.put('/carta-importacion/items/:id/categoria', requirePermission('RESTAURA
   try {
     const input = parse(commercialCategoryAssignSchema, req.body || {});
     res.json({ ok: true, data: await commercialCategories.assignMenuItem(req.tenantId, req.params.id, input.categoryId) });
+  } catch (error) { next(error); }
+});
+
+router.patch('/carta-importacion/items/:id/editar-v27', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const input = parse(editCartaItemSchema, req.body || {});
+    res.set('X-VantixGC-Restaurant-Carta-Edit', 'v27');
+    res.json({
+      ok: true,
+      data: await menuItemEdit.updateCartaItem(req.tenantId, req.userId, req.params.id, input)
+    });
   } catch (error) { next(error); }
 });
 
