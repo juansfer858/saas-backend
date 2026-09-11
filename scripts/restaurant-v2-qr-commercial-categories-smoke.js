@@ -21,29 +21,38 @@ const menu = [
   { id:'m-default', category:'POSTRES', station:'POSTRES', product:{ name:'Brownie' } }
 ];
 const menuRows = [
-  { id:'m-bebida', productId:'p-bebida', category:'BEBIDAS', sortOrder:1 },
-  { id:'m-fuerte', productId:'p-fuerte', category:'FUERTES', sortOrder:2 },
+  { id:'m-bebida', productId:'p-bebida', category:'BEBIDAS', commercialCategoryId:'cat-jugos', sortOrder:1 },
+  { id:'m-fuerte', productId:'p-fuerte', category:'FUERTES', commercialCategoryId:'cat-hamb', sortOrder:2 },
   { id:'m-default', productId:'p-default', category:'POSTRES', sortOrder:3 }
 ];
 const products = [
-  { id:'p-fuerte', descripcion:'Categoría de carta: Hamburguesas' },
-  { id:'p-bebida', descripcion:'Categoría de carta: Jugos naturales' },
+  { id:'p-fuerte', descripcion:'Categoría de carta: Nombre viejo' },
+  { id:'p-bebida', descripcion:'Categoría de carta: Nombre viejo 2' },
   { id:'p-default', descripcion:'Brownie artesanal de la casa' }
 ];
+const categories = [
+  { id:'cat-hamb', name:'Hamburguesas', sortOrder:20, active:true },
+  { id:'cat-jugos', name:'Jugos naturales', sortOrder:10, active:true }
+];
 
-const out = decorateMenuCategories(menu, menuRows, products);
+const out = decorateMenuCategories(menu, menuRows, products, categories);
 assert.deepEqual(out.map((row) => row.id), ['m-bebida', 'm-fuerte', 'm-default']);
 assert.deepEqual(out.map((row) => row.category), ['Jugos naturales', 'Hamburguesas', 'Postres']);
 assert.deepEqual(out.map((row) => row.displayCategory), ['Jugos naturales', 'Hamburguesas', 'Postres']);
 assert.deepEqual(out.map((row) => row.operationalCategory), ['BEBIDAS', 'FUERTES', 'POSTRES']);
+assert.equal(out[0].commercialCategoryId, 'cat-jugos');
+assert.equal(out[1].commercialCategoryId, 'cat-hamb');
 assert.equal(out[0].station, 'BARRA');
 assert.equal(out[1].station, 'COCINA');
 assert.equal(out[2].station, 'POSTRES');
 
 const source = fs.readFileSync(path.join(__dirname, '../src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'), 'utf8');
 assert.match(source, /\/api\/public\/restaurante\/qr\/:token/);
+assert.match(source, /commercialCategoryId/);
+assert.match(source, /restaurantCommercialCategory/);
 assert.match(source, /operationalCategory/);
 assert.match(source, /publicCategoryFromDescription/);
+assert.match(source, /v26-central/);
 assert.match(source, /X-VantixGC-Restaurant-QR-Categories/);
 
 console.log('restaurant-v2-qr-commercial-categories-smoke: OK');

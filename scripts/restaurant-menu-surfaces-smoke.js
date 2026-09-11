@@ -39,9 +39,18 @@ assert.deepEqual(menu.map((row) => row.displayCategory), [
   'Girasoles - Helados',
   'Magnolias - Bebidas Calientes',
   'Tulipanes - Postres',
-  'FUERTES'
+  'Fuertes'
 ]);
 assert.equal(menu[0].category, 'POSTRES', 'operational category must remain intact');
+
+const surfaceSource = fs.readFileSync('src/modules/restaurant/restaurant-menu-surface-sync.service.js', 'utf8');
+assert.match(surfaceSource, /restaurant-commercial-categories-v26\.service/);
+assert.match(surfaceSource, /commercialCategoryId/);
+assert.match(surfaceSource, /displayCategory/);
+
+const ordersSource = fs.readFileSync('src/web/restaurant-v2-orders.js', 'utf8');
+assert.match(ordersSource, /item\.displayCategory\|\|item\.category/);
+assert.match(ordersSource, /new Set\(S\.menu\.map/);
 
 const desktopSource = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
 const desktop = patchDesktopRuntime(desktopSource);
@@ -74,6 +83,7 @@ assert.doesNotThrow(() => new vm.Script(qr), 'QR asset must remain valid JavaScr
 
 console.log('RESTAURANT MENU SURFACES SMOKE OK', JSON.stringify({
   marker:MARKER,
+  categorySource:'VANTIX_RESTAURANT_COMMERCIAL_CATEGORIES_V26',
   qrStableMarker:QR_STABLE_MARKER,
   tableOrder:tables.map((row) => row.name),
   displayCategories:menu.map((row) => row.displayCategory),

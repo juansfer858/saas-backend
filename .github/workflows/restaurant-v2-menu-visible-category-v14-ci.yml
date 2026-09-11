@@ -1,44 +1,88 @@
-name: Restaurant V2 Menu Visible Category V14 CI
+name: Restaurant Commercial Categories V26 CI
 
 on:
   pull_request:
     branches: [main]
     paths:
+      - 'prisma/restaurant-commercial-categories-v26.prisma'
+      - 'prisma/restaurant-phase2-v1.prisma'
       - 'src/web/restaurant-v2-menu.html'
-      - 'src/web/restaurant-v2-menu.js'
+      - 'src/web/restaurant-v2-menu.css'
       - 'src/web/restaurant-v2-menu-category-selector-v14.js'
-      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/modules/restaurant/restaurant-commercial-categories-v26.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
+      - 'src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
       - 'scripts/restaurant-v2-menu-visible-category-v14-smoke.js'
+      - 'scripts/restaurant-commercial-categories-v26-db-smoke.js'
       - '.github/workflows/restaurant-v2-menu-visible-category-v14-ci.yml'
   push:
     branches: [main]
     paths:
+      - 'prisma/restaurant-commercial-categories-v26.prisma'
+      - 'prisma/restaurant-phase2-v1.prisma'
       - 'src/web/restaurant-v2-menu.html'
-      - 'src/web/restaurant-v2-menu.js'
+      - 'src/web/restaurant-v2-menu.css'
       - 'src/web/restaurant-v2-menu-category-selector-v14.js'
-      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/modules/restaurant/restaurant-commercial-categories-v26.service.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
+      - 'src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
       - 'scripts/restaurant-v2-menu-visible-category-v14-smoke.js'
+      - 'scripts/restaurant-commercial-categories-v26-db-smoke.js'
       - '.github/workflows/restaurant-v2-menu-visible-category-v14-ci.yml'
 
 permissions:
   contents: read
 
+env:
+  DATABASE_URL: postgresql://vantix_ci:vantix_ci@127.0.0.1:5432/vantix_ci
+
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vantix_ci
+          POSTGRES_PASSWORD: vantix_ci
+          POSTGRES_DB: vantix_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vantix_ci -d vantix_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate selector syntax
+          cache: npm
+      - run: npm ci
+      - name: Prepare Prisma schema
+        run: |
+          npx prisma generate
+          npx prisma db push
+      - name: Validate syntax
         run: |
           node --check src/web/restaurant-v2-menu-category-selector-v14.js
-          node --check src/modules/restaurant/restaurant-v2-menu.public.routes.js
+          node --check src/modules/restaurant/restaurant-commercial-categories-v26.service.js
+          node --check src/modules/restaurant/restaurant-menu-import.routes.js
+          node --check src/modules/restaurant/restaurant-menu-surface-sync.service.js
+          node --check src/modules/restaurant/restaurant-v2-client-qr.public.routes.js
+          node --check scripts/ensure-restaurant-runtime-schema.js
           node --check scripts/restaurant-v2-menu-visible-category-v14-smoke.js
-      - name: Validate visible category contracts
+          node --check scripts/restaurant-commercial-categories-v26-db-smoke.js
+      - name: Validate Carta contracts
         run: node scripts/restaurant-v2-menu-visible-category-v14-smoke.js
+      - name: Validate category persistence and synchronization
+        run: node scripts/restaurant-commercial-categories-v26-db-smoke.js
 
   verify-production:
     if: github.event_name == 'push'
@@ -46,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Verify exact visible category V14 in production
+      - name: Verify exact V26 in production
         run: |
           set -euo pipefail
           BASE='https://core.vantixgc.com'
@@ -55,11 +99,12 @@ jobs:
             if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
               CARTA="$(curl -fsS "$BASE/app/restaurante-v2/carta")"
               SELECTOR="$(curl -fsS "$BASE/app/restaurant-v2-menu-category-selector-v14.js")"
-              [[ "$CARTA" == *'<select id="preparedCommercialCategory"'* ]]
-              [[ "$CARTA" == *'restaurant-v2-menu-category-selector-v14.js?v=v14'* ]]
-              [[ "$SELECTOR" == *'VANTIX_RESTAURANT_V2_MENU_VISIBLE_CATEGORY_SELECTOR_V14'* ]]
-              [[ "$SELECTOR" == *'/api/v1/restaurante/carta-importacion/lista'* ]]
-              echo "Restaurant V2 Menu Visible Category V14 live at $GITHUB_SHA"
+              [[ "$CARTA" == *'id="manageCategories"'* ]]
+              [[ "$CARTA" == *'id="commercialCategoryDialog"'* ]]
+              [[ "$CARTA" == *'restaurant-v2-menu-category-selector-v14.js?v=v26'* ]]
+              [[ "$SELECTOR" == *'VANTIX_RESTAURANT_COMMERCIAL_CATEGORIES_V26'* ]]
+              [[ "$SELECTOR" == *'/api/v1/restaurante/carta-importacion/categorias?includeInactive=true'* ]]
+              echo "Restaurant Commercial Categories V26 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10

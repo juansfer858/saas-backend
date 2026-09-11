@@ -5,12 +5,16 @@ on:
     branches:
       - main
     paths:
+      - 'prisma/restaurant-commercial-categories-v26.prisma'
+      - 'prisma/restaurant-phase2-v1.prisma'
+      - 'src/modules/restaurant/restaurant-commercial-categories-v26.service.js'
       - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
       - 'src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js'
       - 'src/modules/restaurant/restaurant-qr-category-stable.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/restaurant-ui.js'
       - 'src/web/restaurant-waiter-runtime-v7.js'
+      - 'src/web/restaurant-v2-orders.js'
       - 'src/web/restaurant-qr-ui.js'
       - 'scripts/restaurant-menu-surfaces-smoke.js'
       - '.github/workflows/restaurant-menu-surfaces-ci.yml'
@@ -18,12 +22,16 @@ on:
     branches:
       - main
     paths:
+      - 'prisma/restaurant-commercial-categories-v26.prisma'
+      - 'prisma/restaurant-phase2-v1.prisma'
+      - 'src/modules/restaurant/restaurant-commercial-categories-v26.service.js'
       - 'src/modules/restaurant/restaurant-menu-surface-sync.service.js'
       - 'src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js'
       - 'src/modules/restaurant/restaurant-qr-category-stable.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/restaurant-ui.js'
       - 'src/web/restaurant-waiter-runtime-v7.js'
+      - 'src/web/restaurant-v2-orders.js'
       - 'src/web/restaurant-qr-ui.js'
       - 'scripts/restaurant-menu-surfaces-smoke.js'
       - '.github/workflows/restaurant-menu-surfaces-ci.yml'
@@ -48,6 +56,7 @@ jobs:
         run: npm run build
       - name: Validate shared menu surfaces and natural table order
         run: |
+          node --check src/modules/restaurant/restaurant-commercial-categories-v26.service.js
           node --check src/modules/restaurant/restaurant-menu-surface-sync.service.js
           node --check src/modules/restaurant/restaurant-menu-surface-sync.public.routes.js
           node --check src/modules/restaurant/restaurant-qr-category-stable.public.routes.js
