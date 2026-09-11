@@ -10,6 +10,7 @@ const POS_ROLE = 'CAJA';
 const DOCUMENT_ROLE = 'DOCUMENTOS';
 const ORIGIN_TYPE = 'RESTAURANT_POS_RECEIPT';
 const CASH_SHIFT_ORIGIN_TYPE = 'RESTAURANT_CASH_SHIFT_CLOSE_RECEIPT';
+const C86_MARKER = 'VANTIX_RESTAURANT_SHIFT_CLOSE_HISTORY_C86';
 const INTENT_TTL_MS = 24 * 60 * 60 * 1000;
 const CASH_CLOSE_COLUMNS_80 = 48;
 const CASH_CLOSE_COLUMNS_58 = 32;
@@ -28,8 +29,9 @@ function stableReceiptJobId(saleId, printer) {
   return `restaurant-pos:${saleId}:printer:${printerDigest(printer)}`;
 }
 
-function stableCashCloseJobId(shiftId, printer) {
-  return `restaurant-cash-close:${shiftId}:printer:${printerDigest(printer)}`;
+function stableCashCloseJobId(shiftId, printer, printRequestId = null) {
+  const request = printRequestId ? `:request:${String(printRequestId).slice(0, 36)}` : '';
+  return `restaurant-cash-close:${shiftId}:printer:${printerDigest(printer)}${request}`;
 }
 
 function uniquePhysicalPrinters(printers) {
@@ -80,6 +82,12 @@ function dateTime(value) {
   return new Intl.DateTimeFormat('es-CO', {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
   }).format(date);
+}
+
+function timeOnly(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true }).format(date);
 }
 
 function cashCloseColumns(format) {
@@ -174,8 +182,8 @@ async function buildCashCloseSnapshot(tenantId, shiftId, client = prisma) {
   let cardSales = decimal(0);
   let bankOtherSales = decimal(0);
   let creditSales = decimal(0);
-
   const tables = [];
+
   for (const session of sessions) {
     const sale = saleById.get(session.saleId);
     if (!sale) continue;
@@ -236,7 +244,7 @@ async function buildCashCloseSnapshot(tenantId, shiftId, client = prisma) {
   };
 }
 
-function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }) {
+function legacyCashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }) {
   const width = cashCloseColumns(paperFormat);
   const separator = '-'.repeat(width);
   const lines = [];
@@ -254,7 +262,6 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
   if (opened) center(`Apertura: ${opened}`);
   if (closed) center(`Cierre: ${closed}`);
   lines.push(separator);
-
   pair('Ventas cerradas', String(snapshot?.tables?.length || 0));
   pair('Total ventas + propinas', cop(snapshot?.restaurantClosedTablesTotal));
   lines.push(separator);
@@ -265,7 +272,6 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
   pair('Crédito / cartera', cop(snapshot?.paymentBreakdown?.creditSales));
   if (number(snapshot?.paymentBreakdown?.bankOtherSales) !== 0) pair('Banco / otros', cop(snapshot.paymentBreakdown.bankOtherSales));
   lines.push(separator);
-
   center('ARQUEO DE CAJA');
   pair('Fondo inicial', cop(snapshot?.shift?.saldoInicial));
   pair('Ingresos efectivo', cop(snapshot?.shift?.ingresosEfectivo));
@@ -274,30 +280,127 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
   pair('Efectivo esperado', cop(snapshot?.systemCashExpected));
   pair('Conteo final', cop(snapshot?.shift?.saldoFinal));
   pair('DESCUADRE', cop(snapshot?.shift?.descuadre));
-
   if (Array.isArray(snapshot?.tables) && snapshot.tables.length) {
     lines.push(separator);
     center('DETALLE DE VENTAS');
     for (const row of snapshot.tables) {
-      const label = `${row.table || 'Mesa'} · ${row.saleNumber || 'S/N'}`;
-      pair(label, cop(row.total));
+      pair(`${row.table || 'Mesa'} · ${row.saleNumber || 'S/N'}`, cop(row.total));
       const method = String(row.paymentMethodLabel || row.paymentMethodKind || '').trim();
       if (method) lines.push(...receiptLayout.wrapText(`  ${method}`, width));
     }
   }
-
   lines.push(separator);
   center(`Turno: ${String(snapshot?.shift?.id || '').slice(0, 12).toUpperCase()}`);
   center('FIN DEL CIERRE');
   return lines;
 }
 
-function buildCashCloseJob({ company, snapshot, printer }) {
+function c86CashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }) {
+  const width = cashCloseColumns(paperFormat);
+  const separator = '-'.repeat(width);
+  const lines = [];
+  const pair = (left, right) => lines.push(...receiptLayout.pairOrWrap(left, right, width, 2));
+  const center = (value) => lines.push(...receiptLayout.centeredWrapped(value, width));
+  const section = (title) => { lines.push(separator); center(title); };
+
+  center(company?.nombreEmpresa || 'Restaurante');
+  for (const line of companyService.receiptCompanyLines(company)) center(line);
+  lines.push(separator);
+  center('CIERRE OPERATIVO DE TURNO');
+  pair('Fecha', snapshot?.businessDate || '');
+  pair('Caja', snapshot?.shift?.cajaNombre || 'Caja');
+  pair('Cajero', snapshot?.shift?.cajero || 'Cajero');
+  pair('Apertura', dateTime(snapshot?.shift?.abiertoEn));
+  pair('Cierre', dateTime(snapshot?.shift?.cerradoEn));
+  pair('Estado', snapshot?.status || 'REVISAR');
+
+  section('CONCILIACION GENERAL');
+  pair('Cuentas cobradas', String(snapshot?.totals?.accountsCharged || 0));
+  pair('Platos cocina', qty(snapshot?.totals?.kitchenDeliveredItems));
+  pair('Valor facturado', cop(snapshot?.totals?.billedValue));
+  pair('Valor liquidado', cop(snapshot?.totals?.settledValue));
+  pair('Diferencia operativa', cop(snapshot?.totals?.difference));
+  pair('Propinas', cop(snapshot?.totals?.tips));
+
+  section('CANALES');
+  const channelLabels = { MESAS: 'Mesas', MOSTRADOR: 'Mostrador', DOMICILIOS: 'Domicilios', PARA_LLEVAR: 'Para llevar' };
+  for (const key of ['MESAS', 'MOSTRADOR', 'DOMICILIOS', 'PARA_LLEVAR']) {
+    const row = snapshot?.channels?.[key] || {};
+    pair(`${channelLabels[key]} (${Number(row.tickets || 0)})`, cop(row.settledValue));
+    if (number(row.difference) !== 0) pair('  Diferencia', cop(row.difference));
+  }
+
+  section('PRODUCCION ENTREGADA');
+  for (const key of ['COCINA', 'BARRA', 'POSTRES']) {
+    const row = snapshot?.production?.[key] || {};
+    pair(`${key} · ${qty(row.deliveredItems)} item(s)`, cop(row.value));
+    if (Number(row.readyNotDelivered || 0)) pair('  Pendientes al cierre', String(row.readyNotDelivered));
+  }
+
+  section('MEDIOS DE PAGO');
+  pair('Efectivo', cop(snapshot?.payments?.cash));
+  pair('Transferencia / QR', cop(snapshot?.payments?.transfer));
+  pair('Tarjeta', cop(snapshot?.payments?.card));
+  pair('Crédito / cartera', cop(snapshot?.payments?.credit));
+  if (number(snapshot?.payments?.other) !== 0) pair('Otros', cop(snapshot.payments.other));
+  pair('TOTAL LIQUIDADO', cop(snapshot?.payments?.total));
+
+  section('ARQUEO DE CAJA');
+  pair('Fondo inicial', cop(snapshot?.cash?.openingBalance));
+  pair('Ingresos efectivo', cop(snapshot?.cash?.cashIncome));
+  pair('Ingresos voucher', cop(snapshot?.cash?.voucherIncome));
+  pair('Egresos efectivo', cop(snapshot?.cash?.cashOut));
+  pair('Efectivo esperado', cop(snapshot?.cash?.expectedCash));
+  pair('Efectivo contado', cop(snapshot?.cash?.countedCash));
+  pair('DESCUADRE', cop(snapshot?.cash?.difference));
+
+  if (Array.isArray(snapshot?.operations) && snapshot.operations.length) {
+    section('DETALLE DE OPERACIONES');
+    for (const row of snapshot.operations) {
+      const ref = `${row.channel || 'VENTA'} · ${row.reference || row.saleNumber || 'S/N'}`;
+      pair(ref, cop(row.collectedValue));
+      const meta = [row.saleNumber, row.paymentMethod, row.collectedBy].filter(Boolean).join(' · ');
+      if (meta) lines.push(...receiptLayout.wrapText(`  ${meta}`, width));
+      const when = timeOnly(row.collectedAt || row.orderAt || row.openedAt);
+      if (when) lines.push(...receiptLayout.wrapText(`  Hora ${when} · ${row.state || ''}`, width));
+    }
+  }
+
+  if (Array.isArray(snapshot?.movements) && snapshot.movements.length) {
+    section('MOVIMIENTOS DE CAJA');
+    for (const row of snapshot.movements) {
+      const label = `${timeOnly(row.at)} ${row.type || 'MOV'}`.trim();
+      pair(label, cop(row.amount));
+      const detail = [row.reference, row.concept].filter(Boolean).join(' · ');
+      if (detail) lines.push(...receiptLayout.wrapText(`  ${detail}`, width));
+    }
+  }
+
+  section('EXCEPCIONES');
+  if (!snapshot?.exceptions?.length) center('Sin excepciones detectadas');
+  else for (const row of snapshot.exceptions) {
+    lines.push(...receiptLayout.wrapText(`${row.severity || 'REVISAR'} · ${row.type || 'EXCEPCION'}`, width));
+    const detail = [row.reference, row.station, row.at ? timeOnly(row.at) : null].filter(Boolean).join(' · ');
+    if (detail) lines.push(...receiptLayout.wrapText(`  ${detail}`, width));
+  }
+
+  lines.push(separator);
+  center(`Turno: ${String(snapshot?.shift?.id || '').slice(0, 12).toUpperCase()}`);
+  center('CIERRE GUARDADO · C86');
+  return lines;
+}
+
+function cashCloseReceiptLines(args) {
+  return args?.snapshot?.marker === C86_MARKER ? c86CashCloseReceiptLines(args) : legacyCashCloseReceiptLines(args);
+}
+
+function buildCashCloseJob({ company, snapshot, printer, printRequestId = null }) {
   const transport = String(printer.transport || 'LAN').toUpperCase();
   const paperFormat = printer.format || 'TERMICA_80';
   const columns = cashCloseColumns(paperFormat);
+  const c86 = snapshot?.marker === C86_MARKER;
   return {
-    id: stableCashCloseJobId(snapshot.shift.id, printer),
+    id: stableCashCloseJobId(snapshot.shift.id, printer, printRequestId),
     station: POS_ROLE,
     printer: {
       id: printer.id || null,
@@ -315,10 +418,11 @@ function buildCashCloseJob({ company, snapshot, printer }) {
       copies: 1,
       cut: true,
       paperFormat,
-      receiptType: 'RESTAURANT_CASH_SHIFT_CLOSE_V1',
-      receiptLayout: 'EPSON_FULL_WIDTH_48_V1',
+      receiptType: c86 ? 'RESTAURANT_CASH_SHIFT_CLOSE_C86' : 'RESTAURANT_CASH_SHIFT_CLOSE_V1',
+      receiptLayout: c86 ? 'EPSON_FULL_WIDTH_48_C86' : 'EPSON_FULL_WIDTH_48_V1',
       columns,
-      shiftId: snapshot.shift.id
+      shiftId: snapshot.shift.id,
+      printRequestId: printRequestId || null
     }
   };
 }
@@ -363,17 +467,19 @@ async function queueReceiptIntent(tenantId, sessionId, client = prisma) {
   return { queued: true, intentId: intent.id, sessionId: session.id, saleId: sale.id };
 }
 
-async function queueShiftCloseIntent(tenantId, shiftId, client = prisma) {
-  const snapshot = await buildCashCloseSnapshot(tenantId, shiftId, client);
-  if (!snapshot) return { queued: false, reason: 'SHIFT_NOT_CLOSED' };
+async function queueShiftCloseSnapshotIntent(tenantId, shiftId, snapshot, client = prisma) {
+  if (!snapshot?.shift?.id || snapshot.shift.id !== shiftId) return { queued: false, reason: 'SHIFT_SNAPSHOT_INVALID' };
+  const shift = await client.aperturaCierreCaja.findFirst({ where: { id: shiftId, tenantId, estado: 'CERRADA' }, select: { id: true } });
+  if (!shift) return { queued: false, reason: 'SHIFT_NOT_CLOSED' };
   const now = new Date();
+  const printRequestId = crypto.randomUUID();
   const data = {
     tokenHash: cashCloseIntentTokenHash(tenantId, shiftId),
     tokenCiphertext: `CASH_SHIFT_CLOSE:${shiftId}`,
     tokenHint: String(shiftId).slice(-6),
     publicReference: `CIERRE-${String(shiftId).slice(0, 12).toUpperCase()}`,
     currentStatus: 'PENDING',
-    timeline: [{ type: 'CASH_SHIFT_CLOSE_RECEIPT_QUEUED', at: now.toISOString(), shiftId, snapshot }],
+    timeline: [{ type: 'CASH_SHIFT_CLOSE_RECEIPT_QUEUED', at: now.toISOString(), shiftId, printRequestId, snapshot }],
     expiresAt: new Date(now.getTime() + INTENT_TTL_MS),
     completedAt: null,
     active: true,
@@ -384,7 +490,13 @@ async function queueShiftCloseIntent(tenantId, shiftId, client = prisma) {
     create: { tenantId, originType: CASH_SHIFT_ORIGIN_TYPE, originId: shiftId, ...data },
     update: data
   });
-  return { queued: true, intentId: intent.id, shiftId, snapshot };
+  return { queued: true, intentId: intent.id, shiftId, snapshot, printRequestId };
+}
+
+async function queueShiftCloseIntent(tenantId, shiftId, client = prisma) {
+  const snapshot = await buildCashCloseSnapshot(tenantId, shiftId, client);
+  if (!snapshot) return { queued: false, reason: 'SHIFT_NOT_CLOSED' };
+  return queueShiftCloseSnapshotIntent(tenantId, shiftId, snapshot, client);
 }
 
 async function queueReceiptForTableIfClosed(tenantId, tableId) {
@@ -398,13 +510,19 @@ async function queueReceiptForTableIfClosed(tenantId, tableId) {
   return queueReceiptIntent(tenantId, session.id);
 }
 
-function cashCloseSnapshotFromIntent(intent) {
+function cashCloseEnvelopeFromIntent(intent) {
   const timeline = Array.isArray(intent?.timeline) ? intent.timeline : [];
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const event = timeline[index];
-    if (event?.type === 'CASH_SHIFT_CLOSE_RECEIPT_QUEUED' && event?.snapshot?.shift?.id) return event.snapshot;
+    if (event?.type === 'CASH_SHIFT_CLOSE_RECEIPT_QUEUED' && event?.snapshot?.shift?.id) {
+      return { snapshot: event.snapshot, printRequestId: event.printRequestId || intent?.id || null };
+    }
   }
   return null;
+}
+
+function cashCloseSnapshotFromIntent(intent) {
+  return cashCloseEnvelopeFromIntent(intent)?.snapshot || null;
 }
 
 async function buildPendingReceiptJobs(tenantId) {
@@ -456,10 +574,10 @@ async function buildPendingReceiptJobs(tenantId) {
   }
 
   for (const intent of closeIntents) {
-    const snapshot = cashCloseSnapshotFromIntent(intent);
-    if (!snapshot) continue;
+    const envelope = cashCloseEnvelopeFromIntent(intent);
+    if (!envelope?.snapshot) continue;
     cashCloseReceiptCount += 1;
-    for (const printer of selected.printers) jobs.push(buildCashCloseJob({ company, snapshot, printer }));
+    for (const printer of selected.printers) jobs.push(buildCashCloseJob({ company, snapshot: envelope.snapshot, printer, printRequestId: envelope.printRequestId }));
   }
 
   return {
@@ -477,6 +595,7 @@ module.exports = {
   DOCUMENT_ROLE,
   ORIGIN_TYPE,
   CASH_SHIFT_ORIGIN_TYPE,
+  C86_MARKER,
   INTENT_TTL_MS,
   CASH_CLOSE_COLUMNS_80,
   CASH_CLOSE_COLUMNS_58,
@@ -490,19 +609,24 @@ module.exports = {
   cop,
   qty,
   dateTime,
+  timeOnly,
   cashCloseColumns,
   paperColumns: receiptLayout.paperColumns,
   receiptLines,
   buildReceiptJob,
   paymentKind,
   buildCashCloseSnapshot,
+  legacyCashCloseReceiptLines,
+  c86CashCloseReceiptLines,
   cashCloseReceiptLines,
   buildCashCloseJob,
   intentTokenHash,
   cashCloseIntentTokenHash,
   queueReceiptIntent,
+  queueShiftCloseSnapshotIntent,
   queueShiftCloseIntent,
   queueReceiptForTableIfClosed,
+  cashCloseEnvelopeFromIntent,
   cashCloseSnapshotFromIntent,
   buildPendingReceiptJobs,
   buildRecentReceiptJobs: buildPendingReceiptJobs
