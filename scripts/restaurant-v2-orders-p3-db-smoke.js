@@ -9,6 +9,8 @@ const base=require('../src/modules/restaurant/restaurant.service');
 const identity=require('../src/modules/restaurant/restaurant-identity.service');
 const { V2_OPTIONS,listTablesV2 }=require('../src/modules/restaurant/restaurant-v2-orders.routes');
 
+function between(source,start,end){const a=source.indexOf(start);const b=source.indexOf(end,a+start.length);assert.ok(a>=0&&b>a,`No se pudo aislar ${start}`);return source.slice(a,b)}
+
 async function main(){
   const routeSource=fs.readFileSync('src/modules/restaurant/restaurant-v2-orders.routes.js','utf8');
   const uiSource=fs.readFileSync('src/web/restaurant-v2-orders.js','utf8');
@@ -22,6 +24,22 @@ async function main(){
   assert.match(htmlSource,/REVISAR PEDIDO/);
   assert.match(htmlSource,/CONFIRMAR Y ENVIAR A COCINA \/ BARRA/);
   assert.match(uiSource,/\/pedido\/enviar/);
+  assert.match(uiSource,/VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81/);
+  assert.match(uiSource,/function mergeDraftResult/);
+  assert.match(uiSource,/function mergeItemResult/);
+  assert.match(uiSource,/ENVIANDO PEDIDO/);
+  const setProductSource=between(uiSource,'async function setProduct','async function changeQtyByItem');
+  const patchItemSource=between(uiSource,'async function patchItem','async function changePeople');
+  const changePeopleSource=between(uiSource,'async function changePeople','function openReview');
+  const confirmSendSource=between(uiSource,'async function confirmSend','function realtimeRelevant');
+  assert.match(setProductSource,/mergeDraftResult\(result\)/,'cantidad debe adoptar la respuesta del PUT sin GET redundante');
+  assert.doesNotMatch(setProductSource,/loadDraft|loadBase/,'cantidad no debe recargar toda la PWA');
+  assert.match(patchItemSource,/mergeItemResult\(result\)/,'nota/persona debe adoptar la respuesta del PATCH');
+  assert.doesNotMatch(patchItemSource,/loadDraft|loadBase/,'nota/persona no debe disparar GET redundante');
+  assert.match(changePeopleSource,/result\?\.session/,'personas debe adoptar sesión devuelta por backend');
+  assert.doesNotMatch(changePeopleSource,/loadDraft|loadBase/,'cambiar personas no debe recargar carta/contexto');
+  assert.match(confirmSendSource,/await loadDraft\(\)/,'después de enviar sólo se refresca la sesión seleccionada');
+  assert.doesNotMatch(confirmSendSource,/loadBase\(\)/,'enviar pedido no debe recargar contexto, todas las mesas y carta');
   assert.doesNotMatch(uiSource,/MutationObserver|setInterval|originalSend|res\.send\s*=/);
   assert.match(coreSource,/restaurantV2OrdersRouter/);
 
@@ -57,13 +75,17 @@ async function main(){
     assert.equal(occupied.activeSession.sale?.numero,opened.sale.numero);
     assert.ok(occupied.activeSession.sale?.creadoEn instanceof Date,'la fecha real disponible debe venir de creadoEn');
 
-    await identity.updateTableServiceSetup(demo.tenantId,waiter,sessionId,{guestCount:2},V2_OPTIONS);
+    const peopleResult=await identity.updateTableServiceSetup(demo.tenantId,waiter,sessionId,{guestCount:2},V2_OPTIONS);
+    assert.equal(Number(peopleResult.session.guestCount),2,'PATCH personas devuelve sesión utilizable sin recarga global');
+    assert.equal(Number(peopleResult.service.guestCount),2,'PATCH personas devuelve resumen utilizable sin recarga global');
     const menu=await base.listMenu(demo.tenantId);
     const usable=menu.filter(x=>!x.warning&&x.product).slice(0,2);
     assert.equal(usable.length,2);
 
-    await identity.setWaiterDraftItem(demo.tenantId,waiter,sessionId,usable[0].id,1,1,V2_OPTIONS);
-    await identity.setWaiterDraftItem(demo.tenantId,waiter,sessionId,usable[1].id,2,null,V2_OPTIONS);
+    const firstSet=await identity.setWaiterDraftItem(demo.tenantId,waiter,sessionId,usable[0].id,1,1,V2_OPTIONS);
+    assert.ok(firstSet.order?.id&&firstSet.sale?.id,'PUT cantidad devuelve pedido y venta para pintar sin GET adicional');
+    const secondSet=await identity.setWaiterDraftItem(demo.tenantId,waiter,sessionId,usable[1].id,2,null,V2_OPTIONS);
+    assert.ok(secondSet.order?.id&&secondSet.sale?.id,'PUT cantidad conserva contrato de respuesta rápida');
     let draft=await identity.getWaiterDraft(demo.tenantId,waiter,sessionId,V2_OPTIONS);
     assert.ok(draft.order?.id);
     assert.equal(draft.service.seats[0].items.length,1,'producto opcionalmente asignado a Persona 1');
@@ -73,7 +95,9 @@ async function main(){
     assert.equal(await prisma.restaurantCommand.count({where:{tenantId:demo.tenantId,orderId:draft.order.id}}),0,'no hay comanda antes de confirmar');
 
     const first=draft.order.items.find(x=>x.menuItemId===usable[0].id);
-    await identity.updateOrderItemMeta(demo.tenantId,waiter,sessionId,first.id,{notes:'sin cebolla'},V2_OPTIONS);
+    const metaResult=await identity.updateOrderItemMeta(demo.tenantId,waiter,sessionId,first.id,{notes:'sin cebolla'},V2_OPTIONS);
+    assert.equal(metaResult.item.notes,'sin cebolla','PATCH ítem devuelve la fila actualizada');
+    assert.ok(Array.isArray(metaResult.service.allItems),'PATCH ítem devuelve servicio para pintar sin GET adicional');
     draft=await identity.getWaiterDraft(demo.tenantId,waiter,sessionId,V2_OPTIONS);
     assert.equal(draft.order.items.find(x=>x.id===first.id).notes,'sin cebolla');
 
@@ -82,7 +106,7 @@ async function main(){
     assert.ok(sent.commands.length>=1,'confirmar crea comandas reales');
     assert.ok(Number((await prisma.comprobanteComercial.findUnique({where:{id:saleId}})).total)>0,'venta borrador conserva total real');
 
-    console.log(JSON.stringify({ok:true,module:'PEDIDOS_V2_P3',occupiedTableRegressionCovered:true,v1IsolationPreserved:true,sharedFloorOptIn:true,noBillingQuestion:true,optionalPersons:true,reviewBeforeSend:true,commandsOnlyAfterConfirm:true}));
+    console.log(JSON.stringify({ok:true,module:'PEDIDOS_V2_P3',occupiedTableRegressionCovered:true,v1IsolationPreserved:true,sharedFloorOptIn:true,noBillingQuestion:true,optionalPersons:true,reviewBeforeSend:true,commandsOnlyAfterConfirm:true,fastMutationResponses:true,sendRefreshScope:'selected-draft-only'}));
   }finally{
     if(sessionId){
       const orderIds=(await prisma.restaurantOrder.findMany({where:{tenantId:demo.tenantId,sessionId},select:{id:true}})).map(x=>x.id);
