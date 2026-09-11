@@ -52,6 +52,7 @@ function commandLines(command, layout = {}) {
   const customHeader = cleanPrintContext(layout?.customHeaderText);
   if (customHeader) context.push(customHeader);
   if (command?.delivery?.customerName) context.push(`CLIENTE: ${cleanPrintContext(command.delivery.customerName)}`);
+  if (command?.delivery?.customerPhone) context.push(`TELÉFONO: ${cleanPrintContext(command.delivery.customerPhone)}`);
   if (command?.delivery?.address) context.push(`DIRECCIÓN: ${cleanPrintContext(command.delivery.address)}`);
 
   const prefix = context.length ? [context.join('\n')] : [];
@@ -138,6 +139,7 @@ async function deliveryCommandsForPrint(tenantId) {
     },
     delivery: {
       customerName: command.delivery?.customerName || null,
+      customerPhone: command.delivery?.customerPhone || null,
       address: command.delivery?.address || null
     },
     items: (command.delivery?.items || [])
