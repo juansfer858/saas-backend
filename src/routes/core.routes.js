@@ -95,14 +95,31 @@ router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 router.use('/restaurante', restaurantTableLiveDetailV67Router);
 router.use('/restaurante', restaurantV2TableMoveRouter);
+// QR Cliente puede solicitar apertura sin abrir la mesa por sí mismo. Mesas/Pedidos V2
+// consumen esta cola y un usuario con MESAS.CREAR confirma la apertura real.
 router.use('/restaurante', restaurantV2TableOpenRequestRouter);
+// V2 P3 orders is opt-in and standalone. V1 routes keep their original waiter scope
+// and billing semantics while this API enables shared-floor reinforcement + optional persons.
 router.use('/restaurante', restaurantV2OrdersRouter);
+// V2 P4 Caja owns its API independently. It closes the same real sale/session but never
+// enters the legacy V1 cash UI rewrite chain and never makes DIAN a mandatory gate.
 router.use('/restaurante', restaurantV2CashRouter);
+// C86 is read-only after the shift closes. It snapshots the operational reconciliation,
+// exposes history/export/reprint and never mutates sales, inventory or accounting totals.
 router.use('/restaurante', restaurantShiftCloseHistoryC86Router);
+// V2 P5 Division is a separate settlement surface. It uses the same sale/session and
+// real Treasury/Accounting contracts while keeping the legacy Restaurant routes intact.
 router.use('/restaurante', restaurantV2SplitRouter);
+// V2 P6 KDS is push/realtime-driven and reuses the canonical command state machine.
+// It remains opt-in and does not alter legacy KDS/device routes.
 router.use('/restaurante', restaurantV2KdsRouter);
+// P11 keeps P10 active while V1 is retired from normal operation. Restore P10
+// compatibility first if a technical rollback needs to disable the cutover.
 router.use('/restaurante', restaurantV1RetirementCutoverGuard);
+// P10 prevents an active cutover from being left without its P9 safety envelope.
 router.use('/restaurante', restaurantV2CutoverPilotGuard);
+// P9 controls pilot enrollment per tenant. P10 consumes that proven state before it
+// may switch canonical device entrypoints to V2 for this tenant only.
 router.use('/restaurante', restaurantV2PilotRouter);
 router.use('/restaurante', restaurantV2CutoverRouter);
 router.use('/restaurante', restaurantV1RetirementP11Router);
