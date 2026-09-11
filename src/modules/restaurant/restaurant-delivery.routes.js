@@ -88,6 +88,46 @@ router.get('/domicilios/clientes/telefono/:phone', requirePermission('DOMICILIOS
   catch (error) { next(error); }
 });
 
+router.get('/domicilios/carta', requirePermission('DOMICILIOS.VER'), async (req, res, next) => {
+  try {
+    const rows = await prisma.restaurantMenuItem.findMany({
+      where: { tenantId: req.tenantId, active: true },
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }, { creadoEn: 'asc' }],
+      select: {
+        id: true,
+        productId: true,
+        category: true,
+        station: true,
+        requiresRecipe: true,
+        active: true,
+        sortOrder: true
+      }
+    });
+    const productIds = rows.map((row) => row.productId);
+    const [products, recipes] = productIds.length ? await Promise.all([
+      prisma.producto.findMany({
+        where: { tenantId: req.tenantId, id: { in: productIds }, activo: true },
+        select: { id: true, nombre: true, precio1: true }
+      }),
+      prisma.consumptionRecipe.findMany({
+        where: { tenantId: req.tenantId, outputProductId: { in: productIds }, active: true },
+        select: { outputProductId: true }
+      })
+    ]) : [[], []];
+    const productById = new Map(products.map((row) => [row.id, row]));
+    const recipeProducts = new Set(recipes.map((row) => row.outputProductId));
+    const data = rows.map((row) => ({
+      ...row,
+      product: productById.get(row.productId) || null,
+      recipeConfigured: recipeProducts.has(row.productId),
+      warning: row.requiresRecipe && !recipeProducts.has(row.productId) ? 'RECETA REQUERIDA ANTES DE VENDER' : null
+    }));
+    res.set('Cache-Control', 'no-store');
+    res.set('X-VantixGC-Restaurant-Delivery-Menu', 'compact-v89');
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+});
+
 router.get('/domicilios', requirePermission('DOMICILIOS.VER'), async (req, res, next) => {
   try {
     res.json({
