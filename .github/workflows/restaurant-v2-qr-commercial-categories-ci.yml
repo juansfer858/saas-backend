@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'prisma/restaurant-commercial-categories-v26.prisma'
+      - 'prisma/restaurant-phase2-v1.prisma'
+      - 'src/modules/restaurant/restaurant-commercial-categories-v26.service.js'
       - 'src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.service.js'
       - 'scripts/restaurant-v2-qr-commercial-categories-smoke.js'
@@ -11,6 +14,9 @@ on:
   push:
     branches: [main]
     paths:
+      - 'prisma/restaurant-commercial-categories-v26.prisma'
+      - 'prisma/restaurant-phase2-v1.prisma'
+      - 'src/modules/restaurant/restaurant-commercial-categories-v26.service.js'
       - 'src/modules/restaurant/restaurant-v2-client-qr.public.routes.js'
       - 'src/modules/restaurant/restaurant-menu-import.service.js'
       - 'scripts/restaurant-v2-qr-commercial-categories-smoke.js'
