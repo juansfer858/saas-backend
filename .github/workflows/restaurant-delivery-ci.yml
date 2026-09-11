@@ -54,6 +54,9 @@ jobs:
       - name: Validate immediate Delivery to Production V86 contract
         run: node scripts/restaurant-delivery-send-production-v86-smoke.js
 
+      - name: Validate Delivery menu loader V88 contract
+        run: node scripts/restaurant-delivery-menu-loader-v88-smoke.js
+
       - name: Sync isolated delivery database
         run: npx prisma db push
 
