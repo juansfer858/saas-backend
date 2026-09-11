@@ -6,6 +6,8 @@ const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-v2-cash.service');
 const customerDisplay = require('./restaurant-customer-display-name.service');
+const customerSaleLink = require('./restaurant-customer-sale-link.service');
+const paymentMethods = require('./restaurant-payment-methods.service');
 
 const router = express.Router();
 
@@ -77,19 +79,31 @@ router.post('/v2/caja/turno/cerrar', requirePermission('RESTAURANTE.CERRAR'), as
 
 router.post('/v2/caja/mesas/:tableId/cobrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   const input = parse(chargeSchema, req.body);
-  let stagedCustomer = null;
+  let stagedCustomerName = null;
+  let stagedSaleCustomer = null;
   try {
-    stagedCustomer = await customerDisplay.stageCustomerNameForTable(req.tenantId, req.params.tableId, input.customerName);
+    stagedCustomerName = await customerDisplay.stageCustomerNameForTable(req.tenantId, req.params.tableId, input.customerName);
+
+    if (input.terceroId) {
+      const methods = await paymentMethods.listMethods(req.tenantId);
+      const method = methods.find((row) => row.id === input.paymentMethodId && row.active);
+      if (method && method.kind !== 'CREDITO') {
+        stagedSaleCustomer = await customerSaleLink.stageIdentifiedCustomerForTable(req.tenantId, req.params.tableId, input.terceroId);
+      }
+    }
+
     const data = await service.chargeWholeAccount(req.tenantId, req.user, req.params.tableId, input);
     res.json({
       ok: true,
       data: {
         ...data,
-        customerName: stagedCustomer?.customerName || customerDisplay.normalizeCustomerName(input.customerName)
+        customer: data.customer || stagedSaleCustomer?.customer || null,
+        customerName: stagedCustomerName?.customerName || customerDisplay.normalizeCustomerName(input.customerName)
       }
     });
   } catch (error) {
-    if (stagedCustomer) await customerDisplay.restoreCustomerNameIfDraft(stagedCustomer).catch(() => {});
+    if (stagedSaleCustomer) await customerSaleLink.restoreIdentifiedCustomerIfDraft(stagedSaleCustomer).catch(() => {});
+    if (stagedCustomerName) await customerDisplay.restoreCustomerNameIfDraft(stagedCustomerName).catch(() => {});
     next(error);
   }
 });
