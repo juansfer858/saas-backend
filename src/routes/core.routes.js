@@ -2,6 +2,7 @@ const express = require('express');
 const { extractTenantBySubdomain } = require('../middleware/extract-tenant-by-subdomain');
 const { authMiddleware } = require('../middleware/auth-middleware');
 const { enforceTenantPermissions } = require('../middleware/require-permission');
+const { restaurantBusinessAuditC85 } = require('../middleware/restaurant-business-audit-c85');
 const { tenantRealtimeRouter, tenantRealtimeMutationMiddleware } = require('../modules/realtime/tenant-realtime.routes');
 const { userRouter } = require('../modules/users/user.routes');
 const { thirdPartyRouter } = require('../modules/third-parties/third-party.routes');
@@ -56,6 +57,7 @@ const router = express.Router();
 router.use(extractTenantBySubdomain);
 router.use(authMiddleware);
 router.use(enforceTenantPermissions);
+router.use(restaurantBusinessAuditC85);
 
 router.use(tenantRealtimeMutationMiddleware);
 router.use('/realtime', tenantRealtimeRouter);
