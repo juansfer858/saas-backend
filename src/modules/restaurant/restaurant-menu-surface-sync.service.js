@@ -2,6 +2,7 @@
 
 const service = require('./restaurant.service');
 const menuImport = require('./restaurant-menu-import.service');
+const commercialCategories = require('./restaurant-commercial-categories-v26.service');
 
 const PATCH_FLAG = Symbol.for('vantixgc.restaurant.menu-surface-sync.v10');
 const MARKER = 'VANTIX_RESTAURANT_MENU_SURFACE_SYNC_V10';
@@ -22,7 +23,8 @@ function menuRowCompare(a, b) {
 }
 
 function displayCategoryFor(row) {
-  const fallback = String(row?.category || '').trim() || 'Menú';
+  if (row?.displayCategory) return String(row.displayCategory).trim() || 'Menú';
+  const fallback = commercialCategories.defaultCommercialCategory(row?.category);
   return menuImport.publicCategoryFromDescription(row?.product?.descripcion, fallback) || fallback;
 }
 
@@ -30,6 +32,11 @@ function decorateMenuRows(rows) {
   return (Array.isArray(rows) ? rows : [])
     .map((row) => ({ ...row, displayCategory: displayCategoryFor(row) }))
     .sort(menuRowCompare);
+}
+
+async function decorateMenuRowsCentral(tenantId, rows) {
+  const decorated = await commercialCategories.decorateMenuRows(tenantId, rows);
+  return decorated.sort(menuRowCompare);
 }
 
 function install() {
@@ -45,23 +52,24 @@ function install() {
   };
 
   service.listMenu = async function listMenuWithDisplayCategory(tenantId, filters = {}) {
-    return decorateMenuRows(await originalListMenu(tenantId, filters));
+    return decorateMenuRowsCentral(tenantId, await originalListMenu(tenantId, filters));
   };
 
   service.getQrContext = async function getQrContextWithDisplayCategory(qrToken) {
     const context = await originalGetQrContext(qrToken);
     const detailed = await service.listMenu(context.tenantId, { active: true });
-    const byId = new Map(detailed.map((row, index) => [row.id, { displayCategory: row.displayCategory, index }]));
+    const byId = new Map(detailed.map((row, index) => [row.id, { displayCategory: row.displayCategory, commercialCategoryId: row.commercialCategoryId || null, index }]));
     const menu = (Array.isArray(context.menu) ? context.menu : []).map((row) => ({
       ...row,
-      displayCategory: byId.get(row.id)?.displayCategory || row.category
+      displayCategory: byId.get(row.id)?.displayCategory || row.category,
+      commercialCategoryId: byId.get(row.id)?.commercialCategoryId || null
     })).sort((a, b) => (byId.get(a.id)?.index ?? Number.MAX_SAFE_INTEGER) - (byId.get(b.id)?.index ?? Number.MAX_SAFE_INTEGER));
     return { ...context, menu };
   };
 
-  const state = { marker: MARKER, tableNaturalCompare, displayCategoryFor, decorateMenuRows };
+  const state = { marker: MARKER, categorySource: commercialCategories.MARKER, tableNaturalCompare, displayCategoryFor, decorateMenuRows, decorateMenuRowsCentral };
   Object.defineProperty(service, PATCH_FLAG, { value: state, enumerable: false, configurable: false });
   return state;
 }
 
-module.exports = { MARKER, tableNaturalCompare, menuRowCompare, displayCategoryFor, decorateMenuRows, install };
+module.exports = { MARKER, tableNaturalCompare, menuRowCompare, displayCategoryFor, decorateMenuRows, decorateMenuRowsCentral, install };
