@@ -32,7 +32,16 @@ function publicTheme(config, tenant = null) {
   const base = cloneDefault();
   const stored = config?.themeData && typeof config.themeData === 'object' ? config.themeData : {};
   const tokens = stored.tokens && typeof stored.tokens === 'object' ? stored.tokens : {};
-  return { preset:config?.themePreset || stored.preset || base.preset, restaurantName:config?.displayName || stored.restaurantName || tenant?.nombreEmpresa || base.restaurantName, tokens:{...base.tokens,...tokens}, typography:{...PANEL_TYPOGRAPHY}, clientSpotlight:normalizeSpotlight(stored.clientSpotlight || base.clientSpotlight), typographyLockedToPanel:true, editable:true, source:config?.themeData ? 'TENANT_OVERRIDE':'LA_RIEL_V1_DEFAULT' };
+  return {
+    preset:config?.themePreset || stored.preset || base.preset,
+    restaurantName:config?.displayName || stored.restaurantName || tenant?.nombreEmpresa || base.restaurantName,
+    tokens:{...base.tokens,...tokens},
+    typography:{...PANEL_TYPOGRAPHY},
+    clientSpotlight:normalizeSpotlight(stored.clientSpotlight || base.clientSpotlight),
+    typographyLockedToPanel: true,
+    editable:true,
+    source:config?.themeData ? 'TENANT_OVERRIDE':'LA_RIEL_V1_DEFAULT'
+  };
 }
 async function getTheme(tenantId, client = prisma) {
   const [config,tenant] = await Promise.all([client.restaurantConfig.upsert({where:{tenantId},create:{tenantId},update:{}}), client.tenant.findUnique({where:{id:tenantId},select:{nombreEmpresa:true}})]);
