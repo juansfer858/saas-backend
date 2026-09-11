@@ -8,6 +8,7 @@ const overlay = fs.readFileSync('src/web/restaurant-v2-cash-tender-v18.js', 'utf
 const cashHtml = fs.readFileSync('src/web/restaurant-v2-cash.html', 'utf8');
 const splitHtml = fs.readFileSync('src/web/restaurant-v2-split.html', 'utf8');
 const cashRoutes = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.routes.js', 'utf8');
+const customerSaleLink = fs.readFileSync('src/modules/restaurant/restaurant-customer-sale-link.service.js', 'utf8');
 const cashPublic = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.public.routes.js', 'utf8');
 const splitPublic = fs.readFileSync('src/modules/restaurant/restaurant-v2-split.public.routes.js', 'utf8');
 const aggregator = fs.readFileSync('src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js', 'utf8');
@@ -58,7 +59,12 @@ expect(genericLines.some((line) => line.includes('Cliente') && line.includes('Cl
 
 expect(overlay.includes('VANTIX_RESTAURANT_V2_CASH_TENDER_V18'), 'falta marker V18');
 expect(overlay.includes("const DEFAULT_CUSTOMER='Cliente genérico'"), 'falta cliente genérico en Caja');
-expect(overlay.includes('Nombre del cliente'), 'falta campo Nombre del cliente');
+expect(overlay.includes('Nombre rápido / tirilla'), 'falta campo de nombre rápido');
+expect(overlay.includes('IDENTIFICAR CLIENTE'), 'falta acceso para identificar cliente');
+expect(overlay.includes('USAR GENÉRICO'), 'falta retorno explícito al cliente genérico');
+expect(overlay.includes('Razón social'), 'alta rápida no incluye razón social');
+expect(overlay.includes('Dirección'), 'alta rápida no incluye dirección');
+expect(overlay.includes('body.terceroId='), 'el tercero seleccionado no viaja al cobro');
 expect(overlay.includes('Efectivo recibido'), 'falta Efectivo recibido');
 expect(overlay.includes('Devolución'), 'falta Devolución');
 expect(overlay.includes("parseMoney($('#billTotal')?.textContent)+Number($('#tipAmount')?.value||0)"), 'Caja debe calcular recibido contra cuenta + propina');
@@ -73,8 +79,13 @@ expect(overlay.includes('observer?.disconnect()'), 'el observador V18 debe desco
 expect(overlay.includes('observer?.observe(document.documentElement,OBSERVER_OPTIONS)'), 'el observador V18 debe reconectarse de forma estable');
 
 expect(cashRoutes.includes('customerName:'), 'chargeSchema no acepta nombre de cliente');
+expect(cashRoutes.includes('terceroId:'), 'chargeSchema no acepta terceroId');
 expect(cashRoutes.includes('stageCustomerNameForTable'), 'Caja no persiste el nombre antes del cierre');
 expect(cashRoutes.includes('restoreCustomerNameIfDraft'), 'Caja no restaura el nombre si el cobro falla');
+expect(cashRoutes.includes('stageIdentifiedCustomerForTable'), 'Caja no vincula el tercero identificado a la venta');
+expect(cashRoutes.includes("method.kind !== 'CREDITO'"), 'C1 debe dejar intacto el tratamiento especial de Crédito');
+expect(customerSaleLink.includes("tipo: { in: CUSTOMER_TYPES }"), 'el vínculo debe aceptar sólo clientes del maestro de Terceros');
+expect(customerSaleLink.includes('restoreIdentifiedCustomerIfDraft'), 'falta rollback del tercero identificado');
 expect(receiptSource.includes("labelValueLines('Cliente'"), 'la tirilla no incluye la línea Cliente');
 
 expect(cashHtml.includes('/app/restaurant-v2-cash-tender-v18.js?v=v18'), 'Caja no carga V18 desde su plantilla canónica');
