@@ -12,7 +12,7 @@ const { RESTAURANT_COMMAND_LARGE_V2, DEFAULT_COMMAND_LAYOUT, normalizeCommandLay
 const ui = require('../src/modules/restaurant/restaurant-print-template-ui.public.routes');
 
 const recommended = template.normalizePrintTemplate({});
-assert.equal(recommended.version, 'RESTAURANT_COMMAND_TEMPLATE_V3');
+assert.equal(recommended.version, 'RESTAURANT_COMMAND_TEMPLATE_V4');
 assert.equal(recommended.itemAlign, 'CENTER');
 assert.equal(recommended.noteAlign, 'CENTER');
 assert.equal(recommended.seatAlign, 'CENTER');
@@ -22,21 +22,29 @@ assert.equal(recommended.showTrace, true);
 assert.equal(recommended.showSeat, true);
 assert.equal(recommended.blankLinesBetweenItems, 1);
 assert.equal(recommended.separatorStyle, 'DOUBLE');
+assert.equal(recommended.customHeaderText, '');
+assert.equal(recommended.customFooterText, '');
 
-const safe = template.normalizePrintTemplate({ itemAlign:'RIGHT', itemSize:'GIANT', blankLinesBetweenItems:99, showTopTime:true });
+const safe = template.normalizePrintTemplate({
+  itemAlign:'RIGHT', itemSize:'GIANT', blankLinesBetweenItems:99, showTopTime:true,
+  customHeaderText:'  PRIORIDAD\n\u0000 COCINA  ', customFooterText:'X'.repeat(80)
+});
 assert.equal(safe.itemAlign, 'CENTER', 'unsupported alignment must fall back safely');
 assert.equal(safe.itemSize, 'TALL');
 assert.equal(safe.blankLinesBetweenItems, 2);
 assert.equal(safe.showTopTime, true);
+assert.equal(safe.customHeaderText, 'PRIORIDAD COCINA');
+assert.equal(safe.customFooterText.length, 48, 'custom text must be bounded for thermal paper');
 
 const command = {
   id:'cmd-template-1', station:'COCINA', state:'PENDIENTE', createdAt:'2026-09-05T17:04:00.000Z',
   table:{ id:'t1', code:'M1', name:'Mesa 1' },
-  items:[{ description:'Hamburguesa especial', quantity:2, notes:'Sin cebolla', seatNumber:1 }]
+  items:[{ description:'Hamburguesa especial', quantity:2, notes:'Sin cebolla', seatNumber:1, category:'FUERTES' }]
 };
 const jobs = buildCommandPrintJobs([command], [{ id:'p1', name:'Cocina', transport:'WINDOWS', host:'POS-80 Cocina', routeRole:'COCINA', format:'TERMICA_80' }], {
   itemAlign:'LEFT', noteAlign:'CENTER', seatAlign:'CENTER', showTopTime:false, showBottomDateTime:true,
-  showTrace:false, showSeat:true, headerSize:'DOUBLE', itemSize:'NORMAL', noteSize:'TALL', separatorStyle:'SINGLE', blankLinesBetweenItems:2
+  showTrace:false, showSeat:true, headerSize:'DOUBLE', itemSize:'NORMAL', noteSize:'TALL', separatorStyle:'SINGLE', blankLinesBetweenItems:2,
+  customHeaderText:'PRIORIDAD COCINA', customFooterText:'VERIFICAR ANTES DE ENTREGAR'
 });
 assert.equal(jobs.length, 1);
 assert.equal(jobs[0].payload.template, RESTAURANT_COMMAND_LARGE_V2);
@@ -44,6 +52,24 @@ assert.equal(jobs[0].payload.layout.itemAlign, 'LEFT');
 assert.equal(jobs[0].payload.layout.separatorStyle, 'SINGLE');
 assert.equal(jobs[0].payload.layout.blankLinesBetweenItems, 2);
 assert.equal(jobs[0].payload.layout.showTrace, false);
+assert.equal(jobs[0].payload.lines[0], 'PRIORIDAD COCINA');
+assert.equal(jobs[0].payload.lines.at(-1), 'VERIFICAR ANTES DE ENTREGAR');
+assert.equal(jobs[0].payload.lines[1].name, 'Hamburguesa especial');
+assert.doesNotMatch(jobs[0].payload.lines[1].name, /CAT:/, 'commercial category must not be printed on production command');
+
+const deliveryCommand = {
+  id:'delivery-command-1', station:'COCINA', state:'PENDIENTE', createdAt:'2026-09-11T17:04:00.000Z', source:'DOMICILIO',
+  table:{ id:'d1', code:'D-1234', name:'DOMICILIO D-1234' },
+  delivery:{ customerName:'Juan Pérez', customerPhone:'3001234567', address:'Carrera 10 # 20-30' },
+  items:[{ description:'Hamburguesa especial', quantity:1, notes:'Sin salsa' }]
+};
+const deliveryJobs = buildCommandPrintJobs([deliveryCommand], [{ id:'p1', name:'Cocina', transport:'WINDOWS', host:'POS-80 Cocina', routeRole:'COCINA', format:'TERMICA_80' }], recommended);
+assert.equal(deliveryJobs.length, 1);
+assert.equal(deliveryJobs[0].payload.tableLabel, 'DOMICILIO D-1234');
+assert.equal(deliveryJobs[0].payload.lines[0], 'CLIENTE: Juan Pérez\nTELÉFONO: 3001234567\nDIRECCIÓN: Carrera 10 # 20-30');
+assert.equal(deliveryJobs[0].payload.lines.length, 2, 'delivery adds name/phone/address before real products');
+assert.match(JSON.stringify(deliveryJobs[0].payload), /TELÉFONO: 3001234567/, 'delivery command must include contact phone for the courier');
+assert.doesNotMatch(JSON.stringify(deliveryJobs[0].payload), /paymentMethod|total/i, 'delivery command must not leak financial data');
 
 const normalizedEdge = normalizeCommandLayout({});
 assert.deepEqual(normalizedEdge, DEFAULT_COMMAND_LAYOUT);
@@ -71,9 +97,13 @@ const withoutFooterTime = buildEscPos({
 assert.equal((withoutFooterTime.match(/\d{1,2}:\d{2}/g) || []).length, 0);
 assert.doesNotMatch(withoutFooterTime, /={4,}|-{4,}/);
 
-assert.equal(ui.MARKER, 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V3');
+assert.equal(ui.MARKER, 'VANTIX_RESTAURANT_PRINT_TEMPLATE_EDITOR_V4');
 assert.doesNotThrow(() => new vm.Script(ui.browserRuntime));
-assert.match(ui.browserRuntime, /Plantillas de impresión/);
+assert.match(ui.browserRuntime, /Plantilla de comanda/);
+assert.match(ui.browserRuntime, /Plantilla comanda/);
+assert.match(ui.browserRuntime, /Texto adicional arriba/);
+assert.match(ui.browserRuntime, /Texto adicional abajo/);
+assert.match(ui.browserRuntime, /NOMBRE DEL CLIENTE, TELÉFONO y DIRECCIÓN/);
 assert.match(ui.browserRuntime, /Restaurar diseño recomendado/);
 assert.match(ui.browserRuntime, /Alineación del producto/);
 assert.match(ui.browserRuntime, /Vista previa térmica/);
@@ -81,16 +111,16 @@ assert.match(ui.browserRuntime, /plantilla-impresion/);
 assert.match(ui.browserRuntime, /paper === '58' \? 32 : 48/);
 assert.match(ui.browserRuntime, /width:calc\(32ch \+ 22px\)/);
 assert.match(ui.browserRuntime, /width:calc\(48ch \+ 22px\)/);
-assert.match(ui.browserRuntime, /48 columnas para 80 mm y 32 columnas para 58 mm/);
 assert.match(ui.browserRuntime, /RestaurantPrintTemplates/);
 assert.match(ui.browserRuntime, /vantix:restaurant-print-template:open/);
+assert.match(ui.browserRuntime, /data-rkds-print-template/);
 assert.doesNotMatch(ui.browserRuntime, /#ccDashboard \.cc-actions|data-cc-print-template/);
 assert.doesNotMatch(ui.browserRuntime, /setInterval|MutationObserver/);
 
 const stationAdmin = fs.readFileSync('src/web/restaurant-kds-stations-admin.js', 'utf8');
 assert.match(stationAdmin, /Gestionar KDS \/ estaciones/);
 assert.match(stationAdmin, /data-rkds-print-template/);
-assert.match(stationAdmin, /🧾 Plantillas de impresión/);
+assert.match(stationAdmin, /data-rkds-print-template>[\s\S]*data-rkds-new/, 'template action must remain beside New station');
 assert.match(stationAdmin, /RestaurantPrintTemplates\?\.open/);
 assert.match(stationAdmin, /openPrintTemplatesFromManager/);
 assert.match(stationAdmin, /dialog\?\.close\(\)/);
@@ -99,6 +129,7 @@ const coreRoutes = fs.readFileSync('src/routes/core.routes.js', 'utf8');
 const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
 const routeSource = fs.readFileSync('src/modules/restaurant/restaurant-print-template.routes.js', 'utf8');
 const serviceSource = fs.readFileSync('src/modules/restaurant/restaurant-print-template.service.js', 'utf8');
+const bridgeSource = fs.readFileSync('src/modules/edge/edge-restaurant-print-bridge.js', 'utf8');
 assert.match(coreRoutes, /restaurantPrintTemplateRouter/);
 assert.match(publicRoutes, /installPrintTemplateEditorRuntime/);
 assert.match(routeSource, /router\.get\('\/plantilla-impresion'/);
@@ -107,6 +138,13 @@ assert.match(routeSource, /plantilla-impresion\/restaurar/);
 assert.match(routeSource, /RESTAURANTE\.ADMINISTRAR/);
 assert.match(serviceSource, /RESTAURANT_PRINT_TEMPLATE/);
 assert.match(serviceSource, /themeData/);
+assert.match(serviceSource, /safeCustomText/);
+assert.match(bridgeSource, /restaurantDeliveryCommand\.findMany/);
+assert.match(bridgeSource, /customerName/);
+assert.match(bridgeSource, /customerPhone/);
+assert.match(bridgeSource, /address/);
+assert.match(bridgeSource, /source:\s*'DOMICILIO'/);
+assert.doesNotMatch(bridgeSource, /CAT: \$\{category\}/, 'commercial category label must be absent from printing bridge');
 
 const version = require('../edge/version.json');
 assert.match(version.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
@@ -118,21 +156,24 @@ assert.equal(bundledRelease.channel, version.channel);
 assert.match(String(bundledRelease.sha256 || ''), /^[0-9a-f]{64}$/);
 assert.ok(fs.existsSync(`public/edge-releases/${bundledRelease.file}`), 'bundled Edge ZIP must exist in Core release store');
 
-console.log('RESTAURANT PRINT TEMPLATE EDITOR + KDS LOCATION V4 SMOKE OK', JSON.stringify({
+console.log('RESTAURANT COMMAND TEMPLATE V4 SMOKE OK', JSON.stringify({
   tenantScoped:true,
   noSchemaMigration:true,
   safeEditor:true,
   locatedInsideKdsManager:true,
-  absentFromGeneralDashboard:true,
+  buttonLabel:'Plantilla comanda',
+  customHeaderFooter:true,
+  spacingAndFontSizesEditable:true,
+  categoryNotPrinted:true,
+  deliveryAddsNamePhoneAndAddress:true,
+  deliveryUsesExistingData:true,
+  noOrderFlowMutation:true,
   livePreview58And80:true,
   previewColumns80:48,
   previewColumns58:32,
-  previewCenteredOnFullPaper:true,
-  symmetricRecommendedLayout:true,
   timePrintedOnce:true,
   configurableEscPos:true,
   spanishCodePageSelected:true,
-  edgeBundledInCore:true,
-  edgeVersionNotHardcoded:true,
+  edgeBinaryUnchanged:true,
   edgeVersion:version.version
 }));

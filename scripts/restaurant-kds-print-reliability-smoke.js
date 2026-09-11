@@ -35,8 +35,9 @@ assert.equal(jobs[0].payload.lines.length, 2);
 assert.equal(jobs[0].payload.template, 'RESTAURANT_COMMAND_LARGE_V2');
 assert.equal(jobs[0].payload.tableLabel, 'Mesa 1');
 assert.equal(jobs[0].payload.stationLabel, 'COCINA');
-assert.equal(jobs[0].payload.lines[0].name, 'Hamburguesa\nCAT: FUERTES');
+assert.equal(jobs[0].payload.lines[0].name, 'Hamburguesa');
 assert.equal(jobs[0].payload.lines[0].category, 'FUERTES');
+assert.doesNotMatch(jobs[0].payload.lines[0].name, /CAT:/, 'commercial category must not be printed in the product name');
 assert.equal(jobs[0].payload.lines[0].note, 'Sin cebolla');
 assert.equal(jobs[0].payload.lines[0].seatLabel, 'PERSONA 1');
 assert.match(jobs[0].payload.traceLabel, /^COMANDA /);
@@ -60,7 +61,8 @@ const withBar = buildCommandPrintJobs([
 ]);
 assert.equal(withBar.length, 2, 'distinct queues/printers must produce distinct jobs');
 assert.equal(withBar[1].payload.lines[0].category, 'BEBIDAS');
-assert.match(withBar[1].payload.lines[0].name, /CAT: BEBIDAS/);
+assert.equal(withBar[1].payload.lines[0].name, 'Limonada');
+assert.doesNotMatch(withBar[1].payload.lines[0].name, /CAT:/);
 
 const existing = new Set();
 const enqueued = [];
@@ -108,7 +110,7 @@ assert.match(remoteAgent, /edge-restaurant-immediate-print-bridge/);
 assert.match(lanDiscovery, /restaurant-print-bridge/);
 assert.match(printBridgeSource, /restaurantOrderItem\.findMany/);
 assert.match(printBridgeSource, /restaurantMenuItem\.findMany/);
-assert.match(printBridgeSource, /CAT: \$\{category\}/);
+assert.doesNotMatch(printBridgeSource, /CAT: \$\{category\}/);
 
 const edgeVersion = require('../edge/version.json');
 assert.match(edgeVersion.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
@@ -120,7 +122,8 @@ console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   hotColdSameQueue:true,
   windowsUsbQueue:true,
   largeKitchenCommandTemplate:true,
-  kitchenCategoryVisible:true,
+  kitchenCategoryMetadata:true,
+  commercialCategoryNotPrinted:true,
   kitchenNotesSeparated:true,
   idempotentBootstrapPrint:true,
   pendingNeverHidden:true,
