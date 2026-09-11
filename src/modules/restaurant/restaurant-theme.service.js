@@ -8,9 +8,11 @@ const IMAGE_DATA_URL_RE = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+
 
 const DEFAULT_SPOTLIGHT = Object.freeze({ active:false, kind:'PLATO_DIA', menuItemId:null, label:'Plato del día', description:null, imageDataUrl:null });
 const DEFAULT_THEME = Object.freeze({
-  preset:'LA_RIEL_V1', restaurantName:null,
+  preset: 'LA_RIEL_V1',
+  restaurantName:null,
   tokens:{ char:'#201c18', bone:'#eee5d6', ember:'#c55a34', verdigris:'#3f746b', brass:'#b28b45', paper:'#fffaf1', ink:'#2c251f', muted:'#756a5d', line:'#d4c5b1', success:'#58775b', danger:'#9c4035' },
-  typography:PANEL_TYPOGRAPHY, clientSpotlight:DEFAULT_SPOTLIGHT
+  typography:PANEL_TYPOGRAPHY,
+  clientSpotlight:DEFAULT_SPOTLIGHT
 });
 
 function cloneDefault() { return JSON.parse(JSON.stringify(DEFAULT_THEME)); }
@@ -78,7 +80,11 @@ async function saveTheme(tenantId,userId,input) {
   const updated = await prisma.restaurantConfig.update({where:{tenantId},data:{themePreset:nextData.preset,displayName:nextData.restaurantName,themeData:nextData,themeUpdatedByUserId:userId||null}});
   if (userId) {
     const auditBase={tenantId,userId,entidadId:tenantId,accion:'UPDATE',metadata:{before,after:publicTheme(updated,tenant)}};
-    await prisma.auditoriaContable.create({data:{...auditBase,entidad:hasSpotlight?'RESTAURANT_CLIENT_SPOTLIGHT':'RESTAURANT_THEME'}});
+    if (hasSpotlight) {
+      await prisma.auditoriaContable.create({data:{...auditBase,entidad:'RESTAURANT_CLIENT_SPOTLIGHT'}});
+    } else {
+      await prisma.auditoriaContable.create({data:{...auditBase,entidad: 'RESTAURANT_THEME'}});
+    }
   }
   return publicTheme(updated,tenant);
 }
