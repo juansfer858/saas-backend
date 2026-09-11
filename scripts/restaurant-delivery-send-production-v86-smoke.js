@@ -11,6 +11,7 @@ const publicRoutes = read('src/modules/restaurant/restaurant-delivery.public.rou
 const deliveryService = read('src/modules/restaurant/restaurant-delivery.service.js');
 
 assert.match(send, /VANTIX_RESTAURANT_DELIVERY_SEND_PRODUCTION_V86/);
+assert.match(send, /VANTIX_RESTAURANT_DELIVERY_FREEZE_ROOT_FIX_V94/);
 assert.match(send, /#deliveryCreateSubmit/);
 assert.match(send, /ENVIAR A PRODUCCIÓN/);
 assert.match(send, /\/api\/v1\/restaurante\/domicilios'/, 'Primero debe crear el domicilio');
@@ -18,6 +19,16 @@ assert.match(send, /\/aceptar`/, 'Después debe aceptar el mismo domicilio para 
 assert.match(send, /deliveryCreatedId/, 'Un reintento no debe crear un domicilio duplicado');
 assert.match(send, /VantixGCRestaurantDelivery\?\.refresh/, 'Debe refrescar Domicilios después de despachar');
 assert.match(send, /event\.stopImmediatePropagation\(\)/, 'Debe reemplazar el submit legacy NUEVO');
+
+// Regresión real V94: V86 observaba todo document.documentElement y luego modificaba
+// textContent dentro del propio diálogo. Eso podía realimentar el MutationObserver y
+// congelar Chrome al abrir + NUEVO DOMICILIO.
+assert.doesNotMatch(send, /new\s+MutationObserver/);
+assert.doesNotMatch(send, /observer\.observe\(document\.documentElement/);
+assert.match(send, /requestAnimationFrame\(\(\) => patchVisibleDialog\(\)\)/);
+assert.match(send, /data-v93-plus/, 'V86 debe reconocer las cantidades del selector V93 activo');
+assert.match(send, /globalObserver:false/);
+assert.match(send, /supportsV93:true/);
 
 assert.match(publicRoutes, /restaurant-delivery-send-production-v86\.js/);
 assert.match(publicRoutes, /X-VantixGC-Restaurant-Delivery-Send-Production/);
@@ -29,4 +40,4 @@ assert.match(deliveryService, /restaurantDeliveryCommand\.create/);
 assert.match(deliveryService, /state:\s*'CONFIRMADO'/);
 assert.match(deliveryService, /source:\s*'DOMICILIO'/);
 
-console.log('RESTAURANT_DELIVERY_SEND_PRODUCTION_V86_OK');
+console.log('RESTAURANT_DELIVERY_SEND_PRODUCTION_V86_V94_ROOT_FIX_OK');
