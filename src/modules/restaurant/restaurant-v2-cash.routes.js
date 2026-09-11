@@ -9,6 +9,7 @@ const customerDisplay = require('./restaurant-customer-display-name.service');
 const customerSaleLink = require('./restaurant-customer-sale-link.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
 const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
+const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
 
 const router = express.Router();
 
@@ -79,8 +80,18 @@ router.get('/v2/caja/turno/resumen', requirePermission('RESTAURANTE.CERRAR'), as
 });
 
 router.post('/v2/caja/turno/cerrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.closeShift(req.tenantId, req.user, parse(closeShiftSchema, req.body)) }); }
-  catch (error) { next(error); }
+  try {
+    const data = await service.closeShift(req.tenantId, req.user, parse(closeShiftSchema, req.body));
+    const shiftId = data?.closed?.id;
+    const closeReceipt = shiftId
+      ? await posReceiptPrint.queueShiftCloseIntent(req.tenantId, shiftId).catch((error) => ({
+        queued: false,
+        reason: 'QUEUE_ERROR',
+        code: String(error?.code || error?.message || 'CASH_CLOSE_RECEIPT_QUEUE_ERROR').slice(0, 120)
+      }))
+      : { queued: false, reason: 'SHIFT_ID_MISSING' };
+    res.json({ ok: true, data: { ...data, closeReceipt } });
+  } catch (error) { next(error); }
 });
 
 router.post('/v2/caja/mesas/:tableId/cobrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
