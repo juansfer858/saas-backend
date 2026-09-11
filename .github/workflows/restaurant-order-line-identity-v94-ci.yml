@@ -1,0 +1,110 @@
+name: Restaurant Order Line Identity V94 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-order-line-identity-v94.js'
+      - 'src/modules/restaurant/restaurant-v2-orders.routes.js'
+      - 'src/modules/restaurant/restaurant-delivery.routes.js'
+      - 'src/modules/restaurant/restaurant-delivery.service.js'
+      - 'src/web/restaurant-v2-orders.js'
+      - 'src/web/restaurant-delivery-shared-menu-v90.js'
+      - 'scripts/restaurant-order-line-identity-v94-smoke.js'
+      - 'scripts/restaurant-order-line-identity-v94-db-smoke.js'
+      - '.github/workflows/restaurant-order-line-identity-v94-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-order-line-identity-v94.js'
+      - 'src/modules/restaurant/restaurant-v2-orders.routes.js'
+      - 'src/modules/restaurant/restaurant-delivery.routes.js'
+      - 'src/modules/restaurant/restaurant-delivery.service.js'
+      - 'src/web/restaurant-v2-orders.js'
+      - 'src/web/restaurant-delivery-shared-menu-v90.js'
+      - 'scripts/restaurant-order-line-identity-v94-smoke.js'
+      - 'scripts/restaurant-order-line-identity-v94-db-smoke.js'
+      - '.github/workflows/restaurant-order-line-identity-v94-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vantix_order_identity_v94
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d vantix_order_identity_v94"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      NODE_ENV: test
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vantix_order_identity_v94?schema=public
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: vantixgc.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run build
+
+      - name: Syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-order-line-identity-v94.js
+          node --check src/modules/restaurant/restaurant-v2-orders.routes.js
+          node --check src/modules/restaurant/restaurant-delivery.routes.js
+          node --check src/modules/restaurant/restaurant-delivery.service.js
+          node --check src/web/restaurant-v2-orders.js
+          node --check src/web/restaurant-delivery-shared-menu-v90.js
+          node --check scripts/restaurant-order-line-identity-v94-smoke.js
+          node --check scripts/restaurant-order-line-identity-v94-db-smoke.js
+
+      - name: Validate operational identity contract
+        run: node scripts/restaurant-order-line-identity-v94-smoke.js
+
+      - name: Guard Caja Division Payments boundary
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          echo "$CHANGED"
+          if echo "$CHANGED" | grep -E '^(src/modules/restaurant/restaurant-v2-cash|src/web/restaurant-v2-cash|src/modules/restaurant/restaurant-v2-split|src/web/restaurant-v2-split|src/modules/restaurant/restaurant-visit-payments|src/web/restaurant-visit-payments|src/modules/treasury/|src/web/treasury-|src/modules/commercial/sales\.|src/web/sales\.)'; then
+            echo 'V94 crossed Caja/Division/Payments/Sales/Treasury boundary'
+            exit 1
+          fi
+
+      - name: Sync isolated PostgreSQL
+        run: npx prisma db push
+
+      - name: Enable isolated fiscal queue required by existing sale smoke
+        run: node scripts/restaurant-stress-dian-setup.js
+
+      - name: Regression Mesa to Pedido to Produccion
+        run: node scripts/restaurant-v2-orders-p3-db-smoke.js
+
+      - name: Validate delivery applied price persistence and liquidation
+        run: node scripts/restaurant-order-line-identity-v94-db-smoke.js
