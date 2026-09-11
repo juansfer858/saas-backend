@@ -22,16 +22,18 @@ const guardSrc = '/app/restaurant-delivery-menu-guard-v88.js?v=v88';
 const compactSrc = '/app/restaurant-delivery-menu-compact-v89.js?v=v89';
 const sharedSrc = '/app/restaurant-delivery-shared-menu-v90.js?v=v90';
 const successorSrc = '/app/restaurant-delivery-orders-menu-v91.js?v=v91';
+const lazyUiSrc = '/app/restaurant-delivery-ui.js?v=v92';
 const successorActive = html.includes(successorSrc);
-const uiSrc = successorActive ? '/app/restaurant-delivery-ui.js?v=v91' : '/app/restaurant-delivery-ui.js?v=v90';
+const lazyActive = html.includes(lazyUiSrc);
+const uiSrc = lazyActive ? lazyUiSrc : successorActive ? '/app/restaurant-delivery-ui.js?v=v91' : '/app/restaurant-delivery-ui.js?v=v90';
 
 assert.ok(html.includes(guardSrc), 'Se conserva el timeout recuperable V88');
 assert.ok(html.includes(uiSrc), 'El UI base debe usar el cache bust de la superficie activa');
 assert.ok(!html.includes(compactSrc), 'La carta compacta V89 ya no debe interceptar Domicilios');
 
 if (successorActive) {
-  assert.ok(!html.includes(sharedSrc), 'Con V91 activo, V90 debe quedar sólo como rollback servido');
-  assert.ok(html.indexOf(uiSrc) < html.indexOf(successorSrc), 'V91 debe capturar el botón después de cargar el UI base');
+  assert.ok(!html.includes(sharedSrc), 'Con V91/V92 activo, V90 debe quedar sólo como rollback servido');
+  assert.ok(html.indexOf(uiSrc) < html.indexOf(successorSrc), 'La superficie activa debe declarar el sucesor después del UI base');
 } else {
   assert.ok(html.includes(sharedSrc), 'Sin sucesor activo, Domicilios debe cargar la carta compartida V90');
   assert.ok(html.indexOf(uiSrc) < html.indexOf(sharedSrc), 'V90 debe capturar el botón después de cargar el UI base');
@@ -40,4 +42,4 @@ if (successorActive) {
 assert.ok(publicRoutes.includes("router.get('/app/restaurant-delivery-shared-menu-v90.js'"), 'El asset V90 debe seguir servido para rollback');
 assert.ok(publicRoutes.includes("X-VantixGC-Restaurant-Delivery-Shared-Menu', 'v90'"), 'El asset V90 debe exponer marcador verificable');
 
-console.log(`RESTAURANT DELIVERY SHARED MENU V90 SMOKE OK · ${successorActive ? 'ROLLBACK BEHIND V91' : 'ACTIVE'}`);
+console.log(`RESTAURANT DELIVERY SHARED MENU V90 SMOKE OK · ${lazyActive ? 'ROLLBACK BEHIND V92' : successorActive ? 'ROLLBACK BEHIND V91' : 'ACTIVE'}`);
