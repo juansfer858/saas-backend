@@ -1,0 +1,85 @@
+name: Restaurant Public Autopedido Responsive V1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/public-installer/public-installer.routes.js'
+      - 'src/web/restaurant-public-autopedido-v1.js'
+      - 'src/web/restaurant-public-responsive-v1.css'
+      - 'scripts/restaurant-public-autopedido-responsive-v1-smoke.js'
+      - '.github/workflows/restaurant-public-autopedido-responsive-v1-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/public-installer/public-installer.routes.js'
+      - 'src/web/restaurant-public-autopedido-v1.js'
+      - 'src/web/restaurant-public-responsive-v1.css'
+      - 'scripts/restaurant-public-autopedido-responsive-v1-smoke.js'
+      - '.github/workflows/restaurant-public-autopedido-responsive-v1-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check src/modules/public-installer/public-installer.routes.js
+          node --check src/web/restaurant-public-autopedido-v1.js
+          node --check scripts/restaurant-public-autopedido-responsive-v1-smoke.js
+      - name: Validate autopedido + responsive contract
+        run: node scripts/restaurant-public-autopedido-responsive-v1-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - name: Verify exact public experience in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 70); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              LANDING="$(curl -fsS "$BASE/restaurantes")"
+              [[ "$LANDING" == *'/restaurantes/autopedido-v1.js'* ]]
+              [[ "$LANDING" == *'/restaurantes/responsive-v1.css'* ]]
+              [[ "$LANDING" == *'viewport-fit=cover'* ]]
+              [[ "$LANDING" != *'maximum-scale=1'* ]]
+              [[ "$LANDING" != *'user-scalable=no'* ]]
+
+              JS="$(curl -fsS "$BASE/restaurantes/autopedido-v1.js")"
+              [[ "$JS" == *'Autopedido · autoatención real'* ]]
+              [[ "$JS" == *'Hace su propio pedido'* ]]
+              [[ "$JS" == *'Cuenta y pago'* ]]
+
+              CSS="$(curl -fsS "$BASE/restaurantes/responsive-v1.css")"
+              [[ "$CSS" == *'font-size:16px!important'* ]]
+              [[ "$CSS" == *'100dvh'* ]]
+
+              SIGNUP="$(curl -fsS "$BASE/restaurantes/crear")"
+              [[ "$SIGNUP" == *'/restaurantes/responsive-v1.css'* ]]
+              [[ "$SIGNUP" == *'viewport-fit=cover'* ]]
+
+              ONBOARD="$(curl -fsS "$BASE/app/onboarding")"
+              [[ "$ONBOARD" == *'/restaurantes/responsive-v1.css'* ]]
+              [[ "$ONBOARD" == *'viewport-fit=cover'* ]]
+
+              echo "Restaurant public autopedido + responsive V1 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Exact autopedido/responsive commit did not reach production in time.' >&2
+          exit 1
