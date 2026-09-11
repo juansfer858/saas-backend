@@ -174,7 +174,7 @@ router.post('/domicilios/:id/entregado', requirePermission('DOMICILIOS.EDITAR'),
 });
 
 router.post('/domicilios/:id/pago', requirePermission('DOMICILIOS.PAGAR'), requirePermission('TESORERIA.PAGAR'), async (req, res, next) => {
-  try { res.json({ ok: true, data: presentDeliveryResponse(await delivery.registerDeliveryPayment(req.tenantId, req.user, req.params.id, parse(paymentSchema, req.body || {}))) }); }
+  try { res.json({ ok: true, data: await delivery.registerDeliveryPayment(req.tenantId, req.user, req.params.id, parse(paymentSchema, req.body || {})) }); }
   catch (error) { next(error); }
 });
 
