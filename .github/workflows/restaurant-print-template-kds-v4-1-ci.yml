@@ -1,0 +1,38 @@
+name: Restaurant Print Template KDS V4.1 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'scripts/restaurant-print-template-kds-v4-1-smoke.js'
+      - '.github/workflows/restaurant-print-template-kds-v4-1-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:dummy@localhost:5432/postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Validate native KDS print-template bridge V4.1
+        run: node scripts/restaurant-print-template-kds-v4-1-smoke.js
+      - name: Revalidate Restaurant print-template V4
+        run: node scripts/restaurant-print-template-editor-smoke.js
+      - name: Revalidate KDS stations V23
+        run: node scripts/restaurant-v2-kds-stations-v23-smoke.js
+      - name: Syntax check KDS public route
+        run: node --check src/modules/restaurant/restaurant-v2-kds.public.routes.js
+      - name: Syntax check KDS station manager
+        run: node --check src/web/restaurant-v2-kds-stations-v23.js
