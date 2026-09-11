@@ -1,0 +1,90 @@
+name: Restaurant V2 Orders Admin Unsent V79 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - feat/rest-orders-admin-remove-unsent-v79
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      EDGE_AUTH_SECRET: edge-auth-secret-0123456789abcdef0123456789abcdef0123456789abcdef
+      JWT_EXPIRES_IN: 8h
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Sync database
+        run: npx prisma db push
+      - name: Validate V79 UI and boundary contract
+        run: node scripts/restaurant-v2-orders-admin-unsent-v79-smoke.js
+      - name: Validate V79 against PostgreSQL
+        run: node scripts/restaurant-v2-orders-admin-unsent-v79-db-smoke.js
+      - name: Syntax check modified runtime
+        run: |
+          node --check src/modules/restaurant/restaurant-v2-orders.routes.js
+          node --check src/modules/restaurant/restaurant-v2-orders-admin-draft.service.js
+          node --check src/web/restaurant-v2-orders.js
+
+  verify-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for exact V79 commit in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 https://core.vantixgc.com/api/public/runtime-info 2>/dev/null); then
+              echo "$body"
+              if echo "$body" | grep -q "\"commit\":\"${GITHUB_SHA}\""; then
+                echo "PRODUCTION_EXACT_COMMIT_OK"
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo "Production did not deploy $GITHUB_SHA in time" >&2
+          exit 1
+      - name: Verify Pedidos V79 asset in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -D /tmp/orders.headers -o /tmp/orders.js https://core.vantixgc.com/app/restaurant-v2-orders.js
+          grep -qi 'x-vantixgc-restaurant-v2-orders: p3-orders-independent' /tmp/orders.headers
+          grep -q 'VANTIX_RESTAURANT_V2_ADMIN_UNSENT_REMOVE_V79' /tmp/orders.js
+          grep -q 'Pendientes sin enviar de otro mesero' /tmp/orders.js
+          grep -q 'data-remove-unsent' /tmp/orders.js
+          echo "PRODUCTION_RESTAURANT_ORDERS_ADMIN_UNSENT_V79_OK"
