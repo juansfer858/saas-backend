@@ -17,10 +17,12 @@ const installer = read('edge/supervisor/install-windows.ps1');
 const server = read('server.js');
 const landing = read('src/web/restaurant-public.html');
 const demo = read('src/web/restaurant-public-demo.html');
+const demoModal = read('src/web/restaurant-public-demo-modal.js');
 const signup = read('src/web/restaurant-signup.html');
 const onboarding = read('src/web/restaurant-onboarding.html');
 const restaurant = read('src/web/restaurant.html');
 const publicTheme = read('src/web/restaurant-public-theme.css');
+const heroImagePath = path.join(root, 'src/web/restaurant-public-hero-customer-order-v1.webp');
 
 for (const file of [
   'src/modules/self-service/restaurant-self-service.service.js',
@@ -54,6 +56,8 @@ assert.match(routes, /onboarding\/site\/defer/);
 assert.doesNotMatch(routes, /install-claim[\s\S]{0,500}completeStep:\s*'SITE'/);
 assert.match(publicRoutes, /\/restaurantes\/demo/);
 assert.match(publicRoutes, /\/restaurantes\/demo-modal-v1\.js/);
+assert.match(publicRoutes, /\/restaurantes\/hero-cliente-pedido-v1\.webp/);
+assert.match(publicRoutes, /restaurant-public-hero-customer-order-v1\.webp/);
 assert.match(publicRoutes, /\/restaurantes\/crear/);
 assert.match(publicRoutes, /\/app\/onboarding/);
 assert.match(publicRoutes, /\/api\/public\/restaurantes/);
@@ -74,6 +78,16 @@ assert.match(landing, /#f97316/i);
 assert.match(landing, /#ea580c/i);
 assert.doesNotMatch(landing, /--green:#0d6b43/i);
 assert.match(landing, /\/restaurantes\/demo-modal-v1\.js/);
+
+// Approved landing hero: real-use customer ordering scene replaces the old visual mockup at runtime.
+assert.ok(fs.existsSync(heroImagePath), 'Hero fotográfico público no existe');
+const heroStat = fs.statSync(heroImagePath);
+assert.ok(heroStat.size > 5000, 'Hero fotográfico público está vacío o incompleto');
+assert.ok(heroStat.size < 50000, 'Hero fotográfico público debe permanecer optimizado para web');
+assert.match(demoModal, /HERO_IMAGE_PATH\s*=\s*'\/restaurantes\/hero-cliente-pedido-v1\.webp'/);
+assert.match(demoModal, /document\.querySelector\('\.product'\)/);
+assert.match(demoModal, /Cliente haciendo su pedido desde la mesa con VantixGC Restaurantes/);
+assert.match(demoModal, /vr-hero-customer-order/);
 
 // Public Restaurant membership positioning: three transparent SaaS tiers, trial first, no automatic billing.
 assert.match(landing, /Membresía SaaS para restaurantes/);
