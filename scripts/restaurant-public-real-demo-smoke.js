@@ -29,7 +29,8 @@ assert.match(core, /restaurantPublicDemoGuard/);
 assert.ok(core.indexOf('router.use(authMiddleware)') < core.indexOf('router.use(restaurantPublicDemoGuard)'));
 assert.ok(core.indexOf('router.use(restaurantPublicDemoGuard)') < core.indexOf('router.use(enforceTenantPermissions)'));
 
-assert.match(guard, /PUBLIC_RESTAURANT_DEMO/);
+assert.match(guard, /DEMO_AUTH_TYPE/);
+assert.match(guard, /DEMO_ADMIN_EMAIL/);
 assert.match(guard, /RESTAURANT_PUBLIC_DEMO_WRITE_BLOCKED/);
 for (const token of ['mesas','sesiones','caja','division','kds']) assert.ok(guard.includes(token), `Missing safe demo mutation family ${token}`);
 assert.ok(guard.includes("url === '/api/v1/restaurante/v2/caja/recibo/imprimir'"));
