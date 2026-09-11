@@ -1,0 +1,82 @@
+name: Restaurant Public Single Membership V1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/public-installer/public-installer.routes.js'
+      - 'src/web/restaurant-public-membership-v1.js'
+      - 'src/web/restaurant-public-membership-v1.css'
+      - 'scripts/restaurant-public-single-membership-v1-smoke.js'
+      - '.github/workflows/restaurant-public-single-membership-v1-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/public-installer/public-installer.routes.js'
+      - 'src/web/restaurant-public-membership-v1.js'
+      - 'src/web/restaurant-public-membership-v1.css'
+      - 'scripts/restaurant-public-single-membership-v1-smoke.js'
+      - '.github/workflows/restaurant-public-single-membership-v1-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check src/modules/public-installer/public-installer.routes.js
+          node --check src/web/restaurant-public-membership-v1.js
+          node --check scripts/restaurant-public-single-membership-v1-smoke.js
+      - name: Validate single membership contract
+        run: node scripts/restaurant-public-single-membership-v1-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - name: Verify exact single membership experience in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 70); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              LANDING="$(curl -fsS "$BASE/restaurantes")"
+              [[ "$LANDING" == *'/restaurantes/membership-v1.js'* ]]
+              [[ "$LANDING" == *'/restaurantes/membership-v1.css'* ]]
+              [[ "$LANDING" == *'/restaurantes/autopedido-v1.js'* ]]
+              [[ "$LANDING" == *'/restaurantes/responsive-v1.css'* ]]
+
+              JS="$(curl -fsS "$BASE/restaurantes/membership-v1.js")"
+              [[ "$JS" == *'Una sola membresía · todo incluido'* ]]
+              [[ "$JS" == *'$159.900'* ]]
+              [[ "$JS" == *'Implementación desde $800.000 COP'* ]]
+              [[ "$JS" == *'Pago único · no se repite cada mes'* ]]
+              [[ "$JS" == *'Autopedido y autoatención desde la mesa'* ]]
+              [[ "$JS" == *'Edge · LAN + Cloud'* ]]
+              [[ "$JS" != *'$79.900'* ]]
+              [[ "$JS" != *'$149.900'* ]]
+              [[ "$JS" != *'$249.900'* ]]
+
+              CSS="$(curl -fsS "$BASE/restaurantes/membership-v1.css")"
+              [[ "$CSS" == *'.vr-membership-grid'* ]]
+              [[ "$CSS" == *'@media(max-width:640px)'* ]]
+
+              echo "Restaurant single membership V1 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Exact single membership commit did not reach production in time.' >&2
+          exit 1
