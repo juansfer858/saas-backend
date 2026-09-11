@@ -12,16 +12,30 @@ const assert = (condition, message) => {
 const html = read('src/web/restaurant-v2-menu.html');
 const selector = read('src/web/restaurant-v2-menu-category-selector-v14.js');
 const menu = read('src/web/restaurant-v2-menu.js');
-const routes = read('src/modules/restaurant/restaurant-v2-menu.public.routes.js');
+const routes = read('src/modules/restaurant/restaurant-menu-import.routes.js');
+const service = read('src/modules/restaurant/restaurant-commercial-categories-v26.service.js');
+const schema = read('prisma/restaurant-commercial-categories-v26.prisma');
+const restaurantSchema = read('prisma/restaurant-phase2-v1.prisma');
 
-assert(html.includes('<select id="preparedCommercialCategory"'), 'Nuevo plato debe usar select para Categoría visible');
-assert(!html.includes('<input id="preparedCommercialCategory"'), 'Categoría visible no debe seguir como texto libre en Nuevo plato');
-assert(html.includes('restaurant-v2-menu-category-selector-v14.js?v=v14'), 'Carta debe cargar selector V14');
-assert(selector.includes('VANTIX_RESTAURANT_V2_MENU_VISIBLE_CATEGORY_SELECTOR_V14'), 'Falta marcador V14');
-assert(selector.includes("/api/v1/restaurante/carta-importacion/lista"), 'V14 debe leer categorías desde la Carta canónica');
-assert(selector.includes("['Entradas', 'Fuertes', 'Bebidas', 'Postres']"), 'V14 debe conservar categorías base como fallback');
-assert(selector.includes("target.dataset.categorySource = source"), 'V14 debe distinguir Carta vs fallback');
-assert(menu.includes("$('#preparedCommercialCategory').value.trim()"), 'El guardado debe seguir tomando la categoría visible seleccionada');
-assert(routes.includes("/app/restaurant-v2-menu-category-selector-v14.js"), 'Falta publicar asset V14');
+for (const id of ['preparedCommercialCategory', 'inventoryCommercialCategory', 'editCommercialCategory']) {
+  assert(html.includes(`<select id="${id}"`), `${id} debe usar catálogo central de categorías`);
+  assert(!html.includes(`<input id="${id}"`), `${id} no debe seguir como texto libre`);
+}
+assert(html.includes('id="manageCategories"'), 'Carta debe ofrecer administración de categorías');
+assert(html.includes('id="commercialCategoryDialog"'), 'Falta diálogo de categorías');
+assert(html.includes('restaurant-v2-menu-category-selector-v14.js?v=v26'), 'Carta debe cargar runtime V26');
+assert(selector.includes('VANTIX_RESTAURANT_COMMERCIAL_CATEGORIES_V26'), 'Falta marcador V26');
+assert(selector.includes('/api/v1/restaurante/carta-importacion/categorias?includeInactive=true'), 'V26 debe leer catálogo central');
+assert(selector.includes("method:'POST'"), 'V26 debe permitir crear categorías');
+assert(selector.includes("method:'PATCH'"), 'V26 debe permitir modificar categorías');
+assert(selector.includes('/categoria`'), 'V26 debe persistir asignación de producto');
+assert(menu.includes("$('#preparedCommercialCategory').value.trim()"), 'El flujo existente de Nuevo plato debe conservar el nombre visible seleccionado');
+assert(routes.includes("/carta-importacion/categorias"), 'Faltan endpoints de categorías');
+assert(routes.includes("/carta-importacion/items/:id/categoria"), 'Falta endpoint de asignación comercial');
+assert(service.includes('RestaurantCommercialCategory') || service.includes('restaurantCommercialCategory'), 'Falta servicio de catálogo comercial');
+assert(schema.includes('model RestaurantCommercialCategory'), 'Falta modelo de categorías comerciales');
+assert(restaurantSchema.includes('commercialCategoryId String?'), 'RestaurantMenuItem debe conservar referencia comercial separada');
+assert(restaurantSchema.includes('category             RestaurantMenuCategory'), 'La categoría operativa no debe eliminarse');
+assert(restaurantSchema.includes('station              RestaurantStation'), 'La estación operativa no debe eliminarse');
 
-console.log('Restaurant V2 Menu Visible Category V14 smoke: OK');
+console.log('Restaurant V2 Commercial Categories V26 smoke: OK');
