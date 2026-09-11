@@ -40,6 +40,9 @@ assert.match(demo, /\/api\/public\/restaurantes\/demo-session/);
 assert.match(demo, /vantixgc_public_demo_session_backup_v1/);
 assert.match(demo, /restoreSession/);
 assert.match(demo, /frame\.src='\/app\/centro-de-control-v2'/);
+assert.match(demo, /\.demo-loading\[hidden\]\{display:none!important\}/);
+assert.match(demo, /loading\.hidden=true/);
+assert.match(demo, /loading\.style\.display='none'/);
 assert.doesNotMatch(demo, /const state=\{view:'dashboard'/);
 assert.doesNotMatch(demo, /Ventas demo/);
 
