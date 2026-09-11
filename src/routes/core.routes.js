@@ -1,7 +1,6 @@
 const express = require('express');
 const { extractTenantBySubdomain } = require('../middleware/extract-tenant-by-subdomain');
 const { authMiddleware } = require('../middleware/auth-middleware');
-const { restaurantPublicDemoGuard } = require('../middleware/restaurant-public-demo-guard');
 const { enforceTenantPermissions } = require('../middleware/require-permission');
 const { restaurantBusinessAuditC85 } = require('../middleware/restaurant-business-audit-c85');
 const { tenantRealtimeRouter, tenantRealtimeMutationMiddleware } = require('../modules/realtime/tenant-realtime.routes');
@@ -21,7 +20,7 @@ const { rbacRouter } = require('../modules/platform/rbac/rbac.routes');
 const { edgeTenantRouter } = require('../modules/edge/edge.routes');
 const { edgeTenantUpdateGuard } = require('../modules/edge/edge-tenant-update-guard');
 const { edgeHybridLocalOriginV53Router } = require('../modules/edge/edge-hybrid-local-origin-v53.routes');
-const { notificationsRouter } = require('../modules/notifications/notifications.routes');
+const { notificationsRouter } = require('../modules/notifications/notifications.service');
 const { notificationPushV65Router } = require('../modules/notifications/push-v65.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
@@ -57,7 +56,6 @@ const router = express.Router();
 
 router.use(extractTenantBySubdomain);
 router.use(authMiddleware);
-router.use(restaurantPublicDemoGuard);
 router.use(enforceTenantPermissions);
 router.use(restaurantBusinessAuditC85);
 
