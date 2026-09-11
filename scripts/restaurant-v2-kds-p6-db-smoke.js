@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const { prisma } = require('../src/config/prisma');
 const { ensureRestaurantDemoTenant } = require('./ensure-restaurant-demo-tenant');
 const restaurant = require('../src/modules/restaurant/restaurant.service');
+const delivery = require('../src/modules/restaurant/restaurant-delivery.service');
 const identity = require('../src/modules/restaurant/restaurant-identity.service');
 const work = require('../src/modules/restaurant/restaurant-employee-work.service');
 const printingStations = require('../src/modules/platform/printing/printing-stations.service');
@@ -37,6 +38,9 @@ async function main() {
   assert.match(service, /TENANT_REALTIME_V1/);
   assert.match(service, /FCM_V65_BEST_EFFORT/);
   assert.match(service, /NEXT_STATE/);
+  assert.match(service, /VANTIX_RESTAURANT_V2_KDS_DELIVERY_V87/);
+  assert.match(service, /delivery\.listKdsCommands/);
+  assert.match(service, /delivery\.updateDeliveryCommandState/);
   assert.match(pushService, /RESTAURANT_COMMAND_NEW_V2/);
   assert.match(pushService, /notificationPushDelivery/);
   assert.match(pushService, /flexibleSupport/);
@@ -103,16 +107,71 @@ async function main() {
   assert.equal(command.state, 'PENDIENTE');
   assert.equal(await prisma.restaurantCommand.count({ where:{ tenantId:demo.tenantId, orderId:draft.order.id } }), 1, 'la ronda de un solo módulo crea una comanda');
 
-  const workspace = await kds.workspace(demo.tenantId, cook, { station:'COCINA' });
+  let homeOrder = await delivery.createDelivery(demo.tenantId, admin, {
+    customerName:`Cliente KDS Domicilio ${suffix}`,
+    customerPhone:'3005550199',
+    address:'Calle QA 123',
+    neighborhood:'Centro',
+    deliveryReference:'Integración KDS V87',
+    deliveryFee:0,
+    channel:'MANUAL',
+    items:[{ menuItemId:kitchenMenuItem.id, quantity:1 }]
+  });
+  assert.equal(homeOrder.state, 'NUEVO');
+  homeOrder = await delivery.acceptDelivery(demo.tenantId, admin, homeOrder.id);
+  assert.equal(homeOrder.state, 'CONFIRMADO');
+  const deliveryCommand = homeOrder.commands.find((row) => row.station === 'COCINA');
+  assert.ok(deliveryCommand, 'aceptar domicilio debe crear RestaurantDeliveryCommand de COCINA');
+  assert.equal(deliveryCommand.state, 'PENDIENTE');
+  assert.equal(await prisma.restaurantDeliveryCommand.count({ where:{ tenantId:demo.tenantId, deliveryId:homeOrder.id } }), 1, 'el domicilio de una estación no puede duplicar comandas');
+
+  let workspace = await kds.workspace(demo.tenantId, cook, { station:'COCINA' });
   assert.equal(workspace.marker, 'VANTIX_RESTAURANT_V2_KDS_P6');
+  assert.equal(workspace.deliveryIntegration, 'VANTIX_RESTAURANT_V2_KDS_DELIVERY_V87');
   assert.equal(workspace.transport, 'TENANT_REALTIME_V1');
   assert.equal(workspace.push, 'FCM_V65_BEST_EFFORT');
   assert.equal(workspace.selectedStation, 'COCINA');
-  assert.equal(workspace.commands.some((row) => row.id === command.id), true, 'KDS P6 debe mostrar la comanda real pendiente');
+  assert.equal(workspace.commands.some((row) => row.id === command.id && row.commandSource === 'RESTAURANT'), true, 'KDS P6 debe mostrar la comanda real pendiente');
+  const visibleDelivery = workspace.commands.find((row) => row.id === deliveryCommand.id);
+  assert.ok(visibleDelivery, 'Producción V2 debe mostrar la comanda de Domicilios');
+  assert.equal(visibleDelivery.commandSource, 'DOMICILIO');
+  assert.equal(visibleDelivery.channel, 'DOMICILIO');
+  assert.equal(visibleDelivery.order?.source, 'DOMICILIO');
+  assert.equal(visibleDelivery.order?.delivery?.id, homeOrder.id);
+  assert.equal(visibleDelivery.order?.session?.table?.name, `Domicilio ${homeOrder.code}`);
   const kitchenQueue = workspace.queues.find((row) => row.queue === 'COCINA');
   assert.equal(kitchenQueue.configured, true, 'la estación manual KDS debe ser autoritativa');
   assert.equal(kitchenQueue.stations.some((row) => row.id === manualKitchen.id && row.name === manualKitchen.name), true, 'KDS debe usar el nombre configurado por el restaurante');
   assert.equal(kitchenQueue.preferred, true, 'la asignación del empleado prioriza su estación');
+
+  await assert.rejects(
+    () => kds.updateState(demo.tenantId, cook, deliveryCommand.id, 'LISTA'),
+    (error) => error?.statusCode === 409 || error?.status === 409 || error?.code === 'RESTAURANT_V2_KDS_TRANSITION_INVALID',
+    'Domicilios en KDS no puede saltar PENDIENTE → LISTA'
+  );
+  let deliveryTransition = await kds.updateState(demo.tenantId, cook, deliveryCommand.id, 'EN_PREPARACION');
+  assert.equal(deliveryTransition.commandSource, 'DOMICILIO');
+  let deliveryState = await prisma.restaurantDeliveryCommand.findUnique({ where:{ id:deliveryCommand.id } });
+  assert.equal(deliveryState.state, 'EN_PREPARACION');
+  assert.ok(deliveryState.startedAt);
+  let deliveryAggregate = await prisma.restaurantDeliveryOrder.findUnique({ where:{ id:homeOrder.id } });
+  assert.equal(deliveryAggregate.state, 'EN_PREPARACION');
+
+  await kds.updateState(demo.tenantId, cook, deliveryCommand.id, 'LISTA');
+  deliveryState = await prisma.restaurantDeliveryCommand.findUnique({ where:{ id:deliveryCommand.id } });
+  assert.equal(deliveryState.state, 'LISTA');
+  assert.ok(deliveryState.readyAt);
+  deliveryAggregate = await prisma.restaurantDeliveryOrder.findUnique({ where:{ id:homeOrder.id } });
+  assert.equal(deliveryAggregate.state, 'LISTO', 'un domicilio con todas sus comandas listas debe quedar LISTO');
+
+  await kds.updateState(demo.tenantId, cook, deliveryCommand.id, 'ENTREGADA');
+  deliveryState = await prisma.restaurantDeliveryCommand.findUnique({ where:{ id:deliveryCommand.id } });
+  assert.equal(deliveryState.state, 'ENTREGADA');
+  assert.ok(deliveryState.deliveredAt);
+  workspace = await kds.workspace(demo.tenantId, cook, { station:'COCINA' });
+  assert.equal(workspace.commands.some((row) => row.id === deliveryCommand.id), false, 'ENTREGADA de domicilio deja de ocupar el tablero activo');
+  assert.equal(workspace.commands.some((row) => row.id === command.id), true, 'entregar domicilio no puede retirar la comanda normal pendiente');
+  assert.equal(await prisma.restaurantDeliveryCommand.count({ where:{ tenantId:demo.tenantId, deliveryId:homeOrder.id } }), 1, 'las transiciones KDS no pueden duplicar la comanda de domicilio');
 
   await assert.rejects(
     () => kds.updateState(demo.tenantId, cook, command.id, 'LISTA'),
@@ -206,7 +265,10 @@ async function main() {
     pushRoleTarget:true,
     pushFlexibleTarget:true,
     pushDeduplicated:true,
-    legacyCommandEngineReused:true
+    legacyCommandEngineReused:true,
+    deliveryKdsUnified:true,
+    deliveryStrictTransitions:true,
+    deliveryNoDuplicateCommand:true
   }));
 }
 
