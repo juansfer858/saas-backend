@@ -63,6 +63,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -92,10 +94,16 @@ jobs:
         run: node scripts/restaurant-order-line-identity-v94-smoke.js
 
       - name: Guard Caja Division Payments boundary
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
-          CHANGED="$(git diff --name-only origin/main...HEAD)"
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            CHANGED="$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")"
+          else
+            CHANGED="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+          fi
           echo "$CHANGED"
           if echo "$CHANGED" | grep -E '^(src/modules/restaurant/restaurant-v2-cash|src/web/restaurant-v2-cash|src/modules/restaurant/restaurant-v2-split|src/web/restaurant-v2-split|src/modules/restaurant/restaurant-visit-payments|src/web/restaurant-visit-payments|src/modules/treasury/|src/web/treasury-|src/modules/commercial/sales\.|src/web/sales\.)'; then
             echo 'V94 crossed Caja/Division/Payments/Sales/Treasury boundary'
