@@ -70,7 +70,9 @@ function enqueueSnapshotPrintJobs(store, payload) {
   if ((queued || reconciled) && typeof store.recordEvent === 'function') {
     store.recordEvent('RESTAURANT_COMMAND_PRINT_QUEUED', { queued, existing, reconciled, received: jobs.length });
   }
-  return { queued, existing, reconciled, received: jobs.length };
+  const result = { queued, existing, received: jobs.length };
+  if (reconciled > 0) result.reconciled = reconciled;
+  return result;
 }
 
 function pendingRestaurantOperation(store, operationId) {
