@@ -7,7 +7,7 @@ const path = require('path');
 const router = express.Router();
 const WEB_ROOT = path.resolve(__dirname, '../../web');
 const PAYMENT_ADMIN_TAG = '<script src="/app/restaurant-v2-payment-methods-v77.js?v=v77"></script>';
-const EMPTY_CLOSE_TAG = '<script src="/app/restaurant-v2-cash-close-empty-v80.js?v=v80"></script>';
+const EMPTY_CLOSE_TAG = '<script src="/app/restaurant-v2-cash-close-empty-v80.js?v=v80.2"></script>';
 
 function headers(res, contentType) {
   res.set('Cache-Control', 'no-store');
@@ -29,7 +29,7 @@ async function sendCashHtml(_req, res, next) {
     if (!source.includes('restaurant-v2-cash-close-empty-v80.js')) throw new Error('No fue posible montar el cierre sin consumo V80');
     headers(res, 'text/html; charset=utf-8');
     res.set('X-VantixGC-Restaurant-Payment-Methods', 'v77');
-    res.set('X-VantixGC-Restaurant-Cash-Close-Empty', 'v80');
+    res.set('X-VantixGC-Restaurant-Cash-Close-Empty', 'v80.2');
     return res.send(source);
   } catch (error) { return next(error); }
 }
