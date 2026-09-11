@@ -16,6 +16,8 @@ const restaurantOnboardingPath = path.join(webRoot, 'restaurant-onboarding.html'
 const restaurantPublicThemePath = path.join(webRoot, 'restaurant-public-theme.css');
 const restaurantPublicResponsivePath = path.join(webRoot, 'restaurant-public-responsive-v1.css');
 const restaurantPublicAutopedidoPath = path.join(webRoot, 'restaurant-public-autopedido-v1.js');
+const restaurantPublicMembershipJsPath = path.join(webRoot, 'restaurant-public-membership-v1.js');
+const restaurantPublicMembershipCssPath = path.join(webRoot, 'restaurant-public-membership-v1.css');
 const edgeReleaseRoot = path.resolve(__dirname, '..', '..', '..', 'public', 'edge-releases');
 const edgeManifestPath = path.join(edgeReleaseRoot, 'manifest.json');
 
@@ -62,14 +64,15 @@ async function sendRestaurantPublicHtml(filePath, res, next) {
     const html = filePath === restaurantLandingPath ? applyRestaurantLandingMarketingCopy(rawHtml) : rawHtml;
     const themeTag = '<link rel="stylesheet" href="/restaurantes/theme-v1.css">';
     const responsiveTag = '<link rel="stylesheet" href="/restaurantes/responsive-v1.css">';
-    let themed = (html.includes('</head>') ? html.replace('</head>', `${themeTag}${responsiveTag}</head>`) : `${themeTag}${responsiveTag}${html}`)
+    const membershipTag = filePath === restaurantLandingPath ? '<link rel="stylesheet" href="/restaurantes/membership-v1.css">' : '';
+    let themed = (html.includes('</head>') ? html.replace('</head>', `${themeTag}${responsiveTag}${membershipTag}</head>`) : `${themeTag}${responsiveTag}${membershipTag}${html}`)
       .replace(/<meta\s+name=(['"])viewport\1\s+content=(['"])[^'"]*\2\s*\/?\s*>/i, '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">')
       .replace(/<body(\s[^>]*)?>/i, (match, attrs = '') => {
         if (/class\s*=/.test(attrs)) return match.replace(/class=(['"])(.*?)\1/i, (_m, q, classes) => `class=${q}${classes} vr-public-theme${q}`);
         return `<body${attrs} class="vr-public-theme">`;
       });
     if (filePath === restaurantLandingPath) {
-      const publicScripts = '<script src="/restaurantes/autopedido-v1.js" defer></script><script src="/restaurantes/demo-modal-v1.js" defer></script>';
+      const publicScripts = '<script src="/restaurantes/autopedido-v1.js" defer></script><script src="/restaurantes/membership-v1.js" defer></script><script src="/restaurantes/demo-modal-v1.js" defer></script>';
       themed = themed.includes('</body>') ? themed.replace('</body>', `${publicScripts}</body>`) : `${themed}${publicScripts}`;
     }
     res.set('Cache-Control', 'no-store, max-age=0');
@@ -90,6 +93,16 @@ router.get('/restaurantes/responsive-v1.css', (_req, res) => {
 router.get('/restaurantes/autopedido-v1.js', (_req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
   res.type('application/javascript').sendFile(restaurantPublicAutopedidoPath);
+});
+
+router.get('/restaurantes/membership-v1.css', (_req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.type('text/css').sendFile(restaurantPublicMembershipCssPath);
+});
+
+router.get('/restaurantes/membership-v1.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.type('application/javascript').sendFile(restaurantPublicMembershipJsPath);
 });
 
 router.get('/restaurantes/demo-modal-v1.js', (_req, res) => {
