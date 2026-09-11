@@ -56,7 +56,7 @@ jobs:
           node --check src/modules/restaurant/restaurant-pos-operational-mode.js
           node --check scripts/restaurant-pos-sequential-number-smoke.js
           node --check scripts/restaurant-pos-sequential-number-postgres-smoke.js
-      - name: Validate first sale 000001 and bounded sequence contract
+      - name: Validate first sale 000000 and bounded sequence contract
         run: node scripts/restaurant-pos-sequential-number-smoke.js
       - name: Validate real PostgreSQL contention never blocks Caja indefinitely
         run: node scripts/restaurant-pos-sequential-number-postgres-smoke.js
