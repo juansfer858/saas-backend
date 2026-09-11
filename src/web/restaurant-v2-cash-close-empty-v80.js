@@ -1,6 +1,6 @@
-/* VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_1 */
+/* VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_2 */
 (()=>{'use strict';
-const MARKER='VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_1';
+const MARKER='VANTIX_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_2';
 const SESSION_KEY='vantixgc_core_session_v1';
 let timer=null;
 let epoch=0;
@@ -10,7 +10,7 @@ let closing=false;
 function session(){try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{return null}}
 function headers(){const s=session();if(!s?.token||!s?.subdomain)return null;return{'Content-Type':'application/json',Authorization:`Bearer ${s.token}`,'x-tenant-subdomain':s.subdomain}}
 function selectedTableId(){return document.querySelector('#queue [data-table].active')?.dataset?.table||null}
-function paymentCard(){return document.querySelector('#detail .payment-card')}
+function paymentCard(){return document.querySelector('#detail .payment-card:not([data-v80-empty-close])')}
 function detailVisible(){const node=document.querySelector('#detail');return Boolean(node&&!node.hidden)}
 function notice(text,error=false){const node=document.querySelector('#notice');if(!node)return;node.textContent=String(text||'');node.classList.toggle('error',Boolean(error))}
 function removePanel(){document.querySelector('[data-v80-empty-close]')?.remove();const payment=paymentCard();if(payment)payment.hidden=false}
@@ -22,7 +22,7 @@ async function closeEmpty(button,tableId){if(closing||!tableId||selectedTableId(
 document.addEventListener('click',event=>{const button=event.target?.closest?.('[data-v80-close-empty]');if(button){event.preventDefault();event.stopPropagation();closeEmpty(button,button.dataset.v80CloseEmpty).catch(()=>{});return}if(event.target?.closest?.('#queue [data-table]')||event.target?.closest?.('#refresh'))schedule(180)},true);
 window.addEventListener('vantix:tenant-realtime',()=>schedule(180));
 window.addEventListener('pageshow',()=>schedule(100));
-function start(){if(observer)return;const root=document.querySelector('.cash-shell')||document.body;observer=new MutationObserver(()=>schedule(140));observer.observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','data-table']});document.documentElement.dataset.cashCloseEmptyV80='1';schedule(80)}
+function start(){if(observer)return;const root=document.querySelector('.cash-shell')||document.body;observer=new MutationObserver(()=>schedule(140));observer.observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','data-table']});document.documentElement.dataset.cashCloseEmptyV80='2';schedule(80)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-window.VantixGCCashCloseEmptyV80=Object.freeze({marker:MARKER,backend:'/v2/caja/mesas/:tableId/cerrar-vacia-v80',accountRequestedOnly:true,zeroAndNoProducts:true,cashierAllowed:true,noPaymentSideEffects:true});
+window.VantixGCCashCloseEmptyV80=Object.freeze({marker:MARKER,backend:'/v2/caja/mesas/:tableId/cerrar-vacia-v80',accountRequestedOnly:true,zeroAndNoProducts:true,cashierAllowed:true,selfShadowSafe:true,noPaymentSideEffects:true});
 })();
