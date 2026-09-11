@@ -72,9 +72,13 @@ jobs:
               grep -Fq 'RESTAURANTE V2 · PEDIDOS' "$P"
               grep -Fq 'REVISAR PEDIDO' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_ORDERS_P3' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81' "$J"
               grep -Fq '/pedido/enviar' "$J"
+              grep -Fq 'ENVIANDO PEDIDO' "$J"
+              grep -Fq 'mergeDraftResult(result)' "$J"
+              grep -Fq 'if(sent){S.realtimeQueued=false;await loadDraft()}' "$J"
               if grep -Fq 'billingMode:' "$J"; then exit 1; fi
-              echo "Pedidos V2 P3 live at $GITHUB_SHA"
+              echo "Pedidos V2 P3 waiter fast mutations V81 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
