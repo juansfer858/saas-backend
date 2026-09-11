@@ -16,7 +16,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f5f5f4;fon
 .demo-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #78350f;border-radius:999px;background:#431407;color:#fed7aa;font-size:10px;font-weight:950;letter-spacing:.08em;white-space:nowrap}.demo-pill:before{content:'';width:7px;height:7px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 4px rgba(249,115,22,.18)}
 .demo-actions{display:flex;gap:8px;align-items:center;flex:0 0 auto}.demo-btn{min-height:38px;padding:8px 12px;border-radius:10px;border:1px solid #444;background:#2a2a2a;color:#fff;text-decoration:none;font-size:12px;font-weight:850;cursor:pointer}.demo-btn:hover{background:#363636}.demo-btn.primary{border-color:var(--orange);background:var(--orange);color:#fff}.demo-btn.primary:hover{background:var(--orange-deep)}
 .demo-stage{position:relative;min-height:0;background:#f5f5f4}.demo-frame{display:block;width:100%;height:100%;border:0;background:#fff}
-.demo-loading{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;background:#fafaf9}.demo-card{width:min(520px,100%);padding:28px;border:1px solid var(--line);border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(23,23,23,.10);text-align:center}.demo-spinner{width:42px;height:42px;margin:0 auto 18px;border:4px solid #ffedd5;border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}.demo-card h1{margin:0 0 8px;font-size:24px;letter-spacing:-.025em}.demo-card p{margin:0;color:var(--muted);line-height:1.55}.demo-error{margin-top:18px;padding:12px;border:1px solid #fecaca;border-radius:12px;background:#fff1f2;color:#991b1b;font-size:13px;text-align:left}.demo-retry{margin-top:16px;border:0;border-radius:10px;background:var(--orange);color:#fff;padding:10px 14px;font-weight:850;cursor:pointer}
+.demo-loading{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;background:#fafaf9}.demo-loading[hidden]{display:none!important}.demo-card{width:min(520px,100%);padding:28px;border:1px solid var(--line);border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(23,23,23,.10);text-align:center}.demo-spinner{width:42px;height:42px;margin:0 auto 18px;border:4px solid #ffedd5;border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}.demo-card h1{margin:0 0 8px;font-size:24px;letter-spacing:-.025em}.demo-card p{margin:0;color:var(--muted);line-height:1.55}.demo-error{margin-top:18px;padding:12px;border:1px solid #fecaca;border-radius:12px;background:#fff1f2;color:#991b1b;font-size:13px;text-align:left}.demo-retry{margin-top:16px;border:0;border-radius:10px;background:var(--orange);color:#fff;padding:10px 14px;font-weight:850;cursor:pointer}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:760px){.demo-bar{align-items:flex-start;flex-wrap:wrap;gap:8px}.demo-copy span{max-width:220px}.demo-pill{order:3}.demo-actions{margin-left:auto}.demo-btn{padding:8px 9px}.demo-btn.primary{display:none}}
 </style>
@@ -80,6 +80,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f5f5f4;fon
   window.addEventListener('pagehide',restoreSession);
 
   function showError(message){
+    loading.hidden=false;
+    loading.style.display='grid';
     spinner.style.display='none';
     status.textContent='No pudimos abrir el demo en este momento.';
     errorBox.innerHTML=`<div class="demo-error">${String(message||'Error inesperado').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}</div><button class="demo-retry" type="button" id="retryDemo">Reintentar</button>`;
@@ -88,6 +90,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f5f5f4;fon
 
   async function boot(){
     restored=false;
+    loading.hidden=false;
+    loading.style.display='grid';
     errorBox.innerHTML='';
     spinner.style.display='block';
     status.textContent='Conectando un tenant aislado a la interfaz V2…';
@@ -100,7 +104,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f5f5f4;fon
       localStorage.setItem(SESSION_KEY,JSON.stringify(demoSession));
       if(demoSession.subdomain&&demoSession.user?.id)sessionStorage.setItem(`${ACCESS_PREFIX}${demoSession.subdomain}:${demoSession.user.id}`,'1');
       status.textContent='Abriendo el Centro de Control V2 real…';
-      frame.onload=()=>{loading.hidden=true};
+      frame.onload=()=>{
+        loading.hidden=true;
+        loading.style.display='none';
+      };
       frame.src='/app/centro-de-control-v2';
     }catch(error){showError(error?.message||error)}
   }
