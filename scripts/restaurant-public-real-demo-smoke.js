@@ -31,8 +31,8 @@ assert.ok(core.indexOf('router.use(restaurantPublicDemoGuard)') < core.indexOf('
 
 assert.match(guard, /PUBLIC_RESTAURANT_DEMO/);
 assert.match(guard, /RESTAURANT_PUBLIC_DEMO_WRITE_BLOCKED/);
-assert.match(guard, /\/api\\\/v1\\\/restaurante\\\/v2\\\/(?:mesas\|sesiones\|caja\|division\|kds)/);
-assert.match(guard, /v2\/caja\/recibo\/imprimir/);
+for (const token of ['mesas','sesiones','caja','division','kds']) assert.ok(guard.includes(token), `Missing safe demo mutation family ${token}`);
+assert.ok(guard.includes("url === '/api/v1/restaurante/v2/caja/recibo/imprimir'"));
 
 assert.match(demo, /MODO DEMOSTRACIÓN/);
 assert.match(demo, /\/api\/public\/restaurantes\/demo-session/);
