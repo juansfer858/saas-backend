@@ -72,17 +72,27 @@ assert.match(landing, /LAN \+ Cloud/);
 assert.match(landing, /Preguntas frecuentes/);
 assert.match(landing, /#f97316/i);
 assert.match(landing, /#ea580c/i);
-assert.doesNotMatch(landing, /--green/i);
+assert.doesNotMatch(landing, /--green:#0d6b43/i);
 assert.match(landing, /\/restaurantes\/demo-modal-v1\.js/);
 
-// Public Restaurant membership positioning must remain SaaS-first and truthful while billing is pre-launch.
+// Public Restaurant membership positioning: three transparent SaaS tiers, trial first, no automatic billing.
 assert.match(landing, /Membresía SaaS para restaurantes/);
 assert.match(landing, /id="membresia"/);
-assert.match(landing, /Membresía Restaurante · 1 sede/);
+assert.match(landing, /Planes de membresía/);
+assert.match(landing, />Esencial</);
+assert.match(landing, />Profesional</);
+assert.match(landing, />Pro Híbrido</);
+assert.match(landing, /Más elegido/);
+assert.match(landing, /\$79\.900/);
+assert.match(landing, /\$149\.900/);
+assert.match(landing, /\$249\.900/);
+assert.match(landing, /Compara los planes/);
 assert.match(landing, /14 días gratis/);
 assert.match(landing, /sin cobro automático/i);
 assert.match(landing, /Multi-sede/);
-assert.doesNotMatch(landing, /La capa de cobro recurrente se integra por separado/);
+assert.match(landing, /\/restaurantes\/crear\?plan=esencial/);
+assert.match(landing, /\/restaurantes\/crear\?plan=profesional/);
+assert.match(landing, /\/restaurantes\/crear\?plan=hibrido/);
 assert.doesNotMatch(landing, /Comprar ahora/i);
 
 assert.match(demo, /MODO DEMOSTRACIÓN/);
