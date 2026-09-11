@@ -14,28 +14,11 @@ function send(res, file, type) {
   return res.sendFile(path.join(webRoot, file));
 }
 
-router.get('/app/restaurante-v2/carta', (_req, res) => {
-  return send(res, 'restaurant-v2-menu.html', 'html');
-});
+router.get('/app/restaurante-v2/carta', (_req, res) => send(res, 'restaurant-v2-menu.html', 'html'));
+router.get('/app/restaurant-v2-menu.css', (_req, res) => send(res, 'restaurant-v2-menu.css', 'text/css; charset=utf-8'));
+router.get('/app/restaurant-v2-menu.js', (_req, res) => send(res, 'restaurant-v2-menu.js', 'application/javascript; charset=utf-8'));
+router.get('/app/restaurant-v2-menu-category-selector-v14.js', (_req, res) => send(res, 'restaurant-v2-menu-category-selector-v14.js', 'application/javascript; charset=utf-8'));
+router.get('/app/restaurant-v2-menu-edit-v27.js', (_req, res) => { res.set('X-VantixGC-Restaurant-Carta-Edit','v27'); return send(res,'restaurant-v2-menu-edit-v27.js','application/javascript; charset=utf-8'); });
+router.get('/app/restaurant-promo-image-editor-v28.js', (_req, res) => { res.set('X-VantixGC-Restaurant-Promo','image-popup-v28'); return send(res,'restaurant-promo-image-editor-v28.js','application/javascript; charset=utf-8'); });
 
-router.get('/app/restaurant-v2-menu.css', (_req, res) => {
-  return send(res, 'restaurant-v2-menu.css', 'text/css; charset=utf-8');
-});
-
-router.get('/app/restaurant-v2-menu.js', (_req, res) => {
-  return send(res, 'restaurant-v2-menu.js', 'application/javascript; charset=utf-8');
-});
-
-router.get('/app/restaurant-v2-menu-category-selector-v14.js', (_req, res) => {
-  return send(res, 'restaurant-v2-menu-category-selector-v14.js', 'application/javascript; charset=utf-8');
-});
-
-router.get('/app/restaurant-v2-menu-edit-v27.js', (_req, res) => {
-  res.set('X-VantixGC-Restaurant-Carta-Edit', 'v27');
-  return send(res, 'restaurant-v2-menu-edit-v27.js', 'application/javascript; charset=utf-8');
-});
-
-module.exports = {
-  HEADER_VALUE,
-  restaurantV2MenuPublicRouter: router
-};
+module.exports={HEADER_VALUE,restaurantV2MenuPublicRouter:router};
