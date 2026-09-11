@@ -13,13 +13,16 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const esc = (value) => R.esc(value);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   function activeRows() {
     return rows.filter((row) => row.active !== false);
   }
 
   function optionHtml(category) {
-    return `<option value="${esc(category.id)}" data-name="${esc(category.name)}">${esc(category.name)}</option>`;
+    // El value conserva el nombre para que restaurant-v2-menu.js mantenga su contrato
+    // de descripción legado. El id central viaja aparte para la asignación V26.
+    return `<option value="${esc(category.name)}" data-category-id="${esc(category.id)}">${esc(category.name)}</option>`;
   }
 
   function renderSelects() {
@@ -31,8 +34,8 @@
       target.innerHTML = active.length
         ? active.map(optionHtml).join('')
         : '<option value="">Sin categorías activas</option>';
-      if (active.some((row) => row.id === current)) target.value = current;
-      else if (active[0]) target.value = active[0].id;
+      if (active.some((row) => row.name === current)) target.value = current;
+      else if (active[0]) target.value = active[0].name;
       target.dataset.categorySource = MARKER;
       target.title = 'Categorías comerciales administradas por este restaurante';
     }
@@ -43,7 +46,7 @@
     if (!box) return;
     box.innerHTML = rows.length ? rows.map((category, index) => {
       const count = Number(category.productCount || 0);
-      const disabled = category.active !== false && count > 0;
+      const disableDeactivate = category.active !== false && count > 0;
       return `<div class="menu-category-row ${category.active === false ? 'off' : ''}" data-category-row="${esc(category.id)}">
         <div class="menu-category-order">
           <button type="button" class="rv2-btn" data-category-up="${esc(category.id)}" ${index === 0 ? 'disabled' : ''} aria-label="Subir">↑</button>
@@ -52,7 +55,7 @@
         <input class="menu-input" data-category-name="${esc(category.id)}" maxlength="80" value="${esc(category.name)}" aria-label="Nombre de categoría">
         <span class="menu-category-count">${count} producto${count === 1 ? '' : 's'}</span>
         <button type="button" class="rv2-btn" data-category-save="${esc(category.id)}">Guardar</button>
-        <button type="button" class="rv2-btn" data-category-toggle="${esc(category.id)}" ${disabled ? 'disabled title="Mueve primero sus productos"' : ''}>${category.active === false ? 'Activar' : 'Desactivar'}</button>
+        <button type="button" class="rv2-btn" data-category-toggle="${esc(category.id)}" ${disableDeactivate ? 'disabled title="Mueve primero sus productos"' : ''}>${category.active === false ? 'Activar' : 'Desactivar'}</button>
       </div>`;
     }).join('') : '<div class="menu-empty">Aún no hay categorías comerciales.</div>';
 
@@ -98,8 +101,7 @@
     showError('');
     try {
       await R.api('/api/v1/restaurante/carta-importacion/categorias', {
-        method:'POST',
-        body:JSON.stringify({ name })
+        method:'POST', body:JSON.stringify({ name })
       });
       input.value = '';
       await refresh();
@@ -113,11 +115,10 @@
     showError('');
     try {
       await R.api(`/api/v1/restaurante/carta-importacion/categorias/${encodeURIComponent(id)}`, {
-        method:'PATCH',
-        body:JSON.stringify({ name })
+        method:'PATCH', body:JSON.stringify({ name })
       });
       await refresh();
-      window.VantixGCRestaurantV2MenuV1?.refresh?.();
+      await window.VantixGCRestaurantV2MenuV1?.refresh?.();
     } catch (error) { showError(error.message); }
   }
 
@@ -127,8 +128,7 @@
     showError('');
     try {
       await R.api(`/api/v1/restaurante/carta-importacion/categorias/${encodeURIComponent(id)}`, {
-        method:'PATCH',
-        body:JSON.stringify({ active: category.active === false })
+        method:'PATCH', body:JSON.stringify({ active: category.active === false })
       });
       await refresh();
     } catch (error) { showError(error.message); }
@@ -142,11 +142,13 @@
     const other = rows[otherIndex];
     showError('');
     try {
+      const currentOrder = Number.isFinite(Number(current.sortOrder)) ? Number(current.sortOrder) : index * 10;
+      const otherOrder = Number.isFinite(Number(other.sortOrder)) ? Number(other.sortOrder) : otherIndex * 10;
       await R.api(`/api/v1/restaurante/carta-importacion/categorias/${encodeURIComponent(current.id)}`, {
-        method:'PATCH', body:JSON.stringify({ sortOrder: Number(other.sortOrder || otherIndex * 10) })
+        method:'PATCH', body:JSON.stringify({ sortOrder: otherOrder })
       });
       await R.api(`/api/v1/restaurante/carta-importacion/categorias/${encodeURIComponent(other.id)}`, {
-        method:'PATCH', body:JSON.stringify({ sortOrder: Number(current.sortOrder || index * 10) })
+        method:'PATCH', body:JSON.stringify({ sortOrder: currentOrder })
       });
       await refresh();
     } catch (error) { showError(error.message); }
@@ -166,13 +168,59 @@
     return rows.find((row) => String(row.name || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es') === key) || null;
   }
 
+  function selectedCategory(selectId) {
+    const select = document.getElementById(selectId);
+    const option = select?.selectedOptions?.[0];
+    return option?.dataset?.categoryId ? categoryById(option.dataset.categoryId) : categoryByName(select?.value);
+  }
+
   function selectCategory(selectId, categoryId, categoryName = '') {
     const target = document.getElementById(selectId);
     if (!target) return false;
     const category = categoryById(categoryId) || categoryByName(categoryName);
     if (!category || category.active === false) return false;
-    target.value = category.id;
+    target.value = category.name;
     return true;
+  }
+
+  async function assign(menuItemId, categoryId) {
+    if (!menuItemId || !categoryId) return;
+    await R.api(`/api/v1/restaurante/carta-importacion/items/${encodeURIComponent(menuItemId)}/categoria`, {
+      method:'PUT', body:JSON.stringify({ categoryId })
+    });
+  }
+
+  async function settleAfterSuccessfulDialogClose(dialog, errorBox, callback) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await sleep(75);
+      if (errorBox && errorBox.hidden === false) return;
+      if (!dialog?.open) {
+        await callback();
+        await refresh();
+        await window.VantixGCRestaurantV2MenuV1?.refresh?.();
+        return;
+      }
+    }
+  }
+
+  function bindAssignmentBridges() {
+    $('#editForm')?.addEventListener('submit', () => {
+      const category = selectedCategory('editCommercialCategory');
+      const menuItemId = String($('#editMenuId')?.value || '');
+      if (!category || !menuItemId) return;
+      settleAfterSuccessfulDialogClose($('#editDialog'), $('#editError'), () => assign(menuItemId, category.id)).catch((error) => showError(error.message));
+    });
+
+    $('#inventoryForm')?.addEventListener('submit', () => {
+      const category = selectedCategory('inventoryCommercialCategory');
+      const productId = String($('#inventoryProductId')?.value || '');
+      if (!category || !productId) return;
+      settleAfterSuccessfulDialogClose($('#inventoryDialog'), $('#inventoryError'), async () => {
+        const carta = await R.api('/api/v1/restaurante/carta-importacion/lista');
+        const item = (Array.isArray(carta) ? carta : []).find((row) => row.productId === productId);
+        if (item?.id) await assign(item.id, category.id);
+      }).catch((error) => showError(error.message));
+    });
   }
 
   function bind() {
@@ -182,6 +230,7 @@
     $('#refresh')?.addEventListener('click', () => setTimeout(refresh, 150));
     $('#newPrepared')?.addEventListener('click', () => refresh());
     $('#addInventory')?.addEventListener('click', () => refresh());
+    bindAssignmentBridges();
     document.addEventListener('click', (event) => {
       if (event.target.closest?.('#ccOcrDone')) setTimeout(refresh, 250);
     }, true);
@@ -198,6 +247,7 @@
       refresh,
       categoryById,
       categoryByName,
+      selectedCategory,
       selectCategory,
       categories:() => [...rows]
     });
