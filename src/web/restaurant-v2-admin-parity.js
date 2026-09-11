@@ -1,5 +1,6 @@
 /* VANTIX_RESTAURANT_V2_ADMIN_PARITY_V1 */
 /* VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84 */
+/* VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84_2_REAL_PAYLOAD */
 (()=>{'use strict';
   const V=window.RestaurantV2;
   if(!V) throw new Error('Restaurant V2 SDK no disponible');
@@ -73,13 +74,24 @@
     const [users,waiterDevices,productionDevices]=await Promise.all([V.api('/api/v1/usuarios'),V.api('/api/v1/restaurante/dispositivos-mesero'),V.api('/api/v1/restaurante/dispositivos-produccion')]);
     S.users=Array.isArray(users)?users:[];S.waiterDevices=Array.isArray(waiterDevices)?waiterDevices:[];S.productionDevices=Array.isArray(productionDevices)?productionDevices:[];renderDevices();await loadHybridState();if(!silent)notice('Dispositivos actualizados.','ok')
   }
-  function edgeHeartbeat(row){return String(row?.heartbeat||row?.agent?.heartbeat||'').toUpperCase()}
-  function edgeVersion(row){return row?.agent?.version||row?.version||'Sin versión reportada'}
-  function edgeLastSeen(row){return row?.lastHeartbeatAt||row?.agent?.lastSeenAt||null}
+  function edgeOnline(row){
+    if(row?.installation?.online===true||row?.online===true)return true;
+    return String(row?.heartbeat||row?.agent?.heartbeat||'').toUpperCase()==='ONLINE';
+  }
+  function edgeVersion(row){return row?.installation?.softwareVersion||row?.agent?.softwareVersion||row?.agent?.version||row?.version||'Sin versión reportada'}
+  function edgeLastSeen(row){return row?.installation?.lastHeartbeatAt||row?.lastHeartbeatAt||row?.agent?.lastSeenAt||null}
+  function edgePlatform(row){
+    const installation=row?.installation||{};
+    return [installation.os||row?.platform,installation.architecture||row?.arch].filter(Boolean).join(' · ')||'Plataforma no reportada';
+  }
+  function edgeHeartbeatLabel(row){
+    if(edgeOnline(row))return 'EN LÍNEA';
+    return edgeLastSeen(row)?'SIN RESPUESTA':'SIN REGISTRO';
+  }
   function focusHybridState(){if(S.tab!=='devices'||location.hash!=='#estado-local-nube')return;requestAnimationFrame(()=>$('#estado-local-nube')?.scrollIntoView({block:'start',behavior:'smooth'}))}
   function renderHybridState(){
     const rows=Array.isArray(S.edgeInstallations)?S.edgeInstallations:[];
-    const online=rows.find(row=>edgeHeartbeat(row)==='ONLINE');
+    const online=rows.find(edgeOnline);
     const selected=online||rows[0]||null;
     const badge=$('#hybridStateBadge');
     $('#hybridCloudStatus').textContent='En línea';
@@ -99,8 +111,7 @@
       $('#hybridEdgeDetail').textContent='Este restaurante opera por Internet hasta instalar Edge local.';
     }
     if(selected){
-      const platform=[selected.platform,selected.arch].filter(Boolean).join(' · ')||'Plataforma no reportada';
-      $('#hybridStateMeta').textContent=`Instalaciones: ${rows.length} · Heartbeat: ${edgeHeartbeat(selected)||'SIN REGISTRO'} · Último contacto: ${dateText(edgeLastSeen(selected))} · ${platform} · Edge ${edgeVersion(selected)}`;
+      $('#hybridStateMeta').textContent=`Instalaciones: ${rows.length} · Heartbeat: ${edgeHeartbeatLabel(selected)} · Último contacto: ${dateText(edgeLastSeen(selected))} · ${edgePlatform(selected)} · Edge ${edgeVersion(selected)}`;
     }else $('#hybridStateMeta').textContent='No hay una instalación Edge registrada para este tenant.';
     focusHybridState();
   }

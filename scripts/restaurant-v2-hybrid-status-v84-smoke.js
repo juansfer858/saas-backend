@@ -36,7 +36,13 @@ must(adminHtml, 'id="estado-local-nube"', 'sección Dispositivos');
 must(adminHtml, '>Estado local y nube<', 'título Dispositivos');
 must(adminHtml, 'Una desconexión de Edge no bloquea pedidos, caja ni la operación disponible por nube.', 'contrato no bloqueante');
 must(adminJs, 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84', 'marker admin');
+must(adminJs, 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84_2_REAL_PAYLOAD', 'marker admin payload real');
 must(adminJs, "V.api('/api/v1/edge/installations')", 'telemetría Edge admin');
+must(adminJs, 'row?.installation?.online===true', 'online real admin');
+must(adminJs, 'row?.installation?.softwareVersion', 'versión real admin');
+must(adminJs, 'row?.installation?.lastHeartbeatAt', 'último heartbeat real admin');
+must(adminJs, "installation.os||row?.platform", 'plataforma real admin');
+must(adminJs, "edgeHeartbeatLabel(selected)", 'estado heartbeat derivado admin');
 must(adminJs, 'renderHybridUnavailable(error)', 'degradación segura');
 must(route, "router.get('/app/restaurant-v2-hybrid-status-v84.css'", 'ruta css pública');
 
