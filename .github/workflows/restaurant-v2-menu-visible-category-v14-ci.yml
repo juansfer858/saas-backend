@@ -68,7 +68,7 @@ jobs:
       - name: Prepare Prisma schema
         run: |
           npx prisma generate
-          npx prisma db push --skip-generate
+          npx prisma db push
       - name: Validate syntax
         run: |
           node --check src/web/restaurant-v2-menu-category-selector-v14.js
