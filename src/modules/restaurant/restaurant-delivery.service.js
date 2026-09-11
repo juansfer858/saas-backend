@@ -8,6 +8,7 @@ const commercial = require('../commercial/commercial.service');
 const sales = require('../commercial/sales.service');
 const treasury = require('../treasury/treasury.service');
 const notifications = require('../notifications/notifications.service');
+const { operationalLineKey, groupOperationalLines } = require('./restaurant-order-line-identity-v94');
 
 const ACTIVE_STATES = ['NUEVO','CONFIRMADO','EN_PREPARACION','LISTO','EN_CAMINO'];
 const COMMAND_STATES = ['PENDIENTE','EN_PREPARACION','LISTA','ENTREGADA','CANCELADA'];
@@ -27,17 +28,21 @@ function phoneIdentification(phone) {
   return `TEL-${String(phone || '').replace(/\D+/g, '').slice(-15)}`;
 }
 
-function calculateLine(product, quantity) {
+function calculateLine(product, quantity, appliedUnitPrice = undefined) {
   const q = qty(quantity);
   if (q.lte(0)) throw new AppError(400, 'La cantidad debe ser mayor que cero', 'RESTAURANT_DELIVERY_QTY_INVALID');
-  const price = money(product.precio1 || 0);
+  const basePrice = money(product.precio1 || 0);
+  const price = appliedUnitPrice === undefined || appliedUnitPrice === null || appliedUnitPrice === ''
+    ? basePrice
+    : money(appliedUnitPrice);
+  if (price.lt(0)) throw new AppError(400, 'El precio aplicado no puede ser negativo', 'RESTAURANT_DELIVERY_UNIT_PRICE_INVALID');
   const ivaPct = pct(product.ivaPct || 0);
   const impoconsumoPct = pct(product.impoconsumoPct || 0);
   const subtotal = money(q.mul(price));
   const iva = money(subtotal.mul(ivaPct).div(100));
   const impoconsumo = money(subtotal.mul(impoconsumoPct).div(100));
   const total = money(subtotal.plus(iva).plus(impoconsumo));
-  return { q, price, ivaPct, impoconsumoPct, subtotal, iva, impoconsumo, total };
+  return { q, basePrice, price, ivaPct, impoconsumoPct, subtotal, iva, impoconsumo, total };
 }
 
 async function ensureCustomer(tx, tenantId, input) {
@@ -108,8 +113,41 @@ async function resolveMenuLines(tx, tenantId, requests) {
     if (menu.requiresRecipe && !recipeProducts.has(product.id)) {
       throw new AppError(409, `Configure la receta de ${product.nombre} antes de venderlo`, 'RESTAURANT_RECIPE_REQUIRED');
     }
-    return { request, menu, product, ...calculateLine(product, request.quantity) };
+    return { request, menu, product, ...calculateLine(product, request.quantity, request.appliedUnitPrice) };
   });
+}
+
+function groupPreparedLines(lines) {
+  const buckets = new Map();
+  for (const line of lines) {
+    const identity = {
+      menuItemId: line.menu.id,
+      productId: line.product.id,
+      description: line.product.nombre,
+      station: line.menu.station,
+      unitPrice: line.price,
+      notes: line.request.notes || null,
+      variant: line.request.variant || line.request.presentation || null,
+      modifiers: line.request.modifiers || line.request.options || null
+    };
+    const key = operationalLineKey(identity, { includeState: false, includeSource: false });
+    const bucket = buckets.get(key);
+    if (bucket) bucket.quantity = qty(decimal(bucket.quantity).plus(line.q));
+    else buckets.set(key, { line, quantity: qty(line.q) });
+  }
+  return [...buckets.values()].map(({ line, quantity }) => ({
+    ...line,
+    request: { ...line.request, quantity },
+    ...calculateLine(line.product, quantity, line.price)
+  }));
+}
+
+function presentDelivery(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    operationalItems: groupOperationalLines(row.items || [], { includeState: false, includeSource: false })
+  };
 }
 
 async function loadDelivery(tenantId, id, client = prisma) {
@@ -122,18 +160,33 @@ async function loadDelivery(tenantId, id, client = prisma) {
     where: { id: row.saleId, tenantId },
     select: { id: true, numero: true, estado: true, total: true, saldo: true, formaPago: true }
   });
-  return { ...row, sale };
+  return presentDelivery({ ...row, sale });
 }
 
 async function createDelivery(tenantId, user, input) {
   return prisma.$transaction(async (tx) => {
     const customer = await ensureCustomer(tx, tenantId, input);
-    const prepared = await resolveMenuLines(tx, tenantId, input.items);
+    const prepared = groupPreparedLines(await resolveMenuLines(tx, tenantId, input.items));
     const itemsSubtotal = prepared.reduce((acc, line) => money(decimal(acc).plus(line.total)), money(0));
     const deliveryFee = money(input.deliveryFee || 0);
     if (deliveryFee.lt(0)) throw new AppError(400, 'El valor del domicilio no puede ser negativo', 'RESTAURANT_DELIVERY_FEE_INVALID');
     const total = money(decimal(itemsSubtotal).plus(deliveryFee));
     const code = deliveryCode();
+    const packed = JSON.parse(sales.packMeta({ documentType: 'DOCUMENTO_EQUIVALENTE_POS', notes: `Domicilio ${code} · ${input.address.trim()}` }));
+    packed.deliveryPricing = {
+      version: 'V94',
+      manualOverride: prepared.some((line) => !line.price.eq(line.basePrice)),
+      lines: prepared.map((line) => ({
+        menuItemId: line.menu.id,
+        productId: line.product.id,
+        description: line.product.nombre,
+        quantity: String(line.q),
+        baseUnitPrice: line.basePrice.toFixed(2),
+        appliedUnitPrice: line.price.toFixed(2),
+        manuallyOverridden: !line.price.eq(line.basePrice),
+        notes: line.request.notes?.trim() || null
+      }))
+    };
     const document = await commercial.createDocumentInTx(tx, tenantId, user.id, {
       tipo: 'FACTURA_VENTA',
       estado: 'BORRADOR',
@@ -141,7 +194,7 @@ async function createDelivery(tenantId, user, input) {
       terceroId: customer.id,
       cajaBancoId: null,
       formaPago: 'CREDITO',
-      observaciones: sales.packMeta({ documentType: 'DOCUMENTO_EQUIVALENTE_POS', notes: `Domicilio ${code} · ${input.address.trim()}` }),
+      observaciones: JSON.stringify(packed),
       detalles: []
     });
 
@@ -257,7 +310,7 @@ async function listDeliveries(tenantId, filters = {}) {
     select: { id: true, numero: true, estado: true, total: true, saldo: true, formaPago: true }
   }) : [];
   const saleById = new Map(salesRows.map((sale) => [sale.id, sale]));
-  return rows.map((row) => ({ ...row, sale: saleById.get(row.saleId) || null }));
+  return rows.map((row) => presentDelivery({ ...row, sale: saleById.get(row.saleId) || null }));
 }
 
 async function summary(tenantId) {
@@ -296,6 +349,7 @@ async function acceptDelivery(tenantId, user, id) {
       byStation.get(item.station).push(item);
     }
     for (const [station, items] of byStation.entries()) {
+      const operationalItems = groupOperationalLines(items, { includeState: false, includeSource: false });
       await tx.restaurantDeliveryCommand.create({
         data: {
           tenantId,
@@ -309,7 +363,12 @@ async function acceptDelivery(tenantId, user, id) {
             source: 'DOMICILIO',
             delivery: { id: delivery.id, code: delivery.code, customerName: delivery.customerName, address: delivery.address },
             station,
-            items: items.map((item) => ({ description: item.description, quantity: String(item.quantity), notes: item.notes || null }))
+            items: operationalItems.map((item) => ({
+              description: item.description,
+              quantity: String(item.quantity),
+              unitPrice: String(item.unitPrice),
+              notes: item.notes || null
+            }))
           }
         }
       });
@@ -340,47 +399,56 @@ async function listKdsCommands(tenantId, user, filters = {}) {
     orderBy: { creadoEn: 'asc' },
     take: Math.min(Number(filters.limit) || 200, 500)
   });
-  return commands.map((command) => ({
-    id: command.id,
-    tenantId: command.tenantId,
-    station: command.station,
-    state: command.state,
-    simulationRecord: command.simulationRecord,
-    creadoEn: command.creadoEn,
-    startedAt: command.startedAt,
-    readyAt: command.readyAt,
-    deliveredAt: command.deliveredAt,
-    actualizadoEn: command.actualizadoEn,
-    waiter: null,
-    channel: 'DOMICILIO',
-    order: {
-      id: command.delivery.id,
-      source: 'DOMICILIO',
-      state: command.delivery.state,
-      items: command.delivery.items.map((item) => ({
-        id: item.id,
-        description: item.description,
-        quantity: item.quantity,
-        station: item.station,
-        notes: item.notes
-      })),
-      session: {
-        table: {
+  return commands.map((command) => {
+    const operationalItems = groupOperationalLines(
+      command.delivery.items.filter((item) => item.station === command.station),
+      { includeState: false, includeSource: false }
+    );
+    return {
+      id: command.id,
+      tenantId: command.tenantId,
+      station: command.station,
+      state: command.state,
+      simulationRecord: command.simulationRecord,
+      creadoEn: command.creadoEn,
+      startedAt: command.startedAt,
+      readyAt: command.readyAt,
+      deliveredAt: command.deliveredAt,
+      actualizadoEn: command.actualizadoEn,
+      waiter: null,
+      channel: 'DOMICILIO',
+      order: {
+        id: command.delivery.id,
+        source: 'DOMICILIO',
+        state: command.delivery.state,
+        items: operationalItems.map((item) => ({
+          id: item.id,
+          sourceItemIds: item.sourceItemIds,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+          station: item.station,
+          notes: item.notes
+        })),
+        session: {
+          table: {
+            id: command.delivery.id,
+            code: command.delivery.code,
+            name: `Domicilio ${command.delivery.code}`,
+            zone: { id: 'DOMICILIOS', name: 'Domicilios' }
+          }
+        },
+        delivery: {
           id: command.delivery.id,
           code: command.delivery.code,
-          name: `Domicilio ${command.delivery.code}`,
-          zone: { id: 'DOMICILIOS', name: 'Domicilios' }
+          customerName: command.delivery.customerName,
+          address: command.delivery.address,
+          neighborhood: command.delivery.neighborhood
         }
-      },
-      delivery: {
-        id: command.delivery.id,
-        code: command.delivery.code,
-        customerName: command.delivery.customerName,
-        address: command.delivery.address,
-        neighborhood: command.delivery.neighborhood
       }
-    }
-  }));
+    };
+  });
 }
 
 async function updateDeliveryCommandState(tenantId, user, commandId, state) {
@@ -518,5 +586,8 @@ module.exports = {
   markOnRoute,
   markDelivered,
   registerDeliveryPayment,
-  cancelDelivery
+  cancelDelivery,
+  calculateLine,
+  groupPreparedLines,
+  presentDelivery
 };
