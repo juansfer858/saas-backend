@@ -7,6 +7,7 @@
   <title>VantixGC Restaurante · QR y dispositivos V2</title>
   <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
   <link rel="stylesheet" href="/app/restaurant-v2-admin-parity.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-hybrid-status-v84.css?v=v84">
 </head>
 <body data-rv2-module-header="true" data-rv2-module-title="AUTO_ADMIN">
   <header class="admin-top rv2-module-top">
@@ -58,6 +59,32 @@
           <button type="button" data-device-kind="production">PRODUCCIÓN</button>
         </div>
       </div>
+
+      <section id="estado-local-nube" class="rv2-panel hybrid-state-panel" tabindex="-1" aria-labelledby="hybridStateTitle">
+        <div class="hybrid-state-head">
+          <div>
+            <small>OPERACIÓN HÍBRIDA</small>
+            <h2 id="hybridStateTitle">Estado local y nube</h2>
+            <p>La nube mantiene la operación por Internet. Edge aporta continuidad local y periféricos del restaurante cuando está disponible.</p>
+          </div>
+          <span id="hybridStateBadge" class="hybrid-state-badge">COMPROBANDO</span>
+        </div>
+        <div class="hybrid-state-grid">
+          <article class="hybrid-state-card">
+            <span>Nube</span>
+            <strong id="hybridCloudStatus">En línea</strong>
+            <small id="hybridCloudDetail">Esta pantalla está conectada al Core.</small>
+          </article>
+          <article class="hybrid-state-card">
+            <span>Edge local</span>
+            <strong id="hybridEdgeStatus">Comprobando…</strong>
+            <small id="hybridEdgeDetail">Consultando la instalación local.</small>
+          </article>
+        </div>
+        <div id="hybridStateMeta" class="hybrid-state-meta">Consultando telemetría Edge…</div>
+        <p class="hybrid-state-note">Este estado es informativo. Una desconexión de Edge no bloquea pedidos, caja ni la operación disponible por nube.</p>
+      </section>
+
       <div id="deviceSummary" class="summary-grid"></div>
       <div id="staffGrid" class="staff-grid"></div>
       <section class="rv2-panel devices-list-panel">
@@ -91,7 +118,7 @@
   </dialog>
 
   <script src="/app/restaurant-v2-sdk.js"></script>
-  <script src="/app/restaurant-v2-admin-parity.js"></script>
+  <script src="/app/restaurant-v2-admin-parity.js?v=hybrid-v84"></script>
   <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
 </body>
 </html>
