@@ -34,6 +34,11 @@ jobs:
           test -f src/web/restaurant-waiter-runtime-v7.js
           test -f src/modules/restaurant/restaurant-waiter-service-flex-v9.js
           test -f src/web/restaurant-waiter-sw.js
+          test -f src/modules/restaurant/restaurant-v2-only-p12.public.routes.js
+          test -f src/modules/restaurant/restaurant-v2-device-pwa-p8.public.routes.js
+          test -f src/web/restaurant-v2-waiter-p8.html
+          test -f src/web/restaurant-v2-waiter-sw-p8.js
+          test -f src/web/restaurant-v2-orders.js
           test -f scripts/restaurant-waiter-reactive-v9-db-smoke.js
           test -f scripts/restaurant-waiter-no-rebound-v11-smoke.js
           test ! -f railpack.json
@@ -74,6 +79,15 @@ jobs:
           ! grep -q "expiresIn: '365d'" src/modules/restaurant/restaurant-waiter-device.service.js
           ! grep -q "restaurant-ui.js" src/web/restaurant-waiter-pwa-v7.html
           ! grep -q "MutationObserver" src/web/restaurant-waiter-pwa-v7.html
+          grep -q "VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12" src/modules/restaurant/restaurant-v2-only-p12.public.routes.js
+          grep -q "'/app/centro-de-control/mesero-v2/'" src/modules/restaurant/restaurant-v2-only-p12.public.routes.js
+          grep -q "data-vantix-device=\"waiter\"" src/web/restaurant-v2-waiter-p8.html
+          grep -q "data-waiter-ui=\"tablet-3col-v22\"" src/web/restaurant-v2-waiter-p8.html
+          grep -q "1 · Mesas" src/web/restaurant-v2-waiter-p8.html
+          grep -q "2 · Carta" src/web/restaurant-v2-waiter-p8.html
+          grep -q "3 · Revisar pedido" src/web/restaurant-v2-waiter-p8.html
+          grep -q "VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22" src/web/restaurant-v2-waiter-sw-p8.js
+          grep -q "VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81" src/web/restaurant-v2-orders.js
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
       - name: Wait for exact commit in production
@@ -180,14 +194,19 @@ jobs:
           grep -q 'pdfjs-dist@3.11.174' /tmp/restaurant-menu-import-ui.js
           echo "PRODUCTION_RESTAURANT_BROWSER_OCR_V4_READY"
 
-      - name: Verify waiter tablet PWA V14 in production
+      - name: Verify waiter P12 V2 PWA and frozen V14 runtime in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --max-time 20 -o /tmp/waiter-sw.js https://core.vantixgc.com/app/centro-de-control/sw.js
-          grep -q 'vantixgc-waiter-shell-v14-review-hard-gate' /tmp/waiter-sw.js
-          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14' /tmp/waiter-sw.js
+
+          # P12 intentionally retires the broad legacy waiter service worker.
+          curl -fsSL --max-time 20 -D /tmp/waiter-legacy-sw.headers -o /tmp/waiter-legacy-sw.js https://core.vantixgc.com/app/centro-de-control/sw.js
+          grep -qi 'x-vantixgc-restaurant-v1-service-worker: retired' /tmp/waiter-legacy-sw.headers
+          grep -q 'VANTIX_RESTAURANT_V1_SW_RETIREMENT_P12' /tmp/waiter-legacy-sw.js
+          ! grep -q 'vantixgc-waiter-shell-v14-review-hard-gate' /tmp/waiter-legacy-sw.js
+
+          # V14 remains frozen and available as a rollback/traceability asset.
           curl -fsSL --max-time 20 -D /tmp/waiter-runtime.headers -o /tmp/waiter-runtime.js 'https://core.vantixgc.com/app/restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14'
           grep -qi 'x-vantixgc-waiter-runtime: v14-review-hard-gate' /tmp/waiter-runtime.headers
           grep -q 'VANTIX_WAITER_ORDER_REVIEW_HARD_GATE_V14' /tmp/waiter-runtime.js
@@ -201,17 +220,43 @@ jobs:
           grep -q 'queueQtySync' /tmp/waiter-runtime.js
           ! grep -q 'VANTIX_WAITER_REACTIVE_SERVICE_V10' /tmp/waiter-runtime.js
           ! grep -q 'setInterval' /tmp/waiter-runtime.js
-          curl -fsSL --max-time 20 -D /tmp/waiter-pwa.headers -o /tmp/waiter-pwa.html 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1'
-          grep -qi 'x-vantixgc-waiter-pwa: v14-review-hard-gate-persistent' /tmp/waiter-pwa.headers
-          grep -q '<title>VantixGC Mesero</title>' /tmp/waiter-pwa.html
-          grep -q 'restaurant-waiter-runtime-v7.js?v=waiter-runtime-v14' /tmp/waiter-pwa.html
-          grep -q 'Dispositivo vinculado · acceso guardado' /tmp/waiter-pwa.html
-          grep -q 'grid-template-columns:repeat(4,minmax(0,1fr))' /tmp/waiter-pwa.html
-          grep -q 'id="wvApp"' /tmp/waiter-pwa.html
-          grep -q 'id="wvMessage"' /tmp/waiter-pwa.html
-          ! grep -q 'restaurant-ui.js' /tmp/waiter-pwa.html
-          ! grep -q 'MutationObserver' /tmp/waiter-pwa.html
-          echo "PRODUCTION_RESTAURANT_WAITER_PWA_V14_READY"
+
+          # The canonical waiter entry must now resolve to the native P12 V2 PWA.
+          waiter_code=$(curl -sS --max-time 20 -D /tmp/waiter-entry.headers -o /dev/null -w '%{http_code}' 'https://core.vantixgc.com/app/centro-de-control/mesero?view=mesero&pwa=1')
+          test "$waiter_code" = "307"
+          grep -qi 'x-vantixgc-restaurant-v2-only: p12-v2-only-runtime' /tmp/waiter-entry.headers
+          grep -qi 'x-vantixgc-restaurant-v1-runtime: disabled' /tmp/waiter-entry.headers
+          grep -qi 'location: /app/centro-de-control/mesero-v2/?view=mesero&pwa=1' /tmp/waiter-entry.headers
+
+          curl -fsSL --max-time 20 -D /tmp/waiter-v2.headers -o /tmp/waiter-v2.html 'https://core.vantixgc.com/app/centro-de-control/mesero-v2/'
+          grep -qi 'x-vantixgc-restaurant-v2-device-pwa: p8-isolated' /tmp/waiter-v2.headers
+          grep -qi 'x-vantixgc-restaurant-v2-device: waiter-p8' /tmp/waiter-v2.headers
+          grep -q '<title>VantixGC Mesero V2</title>' /tmp/waiter-v2.html
+          grep -q 'data-vantix-device="waiter"' /tmp/waiter-v2.html
+          grep -q 'data-waiter-ui="tablet-3col-v22"' /tmp/waiter-v2.html
+          grep -q '1 · Mesas' /tmp/waiter-v2.html
+          grep -q '2 · Carta' /tmp/waiter-v2.html
+          grep -q '3 · Revisar pedido' /tmp/waiter-v2.html
+          grep -q 'id="review"' /tmp/waiter-v2.html
+          grep -q 'id="confirmSend"' /tmp/waiter-v2.html
+          grep -q '/app/restaurant-v2-orders.js' /tmp/waiter-v2.html
+          grep -q '/app/restaurant-v2-device-pwa-p8.js' /tmp/waiter-v2.html
+          ! grep -q 'restaurant-ui.js' /tmp/waiter-v2.html
+          ! grep -q 'restaurant-waiter-runtime-v7.js' /tmp/waiter-v2.html
+          ! grep -q 'MutationObserver' /tmp/waiter-v2.html
+
+          curl -fsSL --max-time 20 -D /tmp/waiter-v2-sw.headers -o /tmp/waiter-v2-sw.js 'https://core.vantixgc.com/app/centro-de-control/mesero-v2/sw.js'
+          grep -qi 'x-vantixgc-restaurant-v2-device-pwa: p8-waiter-sw' /tmp/waiter-v2-sw.headers
+          grep -q 'VANTIX_RESTAURANT_WAITER_TABLET_3COL_V22' /tmp/waiter-v2-sw.js
+          grep -q 'vantixgc-restaurant-v2-waiter-v22' /tmp/waiter-v2-sw.js
+          grep -q "if(url.pathname.startsWith('/api/'))return" /tmp/waiter-v2-sw.js
+
+          curl -fsSL --max-time 20 -o /tmp/waiter-v2-orders.js 'https://core.vantixgc.com/app/restaurant-v2-orders.js'
+          grep -q 'VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81' /tmp/waiter-v2-orders.js
+          grep -q 'ENVIANDO PEDIDO' /tmp/waiter-v2-orders.js
+          grep -q 'mergeDraftResult(result)' /tmp/waiter-v2-orders.js
+          grep -q 'if(sent){S.realtimeQueued=false;await loadDraft()}' /tmp/waiter-v2-orders.js
+          echo "PRODUCTION_RESTAURANT_WAITER_P12_V2_READY"
 
       - name: Verify Super Core Restaurant runtime status
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
