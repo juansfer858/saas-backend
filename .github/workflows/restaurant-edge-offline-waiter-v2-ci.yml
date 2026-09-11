@@ -61,5 +61,5 @@ jobs:
         run: node scripts/edge-restaurant-offline-waiter-v2-smoke.js
       - name: Prove PostgreSQL reconnect preserves persons and idempotency
         run: node scripts/edge-restaurant-offline-reconnect-db-smoke.js
-      - name: Prove QR self-order fails closed when Edge is offline
+      - name: Prove QR self-order falls back to Core when Edge is offline
         run: node scripts/restaurant-qr-edge-offline-guard-smoke.js
