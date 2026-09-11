@@ -61,7 +61,7 @@ async function main() {
   });
 
   const opened = await base.openTable(demo.tenantId, waiter, table.id, { guestCount: 2 }, V2_OPTIONS);
-  await identity.setWaiterDraftItem(demo.tenantId, waiter, opened.session.id, item.id, 2, 'C86 DB smoke', V2_OPTIONS);
+  await identity.setWaiterDraftItem(demo.tenantId, waiter, opened.session.id, item.id, 2, null, V2_OPTIONS);
   const sent = await identity.sendWaiterDraft(demo.tenantId, waiter, opened.session.id, V2_OPTIONS);
   const commands = await prisma.restaurantCommand.findMany({ where: { tenantId: demo.tenantId, orderId: sent.id } });
   assert.ok(commands.length, 'pedido debe generar comandas');
