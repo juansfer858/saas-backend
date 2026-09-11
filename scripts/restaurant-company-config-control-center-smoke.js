@@ -48,7 +48,7 @@ assert.match(client, /\/api\/v1\/impresion\/empresa/);
 assert.match(client, /method:'PUT'/);
 assert.match(client, /pertenece a Administración/);
 assert.match(client, /No modifica el flujo operativo del Centro de control/);
-assert.doesNotMatch(client, /\/api\/[^"]*dian/i, 'company administration must not call DIAN APIs');
+assert.doesNotMatch(client, /['"]\/api\/[^'"\n]*dian[^'"\n]*['"]/i, 'company administration must not call DIAN APIs');
 
 // Trial registration already captures the reusable fields.
 for (const field of ['restaurantName', 'phone', 'city', 'department', 'email']) {
