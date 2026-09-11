@@ -13,6 +13,7 @@ router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, nex
   try {
     let source = await fs.promises.readFile(path.join(webRoot, 'panel-integration-extras-core.js'), 'utf8');
     const inventoryProductCreator = await fs.promises.readFile(path.join(webRoot, 'inventory-product-create-v70.js'), 'utf8');
+    const treasuryPaymentDestinations = await fs.promises.readFile(path.join(webRoot, 'treasury-payment-destinations-v77.js'), 'utf8');
     source = source.replace(
       "api('/api/v1/tesoreria/pagos')",
       "api('/api/v1/tesoreria/recaudos-recientes')"
@@ -23,10 +24,14 @@ router.get('/ui-runtime/panel-integration-extras-core.js', async (_req, res, nex
     if (!inventoryProductCreator.includes('VANTIX_INVENTORY_PRODUCT_CREATE_V70')) {
       throw new Error('No fue posible montar el creador de productos de Inventario V70');
     }
+    if (!treasuryPaymentDestinations.includes('VANTIX_TREASURY_PAYMENT_DESTINATIONS_V77')) {
+      throw new Error('No fue posible montar la gestión B de cajas/bancos V77');
+    }
     res.set('Cache-Control', 'no-store');
     res.set('X-VantixGC-Treasury-Recent-Receipts', 'v43-movimiento-tesoreria');
     res.set('X-VantixGC-Inventory-Product-Creator', 'v70');
-    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}\n/* VANTIX_INVENTORY_PRODUCT_CREATE_V70 */\n${inventoryProductCreator}`);
+    res.set('X-VantixGC-Treasury-Payment-Destinations', 'v77');
+    res.type('application/javascript').send(`/* VANTIX_TREASURY_RECENT_RECEIPTS_V43 */\n${source}\n/* VANTIX_INVENTORY_PRODUCT_CREATE_V70 */\n${inventoryProductCreator}\n/* VANTIX_TREASURY_PAYMENT_DESTINATIONS_V77 */\n${treasuryPaymentDestinations}`);
   } catch (error) { next(error); }
 });
 
