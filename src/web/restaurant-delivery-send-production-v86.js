@@ -1,4 +1,5 @@
 /* VANTIX_RESTAURANT_DELIVERY_SEND_PRODUCTION_V86 */
+/* VANTIX_RESTAURANT_DELIVERY_FREEZE_ROOT_FIX_V94 */
 (() => {
   'use strict';
 
@@ -33,31 +34,59 @@
     return String(dialog.querySelector(selector)?.value || '').trim();
   }
 
+  function setTextIfChanged(node, text) {
+    if (node && node.textContent !== text) node.textContent = text;
+  }
+
   function patchDialog(dialog) {
     if (!dialog || dialog.id !== 'deliveryCreateDialog') return;
     const intro = dialog.querySelector('.delivery-dialog-head .ri-muted');
-    if (intro && /Cinco pasos|Nada se envía/i.test(intro.textContent || '')) {
-      intro.textContent = 'Cinco pasos cortos. Al enviar, el pedido entra inmediatamente a Producción / KDS.';
+    if (intro && /Cinco pasos|Nada se envía|misma Carta de Pedidos/i.test(intro.textContent || '')) {
+      setTextIfChanged(intro, 'Al confirmar, el pedido entra inmediatamente a Producción / KDS.');
     }
     const steps = [...dialog.querySelectorAll('.delivery-step')];
-    const review = steps.find((step) => /Revisar y crear/i.test(step.textContent || ''));
+    const review = steps.find((step) => /Revisar y crear|Revisar y enviar/i.test(step.textContent || ''));
     if (review) {
-      const title = review.querySelector('.delivery-step-title b');
+      setTextIfChanged(review.querySelector('.delivery-step-title b'), 'Revisar y enviar');
       const note = review.querySelector('.ri-muted');
-      if (title) title.textContent = 'Revisar y enviar';
-      if (note) note.textContent = 'Al confirmar, el domicilio queda aceptado y sus comandas pasan a Producción por estación.';
+      if (note) setTextIfChanged(note, 'Al confirmar, el domicilio queda aceptado y sus comandas pasan a Producción por estación.');
     }
     const button = dialog.querySelector('#deliveryCreateSubmit');
-    if (button && button.dataset.deliverySendV86Busy !== '1') button.textContent = 'ENVIAR A PRODUCCIÓN';
+    if (button && button.dataset.deliverySendV86Busy !== '1') setTextIfChanged(button, 'ENVIAR A PRODUCCIÓN');
   }
 
   function patchVisibleDialog() {
     patchDialog(document.getElementById('deliveryCreateDialog'));
   }
 
-  const observer = new MutationObserver(patchVisibleDialog);
-  observer.observe(document.documentElement, { childList:true, subtree:true });
-  patchVisibleDialog();
+  // V94: NO observar todo el DOM. V86 antes usaba un MutationObserver sobre
+  // document.documentElement y el propio patch cambiaba textContent dentro del diálogo.
+  // Esa combinación se realimentaba al abrir Nuevo domicilio y podía bloquear el hilo UI.
+  // Ahora se parchea una sola vez, después del clic que abre el diálogo.
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest?.('[data-new-delivery]')) return;
+    requestAnimationFrame(() => patchVisibleDialog());
+  }, true);
+
+  function collectItems(dialog) {
+    const items = new Map();
+
+    // Contrato histórico.
+    for (const node of dialog.querySelectorAll('[data-delivery-qty]')) {
+      const id = node.dataset.deliveryQty;
+      const quantity = Number(node.textContent || 0);
+      if (id && quantity > 0) items.set(id, quantity);
+    }
+
+    // Contrato activo V93: el id vive en el botón + y la cantidad en el <strong> hermano.
+    for (const plus of dialog.querySelectorAll('[data-v93-plus]')) {
+      const id = plus.dataset.v93Plus;
+      const quantity = Number(plus.parentElement?.querySelector('strong')?.textContent || 0);
+      if (id && quantity > 0) items.set(id, quantity);
+    }
+
+    return [...items.entries()].map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+  }
 
   document.addEventListener('click', async (event) => {
     const button = event.target.closest?.('#deliveryCreateSubmit');
@@ -65,16 +94,13 @@
     const dialog = button.closest('dialog');
     if (!dialog || dialog.id !== 'deliveryCreateDialog') return;
 
-    // Capture phase: replace the legacy "crear NUEVO" submit without changing the
-    // backwards-compatible API used by other clients.
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
     if (button.dataset.deliverySendV86Busy === '1') return;
 
-    const items = [...dialog.querySelectorAll('[data-delivery-qty]')]
-      .map((node) => ({ menuItemId:node.dataset.deliveryQty, quantity:Number(node.textContent || 0) }))
-      .filter((row) => row.menuItemId && row.quantity > 0);
+    patchDialog(dialog);
+    const items = collectItems(dialog);
     const customerName = value(dialog, '#deliveryName');
     const customerPhone = value(dialog, '#deliveryPhone');
     const address = value(dialog, '#deliveryAddress');
@@ -132,4 +158,11 @@
       button.textContent = 'ENVIAR A PRODUCCIÓN';
     }
   }, true);
+
+  window.VantixGCRestaurantDeliverySendProductionV94 = Object.freeze({
+    version:'94.0.0',
+    rootCause:'V86 MutationObserver feedback loop',
+    globalObserver:false,
+    supportsV93:true
+  });
 })();
