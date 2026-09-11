@@ -1,8 +1,9 @@
-/* VANTIX_RESTAURANT_DELIVERY_ORDERS_COMPACT_V93 */
+/* VANTIX_RESTAURANT_DELIVERY_ORDERS_COMPACT_V93 · VANTIX_RESTAURANT_DELIVERY_LINE_PRICE_V94 */
 (() => {
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_DELIVERY_ORDERS_COMPACT_V93';
+  const V94_MARKER = 'VANTIX_RESTAURANT_DELIVERY_LINE_PRICE_V94';
   if (window[MARKER]) return;
 
   const SESSION_KEY = 'vantixgc_core_session_v1';
@@ -21,6 +22,10 @@
   const money = (value) => new Intl.NumberFormat('es-CO', {
     style:'currency', currency:session.tenant?.moneda || 'COP', maximumFractionDigits:0
   }).format(Number(value || 0));
+  const amount = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
+  };
 
   function headers(withBody = false) {
     return {
@@ -64,14 +69,16 @@
       .delivery-v93-menu .menu-item b{font-size:14px}.delivery-v93-menu .menu-item small{color:var(--rv2-muted,#667085)}.delivery-v93-menu .menu-item strong{color:var(--rv2-primary-hover,#0d6b43)}
       .delivery-v93-menu .menu-item button{width:100%;min-height:40px}.delivery-v93-menu .menu-warning{color:#b45309!important;font-weight:800}
       .delivery-v93-more{grid-column:1/-1;min-height:42px;border:1px dashed #94a3b8;border-radius:10px;background:#fff;font-weight:900;cursor:pointer}
-      .delivery-v93-cart{display:grid;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid var(--cc-line,#dce6e0)}
+      .delivery-v93-cart{display:grid;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--cc-line,#dce6e0)}
       .delivery-v93-cart-title{display:flex;justify-content:space-between;gap:10px;align-items:center}.delivery-v93-cart-title b{font-size:13px}.delivery-v93-cart-title span{font-size:11px;color:var(--cc-muted,#61706a)}
-      .delivery-v93-cart-line{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center;padding:9px 10px;border:1px solid var(--cc-line,#dce6e0);border-radius:10px;background:#f9fafb}
-      .delivery-v93-cart-line b{display:block;font-size:13px}.delivery-v93-cart-line small{color:var(--cc-muted,#61706a)}
-      .delivery-v93-qty{display:flex;gap:5px;align-items:center}.delivery-v93-qty button{width:36px;height:36px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-size:18px;font-weight:950;cursor:pointer}.delivery-v93-qty strong{min-width:24px;text-align:center}
+      .delivery-v93-cart-line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;padding:11px;border:1px solid var(--cc-line,#dce6e0);border-radius:11px;background:#f9fafb}
+      .delivery-v93-cart-main{display:grid;gap:8px}.delivery-v93-cart-line b{display:block;font-size:13px}.delivery-v93-cart-line small{display:block;color:var(--cc-muted,#61706a);font-size:11px}
+      .delivery-v93-line-fields{display:grid;grid-template-columns:minmax(130px,.7fr) minmax(170px,1.3fr);gap:8px}.delivery-v93-line-fields label{display:grid;gap:4px;font-size:10px;font-weight:900;color:#475569;text-transform:uppercase}.delivery-v93-line-fields input{min-height:41px;width:100%;padding:8px 9px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font:inherit;font-size:14px;text-transform:none}
+      .delivery-v93-price{position:relative}.delivery-v93-price span{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-weight:900;color:#64748b}.delivery-v93-price input{padding-left:23px}
+      .delivery-v93-line-side{display:grid;gap:7px;justify-items:end}.delivery-v93-qty{display:flex;gap:5px;align-items:center}.delivery-v93-qty button{min-width:36px;height:36px;padding:0 7px;border:1px solid #cbd5e1;border-radius:9px;background:#fff;font-size:16px;font-weight:950;cursor:pointer}.delivery-v93-qty strong{min-width:24px;text-align:center}.delivery-v93-qty .wide{font-size:10px;white-space:nowrap}.delivery-v93-remove{color:#991b1b}.delivery-v93-subtotal{font-size:14px;font-weight:950;white-space:nowrap}
       .delivery-v93-empty{padding:16px;border:1px dashed #cbd5e1;border-radius:10px;text-align:center;color:var(--cc-muted,#61706a)}
       .delivery-v93-error{padding:10px 12px;border:1px solid #fecaca;border-radius:10px;background:#fff7f7;color:#991b1b;font-weight:800}
-      @media(max-width:720px){.delivery-v93-menu .menu-head{grid-template-columns:1fr}.delivery-v93-menu .menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      @media(max-width:720px){.delivery-v93-menu .menu-head{grid-template-columns:1fr}.delivery-v93-menu .menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.delivery-v93-cart-line{grid-template-columns:1fr}.delivery-v93-line-side{justify-items:start}.delivery-v93-line-fields{grid-template-columns:1fr}}
       @media(max-width:430px){.delivery-v93-menu .menu-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -89,7 +96,7 @@
 
   function openDialogShell() {
     const dialog = freshDialog();
-    dialog.innerHTML = `<div class="delivery-dialog-head"><div><div class="ri-eyebrow">NUEVO DOMICILIO</div><h2>¿Qué necesita el cliente?</h2><p class="ri-muted">La misma Carta de Pedidos, sin mesa.</p></div><button type="button" class="ri-btn" data-v93-close>Cerrar</button></div><div class="delivery-dialog-body">
+    dialog.innerHTML = `<div class="delivery-dialog-head"><div><div class="ri-eyebrow">NUEVO DOMICILIO</div><h2>¿Qué necesita el cliente?</h2><p class="ri-muted">La misma Carta de Pedidos. El precio editado aplica sólo a este domicilio.</p></div><button type="button" class="ri-btn" data-v93-close>Cerrar</button></div><div class="delivery-dialog-body">
       <section class="delivery-step"><div class="delivery-step-title"><span class="delivery-step-number">1</span><b>¿A quién se lo llevamos?</b></div><div class="delivery-fields"><label class="delivery-field">Teléfono<input id="deliveryPhone" inputmode="tel" autocomplete="tel" placeholder="300 123 4567"></label><label class="delivery-field">Nombre<input id="deliveryName" autocomplete="name" placeholder="Nombre del cliente"></label></div><div id="deliveryKnown"></div></section>
       <section class="delivery-step"><div class="delivery-step-title"><span class="delivery-step-number">2</span><b>¿Dónde lo entregamos?</b></div><div class="delivery-fields"><label class="delivery-field full">Dirección<input id="deliveryAddress" autocomplete="street-address" placeholder="Ej. Cra 20 #14-22"></label><label class="delivery-field">Barrio / zona<input id="deliveryNeighborhood" placeholder="Ej. Centro"></label><label class="delivery-field">Referencia<input id="deliveryReference" placeholder="Ej. Casa verde, segundo piso"></label></div></section>
       <section class="delivery-step"><div class="delivery-step-title"><span class="delivery-step-number">3</span><b>Carta</b></div><div class="delivery-v93-menu">
@@ -98,9 +105,9 @@
         <div id="deliveryV93Menu" class="menu-grid"></div>
         <div class="delivery-v93-cart"><div class="delivery-v93-cart-title"><b>Pedido en curso</b><span id="deliveryV93Count">0 productos</span></div><div id="deliveryV93Cart"><div class="delivery-v93-empty">Agrega productos desde la carta.</div></div></div>
       </div></section>
-      <section class="delivery-step"><div class="delivery-step-title"><span class="delivery-step-number">4</span><b>Entrega</b></div><div class="delivery-fields"><label class="delivery-field">Valor domicilio<input id="deliveryFee" inputmode="numeric" type="number" min="0" step="500" value="5000"></label><label class="delivery-field">Tiempo prometido<select id="deliveryMinutes"><option value="30">30 minutos</option><option value="45" selected>45 minutos</option><option value="60">60 minutos</option><option value="90">90 minutos</option></select></label><label class="delivery-field full">Nota para cocina o entrega<textarea id="deliveryNotes" rows="2" placeholder="Ej. Sin cebolla / tocar el timbre"></textarea></label></div></section>
+      <section class="delivery-step"><div class="delivery-step-title"><span class="delivery-step-number">4</span><b>Entrega</b></div><div class="delivery-fields"><label class="delivery-field">Cargo de domicilio (opcional)<input id="deliveryFee" inputmode="numeric" type="number" min="0" step="500" value="0"></label><label class="delivery-field">Tiempo prometido<select id="deliveryMinutes"><option value="30">30 minutos</option><option value="45" selected>45 minutos</option><option value="60">60 minutos</option><option value="90">90 minutos</option></select></label><label class="delivery-field full">Nota general de entrega<textarea id="deliveryNotes" rows="2" placeholder="Ej. Tocar el timbre / llamar al llegar"></textarea></label></div></section>
       <section class="delivery-step"><div class="delivery-step-title"><span class="delivery-step-number">5</span><b>Revisar y crear</b></div><div id="deliveryCreateError"></div></section>
-    </div><div class="delivery-confirm"><div><small>Total estimado</small><strong id="deliveryCreateTotal">${money(5000)}</strong></div><button type="button" id="deliveryCreateSubmit" disabled>CREAR DOMICILIO</button></div>`;
+    </div><div class="delivery-confirm"><div><small>Total estimado</small><strong id="deliveryCreateTotal">${money(0)}</strong></div><button type="button" id="deliveryCreateSubmit" disabled>CREAR DOMICILIO</button></div>`;
     dialog.showModal?.();
     return dialog;
   }
@@ -133,7 +140,8 @@
     const dialog = openDialogShell();
     wireKnownCustomer(dialog);
 
-    const quantities = new Map();
+    const lines = [];
+    let sequence = 0;
     let menu = [];
     let byId = new Map();
     const state = { category:'TODAS', search:'', limit:PAGE_SIZE };
@@ -146,8 +154,17 @@
     const errorRoot = dialog.querySelector('#deliveryCreateError');
     const submit = dialog.querySelector('#deliveryCreateSubmit');
 
-    const selectedRows = () => [...quantities.entries()].filter(([, quantity]) => quantity > 0);
     const categoryList = () => ['TODAS', ...new Set(menu.map((row) => row.category || 'MENÚ'))];
+    const basePrice = (menuItemId) => amount(byId.get(menuItemId)?.product?.precio1 || 0);
+    const lineSubtotal = (line) => amount(line.quantity) * amount(line.appliedUnitPrice);
+    const unitsFor = (menuItemId) => lines.filter((line) => line.menuItemId === menuItemId).reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+    const createLine = (menuItemId, seed = {}) => ({
+      id:`v94-${++sequence}`,
+      menuItemId,
+      quantity:Math.max(1, Math.min(99, Number(seed.quantity || 1))),
+      appliedUnitPrice:amount(seed.appliedUnitPrice ?? basePrice(menuItemId)),
+      notes:String(seed.notes || '')
+    });
     const filtered = () => {
       const q = normalize(state.search);
       return menu.filter((item) => {
@@ -157,22 +174,28 @@
         return normalize(`${item.product?.nombre || ''} ${cat} ${item.station || ''}`).includes(q);
       });
     };
+    const findLine = (id) => lines.find((line) => line.id === id) || null;
+    const removeLine = (id) => {
+      const index = lines.findIndex((line) => line.id === id);
+      if (index >= 0) lines.splice(index, 1);
+    };
 
     function updateTotal() {
-      let total = Number(dialog.querySelector('#deliveryFee')?.value || 0);
-      for (const [id, quantity] of selectedRows()) total += Number(byId.get(id)?.product?.precio1 || 0) * quantity;
+      const fee = amount(dialog.querySelector('#deliveryFee')?.value || 0);
+      const total = lines.reduce((sum, line) => sum + lineSubtotal(line), fee);
       totalRoot.textContent = money(total);
     }
 
     function renderCart() {
-      const selected = selectedRows();
-      const units = selected.reduce((sum, [, quantity]) => sum + quantity, 0);
-      countRoot.textContent = `${units} producto${units === 1 ? '' : 's'}`;
-      cartRoot.innerHTML = selected.length ? selected.map(([id, quantity]) => {
-        const item = byId.get(id);
-        return `<div class="delivery-v93-cart-line"><div><b>${esc(item?.product?.nombre || 'Producto')}</b><small>${money(item?.product?.precio1)} c/u</small></div><div class="delivery-v93-qty"><button type="button" data-v93-minus="${esc(id)}">−</button><strong>${quantity}</strong><button type="button" data-v93-plus="${esc(id)}">+</button></div></div>`;
+      const units = lines.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+      countRoot.textContent = `${units} producto${units === 1 ? '' : 's'} · ${lines.length} línea${lines.length === 1 ? '' : 's'}`;
+      cartRoot.innerHTML = lines.length ? lines.map((line) => {
+        const item = byId.get(line.menuItemId);
+        const base = basePrice(line.menuItemId);
+        const modified = amount(line.appliedUnitPrice) !== base;
+        return `<article class="delivery-v93-cart-line" data-v94-line="${esc(line.id)}"><div class="delivery-v93-cart-main"><div><b>${esc(item?.product?.nombre || 'Producto')}</b><small>Precio Carta: ${money(base)}${modified ? ' · PRECIO MODIFICADO' : ''}</small></div><div class="delivery-v93-line-fields"><label>Precio unitario<div class="delivery-v93-price"><span>$</span><input type="number" min="0" step="100" inputmode="decimal" data-v94-price="${esc(line.id)}" value="${amount(line.appliedUnitPrice)}"></div></label><label>Nota / instrucción<input maxlength="240" data-v94-note="${esc(line.id)}" value="${esc(line.notes)}" placeholder="Ej. SIN CEBOLLA / CON HIELO"></label></div></div><div class="delivery-v93-line-side"><div class="delivery-v93-qty"><button type="button" data-v94-minus="${esc(line.id)}">−</button><strong>${Number(line.quantity || 0)}</strong><button type="button" data-v94-plus="${esc(line.id)}">+</button></div><div class="delivery-v93-qty"><button type="button" class="wide" data-v94-duplicate="${esc(line.id)}">+ OTRA LÍNEA</button><button type="button" class="delivery-v93-remove" data-v94-remove="${esc(line.id)}">×</button></div><div class="delivery-v93-subtotal">${money(lineSubtotal(line))}</div></div></article>`;
       }).join('') : '<div class="delivery-v93-empty">Agrega productos desde la carta.</div>';
-      submit.disabled = !selected.length;
+      submit.disabled = !lines.length;
       updateTotal();
     }
 
@@ -185,15 +208,20 @@
       const shown = rows.slice(0, state.limit);
       menuRoot.innerHTML = shown.map((item) => {
         const warning = item.warning ? `<small class="menu-warning">${esc(item.warning)}</small>` : '';
-        return `<article class="menu-item"><b>${esc(item.product?.nombre || 'Producto')}</b><small>${esc(item.category || '')} · ${esc(item.station || '')}</small><strong>${money(item.product?.precio1)}</strong>${warning}<button type="button" class="rv2-btn rv2-btn-primary" data-v93-add="${esc(item.id)}" ${item.warning ? 'disabled' : ''}>+ Agregar</button></article>`;
+        const units = unitsFor(item.id);
+        return `<article class="menu-item"><b>${esc(item.product?.nombre || 'Producto')}</b><small>${esc(item.category || '')} · ${esc(item.station || '')}${units ? ` · ${units} agregado(s)` : ''}</small><strong>${money(item.product?.precio1)}</strong>${warning}<button type="button" class="rv2-btn rv2-btn-primary" data-v93-add="${esc(item.id)}" ${item.warning ? 'disabled' : ''}>+ Agregar</button></article>`;
       }).join('') || '<div class="delivery-v93-empty">No hay productos que coincidan.</div>';
       if (rows.length > shown.length) menuRoot.insertAdjacentHTML('beforeend', `<button type="button" class="delivery-v93-more" data-v93-more>VER ${Math.min(PAGE_SIZE, rows.length - shown.length)} MÁS</button>`);
     }
 
-    function setQty(id, delta) {
-      const item = byId.get(id);
+    function addDefault(menuItemId) {
+      const item = byId.get(menuItemId);
       if (!item || item.warning) return;
-      quantities.set(id, Math.max(0, Math.min(99, Number(quantities.get(id) || 0) + delta)));
+      const base = basePrice(menuItemId);
+      const existing = lines.find((line) => line.menuItemId === menuItemId && !String(line.notes || '').trim() && amount(line.appliedUnitPrice) === base);
+      if (existing) existing.quantity = Math.min(99, Number(existing.quantity || 0) + 1);
+      else lines.push(createLine(menuItemId));
+      renderMenu();
       renderCart();
     }
 
@@ -205,14 +233,50 @@
         state.category = button.dataset.v93Category; state.limit = PAGE_SIZE; renderCategories(); renderMenu(); return;
       }
       if (button.hasAttribute('data-v93-more')) { state.limit += PAGE_SIZE; renderMenu(); return; }
-      if (button.dataset.v93Add) return setQty(button.dataset.v93Add, 1);
-      if (button.dataset.v93Plus) return setQty(button.dataset.v93Plus, 1);
-      if (button.dataset.v93Minus) return setQty(button.dataset.v93Minus, -1);
+      if (button.dataset.v93Add) return addDefault(button.dataset.v93Add);
+      if (button.dataset.v94Plus) {
+        const line = findLine(button.dataset.v94Plus);
+        if (line) line.quantity = Math.min(99, Number(line.quantity || 0) + 1);
+        renderMenu(); renderCart(); return;
+      }
+      if (button.dataset.v94Minus) {
+        const line = findLine(button.dataset.v94Minus);
+        if (line) { line.quantity -= 1; if (line.quantity <= 0) removeLine(line.id); }
+        renderMenu(); renderCart(); return;
+      }
+      if (button.dataset.v94Duplicate) {
+        const line = findLine(button.dataset.v94Duplicate);
+        if (line) lines.push(createLine(line.menuItemId, { quantity:1, appliedUnitPrice:line.appliedUnitPrice, notes:'' }));
+        renderMenu(); renderCart(); return;
+      }
+      if (button.dataset.v94Remove) {
+        removeLine(button.dataset.v94Remove);
+        renderMenu(); renderCart();
+      }
     });
 
-    dialog.querySelector('#deliveryFee')?.addEventListener('input', updateTotal);
-    dialog.querySelector('#deliveryV93Search')?.addEventListener('input', (event) => {
-      state.search = event.target.value || ''; state.limit = PAGE_SIZE; renderMenu();
+    dialog.addEventListener('input', (event) => {
+      if (event.target?.id === 'deliveryFee') { updateTotal(); return; }
+      if (event.target?.id === 'deliveryV93Search') {
+        state.search = event.target.value || ''; state.limit = PAGE_SIZE; renderMenu(); return;
+      }
+      const priceId = event.target?.dataset?.v94Price;
+      if (priceId) {
+        const line = findLine(priceId);
+        const raw = Number(event.target.value);
+        if (line && Number.isFinite(raw) && raw >= 0) {
+          line.appliedUnitPrice = amount(raw);
+          const subtotal = event.target.closest('[data-v94-line]')?.querySelector('.delivery-v93-subtotal');
+          if (subtotal) subtotal.textContent = money(lineSubtotal(line));
+          updateTotal();
+        }
+        return;
+      }
+      const noteId = event.target?.dataset?.v94Note;
+      if (noteId) {
+        const line = findLine(noteId);
+        if (line) line.notes = String(event.target.value || '').slice(0, 240);
+      }
     });
 
     try {
@@ -228,13 +292,22 @@
     }
 
     submit.addEventListener('click', async () => {
-      const items = selectedRows().map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
+      const items = lines.filter((line) => Number(line.quantity) > 0).map((line) => ({
+        menuItemId:line.menuItemId,
+        quantity:Number(line.quantity),
+        notes:String(line.notes || '').trim() || null,
+        appliedUnitPrice:amount(line.appliedUnitPrice)
+      }));
       const customerName = String(dialog.querySelector('#deliveryName')?.value || '').trim();
       const customerPhone = String(dialog.querySelector('#deliveryPhone')?.value || '').trim();
       const address = String(dialog.querySelector('#deliveryAddress')?.value || '').trim();
       errorRoot.innerHTML = '';
       if (!customerName || !customerPhone || !address || !items.length) {
         errorRoot.innerHTML = '<div class="delivery-v93-error">Completa nombre, teléfono, dirección y agrega al menos un producto.</div>';
+        return;
+      }
+      if (items.some((item) => !Number.isFinite(item.appliedUnitPrice) || item.appliedUnitPrice < 0)) {
+        errorRoot.innerHTML = '<div class="delivery-v93-error">Revisa los precios. No se permiten valores negativos.</div>';
         return;
       }
       submit.disabled = true;
@@ -250,7 +323,7 @@
             neighborhood:String(dialog.querySelector('#deliveryNeighborhood')?.value || '').trim() || null,
             deliveryReference:String(dialog.querySelector('#deliveryReference')?.value || '').trim() || null,
             notes:String(dialog.querySelector('#deliveryNotes')?.value || '').trim() || null,
-            deliveryFee:Number(dialog.querySelector('#deliveryFee')?.value || 0),
+            deliveryFee:amount(dialog.querySelector('#deliveryFee')?.value || 0),
             promisedAt:new Date(Date.now() + minutes * 60000).toISOString(),
             channel:'MANUAL',
             items
@@ -276,13 +349,19 @@
 
   injectStyles();
   document.documentElement.dataset.deliveryOrdersCompactV93 = '1';
+  document.documentElement.dataset.deliveryLinePriceV94 = '1';
   window[MARKER] = Object.freeze({
-    version:'93.0.0',
+    version:'94.0.0',
     sameProductsAsOrders:true,
     sameVisualContractAsOrders:true,
     menuSource:MENU_PATH,
     fullOrdersMenuEndpoint:false,
     pageSize:PAGE_SIZE,
-    requiresTable:false
+    requiresTable:false,
+    linePriceOverride:true,
+    lineNotes:true,
+    basePriceUntouched:true,
+    deliveryFeeDefault:0
   });
+  window[V94_MARKER] = window[MARKER];
 })();
