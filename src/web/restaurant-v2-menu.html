@@ -30,6 +30,7 @@
         <p>Lo que ve el mesero y el cliente. La existencia física sigue perteneciendo al Inventario/Kardex del Super Core.</p>
       </div>
       <div class="cc-view-actions menu-actions">
+        <button id="manageCategories" class="rv2-btn" type="button">Categorías</button>
         <button id="newPrepared" class="rv2-btn rv2-btn-primary" type="button">+ Nuevo plato</button>
         <button id="addInventory" class="rv2-btn" type="button">+ Desde inventario</button>
       </div>
@@ -58,6 +59,21 @@
     <section id="menuGrid" class="menu-grid"></section>
   </main>
 
+  <dialog id="commercialCategoryDialog" class="menu-dialog menu-dialog-wide">
+    <div>
+      <div class="menu-dialog-head"><div><small>CATEGORÍAS COMERCIALES</small><h2>Organizar Carta</h2></div><button id="commercialCategoryClose" class="rv2-btn" type="button">Cerrar</button></div>
+      <div class="menu-dialog-body">
+        <div class="menu-info"><b>Estas son las categorías que ven el mesero y el cliente.</b><span>Puedes crear, renombrar y ordenar libremente. Cocina, Barra y Postres continúan usando su clasificación operativa independiente.</span></div>
+        <form id="commercialCategoryCreateForm" class="menu-category-create">
+          <input id="commercialCategoryNewName" class="menu-input" maxlength="80" placeholder="Ej. Hamburguesas, Pizzas, Jugos…" required>
+          <button class="rv2-btn rv2-btn-primary" type="submit">+ Agregar categoría</button>
+        </form>
+        <div id="commercialCategoryList" class="menu-category-list"></div>
+        <div id="commercialCategoryError" class="menu-error" hidden></div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="preparedDialog" class="menu-dialog">
     <form id="preparedForm" method="dialog">
       <div class="menu-dialog-head"><div><small>NUEVO PRODUCTO DE CARTA</small><h2>Nuevo plato / preparado</h2></div><button class="rv2-btn" type="button" data-close="preparedDialog">Cerrar</button></div>
@@ -65,7 +81,7 @@
         <div class="menu-grid2">
           <label>Nombre<input id="preparedName" class="menu-input" required maxlength="180"></label>
           <label>Precio<input id="preparedPrice" class="menu-input" type="number" min="0" step="1" required></label>
-          <label>Categoría visible<select id="preparedCommercialCategory" class="menu-select" required aria-label="Categoría visible de la Carta"><option value="Entradas">Entradas</option><option value="Fuertes">Fuertes</option><option value="Bebidas">Bebidas</option><option value="Postres">Postres</option></select></label>
+          <label>Categoría visible<select id="preparedCommercialCategory" class="menu-select" required aria-label="Categoría visible de la Carta"><option value="">Cargando categorías…</option></select></label>
           <label>Categoría operativa<select id="preparedCategory" class="menu-select"><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="BEBIDAS">Bebidas</option><option value="POSTRES">Postres</option></select></label>
           <label>Estación<select id="preparedStation" class="menu-select"><option value="COCINA">Cocina</option><option value="BARRA">Barra</option><option value="POSTRES">Postres</option></select></label>
           <label>SKU<input id="preparedSku" class="menu-input" maxlength="80" placeholder="Se genera si lo dejas vacío"></label>
@@ -86,7 +102,7 @@
         <input id="inventoryProductId" type="hidden" required>
         <div id="inventorySelected" class="menu-info"><span>Selecciona un producto existente del inventario.</span></div>
         <div class="menu-grid2">
-          <label>Categoría visible<input id="inventoryCommercialCategory" class="menu-input" maxlength="80" placeholder="Ej. Gaseosas"></label>
+          <label>Categoría visible<select id="inventoryCommercialCategory" class="menu-select" required><option value="">Cargando categorías…</option></select></label>
           <label>Categoría operativa<select id="inventoryCategory" class="menu-select"><option value="BEBIDAS">Bebidas</option><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="POSTRES">Postres</option></select></label>
           <label>Estación<select id="inventoryStation" class="menu-select"><option value="BARRA">Barra</option><option value="COCINA">Cocina</option><option value="POSTRES">Postres</option></select></label>
         </div>
@@ -105,7 +121,7 @@
         <div class="menu-grid2">
           <label>Nombre<input id="editName" class="menu-input" maxlength="180" required></label>
           <label>Precio<input id="editPrice" class="menu-input" type="number" min="0" step="1" required></label>
-          <label>Categoría visible<input id="editCommercialCategory" class="menu-input" maxlength="80"></label>
+          <label>Categoría visible<select id="editCommercialCategory" class="menu-select" required><option value="">Cargando categorías…</option></select></label>
           <label>Categoría operativa<select id="editCategory" class="menu-select"><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="BEBIDAS">Bebidas</option><option value="POSTRES">Postres</option></select></label>
           <label>Estación<select id="editStation" class="menu-select"><option value="COCINA">Cocina</option><option value="BARRA">Barra</option><option value="POSTRES">Postres</option></select></label>
           <label>Control<select id="editKind" class="menu-select"><option value="PREPARED">Preparado / sin control de inventario</option><option value="DIRECT">Descontar este mismo producto</option><option value="RECIPE">Descontar mediante receta</option></select></label>
@@ -133,7 +149,7 @@
 
   <script src="/app/restaurant-v2-sdk.js"></script>
   <script src="/app/restaurant-v2-menu.js"></script>
-  <script src="/app/restaurant-v2-menu-category-selector-v14.js?v=v14"></script>
+  <script src="/app/restaurant-v2-menu-category-selector-v14.js?v=v26"></script>
   <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
 </body>
 </html>
