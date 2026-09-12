@@ -2,31 +2,42 @@
 
 const identity = require('./restaurant-identity.service');
 const settlementFinalizer = require('./restaurant-settlement-finalizer.service');
+const delivery = require('./restaurant-delivery.service');
 const receipts = require('./restaurant-pos-receipt-print.service');
 const splitPartReceipts = require('./restaurant-split-part-receipt-v20.service');
+const deliveryReceipts = require('./restaurant-delivery-receipt.service');
 
 const IDENTITY_FLAG = Symbol.for('vantixgc.restaurant.pos.receipt.identity.v38');
 const SPLIT_FLAG = Symbol.for('vantixgc.restaurant.pos.receipt.split.v38');
+const DELIVERY_FLAG = Symbol.for('vantixgc.restaurant.pos.receipt.delivery.v1');
 const SPLIT_ROUTING_FLAG = Symbol.for('vantixgc.restaurant.pos.receipt.split.routing.v20');
 
 function installSplitReceiptRouting() {
   if (receipts[SPLIT_ROUTING_FLAG]) return;
   const originalRecentJobs = receipts.buildRecentReceiptJobs.bind(receipts);
 
-  const combinedJobs = async function buildRecentReceiptJobsWithSplitParts(tenantId) {
-    const [base, split] = await Promise.all([
+  const combinedJobs = async function buildRecentReceiptJobsWithSplitPartsAndDeliveries(tenantId) {
+    const [base, split, deliveryReceipt] = await Promise.all([
       originalRecentJobs(tenantId),
-      splitPartReceipts.buildPendingSplitPartReceiptJobs(tenantId)
+      splitPartReceipts.buildPendingSplitPartReceiptJobs(tenantId),
+      deliveryReceipts.buildPendingDeliveryReceiptJobs(tenantId)
     ]);
     const splitJobs = Array.isArray(split?.jobs) ? split.jobs : [];
+    const deliveryJobs = Array.isArray(deliveryReceipt?.jobs) ? deliveryReceipt.jobs : [];
     return {
       ...base,
-      jobs: [...(base?.jobs || []), ...splitJobs],
-      receiptCount: Number(base?.receiptCount || 0) + Number(split?.receiptCount || 0),
+      jobs: [...(base?.jobs || []), ...splitJobs, ...deliveryJobs],
+      receiptCount: Number(base?.receiptCount || 0) + Number(split?.receiptCount || 0) + Number(deliveryReceipt?.receiptCount || 0),
       splitPartReceiptCount: Number(split?.splitPartReceiptCount || 0),
       splitPartReceiptJobCount: splitJobs.length,
-      printerCount: Math.max(Number(base?.printerCount || 0), Number(split?.printerCount || 0)),
-      routing: base?.routing && base.routing !== 'NO_PHYSICAL_PRINTER' ? base.routing : (split?.routing || base?.routing)
+      deliveryReceiptCount: Number(deliveryReceipt?.deliveryReceiptCount || 0),
+      deliveryReceiptJobCount: deliveryJobs.length,
+      printerCount: Math.max(Number(base?.printerCount || 0), Number(split?.printerCount || 0), Number(deliveryReceipt?.printerCount || 0)),
+      routing: base?.routing && base.routing !== 'NO_PHYSICAL_PRINTER'
+        ? base.routing
+        : (deliveryReceipt?.routing && deliveryReceipt.routing !== 'NO_PHYSICAL_PRINTER'
+          ? deliveryReceipt.routing
+          : (split?.routing || deliveryReceipt?.routing || base?.routing))
     };
   };
 
@@ -66,9 +77,26 @@ function installPosReceiptHooks() {
     Object.defineProperty(settlementFinalizer, SPLIT_FLAG, { value: true });
   }
 
-  return { identity, settlementFinalizer };
+  if (!delivery[DELIVERY_FLAG]) {
+    const originalDeliveryPayment = delivery.registerDeliveryPayment.bind(delivery);
+    delivery.registerDeliveryPayment = async function registerDeliveryPaymentWithPosReceipt(tenantId, user, deliveryId, input) {
+      const result = await originalDeliveryPayment(tenantId, user, deliveryId, input);
+      await deliveryReceipts.queueDeliveryReceiptIntent(tenantId, deliveryId).catch(() => {});
+      return result;
+    };
+    Object.defineProperty(delivery, DELIVERY_FLAG, { value: true });
+  }
+
+  return { identity, settlementFinalizer, delivery };
 }
 
 installPosReceiptHooks();
 
-module.exports = { IDENTITY_FLAG, SPLIT_FLAG, SPLIT_ROUTING_FLAG, installSplitReceiptRouting, installPosReceiptHooks };
+module.exports = {
+  IDENTITY_FLAG,
+  SPLIT_FLAG,
+  DELIVERY_FLAG,
+  SPLIT_ROUTING_FLAG,
+  installSplitReceiptRouting,
+  installPosReceiptHooks
+};
