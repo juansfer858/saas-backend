@@ -12,7 +12,7 @@ on:
       - 'src/web/vantix-tenant-realtime.js'
       - 'src/modules/notifications/push-v65.*'
       - 'scripts/restaurant-v2-kds-p6-db-smoke.js'
-      - 'scripts/restaurant-v2-kds-order-cancel-v97-db-smoke.js'
+      - 'scripts/restaurant-v2-kds-order-cancel-v98-db-smoke.js'
       - '.github/workflows/restaurant-v2-kds-p6-ci.yml'
   push:
     branches: [main]
@@ -26,7 +26,7 @@ on:
       - 'src/web/vantix-tenant-realtime.js'
       - 'src/modules/notifications/push-v65.*'
       - 'scripts/restaurant-v2-kds-p6-db-smoke.js'
-      - 'scripts/restaurant-v2-kds-order-cancel-v97-db-smoke.js'
+      - 'scripts/restaurant-v2-kds-order-cancel-v98-db-smoke.js'
       - '.github/workflows/restaurant-v2-kds-p6-ci.yml'
 permissions:
   contents: read
@@ -58,7 +58,7 @@ jobs:
       - run: npm run build
       - run: npx prisma db push
       - run: node scripts/restaurant-v2-kds-p6-db-smoke.js
-      - run: node scripts/restaurant-v2-kds-order-cancel-v97-db-smoke.js
+      - run: node scripts/restaurant-v2-kds-order-cancel-v98-db-smoke.js
       - run: node --check src/modules/restaurant/restaurant-v2-kds.service.js
       - run: node --check src/modules/restaurant/restaurant-v2-kds-push.service.js
       - run: node --check src/modules/restaurant/restaurant-v2-kds.routes.js
@@ -69,7 +69,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - name: Verify exact KDS V2 P6 in production
+      - name: Verify exact KDS V2 P6 + Cancel V98 in production
         run: |
           set -euo pipefail
           BASE='https://core.vantixgc.com'
@@ -85,10 +85,12 @@ jobs:
               grep -Fq 'COCINA/KDS/PUSH P6' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_KDS_P6' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_KDS_P6' "$C"
+              grep -Fq 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98' "$C"
               grep -Fq 'vantix:tenant-realtime' "$J"
               grep -Fq 'transport:'"'"'SSE+PG_NOTIFY'"'"'' "$R"
               grep -Fq 'restaurant-push-v65.js' "$P"
-              echo "KDS V2 P6 live at $GITHUB_SHA"
+              echo "KDS V2 P6 + Cancel V98 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10

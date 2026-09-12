@@ -12,10 +12,10 @@ const realtime = require('../realtime/tenant-realtime.service');
 
 const MARKER = 'VANTIX_RESTAURANT_V2_KDS_P6';
 const DELIVERY_INTEGRATION = 'VANTIX_RESTAURANT_V2_KDS_DELIVERY_V87';
-const ORDER_CANCEL_MARKER = 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V97';
+const ORDER_CANCEL_MARKER = 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98';
 const QUEUES = Object.freeze(['COCINA', 'BARRA', 'POSTRES']);
 const ACTIVE_STATES = Object.freeze(['PENDIENTE', 'EN_PREPARACION', 'LISTA']);
-const CANCELABLE_COMMAND_STATES = Object.freeze(['PENDIENTE', 'EN_PREPARACION', 'LISTA']);
+const CANCELABLE_COMMAND_STATES = Object.freeze(['PENDIENTE']);
 const NEXT_STATE = Object.freeze({ PENDIENTE:'EN_PREPARACION', EN_PREPARACION:'LISTA', LISTA:'ENTREGADA' });
 
 function normalizeQueue(value) {
@@ -64,10 +64,10 @@ function uniqueStations(commands = []) {
 }
 
 function cancellationEligibility(order, sale) {
-  if (!order || order.state !== 'EN_PREPARACION') return { canCancelOrder:false, cancellationBlockReason:'ORDER_NOT_PREPARING' };
+  if (!order || order.state !== 'ENVIADO') return { canCancelOrder:false, cancellationBlockReason:'ORDER_ALREADY_TAKEN' };
   const commands = Array.isArray(order.commands) ? order.commands : [];
-  if (!commands.length || commands.some((row) => !CANCELABLE_COMMAND_STATES.includes(row.state))) {
-    return { canCancelOrder:false, cancellationBlockReason:'COMMAND_ALREADY_FINAL' };
+  if (!commands.length || commands.some((row) => row.state !== 'PENDIENTE')) {
+    return { canCancelOrder:false, cancellationBlockReason:'COMMAND_ALREADY_TAKEN' };
   }
   if (!sale || sale.estado !== 'BORRADOR') return { canCancelOrder:false, cancellationBlockReason:'SALE_NOT_DRAFT' };
   if ((order.session?.sessionPayments || []).length > 0) return { canCancelOrder:false, cancellationBlockReason:'PAYMENT_EXISTS' };
@@ -227,11 +227,11 @@ async function cancelOrder(tenantId, user, orderId, input = {}) {
       }
     });
     if (!order) throw new AppError(404, 'Pedido no encontrado', 'RESTAURANT_ORDER_NOT_FOUND');
-    if (order.state !== 'EN_PREPARACION') {
-      throw new AppError(409, 'Solo se puede cancelar un pedido completo mientras está en preparación', 'RESTAURANT_V2_KDS_CANCEL_ORDER_STATE_INVALID', { state:order.state });
+    if (order.state !== 'ENVIADO') {
+      throw new AppError(409, 'El pedido ya fue tomado. Solo puede cancelarse mientras todas sus comandas estén pendientes', 'RESTAURANT_V2_KDS_CANCEL_ORDER_STATE_INVALID', { state:order.state });
     }
-    if (!order.commands.length || order.commands.some((row) => !CANCELABLE_COMMAND_STATES.includes(row.state))) {
-      throw new AppError(409, 'El pedido ya tiene una estación entregada o finalizada y no puede cancelarse desde Producción', 'RESTAURANT_V2_KDS_CANCEL_COMMAND_FINAL', {
+    if (!order.commands.length || order.commands.some((row) => row.state !== 'PENDIENTE')) {
+      throw new AppError(409, 'El pedido ya fue tomado por una estación y no puede cancelarse desde Producción', 'RESTAURANT_V2_KDS_CANCEL_COMMAND_FINAL', {
         commands:order.commands.map((row) => ({ id:row.id, station:row.station, state:row.state }))
       });
     }
@@ -268,24 +268,22 @@ async function cancelOrder(tenantId, user, orderId, input = {}) {
     const affectedStations = uniqueStations(order.commands);
     const previousCommands = order.commands.map((row) => ({ id:row.id, station:row.station, state:row.state }));
 
-    // Reclamar el pedido evita dobles cancelaciones concurrentes. Si otro proceso cambió
-    // el agregado mientras se confirmaba el motivo, toda la operación se aborta sin efectos parciales.
+    // Reclamar el agregado ENVIADO evita dobles cancelaciones concurrentes.
+    // Si una estación toma la comanda mientras se confirma el motivo, todo hace rollback.
     const claimedOrder = await tx.restaurantOrder.updateMany({
-      where:{ id:order.id, tenantId, state:'EN_PREPARACION' },
+      where:{ id:order.id, tenantId, state:'ENVIADO' },
       data:{ state:'CANCELADO' }
     });
     if (claimedOrder.count !== 1) {
       throw new AppError(409, 'El pedido cambió mientras se confirmaba la cancelación', 'RESTAURANT_V2_KDS_CANCEL_ORDER_RACE');
     }
 
-    // Ninguna estación puede quedar activa. El filtro de estado detecta una entrega
-    // concurrente y fuerza rollback de la cancelación completa.
     const cancelledCommands = await tx.restaurantCommand.updateMany({
-      where:{ tenantId, orderId:order.id, state:{ in:CANCELABLE_COMMAND_STATES } },
+      where:{ tenantId, orderId:order.id, state:'PENDIENTE' },
       data:{ state:'CANCELADA' }
     });
     if (cancelledCommands.count !== order.commands.length) {
-      throw new AppError(409, 'Una estación cambió de estado durante la cancelación; no se modificó el pedido', 'RESTAURANT_V2_KDS_CANCEL_COMMAND_RACE');
+      throw new AppError(409, 'Una estación tomó la comanda durante la cancelación; no se modificó el pedido', 'RESTAURANT_V2_KDS_CANCEL_COMMAND_RACE');
     }
 
     // La venta debe seguir siendo BORRADOR al momento exacto de afectar sus totales.
@@ -317,7 +315,7 @@ async function cancelOrder(tenantId, user, orderId, input = {}) {
         entidadId:order.id,
         accion:'RESTAURANT_ORDER_CANCELLED_KDS',
         metadata:{
-          label:'Cancelación de pedido en Producción/KDS',
+          label:'Cancelación de pedido pendiente en Producción/KDS',
           module:'RESTAURANT_KDS',
           subject:'ORDER_CANCELLATION',
           reason,
@@ -350,7 +348,7 @@ async function cancelOrder(tenantId, user, orderId, input = {}) {
     tenantId,
     ['restaurant','restaurant.order','restaurant.command'],
     { orderId:result.orderId, tableId:result.tableId },
-    { source:'restaurant-v2-kds-order-cancel-v97', action:'cancel-order' }
+    { source:'restaurant-v2-kds-order-cancel-v98', action:'cancel-order' }
   ).catch(()=>{});
 
   return { marker:MARKER, orderCancellation:ORDER_CANCEL_MARKER, commandSource:'RESTAURANT', ...result };
