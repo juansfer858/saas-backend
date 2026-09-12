@@ -21,6 +21,7 @@ const runtime = String.raw`
     if(/^\/api\/v1\/restaurante\/mesas\/[^/]+\/cerrar$/.test(path))return true;
     if(/^\/api\/v1\/restaurante\/mesas\/[^/]+\/cerrar-con-metodo$/.test(path))return true;
     if(/^\/api\/v1\/restaurante\/mesas\/[^/]+\/pagos-divididos$/.test(path))return true;
+    if(/^\/api\/v1\/restaurante\/domicilios\/[^/]+\/pago$/.test(path))return true;
     return false;
   }
   async function signalReceiptSync(){
@@ -52,7 +53,7 @@ const runtime = String.raw`
     if(shouldTrigger&&response.ok)queueReceiptSync();
     return response;
   };
-  window.VantixGCRestaurantPosReceiptV38=Object.freeze({version:'38.0.0',automatic:true,edgeAction:'PRINT_QUEUE',operation:'POS_RECEIPT_SYNC'});
+  window.VantixGCRestaurantPosReceiptV38=Object.freeze({version:'38.0.0',automatic:true,edgeAction:'PRINT_QUEUE',operation:'POS_RECEIPT_SYNC',deliveryPayment:true});
 })();
 `;
 
