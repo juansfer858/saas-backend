@@ -9,6 +9,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $DataDir = Join-Path $InstallDir 'data'
 $LogFile = Join-Path $DataDir 'watchdog.log'
 $StateFile = Join-Path $DataDir 'watchdog-state.json'
+$SupervisorScript = Join-Path $InstallDir 'supervisor\supervisor.js'
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
 $Mutex = New-Object System.Threading.Mutex($false, 'Global\VantixGCEdgeWatchdog')
@@ -46,6 +47,39 @@ function Test-LocalHealth {
   } catch { return $false }
 }
 
+function Get-SupervisorProcess {
+  try {
+    return Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $_.CommandLine -and $_.CommandLine.IndexOf($SupervisorScript, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    } | Select-Object -First 1
+  } catch { return $null }
+}
+
+function Test-SupervisorProtection {
+  $Task = Get-ScheduledTask -TaskName $SupervisorTaskName -ErrorAction SilentlyContinue
+  if (-not $Task) { return $false }
+  $Process = Get-SupervisorProcess
+  return ($Task.State -eq 'Running' -and $null -ne $Process)
+}
+
+function Stop-OrphanEdgeAgent {
+  try {
+    $NormalizedRoot = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
+    $Processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $_.ProcessId -and
+      $_.ExecutablePath -and
+      $_.ExecutablePath.StartsWith($NormalizedRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+      $_.CommandLine -and
+      $_.CommandLine.IndexOf($SupervisorScript, [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+      ($_.CommandLine -match '(?i)\\agent\\(universal-entry|workspace-entry|server)\.js')
+    }
+    foreach ($Process in $Processes) {
+      Write-WatchdogLog ("ORPHAN_AGENT_STOP pid={0}" -f $Process.ProcessId)
+      try { Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+    }
+  } catch {}
+}
+
 function Restart-SupervisorTask {
   $Task = Get-ScheduledTask -TaskName $SupervisorTaskName -ErrorAction SilentlyContinue
   if (-not $Task) {
@@ -62,13 +96,41 @@ function Restart-SupervisorTask {
   return $true
 }
 
+function Wait-Recovered {
+  for ($Attempt = 1; $Attempt -le 10; $Attempt++) {
+    Start-Sleep -Seconds 2
+    if ((Test-LocalHealth) -and (Test-SupervisorProtection)) { return $true }
+  }
+  return $false
+}
+
 try {
   $State = Read-State
   $Now = (Get-Date).ToUniversalTime().ToString('o')
+  $LocalHealthy = Test-LocalHealth
+  $SupervisorProtected = Test-SupervisorProtection
 
-  if (Test-LocalHealth) {
+  if ($LocalHealthy -and $SupervisorProtected) {
     if ([int]$State.failures -gt 0) { Write-WatchdogLog "HEALTH_RECOVERED without_restart" }
     Write-State 0 $Now ([string]$State.lastRecoveryAt)
+    exit 0
+  }
+
+  if ($LocalHealthy -and -not $SupervisorProtected) {
+    Write-WatchdogLog "SUPERVISOR_PROTECTION_MISSING local_health=healthy"
+    Stop-OrphanEdgeAgent
+    Start-Sleep -Seconds 2
+    if (-not (Restart-SupervisorTask)) { exit 0 }
+
+    $Recovered = Wait-Recovered
+    $RecoveredAt = (Get-Date).ToUniversalTime().ToString('o')
+    if ($Recovered) {
+      Write-WatchdogLog "PROTECTION_RECOVERY_OK"
+      Write-State 0 $RecoveredAt $RecoveredAt
+    } else {
+      Write-WatchdogLog "PROTECTION_RECOVERY_PENDING"
+      Write-State $FailureThreshold ([string]$State.lastHealthyAt) ([string]$State.lastRecoveryAt)
+    }
     exit 0
   }
 
@@ -79,15 +141,7 @@ try {
   if ($Failures -lt [Math]::Max(1, $FailureThreshold)) { exit 0 }
   if (-not (Restart-SupervisorTask)) { exit 0 }
 
-  $Recovered = $false
-  for ($Attempt = 1; $Attempt -le 10; $Attempt++) {
-    Start-Sleep -Seconds 2
-    if (Test-LocalHealth) {
-      $Recovered = $true
-      break
-    }
-  }
-
+  $Recovered = Wait-Recovered
   $RecoveredAt = (Get-Date).ToUniversalTime().ToString('o')
   if ($Recovered) {
     Write-WatchdogLog "RECOVERY_OK"
