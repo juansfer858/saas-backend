@@ -128,7 +128,9 @@ async function buildPendingDeliveryReceiptJobs(tenantId) {
       tipAmount: 0,
       paymentMethodKind: delivery.paymentMethod || null,
       paymentMethodLabel: paymentLabel(delivery),
-      paymentReference: null
+      paymentReference: null,
+      deliveryPhone: delivery.customerPhone || null,
+      deliveryAddress: delivery.address || null
     };
     const table = {
       id: delivery.id,
