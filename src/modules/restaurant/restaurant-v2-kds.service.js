@@ -268,11 +268,29 @@ async function cancelOrder(tenantId, user, orderId, input = {}) {
     const affectedStations = uniqueStations(order.commands);
     const previousCommands = order.commands.map((row) => ({ id:row.id, station:row.station, state:row.state }));
 
-    await tx.detalleComprobante.deleteMany({
-      where:{ tenantId, comprobanteId:sale.id, id:{ in:saleDetailIds } }
+    // Reclamar el pedido evita dobles cancelaciones concurrentes. Si otro proceso cambió
+    // el agregado mientras se confirmaba el motivo, toda la operación se aborta sin efectos parciales.
+    const claimedOrder = await tx.restaurantOrder.updateMany({
+      where:{ id:order.id, tenantId, state:'EN_PREPARACION' },
+      data:{ state:'CANCELADO' }
     });
-    await tx.comprobanteComercial.update({
-      where:{ id:sale.id },
+    if (claimedOrder.count !== 1) {
+      throw new AppError(409, 'El pedido cambió mientras se confirmaba la cancelación', 'RESTAURANT_V2_KDS_CANCEL_ORDER_RACE');
+    }
+
+    // Ninguna estación puede quedar activa. El filtro de estado detecta una entrega
+    // concurrente y fuerza rollback de la cancelación completa.
+    const cancelledCommands = await tx.restaurantCommand.updateMany({
+      where:{ tenantId, orderId:order.id, state:{ in:CANCELABLE_COMMAND_STATES } },
+      data:{ state:'CANCELADA' }
+    });
+    if (cancelledCommands.count !== order.commands.length) {
+      throw new AppError(409, 'Una estación cambió de estado durante la cancelación; no se modificó el pedido', 'RESTAURANT_V2_KDS_CANCEL_COMMAND_RACE');
+    }
+
+    // La venta debe seguir siendo BORRADOR al momento exacto de afectar sus totales.
+    const updatedSale = await tx.comprobanteComercial.updateMany({
+      where:{ id:sale.id, tenantId, estado:'BORRADOR' },
       data:{
         subtotal:{ decrement:totals.subtotal },
         ivaTotal:{ decrement:totals.iva },
@@ -280,14 +298,17 @@ async function cancelOrder(tenantId, user, orderId, input = {}) {
         total:{ decrement:totals.total }
       }
     });
-    await tx.restaurantCommand.updateMany({
-      where:{ tenantId, orderId:order.id },
-      data:{ state:'CANCELADA' }
+    if (updatedSale.count !== 1) {
+      throw new AppError(409, 'La venta dejó de estar en borrador durante la cancelación', 'RESTAURANT_V2_KDS_CANCEL_SALE_RACE');
+    }
+
+    const deletedDetails = await tx.detalleComprobante.deleteMany({
+      where:{ tenantId, comprobanteId:sale.id, id:{ in:saleDetailIds } }
     });
-    await tx.restaurantOrder.update({
-      where:{ id:order.id },
-      data:{ state:'CANCELADO' }
-    });
+    if (deletedDetails.count !== saleDetailIds.length) {
+      throw new AppError(409, 'Las líneas de la venta cambiaron durante la cancelación', 'RESTAURANT_V2_KDS_CANCEL_SALE_DETAILS_RACE');
+    }
+
     await tx.auditoriaContable.create({
       data:{
         tenantId,
