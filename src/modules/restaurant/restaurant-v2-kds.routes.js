@@ -9,6 +9,7 @@ const service = require('./restaurant-v2-kds.service');
 const router = express.Router();
 const querySchema = z.object({ station:z.enum(['COCINA','BARRA','POSTRES']).optional(), limit:z.coerce.number().int().min(1).max(500).optional() });
 const stateSchema = z.object({ state:z.enum(['EN_PREPARACION','LISTA','ENTREGADA']) });
+const cancelOrderSchema = z.object({ reason:z.string().trim().min(1,'El motivo es obligatorio').max(500) });
 function parse(schema,value){const parsed=schema.safeParse(value||{});if(!parsed.success)throw new AppError(400,'Datos KDS V2 inválidos','VALIDATION_ERROR',parsed.error.flatten());return parsed.data}
 
 router.get('/v2/kds', requirePermission('COMANDAS.VER'), async (req,res,next) => {
@@ -17,6 +18,10 @@ router.get('/v2/kds', requirePermission('COMANDAS.VER'), async (req,res,next) =>
 });
 router.patch('/v2/kds/comandas/:id', requirePermission('COMANDAS.EDITAR'), async (req,res,next) => {
   try { const input=parse(stateSchema,req.body);res.json({ ok:true, data:await service.updateState(req.tenantId, req.user, req.params.id, input.state) }); }
+  catch (error) { next(error); }
+});
+router.post('/v2/kds/pedidos/:id/cancelar', requirePermission('COMANDAS.EDITAR'), async (req,res,next) => {
+  try { const input=parse(cancelOrderSchema,req.body);res.json({ ok:true, data:await service.cancelOrder(req.tenantId, req.user, req.params.id, input) }); }
   catch (error) { next(error); }
 });
 
