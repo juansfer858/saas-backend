@@ -8,6 +8,7 @@ const CP850_EXTENDED = '\u00c7\u00fc\u00e9\u00e2\u00e4\u00e0\u00e5\u00e7\u00ea\u
 const CP850_REVERSE = new Map(Array.from(CP850_EXTENDED, (char, index) => [char, 0x80 + index]));
 const RESTAURANT_COMMAND_LARGE_V2 = 'RESTAURANT_COMMAND_LARGE_V2';
 const RESTAURANT_POS_RECEIPT_TYPE = 'RESTAURANT_POS_V1';
+const COMMAND_CUTTER_FEED_LINES = 5;
 const DEFAULT_COMMAND_LAYOUT = Object.freeze({
   itemAlign: 'CENTER',
   noteAlign: 'CENTER',
@@ -69,6 +70,11 @@ function bold(enabled) {
 
 function size(value) {
   return Buffer.from([GS, 0x21, value]);
+}
+
+function feedLines(value) {
+  const lines = Math.max(0, Math.min(255, Number(value) || 0));
+  return Buffer.from([ESC, 0x64, lines]);
 }
 
 function commandDateTime(value) {
@@ -174,8 +180,12 @@ function buildRestaurantCommandLargeV2(job = {}) {
   if (layout.showTrace && job.traceLabel) chunks.push(text(`${String(job.traceLabel).toUpperCase()}\n`));
   if (layout.showBottomDateTime && (when.date || when.time)) chunks.push(text(`${[when.date, when.time].filter(Boolean).join(' · ')}\n`));
   chunks.push(size(0x00), bold(false), align(0));
-  chunks.push(text('\n\n\n'));
-  if (job.cut !== false) chunks.push(Buffer.from([GS, 0x56, 0x00]));
+  if (job.cut !== false) {
+    chunks.push(feedLines(COMMAND_CUTTER_FEED_LINES));
+    chunks.push(Buffer.from([GS, 0x56, 0x00]));
+  } else {
+    chunks.push(text('\n\n\n'));
+  }
   return Buffer.concat(chunks);
 }
 
@@ -278,6 +288,7 @@ module.exports = {
   selectCp850,
   RESTAURANT_COMMAND_LARGE_V2,
   RESTAURANT_POS_RECEIPT_TYPE,
+  COMMAND_CUTTER_FEED_LINES,
   DEFAULT_COMMAND_LAYOUT,
   normalizeCommandLayout,
   buildRestaurantCommandLargeV2,
