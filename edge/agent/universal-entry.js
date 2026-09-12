@@ -2,14 +2,54 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const registry = require('../runtime/vertical-registry');
 
 const CORE_BASE_URL = String(process.env.CORE_BASE_URL || '').replace(/\/$/, '');
 const EDGE_AGENT_ID = process.env.EDGE_AGENT_ID || '';
 const EDGE_AGENT_KEY = process.env.EDGE_AGENT_KEY || '';
-const INSTALL_ROOT = process.env.EDGE_INSTALL_ROOT || path.resolve(__dirname, '..');
+const RELEASE_ROOT = path.resolve(__dirname, '..');
+const INFERRED_INSTALL_ROOT = path.basename(RELEASE_ROOT).toLowerCase() === 'current'
+  ? path.resolve(RELEASE_ROOT, '..')
+  : RELEASE_ROOT;
+const INSTALL_ROOT = process.env.EDGE_INSTALL_ROOT || INFERRED_INSTALL_ROOT;
 const DATA_DIR = process.env.EDGE_DATA_DIR || path.join(INSTALL_ROOT, 'data');
 const MANIFEST_FILE = path.join(DATA_DIR, 'vertical-manifest.json');
+
+function samePath(a, b) {
+  try {
+    return path.resolve(a).replace(/[\\/]+$/, '').toLowerCase() === path.resolve(b).replace(/[\\/]+$/, '').toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function scheduleWindowsFleetRepair() {
+  if (process.platform !== 'win32' || samePath(RELEASE_ROOT, INSTALL_ROOT)) return;
+  const bootstrap = path.join(RELEASE_ROOT, 'supervisor', 'fleet-repair-bootstrap-windows.ps1');
+  if (!fs.existsSync(bootstrap)) return;
+  try {
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy', 'Bypass',
+      '-File', bootstrap,
+      '-InstallDir', INSTALL_ROOT,
+      '-ReleaseRoot', RELEASE_ROOT
+    ], {
+      windowsHide: true,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      timeout: 7000
+    });
+    if (result.error || result.status !== 0) {
+      const detail = result.error?.message || String(result.stderr || result.stdout || `exit=${result.status}`).trim();
+      console.error(`EDGE_FLEET_REPAIR_BOOTSTRAP_FAILED: ${detail}`);
+    }
+  } catch (error) {
+    console.error(`EDGE_FLEET_REPAIR_BOOTSTRAP_FAILED: ${error.message || error}`);
+  }
+}
 
 function readCachedManifest() {
   try {
@@ -60,6 +100,8 @@ function startWithManifest(manifest) {
   process.env.EDGE_ACTIVE_ADAPTER = '';
   require('./server');
 }
+
+scheduleWindowsFleetRepair();
 
 (async () => {
   const online = await fetchManifest();

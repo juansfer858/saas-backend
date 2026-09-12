@@ -1,5 +1,6 @@
 {
-  "installRecommended": "2.1.15-offline-print.1",
+  "fleetRolloutVersion": "",
+  "installRecommended": "2.1.16-self-heal.4",
   "releases": {
     "2.1.10-spanish-pos.1": {
       "channel": "PILOT",
@@ -55,6 +56,12 @@
       "sha256": "64354adbff308585313561621e58aa5bcbe9b12f729735a51836596fe84d0bb9",
       "sourceCommit": "87f172160f8ad4d03800b0ca5e0ed2aff05cffd9"
     },
+    "2.1.16-self-heal.4": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.16-self-heal.4.zip",
+      "sha256": "af1266a901e62f17b759242cad8c2584a504a61851af1a7fdc68167332d03a49",
+      "sourceCommit": "3e2b2b217fadb0944462e1cce7e00ff0b0077018"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
@@ -65,7 +72,7 @@
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.9-print-templates.1.zip",
       "sha256": "a3347fe250c6f98234620daecf63f24a5992d0819efea617312170d0100e33f4",
-      "sourceCommit": "ff284752690a71162da35f87074aebdd91cee1c2"
+      "sourceCommit": "ff284752690a71162da35f87074aebdd91cee1c"
     }
   },
   "schema": "vantixgc-edge-core-artifacts-v1"

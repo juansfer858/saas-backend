@@ -9,7 +9,9 @@ on:
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/public-installer.html'
       - 'src/web/platform-restaurant-fiscal-governance.js'
+      - 'src/web/restaurant-v2-admin-parity.html'
       - 'scripts/public-installer-workspace-smoke.js'
+      - 'scripts/restaurant-edge-repair-device-v95-4-smoke.js'
       - 'public/edge-releases/manifest.json'
       - '.github/workflows/platform-restaurant-installer-ci.yml'
   push:
@@ -20,7 +22,9 @@ on:
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/web/public-installer.html'
       - 'src/web/platform-restaurant-fiscal-governance.js'
+      - 'src/web/restaurant-v2-admin-parity.html'
       - 'scripts/public-installer-workspace-smoke.js'
+      - 'scripts/restaurant-edge-repair-device-v95-4-smoke.js'
       - 'public/edge-releases/manifest.json'
       - '.github/workflows/platform-restaurant-installer-ci.yml'
 
@@ -36,6 +40,8 @@ jobs:
           node-version: '22'
       - name: Validate public installer and recommended Edge contract
         run: node scripts/public-installer-workspace-smoke.js
+      - name: Validate manual Edge repair from Devices
+        run: node scripts/restaurant-edge-repair-device-v95-4-smoke.js
 
   verify-production:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -50,22 +56,24 @@ jobs:
           for attempt in $(seq 1 75); do
             BODY="$(curl -fsS --max-time 8 https://core.vantixgc.com/api/public/runtime-info 2>/dev/null || true)"
             if grep -q "\"commit\":\"${GITHUB_SHA}\"" <<<"$BODY"; then
-              echo "INSTALLER_V53_EXACT_PRODUCTION_COMMIT_OK attempt=$attempt"
+              echo "INSTALLER_V95_4_EXACT_PRODUCTION_COMMIT_OK attempt=$attempt"
               exit 0
             fi
-            echo "Esperando commit exacto del instalador V53... attempt=$attempt expected=$GITHUB_SHA"
+            echo "Esperando commit exacto del instalador V95.4... attempt=$attempt expected=$GITHUB_SHA"
             sleep 10
           done
           echo "Producción no desplegó el commit $GITHUB_SHA dentro del tiempo esperado." >&2
           exit 1
 
-      - name: Verify installer V53 and recommended Edge in production
+      - name: Verify installer, repair script and recommended Edge in production
         shell: bash
         run: |
           set -euo pipefail
           PAGE="$(curl -fsS --max-time 12 https://core.vantixgc.com/instalar)"
           PANEL="$(curl -fsS --max-time 12 https://core.vantixgc.com/platform/restaurant-fiscal-governance.js)"
           PS1="$(curl -fsS --max-time 15 https://core.vantixgc.com/instalar/windows.ps1)"
+          REPAIR_CMD="$(curl -fsS --max-time 15 https://core.vantixgc.com/reparar-edge/windows.cmd)"
+          REPAIR_PS="$(curl -fsS --max-time 15 https://core.vantixgc.com/reparar-edge/windows.ps1)"
           MANIFEST="$(curl -fsS --max-time 15 https://core.vantixgc.com/edge-releases/manifest.json)"
           grep -q 'Instalar VantixGC Restaurantes' <<<"$PAGE"
           grep -q 'VANTIXGC_PLATFORM_RESTAURANT_INSTALLER_V1' <<<"$PANEL"
@@ -73,14 +81,20 @@ jobs:
           grep -q '\$StableCandidates = @()' <<<"$PS1"
           grep -q '\$ReleaseManifest.installRecommended' <<<"$PS1"
           ! grep -q 'github.com/juansfer858/saas-backend/archive/\$Commit.zip' <<<"$PS1"
+          grep -q '/reparar-edge/windows.ps1' <<<"$REPAIR_CMD"
+          grep -q '2.1.16-self-heal.4' <<<"$REPAIR_PS"
+          grep -q 'REPARACION COMPLETADA' <<<"$REPAIR_PS"
+          grep -q 'restart-liveness-v3-startup-grace' <<<"$REPAIR_PS"
           grep -q '"installRecommended"' <<<"$MANIFEST"
           RECOMMENDED="$(node -e 'const m=JSON.parse(process.argv[1]); const v=m.installRecommended; if(!v || !m.releases?.[v]) process.exit(2); process.stdout.write(v)' "$MANIFEST")"
           FILE="$(node -e 'const m=JSON.parse(process.argv[1]); process.stdout.write(m.releases[m.installRecommended].file)' "$MANIFEST")"
           SHA="$(node -e 'const m=JSON.parse(process.argv[1]); process.stdout.write(m.releases[m.installRecommended].sha256)' "$MANIFEST")"
+          FLEET="$(node -e 'const m=JSON.parse(process.argv[1]); process.stdout.write(String(m.fleetRolloutVersion||""))' "$MANIFEST")"
           test -n "$RECOMMENDED"
-          test "$RECOMMENDED" = '2.1.15-offline-print.1'
-          test "$SHA" = '89d9ebe50239cf328bc6c2b5e76a2386e7e9321b80ddcebe5c12f9b105e2bef0'
+          test "$RECOMMENDED" = '2.1.16-self-heal.4'
+          test "$SHA" = 'af1266a901e62f17b759242cad8c2584a504a61851af1a7fdc68167332d03a49'
+          test -z "$FLEET"
           curl -fsS --max-time 30 -o /tmp/recommended-edge.zip "https://core.vantixgc.com/edge-releases/$FILE"
           ACTUAL="$(sha256sum /tmp/recommended-edge.zip | awk '{print $1}')"
           test "$ACTUAL" = "$SHA"
-          echo "INSTALLER_V53_RECOMMENDED_EDGE_PRODUCTION_OK version=$RECOMMENDED sha=$SHA"
+          echo "INSTALLER_V95_4_MANUAL_REPAIR_PRODUCTION_OK version=$RECOMMENDED sha=$SHA"

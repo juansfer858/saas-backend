@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { restaurantSelfServicePublicRouter } = require('../self-service/restaurant-self-service.routes');
 const windowsInstaller = require('./windows-installer-v27.service');
+const edgeRepairWindows = require('./edge-repair-windows.service');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '..', '..', 'web');
@@ -117,8 +118,6 @@ router.get('/restaurantes/hero-cliente-pedido-v1.webp', (_req, res) => {
 
 router.get('/restaurantes', (_req, res, next) => sendRestaurantPublicHtml(restaurantLandingPath, res, next));
 router.get('/restaurantes/demo', (_req, res) => {
-  // Demo comercial autónomo: no comparte sesión, no carga el shell operativo y
-  // el navegador tiene prohibido abrir conexiones HTTP/XHR/WebSocket desde esta página.
   res.set('Cache-Control', 'no-store, max-age=0');
   res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'");
   res.set('X-VantixGC-Restaurant-Demo-Isolation', 'standalone-commercial-v1');
@@ -127,8 +126,6 @@ router.get('/restaurantes/demo', (_req, res) => {
 router.get('/restaurantes/crear', (_req, res, next) => sendRestaurantPublicHtml(restaurantSignupPath, res, next));
 router.get('/app/onboarding', (_req, res, next) => sendRestaurantPublicHtml(restaurantOnboardingPath, res, next));
 
-// El instalador obtiene manifiesto y ZIP desde el mismo Core. No expone archivos
-// arbitrarios: únicamente los artifacts declarados en el manifiesto empaquetado.
 router.get('/edge-releases/:file', async (req, res, next) => {
   try {
     const requested = String(req.params.file || '').trim();
@@ -184,6 +181,18 @@ router.get('/instalar/windows.cmd', (req, res) => {
 router.get('/instalar/windows.ps1', (req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
   res.type('text/plain').send(windowsInstaller.genericInstallerPowerShell(publicBaseUrl(req)));
+});
+
+router.get('/reparar-edge/windows.cmd', (req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Content-Disposition', 'attachment; filename="REPARAR_VANTIXGC_EDGE.cmd"');
+  res.type('text/plain').send(edgeRepairWindows.windowsRepairCmd(publicBaseUrl(req)));
+});
+
+router.get('/reparar-edge/windows.ps1', (req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Content-Disposition', 'attachment; filename="REPARAR_VANTIXGC_EDGE.ps1"');
+  res.type('text/plain').send(edgeRepairWindows.windowsRepairPowerShell(publicBaseUrl(req)));
 });
 
 router.get('/instalar-restaurantes', (_req, res) => res.redirect(302, '/restaurantes'));
