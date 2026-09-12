@@ -1,6 +1,7 @@
 /* VANTIX_RESTAURANT_DELIVERY_SEND_PRODUCTION_V86 */
 /* VANTIX_RESTAURANT_DELIVERY_FREEZE_ROOT_FIX_V94 */
 /* VANTIX_RESTAURANT_DELIVERY_REQUIRED_FIELDS_V95 */
+/* VANTIX_RESTAURANT_DELIVERY_V94_CAPTURE_BRIDGE_V96 */
 (() => {
   'use strict';
 
@@ -72,19 +73,15 @@
     patchDialog(document.getElementById('deliveryCreateDialog'));
   }
 
-  // V94: NO observar todo el DOM. V86 antes usaba un MutationObserver sobre
-  // document.documentElement y el propio patch cambiaba textContent dentro del diálogo.
-  // Esa combinación se realimentaba al abrir Nuevo domicilio y podía bloquear el hilo UI.
-  // Ahora se parchea una sola vez, después del clic que abre el diálogo.
   document.addEventListener('click', (event) => {
     if (!event.target.closest?.('[data-new-delivery]')) return;
     v94MenuByLine.clear();
     requestAnimationFrame(() => patchVisibleDialog());
   }, true);
 
-  // V95: V94 separa cada producto del domicilio en líneas independientes para conservar
-  // precio aplicado y nota. El id de menú vive en el botón de Carta, mientras el carrito
-  // conserva un id de línea. Mantenemos una relación local entre ambos sin tocar el modelo.
+  // V96: capturamos el id real del producto ANTES de que otras capas puedan detener
+  // la propagación. V94 repinta el carrito en el mismo clic; por eso resolvemos la nueva
+  // línea en el siguiente frame y dejamos además el id real pegado al renglón visible.
   document.addEventListener('click', (event) => {
     const dialog = event.target.closest?.('#deliveryCreateDialog');
     if (!dialog) return;
@@ -93,26 +90,34 @@
     if (!add && !duplicate) return;
 
     const sourceLineId = duplicate?.dataset?.v94Duplicate || null;
-    const menuItemId = add?.dataset?.v93Add || (sourceLineId ? v94MenuByLine.get(sourceLineId) : null);
+    const sourceRow = sourceLineId ? dialog.querySelector(`[data-v94-line="${CSS.escape(sourceLineId)}"]`) : null;
+    const menuItemId = add?.dataset?.v93Add
+      || sourceRow?.dataset?.v94MenuItemId
+      || (sourceLineId ? v94MenuByLine.get(sourceLineId) : null);
     if (!menuItemId) return;
 
-    const rows = [...dialog.querySelectorAll('[data-v94-line]')];
-    const untracked = rows.filter((row) => !v94MenuByLine.has(String(row.dataset.v94Line || '')));
-    const created = untracked[untracked.length - 1];
-    if (!created) return;
-    const lineId = String(created.dataset.v94Line || '');
-    if (!lineId) return;
-    v94MenuByLine.set(lineId, String(menuItemId));
-  }, false);
+    requestAnimationFrame(() => {
+      const rows = [...dialog.querySelectorAll('[data-v94-line]')];
+      const untracked = rows.filter((row) => {
+        const lineId = String(row.dataset.v94Line || '');
+        return lineId && !row.dataset.v94MenuItemId && !v94MenuByLine.has(lineId);
+      });
+      const created = untracked[untracked.length - 1];
+      if (!created) return;
+      const lineId = String(created.dataset.v94Line || '');
+      if (!lineId) return;
+      const realMenuItemId = String(menuItemId);
+      created.dataset.v94MenuItemId = realMenuItemId;
+      v94MenuByLine.set(lineId, realMenuItemId);
+    });
+  }, true);
 
   function collectItems(dialog) {
-    // Contrato activo V94. Se preservan por línea el precio aplicado y la nota, por lo
-    // que dos unidades del mismo producto pueden viajar separadas si son diferentes.
     const v94Rows = [...dialog.querySelectorAll('[data-v94-line]')];
     if (v94Rows.length) {
       return v94Rows.map((row) => {
         const lineId = String(row.dataset.v94Line || '');
-        const menuItemId = v94MenuByLine.get(lineId) || null;
+        const menuItemId = row.dataset.v94MenuItemId || v94MenuByLine.get(lineId) || null;
         const quantity = Number(row.querySelector('.delivery-v93-line-side .delivery-v93-qty strong')?.textContent || 0);
         const rawPrice = Number(row.querySelector('[data-v94-price]')?.value);
         const notes = String(row.querySelector('[data-v94-note]')?.value || '').trim();
@@ -127,21 +132,16 @@
     }
 
     const items = new Map();
-
-    // Contrato histórico.
     for (const node of dialog.querySelectorAll('[data-delivery-qty]')) {
       const id = node.dataset.deliveryQty;
       const quantity = Number(node.textContent || 0);
       if (id && quantity > 0) items.set(id, quantity);
     }
-
-    // Contrato V93 previo a las líneas editables.
     for (const plus of dialog.querySelectorAll('[data-v93-plus]')) {
       const id = plus.dataset.v93Plus;
       const quantity = Number(plus.parentElement?.querySelector('strong')?.textContent || 0);
       if (id && quantity > 0) items.set(id, quantity);
     }
-
     return [...items.entries()].map(([menuItemId, quantity]) => ({ menuItemId, quantity }));
   }
 
@@ -221,11 +221,13 @@
   }, true);
 
   const contract = Object.freeze({
-    version:'95.0.0',
-    rootCause:'V86 no reconocía las líneas editables V94 al enviar a Producción',
+    version:'96.0.0',
+    rootCause:'La relación V94 línea ↔ producto dependía de propagación bubble y podía perderse',
     globalObserver:false,
     supportsV93:true,
     supportsV94Lines:true,
+    v94CaptureBridge:true,
+    v94MappingPhase:'capture+requestAnimationFrame',
     preservesAppliedUnitPrice:true,
     preservesLineNotes:true,
     requiredFields:['customerPhone','customerName','address'],
@@ -233,4 +235,5 @@
   });
   window.VantixGCRestaurantDeliverySendProductionV94 = contract;
   window.VantixGCRestaurantDeliverySendProductionV95 = contract;
+  window.VantixGCRestaurantDeliverySendProductionV96 = contract;
 })();
