@@ -15,6 +15,7 @@ $ErrorActionPreference = 'Stop'
 $Source = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ExistingEnvPath = Join-Path $InstallDir '.env'
 $Existing = @{}
+$ExistingRaw = @()
 $TaskName = 'VantixGC Edge Supervisor'
 $WatchdogTaskName = 'VantixGC Edge Watchdog'
 
@@ -99,7 +100,10 @@ URL=http://127.0.0.1:$Port/app/centro-de-control
   }
 }
 
-if (Test-Path $ExistingEnvPath) { $Existing = Read-DotEnv $ExistingEnvPath }
+if (Test-Path $ExistingEnvPath) {
+  $Existing = Read-DotEnv $ExistingEnvPath
+  $ExistingRaw = @(Get-Content -LiteralPath $ExistingEnvPath)
+}
 if (-not $CoreBaseUrl) { $CoreBaseUrl = $Existing['CORE_BASE_URL'] }
 if (-not $EdgeAgentId) { $EdgeAgentId = $Existing['EDGE_AGENT_ID'] }
 if (-not $EdgeAgentKey) { $EdgeAgentKey = $Existing['EDGE_AGENT_KEY'] }
@@ -139,19 +143,47 @@ if (-not $NodePath -and (Test-Path $EmbeddedNode)) { $NodePath = $EmbeddedNode }
 if (-not $NodePath) { $NodePath = (Get-Command node -ErrorAction Stop).Source }
 
 $EnvFile = Join-Path $InstallDir '.env'
-$AutoUpdate = if ($DisableAutoUpdate) { 'false' } else { 'true' }
-@"
-CORE_BASE_URL=$CoreBaseUrl
-EDGE_AGENT_ID=$EdgeAgentId
-EDGE_AGENT_KEY=$EdgeAgentKey
-EDGE_LOCAL_ENCRYPTION_KEY=$LocalEncryptionKey
-EDGE_LAN_KEY=$LanKey
-EDGE_HOST=0.0.0.0
-EDGE_PORT=$EdgePort
-EDGE_AUTO_UPDATE_ENABLED=$AutoUpdate
-EDGE_DATA_DIR=$InstallDir\data
-EDGE_DB_PATH=$InstallDir\data\vantixgc-edge.sqlite
-"@ | Set-Content -LiteralPath $EnvFile -Encoding UTF8
+$AutoUpdate = if ($DisableAutoUpdate) {
+  'false'
+} elseif ($Existing.ContainsKey('EDGE_AUTO_UPDATE_ENABLED')) {
+  if ([string]$Existing['EDGE_AUTO_UPDATE_ENABLED'] -eq 'false') { 'false' } else { 'true' }
+} else {
+  'true'
+}
+$CanonicalKeys = @(
+  'CORE_BASE_URL',
+  'EDGE_AGENT_ID',
+  'EDGE_AGENT_KEY',
+  'EDGE_LOCAL_ENCRYPTION_KEY',
+  'EDGE_LAN_KEY',
+  'EDGE_HOST',
+  'EDGE_PORT',
+  'EDGE_AUTO_UPDATE_ENABLED',
+  'EDGE_DATA_DIR',
+  'EDGE_DB_PATH'
+)
+$EnvLines = @(
+  "CORE_BASE_URL=$CoreBaseUrl",
+  "EDGE_AGENT_ID=$EdgeAgentId",
+  "EDGE_AGENT_KEY=$EdgeAgentKey",
+  "EDGE_LOCAL_ENCRYPTION_KEY=$LocalEncryptionKey",
+  "EDGE_LAN_KEY=$LanKey",
+  'EDGE_HOST=0.0.0.0',
+  "EDGE_PORT=$EdgePort",
+  "EDGE_AUTO_UPDATE_ENABLED=$AutoUpdate",
+  "EDGE_DATA_DIR=$InstallDir\data",
+  "EDGE_DB_PATH=$InstallDir\data\vantixgc-edge.sqlite"
+)
+foreach ($RawLine in $ExistingRaw) {
+  $Trim = [string]$RawLine
+  $Check = $Trim.Trim()
+  if (-not $Check -or $Check.StartsWith('#')) { continue }
+  $Idx = $Check.IndexOf('=')
+  if ($Idx -le 0) { continue }
+  $Name = $Check.Substring(0, $Idx).Trim()
+  if ($CanonicalKeys -notcontains $Name) { $EnvLines += $Trim }
+}
+$EnvLines | Set-Content -LiteralPath $EnvFile -Encoding UTF8
 
 try {
   $System = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
