@@ -24,6 +24,20 @@ if (Test-Path $Done) {
   } catch {}
 }
 
+# The legacy Supervisor may restart a fresh child several times before this repair
+# finishes. Reuse the same one-shot SYSTEM task instead of creating a repair storm.
+if (Test-Path $Pending) {
+  try {
+    $CurrentPending = Get-Content -LiteralPath $Pending -Raw | ConvertFrom-Json
+    $ScheduledAt = [datetime]::Parse([string]$CurrentPending.scheduledAt).ToUniversalTime()
+    $AgeMinutes = ((Get-Date).ToUniversalTime() - $ScheduledAt).TotalMinutes
+    if ([string]$CurrentPending.version -eq $Version -and $AgeMinutes -ge 0 -and $AgeMinutes -lt 10) {
+      $ExistingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+      if ($ExistingTask) { exit 0 }
+    }
+  } catch {}
+}
+
 $RepairArgs = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $RepairScript + '" -InstallDir "' + $InstallDir + '" -ReleaseRoot "' + $ReleaseRoot + '" -TaskName "' + $TaskName + '"'
 $Action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $RepairArgs -WorkingDirectory $InstallDir
 $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(10)
