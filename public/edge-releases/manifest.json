@@ -59,8 +59,8 @@
     "2.1.16-self-heal.4": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.16-self-heal.4.zip",
-      "sha256": "af1266a901e62f17b759242cad8c2584a504a61851af1a7fdc68167332d03a49",
-      "sourceCommit": "3e2b2b217fadb0944462e1cce7e00ff0b0077018"
+      "sha256": "017278812fe30f8983fbf671ce0946c37cde6b5de338100b5633f86a8723d260",
+      "sourceCommit": "343afe0d56568cbe8878e4c19bf8bac1672189c7"
     },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
