@@ -33,6 +33,7 @@ router.get('/app/restaurant-v2-sidebar-graphite-v17.css', (_req, res) => send(re
 router.get('/app/restaurante-v2/empleados', (_req, res) => send(res, 'restaurant-v2-employees-p11.html', 'text/html; charset=utf-8'));
 router.get('/app/restaurante-v2/domicilios', (_req, res) => send(res, 'restaurant-v2-delivery-p11.html', 'text/html; charset=utf-8'));
 router.get('/app/restaurant-v2-module-host-p11.js', (_req, res) => send(res, 'restaurant-v2-module-host-p11.js', 'application/javascript; charset=utf-8'));
+router.get('/app/restaurant-delivery-menu-guard-v88.js', (_req, res) => send(res, 'restaurant-delivery-menu-guard-v88.js', 'application/javascript; charset=utf-8'));
 
 // P11 control plane is intentionally admin-only at the API layer. The public
 // HTML contains no secret and cannot mutate state without the tenant JWT.
