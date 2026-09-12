@@ -11,6 +11,7 @@ const SHA256_RE = /^[a-f0-9]{64}$/;
 const ACTIVE_DEPLOYMENT_STATES = ['PENDING', 'DOWNLOADING', 'BACKUP', 'INSTALLING', 'HEALTHCHECK'];
 const ONLINE_WINDOW_MS = 90000;
 const FLEET_SWEEP_MS = 60000;
+const ALREADY_PROTECTED_VERSIONS = new Set(['2.1.16-self-heal.3']);
 
 function fallbackArtifactUrl(version, file) {
   const repository = String(process.env.EDGE_RELEASE_GITHUB_REPOSITORY || 'juansfer858/saas-backend').trim();
@@ -84,7 +85,7 @@ async function ensureBundledGlobalReleases(client = prisma) {
         summary.conflicts.push({ version: bundled.version, releaseId: existing.id });
         continue;
       }
-      const desiredMandatory = bundled.version === fleetTarget;
+      const desiredMandatory = bundled.version === fleetTarget ? true : Boolean(existing.mandatory);
       if (String(existing.channel || '').toUpperCase() !== bundled.channel || Boolean(existing.mandatory) !== desiredMandatory || !existing.enabled) {
         await client.edgeRelease.update({
           where: { id: existing.id },
@@ -150,6 +151,7 @@ async function ensureUpdateCheck(client, installation, deployment, now = new Dat
 async function scheduleFleetInstallation(client, release, installation, now = new Date()) {
   const current = String(installation.softwareVersion || '').trim();
   if (current === release.version) return { status: 'ALREADY_CURRENT', edgeAgentId: installation.edgeAgentId };
+  if (ALREADY_PROTECTED_VERSIONS.has(current)) return { status: 'ALREADY_PROTECTED', edgeAgentId: installation.edgeAgentId, current };
   const comparison = compareEdgeVersions(current, release.version);
   if (comparison != null && comparison > 0) return { status: 'NEWER_CURRENT', edgeAgentId: installation.edgeAgentId, current };
   if (!isOnline(installation, now.getTime())) return { status: 'OFFLINE_WAIT', edgeAgentId: installation.edgeAgentId };
