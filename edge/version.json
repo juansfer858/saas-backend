@@ -1,6 +1,7 @@
 {
-  "version": "2.1.16-self-heal.3",
+  "version": "2.1.16-self-heal.4",
   "channel": "PILOT",
   "product": "VantixGC Restaurantes",
-  "runtime": "Edge Workspace"
+  "runtime": "Edge Workspace",
+  "fleetRollout": true
 }
