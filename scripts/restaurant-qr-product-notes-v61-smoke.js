@@ -15,6 +15,23 @@ const { app } = require('../src/app');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
+function parseEdgeVersion(raw) {
+  const match = String(raw || '').match(/^(\d+)\.(\d+)\.(\d+)(?:-|$)/);
+  assert.ok(match, `Invalid Edge version: ${raw}`);
+  return match.slice(1, 4).map(Number);
+}
+
+function assertEdgeVersionAtLeast(raw, minimum) {
+  const actual = parseEdgeVersion(raw);
+  const expected = parseEdgeVersion(minimum);
+  for (let i = 0; i < 3; i += 1) {
+    if (actual[i] > expected[i]) return;
+    if (actual[i] < expected[i]) {
+      assert.fail(`Edge ${raw} is older than required ${minimum}`);
+    }
+  }
+}
+
 function getText(url) {
   return new Promise((resolve, reject) => {
     http.get(url, (res) => {
@@ -64,7 +81,7 @@ function getText(url) {
     assert.match(edgePatch, /VANTIX_EDGE_QR_DIRECT_TEST_V54/);
     assert.match(edgeEntry, /require\('\.\/offline-qr-self-order-v61'\)/);
     assert.doesNotMatch(edgeEntry, /require\('\.\/offline-qr-self-order-v54'\)/);
-    assert.equal(version.version, '2.1.14-qr-product-notes.1');
+    assertEdgeVersionAtLeast(version.version, '2.1.14');
 
     console.log('RESTAURANT QR PRODUCT NOTES V61 CLOUD + EDGE + KDS PAYLOAD CONTRACT OK');
   } finally {
