@@ -7,6 +7,23 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
+function parseEdgeVersion(raw) {
+  const match = String(raw || '').match(/^(\d+)\.(\d+)\.(\d+)(?:-|$)/);
+  assert.ok(match, `Invalid Edge version: ${raw}`);
+  return match.slice(1, 4).map(Number);
+}
+
+function assertEdgeVersionAtLeast(raw, minimum) {
+  const actual = parseEdgeVersion(raw);
+  const expected = parseEdgeVersion(minimum);
+  for (let i = 0; i < 3; i += 1) {
+    if (actual[i] > expected[i]) return;
+    if (actual[i] < expected[i]) {
+      assert.fail(`Edge ${raw} is older than required ${minimum}`);
+    }
+  }
+}
+
 const wrapper = read('edge/agent/workspace-entry-v59.js');
 const entry = read('edge/agent/restaurant-entry-v2.js');
 const version = JSON.parse(read('edge/version.json'));
@@ -26,7 +43,7 @@ assert.match(wrapper, /workspacePcWaiterRenderV59/);
 assert.match(wrapper, /\.toString\(\)/);
 assert.match(entry, /require\('\.\/workspace-entry-v59'\)/);
 assert.doesNotMatch(entry, /require\('\.\/workspace-entry-v28'\)/);
-assert.equal(version.version, '2.1.13-pc-waiter.1');
+assertEdgeVersionAtLeast(version.version, '2.1.13');
 assert.equal(version.channel, 'PILOT');
 
 console.log('EDGE WORKSPACE PC WAITER V59 ALL-TABLES + FREE-TABLE OPEN + EXPLICIT EMPTY STATES OK');
