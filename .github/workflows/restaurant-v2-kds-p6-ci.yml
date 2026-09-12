@@ -12,6 +12,7 @@ on:
       - 'src/web/vantix-tenant-realtime.js'
       - 'src/modules/notifications/push-v65.*'
       - 'scripts/restaurant-v2-kds-p6-db-smoke.js'
+      - 'scripts/restaurant-v2-kds-order-cancel-v97-db-smoke.js'
       - '.github/workflows/restaurant-v2-kds-p6-ci.yml'
   push:
     branches: [main]
@@ -25,6 +26,7 @@ on:
       - 'src/web/vantix-tenant-realtime.js'
       - 'src/modules/notifications/push-v65.*'
       - 'scripts/restaurant-v2-kds-p6-db-smoke.js'
+      - 'scripts/restaurant-v2-kds-order-cancel-v97-db-smoke.js'
       - '.github/workflows/restaurant-v2-kds-p6-ci.yml'
 permissions:
   contents: read
@@ -56,6 +58,7 @@ jobs:
       - run: npm run build
       - run: npx prisma db push
       - run: node scripts/restaurant-v2-kds-p6-db-smoke.js
+      - run: node scripts/restaurant-v2-kds-order-cancel-v97-db-smoke.js
       - run: node --check src/modules/restaurant/restaurant-v2-kds.service.js
       - run: node --check src/modules/restaurant/restaurant-v2-kds-push.service.js
       - run: node --check src/modules/restaurant/restaurant-v2-kds.routes.js
