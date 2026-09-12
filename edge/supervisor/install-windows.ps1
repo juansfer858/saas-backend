@@ -16,6 +16,7 @@ $Source = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $ExistingEnvPath = Join-Path $InstallDir '.env'
 $Existing = @{}
 $TaskName = 'VantixGC Edge Supervisor'
+$WatchdogTaskName = 'VantixGC Edge Watchdog'
 
 function Read-DotEnv([string]$Path) {
   $Map = @{}
@@ -36,6 +37,7 @@ function New-Secret {
 
 function Stop-ExistingEdge([string]$Root) {
   Write-Host 'Detectando instalación Edge existente...' -ForegroundColor DarkCyan
+  try { Stop-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue } catch {}
   try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
   Start-Sleep -Milliseconds 800
 
@@ -166,14 +168,25 @@ try {
 $Supervisor = Join-Path $InstallDir 'supervisor\supervisor.js'
 $Action = New-ScheduledTaskAction -Execute $NodePath -Argument ('"' + $Supervisor + '"') -WorkingDirectory $InstallDir
 $Trigger = New-ScheduledTaskTrigger -AtStartup
-$Settings = New-ScheduledTaskSettingsSet -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$Settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 3650) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
 Start-ScheduledTask -TaskName $TaskName
+
+$Watchdog = Join-Path $InstallDir 'supervisor\watchdog-windows.ps1'
+if (-not (Test-Path $Watchdog)) { throw 'El paquete Edge no contiene supervisor\watchdog-windows.ps1.' }
+$WatchdogArgs = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $Watchdog + '" -InstallDir "' + $InstallDir + '" -EdgePort ' + $EdgePort + ' -SupervisorTaskName "' + $TaskName + '"'
+$WatchdogAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $WatchdogArgs -WorkingDirectory $InstallDir
+$WatchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
+$WatchdogSettings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName $WatchdogTaskName -Action $WatchdogAction -Trigger $WatchdogTrigger -Settings $WatchdogSettings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+Start-ScheduledTask -TaskName $WatchdogTaskName
+
 Install-RestaurantShortcut $EdgePort
 
 Write-Host "VantixGC Restaurantes instalado en $InstallDir."
 Write-Host "Centro de Control local: http://127.0.0.1:$EdgePort/app/centro-de-control"
 Write-Host "Se creó el acceso directo 'VantixGC Restaurantes' en el escritorio."
-Write-Host "Supervisor configurado para iniciar con Windows."
+Write-Host "Supervisor configurado para iniciar con Windows y reintentar automáticamente."
+Write-Host "Watchdog independiente activo cada minuto; si el runtime local deja de responder, reinicia el Supervisor sin intervención del usuario."
 Write-Host "LAN discovery activo en el puerto UDP 8789; las escrituras LAN requieren clave de emparejamiento."
 Write-Host "La clave LAN fue guardada localmente y no se publica en discovery."
