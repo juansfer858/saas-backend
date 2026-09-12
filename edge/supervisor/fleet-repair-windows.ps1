@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$Version = 'unknown'
 $DataDir = Join-Path $InstallDir 'data'
 $Pending = Join-Path $DataDir 'fleet-repair-v95-4.pending.json'
 $Done = Join-Path $DataDir 'fleet-repair-v95-4.done.json'
