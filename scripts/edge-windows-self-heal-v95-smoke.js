@@ -13,7 +13,7 @@ const uninstall = read('edge/supervisor/uninstall-windows.ps1');
 const supervisor = read('edge/supervisor/supervisor.js');
 const version = JSON.parse(read('edge/version.json'));
 
-assert.equal(version.version, '2.1.16-self-heal.2');
+assert.equal(version.version, '2.1.16-self-heal.3');
 assert.equal(version.channel, 'PILOT');
 
 assert.match(installer, /VantixGC Edge Supervisor/);
@@ -37,6 +37,12 @@ assert.match(watchdog, /Global\\VantixGCEdgeWatchdog/);
 assert.match(watchdog, /http:\/\/127\.0\.0\.1:\{0\}\/api\/status/);
 assert.match(watchdog, /TimeoutSec 4/);
 assert.match(watchdog, /FailureThreshold = 2/);
+assert.match(watchdog, /Get-SupervisorProcess/);
+assert.match(watchdog, /Test-SupervisorProtection/);
+assert.match(watchdog, /SUPERVISOR_PROTECTION_MISSING local_health=healthy/);
+assert.match(watchdog, /Stop-OrphanEdgeAgent/);
+assert.match(watchdog, /ORPHAN_AGENT_STOP pid=/);
+assert.match(watchdog, /PROTECTION_RECOVERY_OK/);
 assert.match(watchdog, /Stop-ScheduledTask -TaskName \$SupervisorTaskName/);
 assert.match(watchdog, /Start-ScheduledTask -TaskName \$SupervisorTaskName/);
 assert.match(watchdog, /for \(\$Attempt = 1; \$Attempt -le 10/);
