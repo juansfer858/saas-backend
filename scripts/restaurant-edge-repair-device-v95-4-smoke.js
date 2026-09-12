@@ -52,7 +52,7 @@ assert.match(ps, /http:\/\/127\.0\.0\.1:8788\/api\/status/);
 assert.match(ps, /REPARACION COMPLETADA/);
 assert.match(ps, /Backup disponible en/);
 assert.match(cmd, /\/reparar-edge\/windows\.ps1/);
-assert.match(cmd, /REPARAR_VANTIXGC_EDGE/);
+assert.match(cmd, /VantixGC_Edge_Repair_/);
 assert.match(cmd, /VANTIX_EXIT/);
 
 assert.match(routes, /edge-repair-windows\.service/);
