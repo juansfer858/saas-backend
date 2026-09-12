@@ -62,6 +62,12 @@
       "sha256": "017278812fe30f8983fbf671ce0946c37cde6b5de338100b5633f86a8723d260",
       "sourceCommit": "343afe0d56568cbe8878e4c19bf8bac1672189c7"
     },
+    "2.1.17-cutter-feed.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.17-cutter-feed.1.zip",
+      "sha256": "3c040ab3eb58a44a371921838d30c4809f33800820cf889cdc85b33b5b36507a",
+      "sourceCommit": "eafab6db7cd2d1a728b1358ed06b121e46dd94a3"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
