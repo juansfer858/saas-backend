@@ -31,7 +31,7 @@ function fixPowerShell(source) {
   fixed = replaceOnce(fixed, packageAnchor, packageBlock, 'descarga del paquete Edge');
 
   const requiredAnchor = `  foreach ($Required in @('agent\\server.js', 'supervisor\\install-windows.ps1', 'supervisor\\supervisor.js')) {\n    if (-not (Test-Path (Join-Path $EdgeSource $Required))) { throw \"El paquete VantixGC esta incompleto: falta $Required\" }\n  }\n\n  $Stage = 'runtime local'`;
-  const requiredBlock = `  foreach ($Required in @('agent\\server.js', 'supervisor\\install-windows.ps1', 'supervisor\\supervisor.js')) {\n    if (-not (Test-Path (Join-Path $EdgeSource $Required))) { throw \"El paquete VantixGC esta incompleto: falta $Required\" }\n  }\n  $SupervisorSource = Join-Path $EdgeSource 'supervisor\\supervisor.js'\n  $SupervisorContract = Get-Content -LiteralPath $SupervisorSource -Raw\n  if (-not $SupervisorContract.Contains('restart-liveness-v2') -or -not $SupervisorContract.Contains('UPDATE_RESTART_REQUEST accepted')) {\n    throw 'El paquete VantixGC no contiene el Supervisor persistente requerido para actualizaciones Edge.'\n  }\n\n  $Stage = 'runtime local'`;
+  const requiredBlock = `  foreach ($Required in @('agent\\server.js', 'supervisor\\install-windows.ps1', 'supervisor\\supervisor.js')) {\n    if (-not (Test-Path (Join-Path $EdgeSource $Required))) { throw \"El paquete VantixGC esta incompleto: falta $Required\" }\n  }\n  $SupervisorSource = Join-Path $EdgeSource 'supervisor\\supervisor.js'\n  $SupervisorContract = Get-Content -LiteralPath $SupervisorSource -Raw\n  if (-not $SupervisorContract.Contains('restart-liveness-v3-startup-grace') -or -not $SupervisorContract.Contains('EDGE_SUPERVISOR_STARTUP_GRACE_MS') -or -not $SupervisorContract.Contains('HEALTH_WAIT startup') -or -not $SupervisorContract.Contains('UPDATE_RESTART_REQUEST accepted')) {\n    throw 'El paquete VantixGC no contiene el Supervisor V95.2 con gracia de arranque y reinicio persistente.'\n  }\n\n  $Stage = 'runtime local'`;
   fixed = replaceOnce(fixed, requiredAnchor, requiredBlock, 'validación del paquete Edge');
 
   const installAnchor = `  $Installer = Join-Path $EdgeSource 'supervisor\\install-windows.ps1'\n  & $Installer @InstallParams`;
@@ -60,8 +60,8 @@ function fixPowerShell(source) {
   if (!fixed.includes('$ActualEdgeHash') || !fixed.includes('$ReleaseSha256')) {
     throw new Error('El instalador Windows no valida SHA-256 del Edge recomendado.');
   }
-  if (!fixed.includes("$SupervisorContract.Contains('restart-liveness-v2')") || !fixed.includes("$SupervisorContract.Contains('UPDATE_RESTART_REQUEST accepted')")) {
-    throw new Error('El instalador Windows no valida el contrato de reinicio persistente del Supervisor.');
+  if (!fixed.includes("$SupervisorContract.Contains('restart-liveness-v3-startup-grace')") || !fixed.includes("$SupervisorContract.Contains('EDGE_SUPERVISOR_STARTUP_GRACE_MS')") || !fixed.includes("$SupervisorContract.Contains('HEALTH_WAIT startup')") || !fixed.includes("$SupervisorContract.Contains('UPDATE_RESTART_REQUEST accepted')")) {
+    throw new Error('El instalador Windows no valida el contrato V95.2 de gracia de arranque y reinicio persistente del Supervisor.');
   }
   if (!fixed.includes('$StableChecks = 0') || !fixed.includes("$Stage = 'estabilidad del servicio local'")) {
     throw new Error('El instalador Windows no contiene la validación de estabilidad.');

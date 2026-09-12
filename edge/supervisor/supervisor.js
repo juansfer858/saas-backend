@@ -9,9 +9,11 @@ const ENV_FILE = path.join(ROOT, '.env');
 const UPDATE_MARKER = path.join(DATA, 'update-pending.json');
 const LAST_UPDATE_RESULT = path.join(DATA, 'update-last-result.json');
 const NODE = process.env.EDGE_NODE_PATH || (fs.existsSync(path.join(ROOT, 'runtime', 'node.exe')) ? path.join(ROOT, 'runtime', 'node.exe') : process.execPath);
-const SUPERVISOR_REVISION = 'restart-liveness-v2';
+const SUPERVISOR_REVISION = 'restart-liveness-v3-startup-grace';
+const STARTUP_GRACE_MS = Math.max(10000, Number(process.env.EDGE_SUPERVISOR_STARTUP_GRACE_MS || 20000));
 
 let child = null;
+let childStartedAt = 0;
 let stopping = false;
 let failures = 0;
 let pendingHealthFailures = 0;
@@ -113,8 +115,6 @@ function schedule(waitOverrideMs = null) {
     ? Math.min(1000 * (2 ** Math.min(failures, 6)), 60000)
     : Math.max(250, Number(waitOverrideMs) || 1000);
   clearTimeout(timer);
-  // This timer MUST stay referenced. If it is unref'ed and the agent exits with
-  // code 75, Node can terminate the supervisor before the replacement starts.
   timer = setTimeout(start, wait);
 }
 
@@ -183,16 +183,17 @@ function start() {
   if (stopping || child) return;
   const entry = currentEntry();
   const env = runtimeEnv();
-  log('START', NODE, entry, `supervisor=${SUPERVISOR_REVISION}`);
+  log('START', NODE, entry, `supervisor=${SUPERVISOR_REVISION}`, `startupGraceMs=${STARTUP_GRACE_MS}`);
   child = spawn(NODE, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  childStartedAt = Date.now();
   child.stdout.on('data', (d) => fs.appendFileSync(LOG, d));
   child.stderr.on('data', (d) => fs.appendFileSync(LOG, d));
   child.on('exit', (code, signal) => {
     log('EXIT', String(code), String(signal));
     child = null;
+    childStartedAt = 0;
 
     if (Number(code) === 75) {
-      // Exit 75 is an intentional updater handoff, not a health failure.
       failures = 0;
       pendingHealthFailures = 0;
       log('UPDATE_RESTART_REQUEST accepted');
@@ -212,10 +213,15 @@ function start() {
   });
 }
 
-// The health interval is deliberately referenced. The supervisor is the long-lived
-// Windows service process and must not disappear when the child agent restarts.
 const healthTimer = setInterval(async () => {
   if (stopping) return;
+  if (child && childStartedAt) {
+    const ageMs = Date.now() - childStartedAt;
+    if (ageMs < STARTUP_GRACE_MS) {
+      log('HEALTH_WAIT startup', `ageMs=${ageMs}`, `graceMs=${STARTUP_GRACE_MS}`);
+      return;
+    }
+  }
   if (await health()) {
     failures = 0;
     pendingHealthFailures = 0;
