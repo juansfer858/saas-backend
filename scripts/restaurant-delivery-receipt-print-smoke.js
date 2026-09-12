@@ -7,6 +7,8 @@ const path = require('node:path');
 const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
 const deliveryReceipt = read('src/modules/restaurant/restaurant-delivery-receipt.service.js');
+const receiptLayout = read('src/modules/restaurant/restaurant-pos-receipt-layout.service.js');
+const printBridge = read('src/modules/edge/edge-restaurant-print-bridge.js');
 const hooks = read('src/modules/restaurant/restaurant-pos-receipt-hooks.js');
 const immediate = read('src/modules/restaurant/restaurant-pos-receipt-immediate.public.routes.js');
 
@@ -21,6 +23,15 @@ assert.match(deliveryReceipt, /mergeCustomerNameObservation/);
 assert.match(deliveryReceipt, /delivery\.paymentMethod/);
 assert.match(deliveryReceipt, /sale\.detalles/);
 assert.match(deliveryReceipt, /number\(sale\.saldo\) > 0/);
+assert.match(deliveryReceipt, /deliveryPhone:\s*delivery\.customerPhone/);
+assert.match(deliveryReceipt, /deliveryAddress:\s*delivery\.address/);
+
+assert.match(receiptLayout, /labelValueLines\('Teléfono', session\.deliveryPhone/);
+assert.match(receiptLayout, /labelValueLines\('Dirección', session\.deliveryAddress/);
+
+assert.match(printBridge, /CLIENTE:/);
+assert.doesNotMatch(printBridge, /context\.push\(`TELÉFONO:/);
+assert.doesNotMatch(printBridge, /context\.push\(`DIRECCIÓN:/);
 
 assert.match(hooks, /restaurant-delivery-receipt\.service/);
 assert.match(hooks, /registerDeliveryPaymentWithPosReceipt/);
@@ -37,6 +48,10 @@ console.log(JSON.stringify({
   deliveryPaymentQueuesPosReceipt: true,
   deliveryReceiptUsesExistingPosPrinterRouting: true,
   deliveryReceiptIncludesCustomer: true,
+  deliveryReceiptIncludesPhone: true,
+  deliveryReceiptIncludesAddress: true,
+  commandKeepsCustomerName: true,
+  commandOmitsPhoneAndAddress: true,
   deliveryReceiptIncludesPaymentMethod: true,
   edgeImmediatePrintSignalAfterDeliveryPayment: true,
   tableAndSplitReceiptFlowsPreserved: true

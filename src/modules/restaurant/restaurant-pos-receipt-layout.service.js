@@ -98,6 +98,8 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
   const when = dateTime(sale?.emitidoEn || session?.closedAt || sale?.fecha);
   if (when) lines.push(centerLine(`Fecha: ${when}`, width));
   lines.push(...labelValueLines('Cliente', customerDisplay.customerNameFromObservations(sale?.observaciones), width));
+  if (session?.deliveryPhone) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
+  if (session?.deliveryAddress) lines.push(...labelValueLines('Dirección', session.deliveryAddress, width));
   lines.push(separator);
 
   for (const detail of Array.isArray(sale?.detalles) ? sale.detalles : []) {
