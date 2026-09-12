@@ -43,11 +43,17 @@ assert.doesNotMatch(ui, /MutationObserver|setInterval/);
 
 assert.match(css, /VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100/);
 assert.match(css, /VANTIX_RESTAURANT_V2_CARD_TARGET_V101/);
+assert.match(css, /VANTIX_RESTAURANT_V2_CARD_TARGET_LARGE_V102/);
 assert.match(css, /\.service-controls\{flex-wrap:nowrap/);
 assert.match(css, /\.person-targets\{[^}]*display:flex/);
 assert.match(css, /\.person-targets\{[^}]*overflow-x:auto/);
-assert.match(css, /\.draft-target-label b\{[^}]*display:inline-flex/);
-assert.match(css, /\.draft-target-label b\{[^}]*border-radius:999px/);
+assert.match(css, /\.draft-line header>div\{[^}]*flex:1 1 auto/);
+assert.match(css, /\.draft-target-label b\{[^}]*display:flex/);
+assert.match(css, /\.draft-target-label b\{[^}]*justify-content:center/);
+assert.match(css, /\.draft-target-label b\{[^}]*width:100%/);
+assert.match(css, /\.draft-target-label b\{[^}]*min-height:34px/);
+assert.match(css, /\.draft-target-label b\{[^}]*font-size:14px/);
+assert.match(css, /\.draft-target-label b\{[^}]*font-weight:950/);
 assert.doesNotMatch(css, /\.line-seat-buttons/);
 assert.doesNotMatch(css, /\.line-target-editor/);
 assert.match(css, /@media\(max-width:720px\)/);
@@ -58,12 +64,14 @@ assert.match(routes, /restaurant-v2-person-buttons-v100\.css/);
 
 console.log(JSON.stringify({
   ok:true,
-  marker:'VANTIX_RESTAURANT_V2_CARD_TARGET_V101',
+  marker:'VANTIX_RESTAURANT_V2_CARD_TARGET_LARGE_V102',
   topSelector:'HORIZONTAL_BUTTONS',
   sharedTarget:'TODOS_TO_SEAT_NULL',
   mixedTargetsPerOrder:true,
   existingLineAssignmentPreserved:true,
-  draftTarget:'ONE_STORED_LABEL_ONLY',
+  draftTarget:'ONE_LARGE_STORED_LABEL_ONLY',
+  draftTargetLarge:true,
+  draftTargetCentered:true,
   draftReassignmentButtonsRemoved:true,
   reviewTargetVisible:true,
   sentTargetVisible:true,
