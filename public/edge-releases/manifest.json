@@ -55,6 +55,12 @@
       "sha256": "64354adbff308585313561621e58aa5bcbe9b12f729735a51836596fe84d0bb9",
       "sourceCommit": "87f172160f8ad4d03800b0ca5e0ed2aff05cffd9"
     },
+    "2.1.16-self-heal.4": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.16-self-heal.4.zip",
+      "sha256": "ab29e14cdc277b3e790e9fa0b37bbb61b6e12abaa302377ccd2268cba6689726",
+      "sourceCommit": "f1024ab0bd10079024f19b3b3791152ebdd48887"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
