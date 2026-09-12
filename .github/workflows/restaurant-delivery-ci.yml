@@ -51,6 +51,9 @@ jobs:
       - name: Validate static delivery contract
         run: node scripts/restaurant-delivery-smoke.js
 
+      - name: Validate delivery POS receipt print contract
+        run: node scripts/restaurant-delivery-receipt-print-smoke.js
+
       - name: Validate immediate Delivery to Production V86 contract
         run: node scripts/restaurant-delivery-send-production-v86-smoke.js
 
