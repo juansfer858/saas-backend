@@ -1,0 +1,51 @@
+name: Edge Windows Self-Heal V95 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'edge/supervisor/install-windows.ps1'
+      - 'edge/supervisor/watchdog-windows.ps1'
+      - 'edge/supervisor/uninstall-windows.ps1'
+      - 'edge/version.json'
+      - 'scripts/edge-windows-self-heal-v95-smoke.js'
+      - '.github/workflows/edge-windows-self-heal-v95-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'edge/supervisor/install-windows.ps1'
+      - 'edge/supervisor/watchdog-windows.ps1'
+      - 'edge/supervisor/uninstall-windows.ps1'
+      - 'edge/version.json'
+      - 'scripts/edge-windows-self-heal-v95-smoke.js'
+      - '.github/workflows/edge-windows-self-heal-v95-ci.yml'
+
+jobs:
+  validate-windows-self-heal:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate V95 self-heal contract
+        run: node scripts/edge-windows-self-heal-v95-smoke.js
+      - name: Parse Windows supervisor scripts
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'edge/supervisor/install-windows.ps1',
+            'edge/supervisor/watchdog-windows.ps1',
+            'edge/supervisor/uninstall-windows.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error ("$file: " + $_.Message) }
+              exit 1
+            }
+          }
+          Write-Host 'EDGE_WINDOWS_SELF_HEAL_V95_POWERSHELL_PARSE_OK'
