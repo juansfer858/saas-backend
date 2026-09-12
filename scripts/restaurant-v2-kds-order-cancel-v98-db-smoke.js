@@ -52,8 +52,13 @@ async function main() {
   assert.match(service, /RESTAURANT_ORDER_CANCELLED_KDS/);
   assert.match(service, /estado:'BORRADOR'/);
   assert.match(html, /cancelReason/);
+  assert.match(html, /restaurant-v2-kds\.js\?v=v99/);
   assert.match(ui, /VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98/);
-  assert.match(ui, /c\.state==='PENDIENTE'.*c\.canCancelOrder/);
+  assert.match(ui, /VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_VISIBLE_V99/);
+  assert.match(ui, /function localCancelable\(c\)/);
+  assert.match(ui, /String\(c\.order\?\.state\|\|''\)==='ENVIADO'/);
+  assert.match(ui, /const cancel=localCancelable\(c\)/);
+  assert.match(ui, /if\(!localCancelable\(c\)\)return/);
   assert.match(ui, /Tomar comanda/);
   assert.match(css, /\.cancel-reason\[hidden\]\{display:none!important\}/);
 
@@ -90,9 +95,9 @@ async function main() {
   assert.ok(waiter && cook && kitchenMenuItem && barMenuItem, 'el demo necesita Mesero, Cocina y productos de Cocina/Barra');
 
   const suffix = crypto.randomBytes(4).toString('hex');
-  const zone = await prisma.restaurantZone.create({ data:{ tenantId:demo.tenantId, name:`Cancel V98 ${suffix}`, sortOrder:998 } });
+  const zone = await prisma.restaurantZone.create({ data:{ tenantId:demo.tenantId, name:`Cancel V99 ${suffix}`, sortOrder:999 } });
   const table = await prisma.restaurantTable.create({
-    data:{ tenantId:demo.tenantId, zoneId:zone.id, code:`C98-${suffix}`, name:`Mesa Cancel V98 ${suffix}`, seats:4, assignedWaiterId:waiter.id }
+    data:{ tenantId:demo.tenantId, zoneId:zone.id, code:`C99-${suffix}`, name:`Mesa Cancel V99 ${suffix}`, seats:4, assignedWaiterId:waiter.id }
   });
   const opened = await restaurant.openTable(demo.tenantId, waiter, table.id, { guestCount:2 }, V2_OPTIONS);
 
@@ -101,7 +106,8 @@ async function main() {
   const visible = workspace.commands.find((row) => row.orderId === pendingOrder.id || row.order?.id === pendingOrder.id);
   assert.ok(visible, 'KDS debe mostrar la comanda pendiente');
   assert.equal(visible.state, 'PENDIENTE');
-  assert.equal(visible.canCancelOrder, true, 'Cancelar pedido debe aparecer antes de Tomar comanda');
+  assert.equal(visible.order.state, 'ENVIADO', 'la UI V99 usa el estado real del pedido para mostrar Cancelar');
+  assert.equal(visible.canCancelOrder, true, 'el backend también debe mantenerla cancelable antes de Tomar comanda');
   assert.deepEqual(new Set(visible.cancellationStations), new Set(['COCINA','BARRA']));
 
   const saleBefore = await prisma.comprobanteComercial.findFirst({ where:{ id:pendingOrder.session.saleId, tenantId:demo.tenantId } });
@@ -161,6 +167,7 @@ async function main() {
   const afterTakeWorkspace = await kds.workspace(demo.tenantId, cook, { station:'BARRA' });
   const pendingBar = afterTakeWorkspace.commands.find((row) => row.orderId === takenOrder.id || row.order?.id === takenOrder.id);
   assert.ok(pendingBar, 'la estación pendiente restante sigue visible');
+  assert.equal(pendingBar.order.state, 'EN_PREPARACION', 'el estado agregado hace desaparecer Cancelar en V99');
   assert.equal(pendingBar.canCancelOrder, false, 'si una estación ya tomó el pedido, ninguna otra debe mostrar Cancelar pedido');
 
   await assert.rejects(
@@ -173,7 +180,7 @@ async function main() {
   assert.equal(protectedAfter.commands.some((row) => row.station === 'COCINA' && row.state === 'EN_PREPARACION'), true);
   assert.equal(protectedAfter.commands.some((row) => row.station === 'BARRA' && row.state === 'PENDIENTE'), true, 'el rechazo no puede modificar estados');
 
-  console.log('Restaurant V2 KDS Order Cancel V98 DB smoke OK');
+  console.log('Restaurant V2 KDS Order Cancel Visible V99 DB smoke OK');
 }
 
 main().catch((error) => {
