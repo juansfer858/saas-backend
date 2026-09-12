@@ -118,7 +118,7 @@ async function commandsWithCategories(tenantId, commands) {
 async function deliveryCommandsForPrint(tenantId) {
   const rows = await prisma.restaurantDeliveryCommand.findMany({
     where: { tenantId, state: { in: ACTIVE_COMMAND_STATES } },
-    include: { delivery: { include: { items: { orderBy: { creadoEn: 'asc' } } } },
+    include: { delivery: { include: { items: { orderBy: { creadoEn: 'asc' } } } } },
     orderBy: { creadoEn: 'asc' },
     take: 500
   });
