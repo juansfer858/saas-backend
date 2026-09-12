@@ -1,5 +1,5 @@
 {
-  "fleetRolloutVersion": "2.1.16-self-heal.4",
+  "fleetRolloutVersion": "",
   "installRecommended": "2.1.16-self-heal.4",
   "releases": {
     "2.1.10-spanish-pos.1": {
@@ -72,7 +72,7 @@
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.9-print-templates.1.zip",
       "sha256": "a3347fe250c6f98234620daecf63f24a5992d0819efea617312170d0100e33f4",
-      "sourceCommit": "ff284752690a71162da35f87074aebdd91cee1c2"
+      "sourceCommit": "ff284752690a71162da35f87074aebdd91cee1c"
     }
   },
   "schema": "vantixgc-edge-core-artifacts-v1"
