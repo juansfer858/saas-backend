@@ -1,0 +1,30 @@
+name: Restaurant Command Cutter Feed CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  cutter-feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate safe feed before command cut
+        run: node scripts/restaurant-command-cutter-feed-smoke.js
+
+      - name: Validate existing ESC-POS spooler
+        run: node scripts/escpos-spooler-smoke.js
