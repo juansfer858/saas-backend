@@ -11,7 +11,7 @@ const manifest = sync.readBundledManifest();
 const current = manifest?.releases?.[version.version];
 assert.ok(current, `Bundled manifest must contain ${version.version}`);
 assert.equal(current.channel, version.channel);
-assert.equal(manifest.fleetRolloutVersion, version.version);
+assert.equal(String(manifest.fleetRolloutVersion || ''), '', 'fleet rollout automático debe permanecer desactivado');
 assert.equal(manifest.installRecommended, version.version);
 assert.match(String(current.sha256 || ''), /^[a-f0-9]{64}$/);
 assert.ok(fs.existsSync(`public/edge-releases/${current.file}`));
@@ -51,7 +51,7 @@ const client = {
   assert.ok(first.created.some((row) => row.version === version.version));
   assert.equal(first.conflicts.length, 0);
   assert.equal(creates, Object.keys(manifest.releases).length);
-  assert.equal(rows.get(version.version).mandatory, true, 'fleet target must be mandatory');
+  assert.equal(rows.get(version.version).mandatory, false, 'V95.4 manual repair must not become mandatory fleet rollout');
 
   const historicalVersion = Object.keys(manifest.releases).find((item) => item !== version.version);
   const historical = rows.get(historicalVersion);
@@ -61,7 +61,7 @@ const client = {
   assert.equal(second.created.length, 0, 'second sync must be idempotent');
   assert.ok(second.existing.includes(version.version));
   assert.equal(creates, Object.keys(manifest.releases).length);
-  assert.equal(rows.get(historicalVersion).mandatory, true, 'historical mandatory flags must never be cleared by fleet sync');
+  assert.equal(rows.get(historicalVersion).mandatory, true, 'historical mandatory flags must never be cleared by sync');
   assert.equal(updates, 0, 'idempotent sync must not rewrite exact existing releases');
 
   const currentRow = rows.get(version.version);
@@ -76,24 +76,23 @@ const client = {
   assert.match(publicRoute, /CENTRAL_ROLLOUT_V4_UPDATE_CHECK/);
   assert.match(publicRoute, /platform-edge-central-v4-update-check/);
   assert.match(fleetSource, /fleetRolloutVersion/);
-  assert.match(fleetSource, /FLEET_SELF_HEAL_V95_4/);
   assert.match(fleetSource, /OFFLINE_WAIT/);
   assert.match(fleetSource, /NEWER_CURRENT/);
   assert.match(fleetSource, /ALREADY_PROTECTED/);
   assert.match(fleetSource, /NODE_ENV !== 'production'/);
   assert.match(fleetSource, /EDGE_FLEET_ROLLOUT_ENABLED === 'false'/);
 
-  console.log('PLATFORM EDGE BUNDLED RELEASE + FLEET ROLLOUT V2 SMOKE OK', JSON.stringify({
+  console.log('PLATFORM EDGE BUNDLED RELEASE + MANUAL REPAIR V95.4 SMOKE OK', JSON.stringify({
     currentVersion: version.version,
     currentChannel: version.channel,
-    fleetRolloutVersion: manifest.fleetRolloutVersion,
+    fleetRolloutVersion: null,
     installRecommended: manifest.installRecommended,
     createdOnFirstSync: first.created.length,
     idempotent: true,
     conflictSafe: true,
     historicalMandatoryPreserved: true,
-    onlineOnlyScheduling: true,
-    alreadyProtectedV953Skipped: true,
+    automaticFleetRollout: false,
+    manualRepairFromDevices: true,
     futureVersionNoDowngrade: true,
     platformUiContract: 'V4_PRESERVED'
   }));
