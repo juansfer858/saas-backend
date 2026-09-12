@@ -69,7 +69,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - name: Verify exact KDS V2 P6 + Cancel V98 in production
+      - name: Verify exact KDS V2 P6 + Cancel V99 in production
         run: |
           set -euo pipefail
           BASE='https://core.vantixgc.com'
@@ -83,14 +83,18 @@ jobs:
               curl -fsS "$BASE/app/restaurant-v2-realtime.js?v=$GITHUB_SHA" -o "$R"
               grep -Fqi 'X-VantixGC-Restaurant-V2-KDS: p6-kds-realtime-push' "$H"
               grep -Fq 'COCINA/KDS/PUSH P6' "$P"
+              grep -Fq 'restaurant-v2-kds.js?v=v99' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_KDS_P6' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_KDS_P6' "$C"
               grep -Fq 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98' "$C"
+              grep -Fq 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_VISIBLE_V99' "$J"
+              grep -Fq "function localCancelable(c)" "$J"
+              grep -Fq "String(c.order?.state||'')==='ENVIADO'" "$J"
               grep -Fq 'vantix:tenant-realtime' "$J"
               grep -Fq 'transport:'"'"'SSE+PG_NOTIFY'"'"'' "$R"
               grep -Fq 'restaurant-push-v65.js' "$P"
-              echo "KDS V2 P6 + Cancel V98 live at $GITHUB_SHA"
+              echo "KDS V2 P6 + Cancel V99 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
