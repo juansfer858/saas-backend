@@ -81,20 +81,23 @@ jobs:
               grep -Fq 'VANTIX_RESTAURANT_V2_ORDERS_P3' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_CARD_TARGET_V101' "$J"
               grep -Fq 'data-person-target' "$J"
               grep -Fq '>TODOS</button>' "$J"
               grep -Fq 'draft-target-label' "$J"
-              grep -Fq 'line-seat-buttons' "$J"
               grep -Fq '/pedido/enviar' "$J"
               grep -Fq 'ENVIANDO PEDIDO' "$J"
               grep -Fq 'mergeDraftResult(result)' "$J"
               grep -Fq 'if(sent){S.realtimeQueued=false;await loadDraft()}' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100' "$C"
+              grep -Fq 'VANTIX_RESTAURANT_V2_CARD_TARGET_V101' "$C"
               grep -Fq 'flex-wrap:nowrap' "$C"
               grep -Fq 'overflow-x:auto' "$C"
+              if grep -Fq 'line-seat-buttons' "$J"; then exit 1; fi
+              if grep -Fq 'data-line-seat' "$J"; then exit 1; fi
               if grep -Fq 'billingMode:' "$J"; then exit 1; fi
               if grep -Fq 'Mesa / sin asignar' "$J"; then exit 1; fi
-              echo "Pedidos V2 P3 person buttons V100 live at $GITHUB_SHA"
+              echo "Pedidos V2 P3 card target V101 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
