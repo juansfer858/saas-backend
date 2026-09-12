@@ -9,7 +9,9 @@ on:
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
+      - 'src/web/restaurant-v2-person-buttons-v100.css'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
+      - 'scripts/restaurant-v2-person-buttons-v100-smoke.js'
       - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
   push:
     branches: [main]
@@ -20,7 +22,9 @@ on:
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
+      - 'src/web/restaurant-v2-person-buttons-v100.css'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
+      - 'scripts/restaurant-v2-person-buttons-v100-smoke.js'
       - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
 permissions:
   contents: read
@@ -48,6 +52,7 @@ jobs:
       - run: npm run build
       - run: npx prisma db push
       - run: node scripts/restaurant-v2-orders-p3-db-smoke.js
+      - run: node scripts/restaurant-v2-person-buttons-v100-smoke.js
       - run: node --check src/modules/restaurant/restaurant.service.js
       - run: node --check src/modules/restaurant/restaurant-identity.service.js
       - run: node --check src/modules/restaurant/restaurant-v2-orders.routes.js
@@ -65,20 +70,31 @@ jobs:
           for i in $(seq 1 60); do
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
-              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"
+              H="$(mktemp)"; P="$(mktemp)"; J="$(mktemp)"; C="$(mktemp)"
               curl -fsS -D "$H" "$BASE/app/restaurante-v2/pedidos?v=$GITHUB_SHA" -o "$P"
               curl -fsS "$BASE/app/restaurant-v2-orders.js?v=$GITHUB_SHA" -o "$J"
+              curl -fsS "$BASE/app/restaurant-v2-person-buttons-v100.css?v=$GITHUB_SHA" -o "$C"
               grep -Fqi 'X-VantixGC-Restaurant-V2-Orders: p3-orders-independent' "$H"
               grep -Fq 'RESTAURANTE V2 · PEDIDOS' "$P"
               grep -Fq 'REVISAR PEDIDO' "$P"
+              grep -Fq 'restaurant-v2-person-buttons-v100.css' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_ORDERS_P3' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100' "$J"
+              grep -Fq 'data-person-target' "$J"
+              grep -Fq '>TODOS</button>' "$J"
+              grep -Fq 'draft-target-label' "$J"
+              grep -Fq 'line-seat-buttons' "$J"
               grep -Fq '/pedido/enviar' "$J"
               grep -Fq 'ENVIANDO PEDIDO' "$J"
               grep -Fq 'mergeDraftResult(result)' "$J"
               grep -Fq 'if(sent){S.realtimeQueued=false;await loadDraft()}' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100' "$C"
+              grep -Fq 'flex-wrap:nowrap' "$C"
+              grep -Fq 'overflow-x:auto' "$C"
               if grep -Fq 'billingMode:' "$J"; then exit 1; fi
-              echo "Pedidos V2 P3 waiter fast mutations V81 live at $GITHUB_SHA"
+              if grep -Fq 'Mesa / sin asignar' "$J"; then exit 1; fi
+              echo "Pedidos V2 P3 person buttons V100 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10

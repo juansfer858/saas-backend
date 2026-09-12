@@ -1,0 +1,26 @@
+/* VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100 */
+.service-controls{flex-wrap:nowrap;overflow:hidden}
+.people{flex:0 0 auto;white-space:nowrap}
+.person-targets{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0;margin-left:4px;overflow-x:auto;overflow-y:hidden;padding:1px 0;scrollbar-width:thin;overscroll-behavior-x:contain}
+.person-targets .person-target-btn{flex:0 0 auto;white-space:nowrap;min-height:38px;padding-inline:11px}
+.person-targets .target-active{font-weight:950;box-shadow:0 0 0 2px rgba(13,107,67,.14)}
+.menu-target{display:inline-flex;align-items:center;width:max-content;max-width:100%;padding:4px 7px;border-radius:999px;background:var(--rv2-primary-soft);color:var(--rv2-primary-hover);font-size:11px;line-height:1.1}
+.menu-target b{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.draft-target-label{display:block;margin-top:3px;color:var(--rv2-muted)}
+.draft-target-label b{color:var(--rv2-primary-hover)}
+.line-target-editor{display:flex;align-items:center;gap:6px;min-width:0}
+.line-target-editor>span{flex:0 0 auto;font-size:10px;font-weight:850;color:var(--rv2-muted);text-transform:uppercase;letter-spacing:.04em}
+.line-seat-buttons{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;overflow-y:hidden;padding:1px 0;scrollbar-width:thin;overscroll-behavior-x:contain}
+.line-seat-buttons .line-seat-btn{flex:0 0 auto;min-width:38px;min-height:36px;padding:4px 8px;white-space:nowrap;font-size:11px}
+.line-seat-buttons .target-active{font-weight:950;box-shadow:0 0 0 2px rgba(13,107,67,.12)}
+.sent-line small b,.review-line small b{color:var(--rv2-primary-hover)}
+body[data-vantix-device="waiter"] .person-targets .person-target-btn{min-height:39px;border-radius:10px}
+body[data-vantix-device="waiter"] .menu-target{background:#eef9f3;color:#0d6b43;font-weight:800}
+body[data-vantix-device="waiter"] .line-seat-buttons .line-seat-btn{min-height:41px;border-radius:10px;touch-action:manipulation}
+@media(max-width:720px){
+  .service-controls{flex-wrap:nowrap;align-items:center}
+  .person-targets{margin-left:2px}
+  .person-targets .person-target-btn{padding-inline:9px}
+  .line-target-editor{align-items:flex-start;flex-direction:column;gap:4px}
+  .line-seat-buttons{width:100%}
+}
