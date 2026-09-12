@@ -4,9 +4,12 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'edge/agent/universal-entry.js'
       - 'edge/supervisor/supervisor.js'
       - 'edge/supervisor/install-windows.ps1'
       - 'edge/supervisor/watchdog-windows.ps1'
+      - 'edge/supervisor/fleet-repair-bootstrap-windows.ps1'
+      - 'edge/supervisor/fleet-repair-windows.ps1'
       - 'edge/supervisor/uninstall-windows.ps1'
       - 'edge/version.json'
       - 'scripts/edge-windows-self-heal-v95-smoke.js'
@@ -14,9 +17,12 @@ on:
   push:
     branches: [main]
     paths:
+      - 'edge/agent/universal-entry.js'
       - 'edge/supervisor/supervisor.js'
       - 'edge/supervisor/install-windows.ps1'
       - 'edge/supervisor/watchdog-windows.ps1'
+      - 'edge/supervisor/fleet-repair-bootstrap-windows.ps1'
+      - 'edge/supervisor/fleet-repair-windows.ps1'
       - 'edge/supervisor/uninstall-windows.ps1'
       - 'edge/version.json'
       - 'scripts/edge-windows-self-heal-v95-smoke.js'
@@ -39,6 +45,8 @@ jobs:
           $files = @(
             'edge/supervisor/install-windows.ps1',
             'edge/supervisor/watchdog-windows.ps1',
+            'edge/supervisor/fleet-repair-bootstrap-windows.ps1',
+            'edge/supervisor/fleet-repair-windows.ps1',
             'edge/supervisor/uninstall-windows.ps1'
           )
           foreach ($file in $files) {
