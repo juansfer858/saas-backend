@@ -1,5 +1,6 @@
 'use strict';
 
+// V95.3 field validation: this smoke must run on the final human-authored PR head.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
