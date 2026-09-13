@@ -31,10 +31,10 @@ function assertLabConfig(env = process.env) {
     throw new Error(`P13 bloqueado: puerto local inválido o reservado (${port}).`);
   }
   if (port !== DEFAULT_PORT) {
-    throw new Error(`P13-A usa exclusivamente el puerto ${DEFAULT_PORT}; recibido ${port}.`);
+    throw new Error(`P13 usa exclusivamente el puerto ${DEFAULT_PORT} durante el laboratorio aislado; recibido ${port}.`);
   }
   if (truthy(env.P13_MUTATIONS_ENABLED)) {
-    throw new Error('P13-A es solo lectura: P13_MUTATIONS_ENABLED debe permanecer false.');
+    throw new Error('P13 bloqueado: P13_MUTATIONS_ENABLED debe permanecer false; las fronteras se abren explícitamente una a una.');
   }
 
   const tenantSubdomain = String(env.P13_TENANT_SUBDOMAIN || '').trim().toLowerCase();
@@ -96,6 +96,19 @@ function tenantHeader(req) {
   return String(req.headers['x-tenant-subdomain'] || '').trim().toLowerCase();
 }
 
+function mutationBoundaryForRequest(method, rawPath) {
+  const verb = String(method || '').toUpperCase();
+  const pathname = String(rawPath || '').split('?')[0];
+
+  if (verb === 'POST' && pathname === '/api/v1/auth/login') return 'AUTH_LOGIN';
+  if (verb === 'POST' && pathname === '/api/v1/usuarios') return 'IDENTITY_USERS';
+  if (verb === 'PATCH' && /^\/api\/v1\/usuarios\/[^/]+$/.test(pathname)) return 'IDENTITY_USERS';
+  if (verb === 'POST' && pathname === '/api/v1/seguridad/roles') return 'IDENTITY_RBAC';
+  if (verb === 'PUT' && /^\/api\/v1\/seguridad\/roles\/[^/]+\/permisos$/.test(pathname)) return 'IDENTITY_RBAC';
+  if (verb === 'PUT' && /^\/api\/v1\/seguridad\/usuarios\/[^/]+\/(?:roles|permisos)$/.test(pathname)) return 'IDENTITY_RBAC';
+  return null;
+}
+
 async function start() {
   const config = assertLabConfig(process.env);
 
@@ -121,8 +134,10 @@ async function start() {
     res.json({
       ok: true,
       marker: LAB_MARKER,
-      phase: 'P13-A/B1',
-      readOnly: true,
+      phase: 'P13-E1',
+      mutationMode: 'IDENTITY_ONLY',
+      mutationBoundaries: ['AUTH_LOGIN', 'IDENTITY_USERS', 'IDENTITY_RBAC'],
+      allOtherBusinessMutations: 'LOCKED',
       canonicalCoreApp: true,
       tenantSubdomain: config.tenantSubdomain,
       host: config.host,
@@ -149,29 +164,29 @@ async function start() {
     }
 
     // Global SaaS/platform control plane is intentionally not part of a restaurant
-    // single-tenant runtime. Public QR also stays on its existing hybrid path.
+    // single-tenant runtime. Public QR also stays on its existing cloud path.
     if (req.path === '/platform' || req.path.startsWith('/platform/') || req.path.startsWith('/edge/api/')) {
       return res.status(404).json({ ok: false, code: 'P13_CONTROL_PLANE_NOT_LOCAL', message: 'Ruta central fuera del runtime local del restaurante.' });
     }
     if (req.path.startsWith('/r/')) {
-      return res.status(409).json({ ok: false, code: 'P13_PUBLIC_QR_HYBRID_UNCHANGED', message: 'El QR público no se mueve al laboratorio P13-A.' });
+      return res.status(409).json({ ok: false, code: 'P13_PUBLIC_QR_HYBRID_UNCHANGED', message: 'El QR público permanece en Core y no se mueve al runtime local.' });
     }
 
     if (isReadOnlyMethod(req.method)) return next();
 
-    // Login is the only POST allowed in P13-A/B1 and authenticates solely against
-    // PostgreSQL local. The tenant header is mandatory and pinned to this installation.
-    if (req.method === 'POST' && req.path === '/api/v1/auth/login') {
+    const boundary = mutationBoundaryForRequest(req.method, req.path);
+    if (boundary) {
       if (!requestedTenant) {
         return res.status(400).json({ ok: false, code: 'P13_TENANT_HEADER_REQUIRED', message: 'Falta el tenant local.' });
       }
+      res.set('X-VantixGC-P13-Mutation-Boundary', boundary);
       return next();
     }
 
     return res.status(423).json({
       ok: false,
-      code: 'P13_A_READ_ONLY',
-      message: 'P13-A/B1 sirve el mismo Super Core/Restaurante en modo laboratorio, sin mutaciones.'
+      code: 'P13_BOUNDARY_LOCKED',
+      message: 'Esta frontera de negocio todavía no está habilitada en el laboratorio Full Local.'
     });
   });
 
@@ -182,10 +197,10 @@ async function start() {
     instance.once('error', reject);
   });
 
-  console.log(`P13_A_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
+  console.log(`P13_E1_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
 
   const shutdown = async (signal) => {
-    console.log(`P13_A_RUNTIME_STOP signal=${signal}`);
+    console.log(`P13_E1_RUNTIME_STOP signal=${signal}`);
     await new Promise((resolve) => server.close(resolve));
     await prisma.$disconnect().catch(() => {});
     process.exit(0);
@@ -198,7 +213,7 @@ async function start() {
 if (require.main === module) {
   require('dotenv').config({ path: process.env.P13_ENV_FILE || path.join(__dirname, '.env') });
   start().catch((error) => {
-    console.error(`P13_A_RUNTIME_FAILED: ${error.message}`);
+    console.error(`P13_E1_RUNTIME_FAILED: ${error.message}`);
     process.exit(1);
   });
 }
@@ -212,5 +227,6 @@ module.exports = {
   assertLabConfig,
   installOutboundNetworkGuard,
   tenantHeader,
+  mutationBoundaryForRequest,
   start
 };
