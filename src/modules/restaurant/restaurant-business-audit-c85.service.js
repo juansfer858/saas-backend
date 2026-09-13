@@ -1,9 +1,11 @@
 'use strict';
 
+const { Prisma } = require('@prisma/client');
 const { prisma } = require('../../config/prisma');
 
 const MARKER = 'VANTIX_RESTAURANT_BUSINESS_AUDIT_C85';
-const VERSION = '85.0.0';
+const READABLE_MARKER = 'VANTIX_RESTAURANT_AUDIT_READABLE_V87';
+const VERSION = '85.1.0';
 const AUDIT_ENTITY = 'RESTAURANT_BUSINESS_AUDIT_C85';
 const RESTAURANT_NICHES = new Set(['RESTAURANTE', 'RESTAURANT']);
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -18,21 +20,56 @@ function trimString(value, max = 1000) {
   return text.length <= max ? text : `${text.slice(0, max)}…`;
 }
 
+function isPrismaDecimal(value) {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && (
+      value instanceof Prisma.Decimal
+      || (
+        Array.isArray(value.d)
+        && Number.isFinite(Number(value.e))
+        && Number.isFinite(Number(value.s))
+        && typeof value.toString === 'function'
+        && typeof value.toDecimalPlaces === 'function'
+      )
+    )
+  );
+}
+
 function sanitize(value, depth = 0, seen = new WeakSet()) {
   if (value === null || value === undefined) return value ?? null;
   if (typeof value === 'string') return trimString(value);
   if (typeof value === 'number' || typeof value === 'boolean') return value;
   if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (isPrismaDecimal(value)) return value.toString();
   if (value instanceof Date) return value.toISOString();
   if (Buffer.isBuffer(value)) return `[BUFFER ${value.length} bytes]`;
-  if (depth >= 5) return '[TRUNCATED]';
+  if (depth >= 6) return '[TRUNCATED]';
   if (typeof value !== 'object') return trimString(value);
   if (seen.has(value)) return '[CIRCULAR]';
   seen.add(value);
-  if (Array.isArray(value)) return value.slice(0, 30).map((item) => sanitize(item, depth + 1, seen));
+  if (Array.isArray(value)) {
+    return value.slice(0, 50).map((item) => sanitize(item, depth + 1, seen)).filter((item) => item !== undefined);
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype && prototype !== Object.prototype && prototype !== null) {
+    if (typeof value.toJSON === 'function') {
+      try { return sanitize(value.toJSON(), depth + 1, seen); } catch {}
+    }
+    return trimString(String(value));
+  }
+
   const out = {};
-  for (const [key, item] of Object.entries(value).slice(0, 80)) {
-    out[key] = SENSITIVE_KEY.test(key) ? '[REDACTED]' : sanitize(item, depth + 1, seen);
+  for (const [key, item] of Object.entries(value).slice(0, 120)) {
+    if (SENSITIVE_KEY.test(key)) {
+      out[key] = '[REDACTED]';
+      continue;
+    }
+    const clean = sanitize(item, depth + 1, seen);
+    if (clean !== undefined) out[key] = clean;
   }
   return out;
 }
@@ -82,10 +119,10 @@ function moduleForPath(pathname) {
 function restaurantAdminPathAllowed(method, pathname) {
   const p = String(pathname || '').toLowerCase();
   if (!p.startsWith('/restaurante/')) return false;
-  if (/^\/restaurante\/limpieza-pruebas\//.test(p)) return false; // ya tiene auditoría propia C83/V68
+  if (/^\/restaurante\/limpieza-pruebas\//.test(p)) return false;
   if (/^\/restaurante\/auditoria\//.test(p)) return false;
   if (NOISY_PATH.test(p)) return false;
-  if (/^\/restaurante\/carta-importacion\/analizar(?:-binario)?\/?$/.test(p)) return false; // análisis OCR no persiste cambios
+  if (/^\/restaurante\/carta-importacion\/analizar(?:-binario)?\/?$/.test(p)) return false;
   if (/^\/restaurante\/(theme|config|gates)(\/|$)/.test(p)) return true;
   if (/^\/restaurante\/carta-importacion\/(categorias|items|promo-v28|confirmar|importados-ocr)(\/|$)/.test(p)) return true;
   if (/^\/restaurante\/(menu|carta|categor|categorias|receta|recetas|producto|productos)(\/|$)/.test(p)) return true;
@@ -150,6 +187,7 @@ async function recordMutation({ req, responseBody, statusCode, classification },
   if (!(await isRestaurantTenant(req.tenantId, client))) return null;
   const metadata = {
     marker: MARKER,
+    readableMarker: READABLE_MARKER,
     version: VERSION,
     module: classification.module,
     subject: classification.subject,
@@ -181,8 +219,10 @@ async function recordMutation({ req, responseBody, statusCode, classification },
 
 module.exports = {
   MARKER,
+  READABLE_MARKER,
   VERSION,
   AUDIT_ENTITY,
+  isPrismaDecimal,
   sanitize,
   subjectForPath,
   moduleForPath,
