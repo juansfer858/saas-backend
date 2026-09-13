@@ -1,0 +1,29 @@
+name: Restaurant Local First P0 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'edge/**'
+      - 'src/modules/edge/edge-restaurant-sync.service.js'
+      - 'scripts/restaurant-local-first-p0-smoke.js'
+      - '.github/workflows/restaurant-local-first-p0-ci.yml'
+
+jobs:
+  local-first-p0:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Local First P0 syntax
+        run: |
+          node --check edge/agent/workspace-entry-local-first-p0.js
+          node --check edge/agent/restaurant-entry-v2.js
+          node --check scripts/restaurant-local-first-p0-smoke.js
+      - name: Prove Restaurant Local First P0 contract
+        run: node scripts/restaurant-local-first-p0-smoke.js
