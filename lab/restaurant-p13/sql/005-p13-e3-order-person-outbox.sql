@@ -97,8 +97,8 @@ CREATE OR REPLACE FUNCTION p13_e3_emit_outbox()
 RETURNS TRIGGER AS $$
 DECLARE
   v_row JSONB;
-  v_tenant_id UUID;
-  v_entity_id UUID;
+  v_tenant_id TEXT;
+  v_entity_id TEXT;
   v_entity_type TEXT;
   v_installation_id TEXT;
   v_version BIGINT;
@@ -107,8 +107,8 @@ DECLARE
 BEGIN
   v_row := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
   v_entity_type := TG_ARGV[0];
-  v_tenant_id := NULLIF(v_row->>'tenantId', '')::uuid;
-  v_entity_id := NULLIF(v_row->>'id', '')::uuid;
+  v_tenant_id := NULLIF(v_row->>'tenantId', '');
+  v_entity_id := NULLIF(v_row->>'id', '');
 
   IF v_tenant_id IS NULL OR v_entity_id IS NULL THEN
     RAISE EXCEPTION 'P13_E3_ROW_IDENTITY_INVALID:%:%', TG_TABLE_NAME, TG_OP;
