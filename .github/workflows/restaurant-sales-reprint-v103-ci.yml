@@ -1,0 +1,38 @@
+name: Restaurant Sales Reprint V103 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-receipt-reprint-v103.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-reprint-v103.routes.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-reprint-signal-v103.service.js'
+      - 'src/modules/restaurant/restaurant-sales-reprint-v103.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/restaurant-sales-reprint-v103-smoke.js'
+      - '.github/workflows/restaurant-sales-reprint-v103-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  restaurant-sales-reprint-v103:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax check V103 modules
+        run: |
+          node --check src/modules/restaurant/restaurant-pos-receipt-reprint-v103.service.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-reprint-v103.routes.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-reprint-signal-v103.service.js
+          node --check src/modules/restaurant/restaurant-sales-reprint-v103.public.routes.js
+          node --check src/routes/core.routes.js
+          node --check src/modules/restaurant/restaurant.public.routes.js
+
+      - name: Verify safe POS reprint contract
+        run: node scripts/restaurant-sales-reprint-v103-smoke.js
