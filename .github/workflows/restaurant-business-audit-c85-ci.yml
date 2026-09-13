@@ -60,7 +60,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for exact commit and C85 audit surface in production
+      - name: Wait for exact commit and C85 readable audit surface in production
         shell: bash
         run: |
           set -euo pipefail
@@ -70,12 +70,14 @@ jobs:
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
               JS="$(curl -fsS "$BASE/app/restaurant-audit-log-c84.js?v=c85-$GITHUB_SHA" 2>/dev/null || true)"
               if echo "$JS" | grep -Fq 'VANTIX_RESTAURANT_BUSINESS_AUDIT_C85' \
-                && echo "$JS" | grep -Fq 'No registra clics, consultas ni eventos técnicos repetitivos'; then
-                echo "C85 business audit is live for exact commit $GITHUB_SHA"
+                && echo "$JS" | grep -Fq 'VANTIX_RESTAURANT_AUDIT_READABLE_V87' \
+                && echo "$JS" | grep -Fq 'Datos del registro' \
+                && echo "$JS" | grep -Fq 'VER DATOS TÉCNICOS'; then
+                echo "C85 readable business audit is live for exact commit $GITHUB_SHA"
                 exit 0
               fi
             fi
             sleep 10
           done
-          echo "C85 did not become live for exact commit $GITHUB_SHA" >&2
+          echo "C85 readable business audit did not become live for exact commit $GITHUB_SHA" >&2
           exit 1
