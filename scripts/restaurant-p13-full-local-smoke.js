@@ -9,7 +9,10 @@ const {
   DEFAULT_PORT,
   REQUIRED_DB_PORT,
   REQUIRED_DB_NAME,
+  LOCAL_RESTAURANT_ENTRY,
+  CENTRAL_SUPER_CORE_UI_PREFIXES,
   assertLabConfig,
+  isCentralSuperCoreUiPath,
   mutationBoundaryForRequest
 } = require('../lab/restaurant-p13/runtime');
 
@@ -28,6 +31,12 @@ assert.equal(DEFAULT_HOST, '127.0.0.1');
 assert.equal(DEFAULT_PORT, 8790);
 assert.equal(REQUIRED_DB_PORT, 55432);
 assert.equal(REQUIRED_DB_NAME, 'vantix_p13_lab');
+assert.equal(LOCAL_RESTAURANT_ENTRY, '/app/centro-de-control-v2');
+assert.ok(CENTRAL_SUPER_CORE_UI_PREFIXES.includes('/app/dashboard'));
+assert.equal(isCentralSuperCoreUiPath('/app/dashboard'), true);
+assert.equal(isCentralSuperCoreUiPath('/app/contabilidad'), true);
+assert.equal(isCentralSuperCoreUiPath('/app/restaurante-v2/caja'), false);
+assert.equal(isCentralSuperCoreUiPath('/app/centro-de-control-v2'), false);
 
 const valid = {
   VANTIX_P13_LAB_ENABLED: 'true',
@@ -60,20 +69,23 @@ assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/vantix_p13_lab' }), /55432/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@127.0.0.1:55432/saas_backend' }), /vantix_p13_lab/);
 
-// P13 serves the exact canonical app graph. It must never import or copy the
-// simplified Edge workspace as its business UI.
+// P13 reuses the canonical application graph as an engine, but exposes only
+// the restaurant control-center surface locally. Super Core UI remains cloud-only.
 assert.match(runtime, /require\('\.\.\/\.\.\/src\/app'\)/);
 assert.doesNotMatch(runtime, /edge\/workspace\/public\/index\.html/);
 assert.doesNotMatch(runtime, /WORKSPACE_HTML/);
+assert.match(runtime, /RESTAURANT_CONTROL_CENTER_ONLY/);
+assert.match(runtime, /LOCAL_RESTAURANT_ENTRY/);
+assert.match(runtime, /P13_SUPER_CORE_UI_CLOUD_ONLY/);
 assert.match(runtime, /P13_BOUNDARY_LOCKED/);
-assert.match(runtime, /P13_PUBLIC_QR_HYBRID_UNCHANGED/);
+assert.match(runtime, /P13_PUBLIC_QR_CORE_ONLY/);
+assert.match(runtime, /publicQrPolicy: 'CORE_CLOUD_ONLY'/);
 assert.match(runtime, /P13_CONTROL_PLANE_NOT_LOCAL/);
 assert.match(runtime, /P13_OUTBOUND_BLOCKED/);
 assert.match(runtime, /P13_TENANT_LOCK_MISMATCH/);
 assert.match(runtime, /process\.env\.JWT_SECRET = config\.jwtSecret/);
 
-// E1 opens only authentication + Users + RBAC. Every other business mutation
-// remains closed even though the canonical app graph is mounted locally.
+// E1-E4 open only explicitly approved restaurant operational mutations.
 assert.equal(mutationBoundaryForRequest('POST', '/api/v1/auth/login'), 'AUTH_LOGIN');
 assert.equal(mutationBoundaryForRequest('POST', '/api/v1/usuarios'), 'IDENTITY_USERS');
 assert.equal(mutationBoundaryForRequest('PATCH', '/api/v1/usuarios/user-1'), 'IDENTITY_USERS');
@@ -81,6 +93,7 @@ assert.equal(mutationBoundaryForRequest('POST', '/api/v1/seguridad/roles'), 'IDE
 assert.equal(mutationBoundaryForRequest('PUT', '/api/v1/seguridad/roles/role-1/permisos'), 'IDENTITY_RBAC');
 assert.equal(mutationBoundaryForRequest('PUT', '/api/v1/seguridad/usuarios/user-1/roles'), 'IDENTITY_RBAC');
 assert.equal(mutationBoundaryForRequest('PUT', '/api/v1/seguridad/usuarios/user-1/permisos'), 'IDENTITY_RBAC');
+assert.equal(mutationBoundaryForRequest('PATCH', '/api/v1/restaurante/v2/kds/comandas/cmd-1'), 'RESTAURANT_KDS_COMMAND_STATE');
 assert.equal(mutationBoundaryForRequest('POST', '/api/v1/terceros'), null);
 assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/pedidos'), null);
 assert.equal(mutationBoundaryForRequest('POST', '/api/v1/comercial/ventas'), null);
@@ -96,7 +109,7 @@ assert.match(bootstrap, /tenants\.length !== 1/);
 assert.doesNotMatch(bootstrap, /core\.vantixgc\.com/);
 
 // The existing Edge remains on 8788 and still owns the old emergency workspace;
-// P13 only proves that this separate UI will not be the final local runtime.
+// P13 remains an isolated runtime until the Windows pilot is ready.
 assert.match(edgeWorkspace, /EDGE_PORT \|\| 8788/);
 assert.match(edgeWorkspace, /WORKSPACE_HTML/);
 assert.match(design, /Runtime experimental en puerto distinto, inicialmente `8790`/);
@@ -120,8 +133,10 @@ assert.match(v2Aggregator, /restaurantV2MenuPublicRouter/);
 console.log(JSON.stringify({
   ok: true,
   marker: LAB_MARKER,
-  canonicalCoreAppReused: true,
-  secondBusinessUiRejected: true,
+  canonicalCoreAppReusedAsEngine: true,
+  localSurface: 'RESTAURANT_CONTROL_CENTER_ONLY',
+  localEntry: LOCAL_RESTAURANT_ENTRY,
+  superCoreUi: 'CLOUD_ONLY',
   labPort: DEFAULT_PORT,
   productionEdgePortUntouched: 8788,
   localPostgresPort: REQUIRED_DB_PORT,
@@ -129,9 +144,8 @@ console.log(JSON.stringify({
   tenantLock: 'demo-restaurante',
   labJwtIsolated: true,
   localAdminPasswordHashed: true,
-  e1IdentityMutationsOnly: true,
   allOtherBusinessMutationsLocked: true,
   serverOutboundNetworkBlocked: true,
-  publicQrHybridUnchanged: true,
+  publicQrPolicy: 'CORE_CLOUD_ONLY',
   platformControlPlaneExcluded: true
 }));
