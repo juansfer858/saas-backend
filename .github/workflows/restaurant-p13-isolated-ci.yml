@@ -85,6 +85,9 @@ jobs:
       - name: Validate snapshot, replacement-PC restore and continuity
         run: npm run lab:p13:recovery-smoke
 
+      - name: Validate E1 local users roles permissions restart and transactional outbox
+        run: npm run lab:p13:e1-smoke
+
       - name: Assert production Edge remains untouched by P13 files
         shell: bash
         run: |
