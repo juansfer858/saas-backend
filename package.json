@@ -13,7 +13,8 @@
     "db:push": "npx prisma db push",
     "lab:p13": "node lab/restaurant-p13/runtime.js",
     "lab:p13:bootstrap": "node lab/restaurant-p13/bootstrap-demo.js",
-    "lab:p13:smoke": "node scripts/restaurant-p13-full-local-smoke.js"
+    "lab:p13:smoke": "node scripts/restaurant-p13-full-local-smoke.js",
+    "lab:p13:security-smoke": "node scripts/restaurant-p13-security-smoke.js"
   },
   "repository": {
     "type": "git",
