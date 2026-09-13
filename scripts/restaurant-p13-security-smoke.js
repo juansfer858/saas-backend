@@ -8,6 +8,10 @@ const {
   isFeatureEnabled
 } = require('../lab/restaurant-p13/security/offline-license');
 const {
+  createLabInstallationIdentity,
+  verifyInstallationProof
+} = require('../lab/restaurant-p13/security/installation-identity');
+const {
   sha256,
   verifyManifest,
   verifyPackageBytes,
@@ -22,11 +26,19 @@ const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
 const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' });
 const now = Date.parse('2026-09-13T20:00:00.000Z');
 
+const installation = createLabInstallationIdentity({ installationId: 'installation-p13-001' });
+const clonedInstallation = createLabInstallationIdentity({ installationId: 'installation-p13-001' });
+const challenge = 'vantix-p13-core-challenge-001';
+const proof = installation.signChallenge(challenge);
+assert.equal(verifyInstallationProof({ publicKey: installation.publicKeyPem, challenge, signature: proof }), true);
+assert.equal(verifyInstallationProof({ publicKey: clonedInstallation.publicKeyPem, challenge, signature: proof }), false);
+
 const licensePayload = {
   licenseVersion: 1,
   tenantId: 'tenant-p13-demo',
   tenantSubdomain: 'demo-restaurante',
-  installationId: 'installation-p13-001',
+  installationId: installation.installationId,
+  installationPublicKeySha256: installation.fingerprint,
   plan: 'RESTAURANTE_PRO',
   features: {
     RESTAURANTE: true,
@@ -46,7 +58,8 @@ const verified = verifySignedLicense({
   publicKeyPem,
   expectedTenantId: 'tenant-p13-demo',
   expectedTenantSubdomain: 'demo-restaurante',
-  expectedInstallationId: 'installation-p13-001',
+  expectedInstallationId: installation.installationId,
+  expectedInstallationPublicKeySha256: installation.fingerprint,
   now
 });
 assert.equal(verified.state, 'VALID');
@@ -56,7 +69,8 @@ assert.equal(isFeatureEnabled(verified, 'MULTISEDE'), false);
 const grace = verifySignedLicense({
   envelope: licenseEnvelope,
   publicKeyPem,
-  expectedInstallationId: 'installation-p13-001',
+  expectedInstallationId: installation.installationId,
+  expectedInstallationPublicKeySha256: installation.fingerprint,
   now: Date.parse('2026-10-20T12:00:00.000Z')
 });
 assert.equal(grace.state, 'GRACE');
@@ -64,7 +78,8 @@ assert.equal(grace.state, 'GRACE');
 const expired = verifySignedLicense({
   envelope: licenseEnvelope,
   publicKeyPem,
-  expectedInstallationId: 'installation-p13-001',
+  expectedInstallationId: installation.installationId,
+  expectedInstallationPublicKeySha256: installation.fingerprint,
   now: Date.parse('2026-11-01T12:00:00.000Z')
 });
 assert.equal(expired.state, 'EXPIRED');
@@ -75,6 +90,14 @@ assert.throws(() => verifySignedLicense({
   expectedInstallationId: 'cloned-installation',
   now
 }), /INSTALLATION_MISMATCH/);
+
+assert.throws(() => verifySignedLicense({
+  envelope: licenseEnvelope,
+  publicKeyPem,
+  expectedInstallationId: installation.installationId,
+  expectedInstallationPublicKeySha256: clonedInstallation.fingerprint,
+  now
+}), /INSTALLATION_KEY_MISMATCH/);
 
 const tamperedLicense = {
   payload: { ...licensePayload, plan: 'RESTAURANTE_ENTERPRISE' },
@@ -110,6 +133,8 @@ assert.throws(() => verifyPackageBytes({ bytes: Buffer.from('altered'), manifest
 console.log(JSON.stringify({
   ok: true,
   phase: 'P13-C-H-SECURITY-LAB',
+  installationIdentity: 'ED25519_CHALLENGE_OK',
+  installationKeyFingerprintBinding: 'OK',
   licenseSignature: 'ED25519_OK',
   installationBinding: 'OK',
   offlineStates: ['VALID', 'GRACE', 'EXPIRED'],
