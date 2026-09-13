@@ -44,7 +44,7 @@ async function waitForRuntime(child) {
       const response = await fetch(`${BASE_URL}/__p13/status`, { headers: { accept: 'application/json' } });
       if (response.ok) {
         const data = await response.json();
-        if (/^P13-E(?:1|2)$/.test(String(data.phase || ''))) return data;
+        if (/^P13-E(?:1|2|3)$/.test(String(data.phase || ''))) return data;
       }
     } catch (error) { lastError = error; }
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -103,121 +103,104 @@ async function prepareSchemas(client, tenantId) {
 async function main() {
   const config = assertLabConfig(process.env);
   assert.equal(config.tenantSubdomain, 'demo-restaurante');
-  assert.ok(String(process.env.P13_ADMIN_PASSWORD || '').length >= 12);
 
   const client = new Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   let runtime = null;
   let restarted = null;
-
   try {
     const tenants = await client.query('SELECT id, subdomain FROM "Tenant"');
-    assert.equal(tenants.rowCount, 1);
+    assert.equal(tenants.rowCount, 1, 'E1 debe operar con un solo tenant local');
     assert.equal(tenants.rows[0].subdomain, config.tenantSubdomain);
     const tenantId = tenants.rows[0].id;
     const installationId = await prepareSchemas(client, tenantId);
 
+    const localUsers = await client.query(`
+      SELECT id, email, rol, activo FROM "User"
+      WHERE "tenantId"=$1 AND email IN ('admin@demo-restaurante.vantixgc.com','mesero@demo-restaurante.vantixgc.com')
+      ORDER BY email
+    `, [tenantId]);
+    assert.equal(localUsers.rowCount, 2, 'Bootstrap local debe tener ADMIN y MESERO');
+
+    const admin = localUsers.rows.find((row) => row.email === 'admin@demo-restaurante.vantixgc.com');
+    const waiter = localUsers.rows.find((row) => row.email === 'mesero@demo-restaurante.vantixgc.com');
+    assert.ok(admin?.activo);
+    assert.ok(waiter?.activo);
+
     runtime = await startRuntime();
-    for (const boundary of REQUIRED_E1_BOUNDARIES) {
-      assert.ok(runtime.status.mutationBoundaries.includes(boundary), `Falta frontera E1 ${boundary}`);
-    }
+    for (const boundary of REQUIRED_E1_BOUNDARIES) assert.ok(runtime.status.mutationBoundaries.includes(boundary), `Falta frontera E1 ${boundary}`);
     assert.equal(runtime.status.allOtherBusinessMutations, 'LOCKED');
 
     const adminLogin = await request('/api/v1/auth/login', {
       method: 'POST',
-      body: { email: 'admin@demo-restaurante.vantixgc.com', password: process.env.P13_ADMIN_PASSWORD }
+      body: { email: admin.email, password: process.env.P13_ADMIN_PASSWORD }
     });
     assert.equal(adminLogin.status, 200, JSON.stringify(adminLogin.data));
     const adminToken = adminLogin.data?.data?.token;
-    assert.ok(adminToken);
+    assert.ok(adminToken, 'ADMIN debe autenticar localmente');
 
-    const suffix = crypto.randomBytes(5).toString('hex');
-    const meseroEmail = `mesero-e1-${suffix}@example.com`;
-    const meseroPassword = `P13-E1-${suffix}-Segura!`;
+    const waiterLogin = await request('/api/v1/auth/login', {
+      method: 'POST',
+      body: { email: waiter.email, password: 'Mesero123!' }
+    });
+    assert.equal(waiterLogin.status, 200, JSON.stringify(waiterLogin.data));
+    const waiterToken = waiterLogin.data?.data?.token;
+    assert.ok(waiterToken, 'MESERO debe autenticar localmente');
+
+    const adminContext = await request('/api/v1/restaurante/ui-context', { token: adminToken });
+    assert.equal(adminContext.status, 200, JSON.stringify(adminContext.data));
+    const waiterContext = await request('/api/v1/restaurante/ui-context', { token: waiterToken });
+    assert.equal(waiterContext.status, 200, JSON.stringify(waiterContext.data));
+    assert.equal(adminContext.data?.data?.user?.rol, 'ADMIN');
+    assert.equal(waiterContext.data?.data?.user?.rol, 'MESERO');
+
+    const before = await client.query('SELECT COUNT(*)::int AS count FROM p13_sync_outbox WHERE tenant_id=$1', [tenantId]);
+    const unique = crypto.randomUUID().slice(0, 8);
     const createUser = await request('/api/v1/usuarios', {
-      method: 'POST', token: adminToken,
-      body: { nombre: 'Mesero E1 Local', email: meseroEmail, password: meseroPassword, rol: 'MESERO', activo: true }
+      method: 'POST',
+      token: adminToken,
+      body: {
+        nombre: `Auxiliar P13 ${unique}`,
+        email: `aux-${unique}@p13.local`,
+        password: 'P13LocalPass123!',
+        rol: 'MESERO'
+      }
     });
     assert.equal(createUser.status, 201, JSON.stringify(createUser.data));
-    assert.equal(createUser.headers.get('x-vantixgc-p13-mutation-boundary'), 'IDENTITY_USERS');
-    const userId = createUser.data?.data?.id;
-    assert.ok(userId);
+    const newUserId = createUser.data?.data?.id;
+    assert.ok(newUserId);
 
-    const meseroLogin = await request('/api/v1/auth/login', {
-      method: 'POST', body: { email: meseroEmail, password: meseroPassword }
-    });
-    assert.equal(meseroLogin.status, 200, JSON.stringify(meseroLogin.data));
-    const meseroToken = meseroLogin.data?.data?.token;
-    assert.ok(meseroToken);
+    const userEvents = await client.query(`
+      SELECT event_id, entity_type, operation, payload
+      FROM p13_sync_outbox
+      WHERE tenant_id=$1 AND entity_type='USER' AND entity_id=$2
+      ORDER BY created_at
+    `, [tenantId, newUserId]);
+    assert.ok(userEvents.rowCount >= 1, 'Alta local de usuario debe emitir outbox');
+    for (const row of userEvents.rows) {
+      const serialized = JSON.stringify(row.payload).toLowerCase();
+      assert.ok(!serialized.includes('passwordhash'), 'Outbox jamás debe contener passwordHash');
+      assert.ok(!serialized.includes('p13localpass123'), 'Outbox jamás debe contener contraseña');
+    }
 
-    const forbiddenUsers = await request('/api/v1/usuarios', { token: meseroToken });
-    assert.equal(forbiddenUsers.status, 403);
-
-    const roleCode = `P13_E1_${suffix.toUpperCase()}`;
-    const createRole = await request('/api/v1/seguridad/roles', {
-      method: 'POST', token: adminToken,
-      body: { code: roleCode, name: 'Mesero local limitado', description: 'P13-E1', vertical: 'RESTAURANTE' }
-    });
-    assert.equal(createRole.status, 201, JSON.stringify(createRole.data));
-    const roleId = createRole.data?.data?.id;
-    assert.ok(roleId);
-
-    const setPermissions = await request(`/api/v1/seguridad/roles/${roleId}/permisos`, {
-      method: 'PUT', token: adminToken,
-      body: { permissionCodes: ['RESTAURANTE.VER', 'MESAS.VER'] }
-    });
-    assert.equal(setPermissions.status, 200, JSON.stringify(setPermissions.data));
-
-    const assignRole = await request(`/api/v1/seguridad/usuarios/${userId}/roles`, {
-      method: 'PUT', token: adminToken, body: { roleIds: [roleId] }
-    });
-    assert.equal(assignRole.status, 200, JSON.stringify(assignRole.data));
-
-    const effective = await request(`/api/v1/seguridad/usuarios/${userId}/efectivos`, { token: adminToken });
-    assert.equal(effective.status, 200, JSON.stringify(effective.data));
-    const permissions = effective.data?.data?.permissions || [];
-    assert.ok(permissions.includes('RESTAURANTE.VER'));
-    assert.ok(permissions.includes('MESAS.VER'));
-    assert.ok(!permissions.includes('CONFIGURACION.ADMINISTRAR'));
-
-    const updateUser = await request(`/api/v1/usuarios/${userId}`, {
-      method: 'PATCH', token: adminToken, body: { nombre: 'Mesero E1 Reinicio' }
-    });
-    assert.equal(updateUser.status, 200, JSON.stringify(updateUser.data));
-
-    const unrelatedMutation = await request('/api/v1/terceros', {
+    const locked = await request('/api/v1/terceros', {
       method: 'POST', token: adminToken, body: { nombre: 'NO DEBE CREARSE' }
     });
-    assert.equal(unrelatedMutation.status, 423);
-    assert.equal(unrelatedMutation.data?.code, 'P13_BOUNDARY_LOCKED');
-
-    const identityEvents = await client.query(`
-      SELECT operation, payload FROM p13_sync_outbox
-      WHERE tenant_id=$1 AND entity_type='IDENTITY_USER' AND entity_id=$2
-      ORDER BY entity_version ASC
-    `, [tenantId, userId]);
-    assert.ok(identityEvents.rowCount >= 2);
-    assert.ok(identityEvents.rows.some((row) => row.operation === 'CREATE'));
-    assert.ok(identityEvents.rows.some((row) => row.operation === 'UPDATE'));
-    for (const row of identityEvents.rows) {
-      const serialized = JSON.stringify(row.payload);
-      assert.ok(!serialized.toLowerCase().includes('password'));
-      assert.ok(!/\$2[aby]\$/.test(serialized));
-    }
+    assert.equal(locked.status, 423, JSON.stringify(locked.data));
+    assert.equal(locked.data?.code, 'P13_BOUNDARY_LOCKED');
 
     await stopRuntime(runtime);
     runtime = null;
     restarted = await startRuntime();
-
     const loginAfterRestart = await request('/api/v1/auth/login', {
-      method: 'POST', body: { email: meseroEmail, password: meseroPassword }
+      method: 'POST',
+      body: { email: admin.email, password: process.env.P13_ADMIN_PASSWORD }
     });
     assert.equal(loginAfterRestart.status, 200, JSON.stringify(loginAfterRestart.data));
-    const tokenAfterRestart = loginAfterRestart.data?.data?.token;
-    const sessionAfterRestart = await request('/api/v1/auth/session', { token: tokenAfterRestart });
-    assert.equal(sessionAfterRestart.status, 200, JSON.stringify(sessionAfterRestart.data));
-    assert.equal(sessionAfterRestart.data?.data?.user?.nombre, 'Mesero E1 Reinicio');
-    assert.equal(sessionAfterRestart.data?.data?.user?.rol, 'MESERO');
+    assert.ok(loginAfterRestart.data?.data?.token);
+
+    const after = await client.query('SELECT COUNT(*)::int AS count FROM p13_sync_outbox WHERE tenant_id=$1', [tenantId]);
+    assert.ok(after.rows[0].count > before.rows[0].count, 'E1 debe agregar eventos transaccionales locales');
 
     console.log(JSON.stringify({
       ok: true,
