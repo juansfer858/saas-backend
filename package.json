@@ -19,7 +19,8 @@
     "lab:p13:recovery-smoke": "node scripts/restaurant-p13-recovery-smoke.js",
     "lab:p13:e1-smoke": "node scripts/restaurant-p13-e1-identity-local-smoke.js",
     "lab:p13:e2-smoke": "node scripts/restaurant-p13-e2-tables-visits-smoke.js",
-    "lab:p13:e3-smoke": "node scripts/restaurant-p13-e3-orders-persons-smoke.js"
+    "lab:p13:e3-smoke": "node scripts/restaurant-p13-e3-orders-persons-smoke.js",
+    "lab:p13:e4-smoke": "node scripts/restaurant-p13-e4-kds-print-queue-smoke.js"
   },
   "repository": {
     "type": "git",
