@@ -52,7 +52,6 @@ Estado actual:
 - runtime aislado en `127.0.0.1:8790`;
 - Edge productivo `8788` intacto;
 - PostgreSQL aislado `127.0.0.1:55432/vantix_p13_lab`;
-- mutaciones bloqueadas;
 - control plane y QR público excluidos del runtime local;
 - CI completo del repositorio validado sobre la rama de laboratorio.
 
@@ -62,21 +61,20 @@ Criterio de salida: Dashboard y Restaurante V2 se sirven desde el mismo código 
 
 Objetivo: cada instalación representa exactamente un negocio.
 
-B1 — base actual:
+B1 — validado:
 
 - `P13_TENANT_SUBDOMAIN` fijo;
 - JWT local distinto al de Core;
 - login contra PostgreSQL local;
-- bootstrap de tenant demo desechable;
-- mutaciones todavía cerradas.
+- bootstrap de tenant demo desechable.
 
-B2 — siguiente:
+B2 — base criptográfica validada en laboratorio:
 
 - `installationId` único;
-- par de claves de instalación;
-- almacenamiento seguro de clave privada en Windows (TPM cuando exista, DPAPI como fallback);
-- registro de dispositivo en Core sin enviar la clave privada;
-- asociación `tenantId <-> installationId`.
+- par de claves Ed25519 de instalación;
+- fingerprint SHA-256 ligado a la licencia;
+- challenge/response de posesión de clave privada;
+- almacenamiento seguro Windows (TPM/DPAPI) queda para el empaquetado nativo.
 
 ### P13-C · Licenciamiento offline verificable
 
@@ -86,6 +84,7 @@ Formato objetivo de licencia firmada:
 - `tenantId`;
 - `tenantSubdomain`;
 - `installationId`;
+- fingerprint de clave pública de instalación;
 - `plan`;
 - `features`;
 - `issuedAt`;
@@ -94,6 +93,8 @@ Formato objetivo de licencia firmada:
 - `keyId`;
 - firma Ed25519 de Vantix.
 
+Estado de laboratorio: verificación de firma, binding de instalación, entitlements y estados `VALID`, `GRACE`, `EXPIRED` validados.
+
 Reglas:
 
 - el PC solo lleva la clave pública de Vantix;
@@ -101,8 +102,7 @@ Reglas:
 - la verificación no requiere Internet;
 - Core renueva el lease cuando hay conexión;
 - una caída de Internet no interrumpe una venta ni un pedido;
-- estado de licencia se evalúa como `VALID`, `GRACE` o `EXPIRED`;
-- la política comercial que se aplique después de `EXPIRED` se mantiene separada del motor de firma para no mezclar seguridad con lógica de negocio.
+- la política comercial posterior a `EXPIRED` se mantiene separada del motor criptográfico.
 
 ### P13-D · Paquete local completo
 
@@ -144,6 +144,21 @@ Orden obligatorio:
 
 Cada frontera debe probarse aislada antes de abrir la siguiente.
 
+#### P13-E1 · Usuarios / roles / permisos — VALIDADO EN LABORATORIO
+
+- se mantiene el mismo `auth`, `user.service` y RBAC canónico del Super Core;
+- runtime local permite mutaciones únicamente en `AUTH_LOGIN`, `IDENTITY_USERS` e `IDENTITY_RBAC`;
+- cualquier otra mutación de negocio sigue respondiendo `P13_BOUNDARY_LOCKED`;
+- ADMIN puede crear/editar usuarios y administrar roles/permisos localmente;
+- MESERO autentica localmente y no puede entrar a administración de Usuarios/RBAC sin permiso;
+- credenciales sobreviven reinicio del runtime sin consultar Core;
+- triggers PostgreSQL generan outbox transaccional para Usuario/RBAC dentro de la misma transacción;
+- el payload de sincronización de usuario excluye password y hash de password;
+- versiones por entidad se incrementan localmente;
+- CI aislado verde: `Restaurant P13 Full Local Isolated CI` run `34782773345`.
+
+Siguiente frontera: `P13-E2 · Mesas / visitas`.
+
 ### P13-F · Sincronización Local -> Core
 
 Toda mutación local genera outbox transaccional con al menos:
@@ -161,6 +176,8 @@ Toda mutación local genera outbox transaccional con al menos:
 Core mantiene inbox e idempotencia. El mismo `eventId` aplicado varias veces debe producir un solo efecto.
 
 Regla financiera: una confirmación local de Caja nunca puede ser reescrita silenciosamente por una réplica cloud.
+
+Estado actual: esquema `outbox/inbox/cursor`, idempotencia, detección de colisión y primer outbox transaccional de identidad E1 validados con PostgreSQL real de laboratorio.
 
 ### P13-G · QR Core -> Local
 
@@ -207,7 +224,7 @@ Canales:
 - `STABLE`;
 - `EMERGENCY`.
 
-No actualizar automáticamente durante una operación crítica de Caja.
+Estado de laboratorio: manifest firmado, hash de paquete y política de canales validados. No actualizar automáticamente durante una operación crítica de Caja.
 
 ### P13-I · Backup y recuperación
 
@@ -224,6 +241,18 @@ Recuperación de PC:
 7. aplicar deltas posteriores;
 8. validar integridad/consecutivos;
 9. habilitar operación.
+
+Estado de laboratorio validado:
+
+- `pg_dump` custom format;
+- SHA-256 del snapshot;
+- inventario lógico del tenant;
+- restore a base de reemplazo;
+- credencial ADMIN preservada;
+- instalación antigua revocada y nueva instalación activa;
+- outbox histórico preservado;
+- nuevos eventos Local -> Core y Core/QR -> Local después del restore;
+- snapshot alterado rechazado.
 
 Para cubrir datos creados mientras la sede estaba totalmente offline, se admite segundo backup local a USB/NAS/equipo secundario.
 
