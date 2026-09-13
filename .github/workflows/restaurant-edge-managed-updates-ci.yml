@@ -1,0 +1,23 @@
+name: Restaurant Edge Managed Updates CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  restaurant-edge-managed-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate managed-update syntax
+        run: |
+          node --check edge/updater/updater.js
+          node --check scripts/restaurant-edge-managed-updates-smoke.js
+      - name: Prove explicit deployments cannot be stranded by disabled polling
+        run: node scripts/restaurant-edge-managed-updates-smoke.js
