@@ -6,9 +6,15 @@ const POS_NUMBER_WIDTH = 6;
 const POS_NUMBER_RE = /^\d{6,}$/;
 const POS_LOCK_ATTEMPTS = 25;
 const POS_LOCK_RETRY_MS = 40;
+const RESTAURANT_POS_SOURCE_PREFIXES = Object.freeze(['REST-TABLE-', 'REST-DELIVERY-']);
 
 function isFinalPosNumber(value) {
   return POS_NUMBER_RE.test(String(value || '').trim());
+}
+
+function isRestaurantPosSource(value) {
+  const sourceId = String(value || '');
+  return RESTAURANT_POS_SOURCE_PREFIXES.some((prefix) => sourceId.startsWith(prefix));
 }
 
 function formatPosNumber(value) {
@@ -52,7 +58,7 @@ async function assignedSequenceState(tx, tenantId) {
        FROM "ComprobanteComercial"
       WHERE "tenantId" = $1
         AND "tipo" = 'FACTURA_VENTA'
-        AND "sourceId" LIKE 'REST-TABLE-%'
+        AND ("sourceId" LIKE 'REST-TABLE-%' OR "sourceId" LIKE 'REST-DELIVERY-%')
         AND "numero" ~ '^[0-9]{6,}$'`,
     tenantId
   );
@@ -68,7 +74,7 @@ async function loadRestaurantSale(tx, tenantId, saleId) {
     select: { id: true, numero: true, sourceId: true }
   });
   if (!sale) throw new AppError(404, 'Venta POS no encontrada', 'RESTAURANT_POS_SALE_NOT_FOUND');
-  if (!String(sale.sourceId || '').startsWith('REST-TABLE-')) {
+  if (!isRestaurantPosSource(sale.sourceId)) {
     throw new AppError(409, 'La venta no pertenece al flujo POS de restaurante', 'RESTAURANT_POS_NUMBER_SOURCE_INVALID');
   }
   return sale;
@@ -88,9 +94,9 @@ async function assignRestaurantPosNumberInTx(tx, tenantId, saleId) {
   if (isFinalPosNumber(sale.numero)) return sale;
 
   const sequence = await assignedSequenceState(tx, tenantId);
-  // Cada restaurante nace hoy con su propio POS interno: la primera venta cerrada
-  // es 000000. A partir de ahí continúa 000001, 000002... por tenant. Sólo las
-  // ventas REST-TABLE participan; otros comprobantes de Super Core no mueven este contador.
+  // Cada restaurante usa un único consecutivo POS interno para toda venta operativa:
+  // mesas y domicilios participan en la misma secuencia por tenant. Los documentos
+  // históricos FV-* no se renumeran ni consumen posiciones nuevas.
   const nextNumber = formatPosNumber(sequence.assignedCount === 0n ? 0n : sequence.maxNumber + 1n);
   return tx.comprobanteComercial.update({
     where: { id: sale.id },
@@ -104,7 +110,9 @@ module.exports = {
   POS_NUMBER_RE,
   POS_LOCK_ATTEMPTS,
   POS_LOCK_RETRY_MS,
+  RESTAURANT_POS_SOURCE_PREFIXES,
   isFinalPosNumber,
+  isRestaurantPosSource,
   formatPosNumber,
   lockTenantSequence,
   assignedSequenceState,
