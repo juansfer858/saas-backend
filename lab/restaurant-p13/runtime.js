@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const express = require('express');
+const express = require('node:express');
 
 const LAB_MARKER = 'VANTIX_RESTAURANT_FULL_LOCAL_P13_A';
 const DEFAULT_HOST = '127.0.0.1';
@@ -37,6 +37,15 @@ function assertLabConfig(env = process.env) {
     throw new Error('P13-A es solo lectura: P13_MUTATIONS_ENABLED debe permanecer false.');
   }
 
+  const tenantSubdomain = String(env.P13_TENANT_SUBDOMAIN || '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(tenantSubdomain)) {
+    throw new Error('P13 bloqueado: P13_TENANT_SUBDOMAIN es obligatorio y debe identificar un único tenant local.');
+  }
+  const jwtSecret = String(env.P13_JWT_SECRET || '');
+  if (jwtSecret.length < 32) {
+    throw new Error('P13 bloqueado: P13_JWT_SECRET debe tener al menos 32 caracteres y ser exclusivo del laboratorio.');
+  }
+
   if (!env.DATABASE_URL) throw new Error('P13 bloqueado: DATABASE_URL local es obligatoria.');
   let database;
   try { database = new URL(String(env.DATABASE_URL)); }
@@ -56,7 +65,7 @@ function assertLabConfig(env = process.env) {
     throw new Error(`P13 bloqueado: la base debe llamarse ${REQUIRED_DB_NAME}; recibido ${dbName || '(vacío)'}.`);
   }
 
-  return { host, port, dbHost: database.hostname, dbPort, dbName };
+  return { host, port, tenantSubdomain, jwtSecret, dbHost: database.hostname, dbPort, dbName };
 }
 
 function installOutboundNetworkGuard() {
@@ -83,10 +92,15 @@ function isReadOnlyMethod(method) {
   return ['GET', 'HEAD', 'OPTIONS'].includes(String(method || '').toUpperCase());
 }
 
+function tenantHeader(req) {
+  return String(req.headers['x-tenant-subdomain'] || '').trim().toLowerCase();
+}
+
 async function start() {
   const config = assertLabConfig(process.env);
 
-  // P13-A must not run cloud workers, demo bootstraps or outbound provider calls.
+  // P13 uses a lab-only JWT signing key. Never inherit the cloud/production key.
+  process.env.JWT_SECRET = config.jwtSecret;
   process.env.DIAN_EMBEDDED_WORKER_ENABLED = 'false';
   process.env.NOTIFICATION_EMBEDDED_WORKER_ENABLED = 'false';
   process.env.DISABLE_RESTAURANT_DEMO_BOOTSTRAP = 'true';
@@ -107,9 +121,10 @@ async function start() {
     res.json({
       ok: true,
       marker: LAB_MARKER,
-      phase: 'P13-A',
+      phase: 'P13-A/B1',
       readOnly: true,
       canonicalCoreApp: true,
+      tenantSubdomain: config.tenantSubdomain,
       host: config.host,
       port: config.port,
       database: { host: config.dbHost, port: config.dbPort, name: config.dbName },
@@ -120,6 +135,18 @@ async function start() {
 
   lab.use((req, res, next) => {
     res.set('X-VantixGC-P13-Lab', LAB_MARKER);
+    res.set('X-VantixGC-P13-Tenant', config.tenantSubdomain);
+
+    // The local runtime is single-tenant. Any API request that declares another
+    // tenant is rejected before it reaches canonical Core middleware.
+    const requestedTenant = tenantHeader(req);
+    if (requestedTenant && requestedTenant !== config.tenantSubdomain) {
+      return res.status(403).json({
+        ok: false,
+        code: 'P13_TENANT_LOCK_MISMATCH',
+        message: 'Este runtime local pertenece a otro tenant.'
+      });
+    }
 
     // Global SaaS/platform control plane is intentionally not part of a restaurant
     // single-tenant runtime. Public QR also stays on its existing hybrid path.
@@ -132,14 +159,19 @@ async function start() {
 
     if (isReadOnlyMethod(req.method)) return next();
 
-    // Login is the only POST allowed in P13-A and it authenticates solely against
-    // the PostgreSQL local forced by assertLabConfig(). Every business mutation is locked.
-    if (req.method === 'POST' && req.path === '/api/v1/auth/login') return next();
+    // Login is the only POST allowed in P13-A/B1 and authenticates solely against
+    // PostgreSQL local. The tenant header is mandatory and pinned to this installation.
+    if (req.method === 'POST' && req.path === '/api/v1/auth/login') {
+      if (!requestedTenant) {
+        return res.status(400).json({ ok: false, code: 'P13_TENANT_HEADER_REQUIRED', message: 'Falta el tenant local.' });
+      }
+      return next();
+    }
 
     return res.status(423).json({
       ok: false,
       code: 'P13_A_READ_ONLY',
-      message: 'P13-A sirve el mismo Super Core/Restaurante en modo laboratorio, sin mutaciones.'
+      message: 'P13-A/B1 sirve el mismo Super Core/Restaurante en modo laboratorio, sin mutaciones.'
     });
   });
 
@@ -150,7 +182,7 @@ async function start() {
     instance.once('error', reject);
   });
 
-  console.log(`P13_A_RUNTIME_READY marker=${LAB_MARKER} url=http://${config.host}:${config.port}`);
+  console.log(`P13_A_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
 
   const shutdown = async (signal) => {
     console.log(`P13_A_RUNTIME_STOP signal=${signal}`);
@@ -179,5 +211,6 @@ module.exports = {
   REQUIRED_DB_NAME,
   assertLabConfig,
   installOutboundNetworkGuard,
+  tenantHeader,
   start
 };
