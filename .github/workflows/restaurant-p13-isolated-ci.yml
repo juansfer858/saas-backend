@@ -91,6 +91,9 @@ jobs:
       - name: Validate E2 local tables visits restart and transactional outbox
         run: npm run lab:p13:e2-smoke
 
+      - name: Validate E3 local orders persons commands restart and transactional outbox
+        run: npm run lab:p13:e3-smoke
+
       - name: Assert production Edge remains untouched by P13 files
         shell: bash
         run: |
