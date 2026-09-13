@@ -67,13 +67,30 @@ function labelValueLines(label, value, width) {
   return pairOrWrap(label, value, width, 2);
 }
 
-function deliveryAddressLines(value, width) {
-  const address = cleanText(value);
-  if (!address) return [];
-
+function deliveryDetailLines(label, value, width) {
+  const text = cleanText(value);
+  if (!text) return [];
   const configuredWidth = Math.max(8, Number(width) || DEFAULT_COLUMNS_80);
   const safeWidth = Math.min(configuredWidth, DELIVERY_ADDRESS_SAFE_COLUMNS);
-  return ['Dirección:', ...wrapText(address, safeWidth)];
+  return [`${cleanText(label)}:`, ...wrapText(text, safeWidth)];
+}
+
+function deliveryAddressLines(value, width) {
+  return deliveryDetailLines('Dirección', value, width);
+}
+
+function formatDeliveryDateTime(value, timeZone, fallbackFormatter) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return '';
+  const zone = cleanText(timeZone);
+  if (zone) {
+    try {
+      return new Intl.DateTimeFormat('es-CO', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: zone
+      }).format(date);
+    } catch {}
+  }
+  return typeof fallbackFormatter === 'function' ? fallbackFormatter(value) : '';
 }
 
 function productLines(detail, { width, qty, money }) {
@@ -105,11 +122,16 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
   const saleLabel = `Venta: ${sale?.numero || String(sale?.id || '').slice(0, 8).toUpperCase()}`;
   const tableLabel = `Mesa: ${table?.name || table?.code || 'Mesa'}`;
   lines.push(...pairOrWrap(saleLabel, tableLabel, width, 3));
-  const when = dateTime(sale?.emitidoEn || session?.closedAt || sale?.fecha);
+  const rawWhen = sale?.emitidoEn || session?.closedAt || sale?.fecha;
+  const when = session?.deliveryTimeZone
+    ? formatDeliveryDateTime(rawWhen, session.deliveryTimeZone, dateTime)
+    : dateTime(rawWhen);
   if (when) lines.push(centerLine(`Fecha: ${when}`, width));
   lines.push(...labelValueLines('Cliente', customerDisplay.customerNameFromObservations(sale?.observaciones), width));
   if (session?.deliveryPhone) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
   if (session?.deliveryAddress) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
+  if (session?.deliveryNeighborhood) lines.push(...deliveryDetailLines('Barrio/Zona', session.deliveryNeighborhood, width));
+  if (session?.deliveryReference) lines.push(...deliveryDetailLines('Referencia', session.deliveryReference, width));
   lines.push(separator);
 
   for (const detail of Array.isArray(sale?.detalles) ? sale.detalles : []) {
@@ -143,7 +165,9 @@ module.exports = {
   pairLine,
   pairOrWrap,
   labelValueLines,
+  deliveryDetailLines,
   deliveryAddressLines,
+  formatDeliveryDateTime,
   productLines,
   receiptLinesFullWidth
 };
