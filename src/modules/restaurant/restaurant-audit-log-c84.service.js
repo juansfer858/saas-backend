@@ -1,13 +1,16 @@
 'use strict';
 
+const { Prisma } = require('@prisma/client');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const testReset = require('./restaurant-test-data-reset-v68.service');
 
 const MARKER = 'VANTIX_RESTAURANT_AUDIT_LOG_C84';
 const RECOVERY_MARKER = 'VANTIX_RESTAURANT_AUDIT_SAFE_RECOVERY_V86';
-const VERSION = '86.0.0';
+const READABLE_MARKER = 'VANTIX_RESTAURANT_AUDIT_READABLE_V87';
+const VERSION = '87.0.0';
 const FINANCIAL_SUBJECTS = new Set(['VENTA', 'CAJA', 'PAGO', 'INVENTARIO', 'TESORERIA']);
+const TECHNICAL_FUNCTION_KEYS = new Set(['constructor', 'toString', 'toJSON', 'valueOf', 'toFixed', 'toDecimalPlaces']);
 
 function limitValue(value) {
   const parsed = Number(value || 100);
@@ -38,6 +41,75 @@ function objectSnapshot(metadata) {
   if (metadata?.result && typeof metadata.result === 'object' && !Array.isArray(metadata.result)) return metadata.result;
   if (metadata?.changes && typeof metadata.changes === 'object' && !Array.isArray(metadata.changes)) return metadata.changes;
   return null;
+}
+
+function isLegacyDecimalArtifact(value) {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Array.isArray(value.d)
+    && value.d.length > 0
+    && value.d.every((part) => Number.isFinite(Number(part)))
+    && Number.isFinite(Number(value.e))
+    && [1, -1].includes(Number(value.s))
+    && typeof value.constructor === 'string'
+    && /Decimal/i.test(value.constructor)
+  );
+}
+
+function restoreLegacyDecimal(value) {
+  if (!isLegacyDecimalArtifact(value)) return null;
+  try {
+    const decimal = new Prisma.Decimal(0);
+    decimal.d = value.d.map((part) => Number(part));
+    decimal.e = Number(value.e);
+    decimal.s = Number(value.s);
+    return decimal.toString();
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeFunctionSource(value) {
+  const text = String(value || '').trim();
+  return /^function\s+[A-Za-z_$][\w$]*\s*\(/.test(text)
+    || /^class\s+[A-Za-z_$][\w$]*/.test(text)
+    || /^\(?[A-Za-z_$][\w$]*(?:\s*,\s*[A-Za-z_$][\w$]*)*\)?\s*=>/.test(text);
+}
+
+function normalizeAuditValue(value, depth = 0, seen = new WeakSet(), key = '') {
+  if (value === null || value === undefined) return value ?? null;
+  if (typeof value === 'string') {
+    if (TECHNICAL_FUNCTION_KEYS.has(key) && looksLikeFunctionSource(value)) return undefined;
+    return value;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (value instanceof Prisma.Decimal) return value.toString();
+  if (value instanceof Date) return value.toISOString();
+  if (Buffer.isBuffer(value)) return `[BUFFER ${value.length} bytes]`;
+  if (depth >= 8) return '[TRUNCATED]';
+  if (typeof value !== 'object') return String(value);
+
+  const legacyDecimal = restoreLegacyDecimal(value);
+  if (legacyDecimal !== null) return legacyDecimal;
+  if (seen.has(value)) return '[CIRCULAR]';
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 100)
+      .map((item) => normalizeAuditValue(item, depth + 1, seen, key))
+      .filter((item) => item !== undefined);
+  }
+
+  const out = {};
+  for (const [childKey, childValue] of Object.entries(value).slice(0, 180)) {
+    const normalized = normalizeAuditValue(childValue, depth + 1, seen, childKey);
+    if (normalized !== undefined) out[childKey] = normalized;
+  }
+  return out;
 }
 
 function restoreEligibility(row) {
@@ -78,6 +150,7 @@ function restoreEligibility(row) {
 
 function view(row) {
   const metadata = metadataOf(row);
+  const snapshot = objectSnapshot(metadata);
   return {
     id: row.id,
     at: row.creadoEn,
@@ -94,7 +167,8 @@ function view(row) {
       role: row.user.rol
     } : null,
     reason: rowReason(row),
-    metadata: row.metadata || null,
+    snapshot: normalizeAuditValue(snapshot),
+    metadata: normalizeAuditValue(row.metadata || null),
     recovery: restoreEligibility(row)
   };
 }
@@ -113,11 +187,13 @@ async function list(tenantId, options = {}, client = prisma) {
   return {
     marker: MARKER,
     recoveryMarker: RECOVERY_MARKER,
+    readableMarker: READABLE_MARKER,
     version: VERSION,
     readOnly: false,
     auditHistoryImmutable: true,
     preservedByTestCleanup: true,
     recoveryPolicy: 'VIEW_DOWNLOAD_THEN_RESTORE',
+    displayPolicy: 'BUSINESS_FIRST_TECHNICAL_SECONDARY',
     items: rows.map(view)
   };
 }
@@ -210,6 +286,7 @@ async function restore(tenantId, userId, auditId, reasonInput, client = prisma) 
         accion: `RESTORE_${subject}`,
         metadata: {
           marker: RECOVERY_MARKER,
+          readableMarker: READABLE_MARKER,
           version: VERSION,
           module: metadata.module || 'AUDITORIA',
           subject,
@@ -218,13 +295,14 @@ async function restore(tenantId, userId, auditId, reasonInput, client = prisma) 
           originalAuditId: source.id,
           originalAction: source.accion,
           adapter: eligibility.adapter,
-          restored: jsonSafe(restored)
+          restored: normalizeAuditValue(restored)
         }
       }
     });
     return {
       marker: RECOVERY_MARKER,
-      restored: jsonSafe(restored),
+      readableMarker: READABLE_MARKER,
+      restored: normalizeAuditValue(restored),
       restorationAuditId: audit.id,
       originalAuditId: source.id
     };
@@ -234,6 +312,7 @@ async function restore(tenantId, userId, auditId, reasonInput, client = prisma) 
 module.exports = {
   MARKER,
   RECOVERY_MARKER,
+  READABLE_MARKER,
   VERSION,
   FINANCIAL_SUBJECTS,
   limitValue,
@@ -241,6 +320,9 @@ module.exports = {
   rowLabel,
   rowReason,
   objectSnapshot,
+  isLegacyDecimalArtifact,
+  restoreLegacyDecimal,
+  normalizeAuditValue,
   restoreEligibility,
   view,
   list,
