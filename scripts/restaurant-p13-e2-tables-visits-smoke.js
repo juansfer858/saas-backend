@@ -44,7 +44,7 @@ async function waitForRuntime(child) {
       const response = await fetch(`${BASE_URL}/__p13/status`, { headers: { accept: 'application/json' } });
       if (response.ok) {
         const data = await response.json();
-        if (data.phase === 'P13-E2') return data;
+        if (/^P13-E(?:2|3)$/.test(String(data.phase || ''))) return data;
       }
     } catch (error) { lastError = error; }
     await new Promise((resolve) => setTimeout(resolve, 200));
