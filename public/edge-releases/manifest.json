@@ -68,6 +68,12 @@
       "sha256": "3c040ab3eb58a44a371921838d30c4809f33800820cf889cdc85b33b5b36507a",
       "sourceCommit": "eafab6db7cd2d1a728b1358ed06b121e46dd94a3"
     },
+    "2.1.18-edge-first.1": {
+      "channel": "PILOT",
+      "file": "vantixgc-edge-2.1.18-edge-first.1.zip",
+      "sha256": "38393f7e34424f2372b95fd7a8954c8b9cb0aef3393582409c089d5431582691",
+      "sourceCommit": "8ea6da6e283f4e15c2aab5b64470e491ccbe590d"
+    },
     "2.1.8-large-command.1": {
       "channel": "PILOT",
       "file": "vantixgc-edge-2.1.8-large-command.1.zip",
