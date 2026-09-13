@@ -8,6 +8,6 @@ require('./restaurant-print-bridge');
 // producto en el QR local/LAN; la nota viaja con la misma línea a Cocina/Barra.
 require('./offline-qr-self-order-v61');
 require('./offline-waiter-hard-gate');
-// V59 conserva la corrección de redirect V28 y corrige la superficie Mesero del PC:
-// muestra todas las mesas, permite abrir una libre y explica si falta carta o permiso.
-require('./workspace-entry-v59');
+// P0 Local First conserva V59 y convierte Edge en la entrada normal de la sede.
+// La sesión local dura 30 días por defecto y Core queda como sincronización/respaldo.
+require('./workspace-entry-local-first-p0');
