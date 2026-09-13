@@ -1,0 +1,49 @@
+name: Restaurant P13 Full Local Isolated CI
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p13/**'
+      - 'scripts/restaurant-p13-*.js'
+      - 'docs/restaurant-*p13*.md'
+      - 'package.json'
+      - '.github/workflows/restaurant-p13-isolated-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  isolated-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate P13 canonical local isolation
+        run: npm run lab:p13:smoke
+
+      - name: Validate offline license and signed updater contract
+        run: npm run lab:p13:security-smoke
+
+      - name: Assert production Edge remains untouched by P13 files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/p13-files.txt
+          if grep -E '^(edge/agent|edge/workspace|edge/updater|edge/supervisor)/' /tmp/p13-files.txt; then
+            echo 'P13 aislado no puede modificar Edge productivo.' >&2
+            exit 1
+          fi
+          if grep -E '^src/' /tmp/p13-files.txt; then
+            echo 'P13 aislado no puede modificar src/ en esta fase.' >&2
+            exit 1
+          fi
+          echo 'P13_ISOLATION_OK'
