@@ -143,13 +143,11 @@ if (-not $NodePath -and (Test-Path $EmbeddedNode)) { $NodePath = $EmbeddedNode }
 if (-not $NodePath) { $NodePath = (Get-Command node -ErrorAction Stop).Source }
 
 $EnvFile = Join-Path $InstallDir '.env'
-$AutoUpdate = if ($DisableAutoUpdate) {
-  'false'
-} elseif ($Existing.ContainsKey('EDGE_AUTO_UPDATE_ENABLED')) {
-  if ([string]$Existing['EDGE_AUTO_UPDATE_ENABLED'] -eq 'false') { 'false' } else { 'true' }
-} else {
-  'true'
-}
+# Las sedes de Restaurante son administradas: instalación y reparación vuelven a
+# dejar auto-update habilitado salvo que soporte haya pedido explícitamente el lock.
+# Esto evita que un EDGE_AUTO_UPDATE_ENABLED=false heredado deje despliegues PENDING.
+$AutoUpdate = if ($DisableAutoUpdate) { 'false' } else { 'true' }
+$ManagedUpdatesLocked = if ($DisableAutoUpdate) { 'true' } else { 'false' }
 $CanonicalKeys = @(
   'CORE_BASE_URL',
   'EDGE_AGENT_ID',
@@ -159,6 +157,7 @@ $CanonicalKeys = @(
   'EDGE_HOST',
   'EDGE_PORT',
   'EDGE_AUTO_UPDATE_ENABLED',
+  'EDGE_MANAGED_UPDATES_LOCKED',
   'EDGE_DATA_DIR',
   'EDGE_DB_PATH'
 )
@@ -171,6 +170,7 @@ $EnvLines = @(
   'EDGE_HOST=0.0.0.0',
   "EDGE_PORT=$EdgePort",
   "EDGE_AUTO_UPDATE_ENABLED=$AutoUpdate",
+  "EDGE_MANAGED_UPDATES_LOCKED=$ManagedUpdatesLocked",
   "EDGE_DATA_DIR=$InstallDir\data",
   "EDGE_DB_PATH=$InstallDir\data\vantixgc-edge.sqlite"
 )
@@ -220,5 +220,6 @@ Write-Host "Centro de Control local: http://127.0.0.1:$EdgePort/app/centro-de-co
 Write-Host "Se creó el acceso directo 'VantixGC Restaurantes' en el escritorio."
 Write-Host "Supervisor configurado para iniciar con Windows y reintentar automáticamente."
 Write-Host "Watchdog independiente activo cada minuto; si el runtime local deja de responder, reinicia el Supervisor sin intervención del usuario."
+Write-Host "Actualizaciones administradas: $AutoUpdate. Lock de soporte: $ManagedUpdatesLocked."
 Write-Host "LAN discovery activo en el puerto UDP 8789; las escrituras LAN requieren clave de emparejamiento."
 Write-Host "La clave LAN fue guardada localmente y no se publica en discovery."
