@@ -10,6 +10,8 @@ const REQUIRED_DB_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const REQUIRED_DB_PORT = 55432;
 const REQUIRED_DB_NAME = 'vantix_p13_lab';
 const LOCAL_RESTAURANT_ENTRY = '/app/centro-de-control-v2';
+const CASH_HISTORY_MARKER = 'VANTIX_RESTAURANT_P13_E5_CASH_HISTORY';
+const CASH_HISTORY_TAG = `<script src="/app/p13-local-cash-history.js?v=e5" data-p13-cash-history="${CASH_HISTORY_MARKER}"></script>`;
 const CENTRAL_SUPER_CORE_UI_PREFIXES = Object.freeze([
   '/app/dashboard',
   '/app/ventas',
@@ -114,6 +116,23 @@ function isCentralSuperCoreUiPath(rawPath) {
   return CENTRAL_SUPER_CORE_UI_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+function installCashHistoryOverlay(req, res, next) {
+  if (req.method !== 'GET' || req.path !== '/app/restaurante-v2/caja') return next();
+  const originalSend = res.send.bind(res);
+  res.send = (body) => {
+    const isBuffer = Buffer.isBuffer(body);
+    const source = isBuffer ? body.toString('utf8') : (typeof body === 'string' ? body : null);
+    if (source && !source.includes(CASH_HISTORY_MARKER)) {
+      const patched = source.includes('</body>') ? source.replace('</body>', `  ${CASH_HISTORY_TAG}\n</body>`) : `${source}${CASH_HISTORY_TAG}`;
+      body = isBuffer ? Buffer.from(patched, 'utf8') : patched;
+    }
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.set('X-VantixGC-P13-Cash-History', 'e5');
+    return originalSend(body);
+  };
+  return next();
+}
+
 function mutationBoundaryForRequest(method, rawPath) {
   const verb = String(method || '').toUpperCase();
   const pathname = String(rawPath || '').split('?')[0];
@@ -125,11 +144,17 @@ function mutationBoundaryForRequest(method, rawPath) {
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/roles\/[^/]+\/permisos$/.test(pathname)) return 'IDENTITY_RBAC';
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/usuarios\/[^/]+\/(?:roles|permisos)$/.test(pathname)) return 'IDENTITY_RBAC';
   if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/abrir$/.test(pathname)) return 'RESTAURANT_TABLE_VISIT';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/(?:preparar-cuenta|enviar-caja)$/.test(pathname)) return 'RESTAURANT_ACCOUNT_TO_CASH';
   if (verb === 'PATCH' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/servicio$/.test(pathname)) return 'RESTAURANT_ORDER_PERSON';
   if (verb === 'PUT' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/pedido-borrador\/items\/[^/]+$/.test(pathname)) return 'RESTAURANT_ORDER_DRAFT';
   if (verb === 'PATCH' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/items\/[^/]+$/.test(pathname)) return 'RESTAURANT_ORDER_ITEM_META';
   if (verb === 'POST' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/pedido-borrador\/enviar$/.test(pathname)) return 'RESTAURANT_ORDER_SEND';
   if (verb === 'PATCH' && /^\/api\/v1\/restaurante\/v2\/kds\/comandas\/[^/]+$/.test(pathname)) return 'RESTAURANT_KDS_COMMAND_STATE';
+  if (verb === 'POST' && pathname === '/api/v1/restaurante/v2/caja/turno/abrir') return 'RESTAURANT_CASH_SHIFT_OPEN';
+  if (verb === 'POST' && pathname === '/api/v1/restaurante/v2/caja/turno/cerrar') return 'RESTAURANT_CASH_SHIFT_CLOSE';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/v2\/caja\/mesas\/[^/]+\/cobrar$/.test(pathname)) return 'RESTAURANT_CASH_CHARGE';
+  if (verb === 'POST' && pathname === '/api/v1/restaurante/v2/caja/clientes') return 'RESTAURANT_CASH_CUSTOMER_CREATE';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/p13-local\/caja\/documentos\/[^/]+\/reimprimir$/.test(pathname)) return 'RESTAURANT_CASH_REPRINT';
   return null;
 }
 
@@ -146,13 +171,21 @@ async function start() {
   // Reutilizamos el grafo canónico como motor. La superficie local visible es sólo Restaurante.
   const { app: canonicalCoreApp } = require('../../src/app');
   const { prisma } = require('../../src/config/prisma');
+  const { createLocalCashRouter } = require('./cash/local-cash.routes');
 
   const lab = express();
   lab.disable('x-powered-by');
+  lab.use(express.json({ limit: '256kb' }));
 
   lab.get('/', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
   lab.get('/app', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
   lab.get('/app/centro-de-control', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
+  lab.get('/app/p13-local-cash-history.js', (_req, res) => {
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.type('application/javascript; charset=utf-8');
+    return res.sendFile(path.join(__dirname, 'ui', 'cash-history.js'));
+  });
+  lab.use(installCashHistoryOverlay);
 
   lab.get('/__p13/status', (_req, res) => {
     res.set('Cache-Control', 'no-store');
@@ -160,21 +193,28 @@ async function start() {
     res.json({
       ok: true,
       marker: LAB_MARKER,
-      phase: 'P13-E4',
+      phase: 'P13-E5',
       localSurface: 'RESTAURANT_CONTROL_CENTER_ONLY',
       localEntry: LOCAL_RESTAURANT_ENTRY,
       superCoreUi: 'CLOUD_ONLY',
-      mutationMode: 'IDENTITY_TABLE_VISIT_ORDER_AND_KDS',
+      cashLocal: 'MINIMAL_OPERATION_HISTORY_REPRINT',
+      mutationMode: 'IDENTITY_TABLE_ORDER_KDS_AND_MINIMAL_CASH',
       mutationBoundaries: [
         'AUTH_LOGIN',
         'IDENTITY_USERS',
         'IDENTITY_RBAC',
         'RESTAURANT_TABLE_VISIT',
+        'RESTAURANT_ACCOUNT_TO_CASH',
         'RESTAURANT_ORDER_PERSON',
         'RESTAURANT_ORDER_DRAFT',
         'RESTAURANT_ORDER_ITEM_META',
         'RESTAURANT_ORDER_SEND',
-        'RESTAURANT_KDS_COMMAND_STATE'
+        'RESTAURANT_KDS_COMMAND_STATE',
+        'RESTAURANT_CASH_SHIFT_OPEN',
+        'RESTAURANT_CASH_SHIFT_CLOSE',
+        'RESTAURANT_CASH_CHARGE',
+        'RESTAURANT_CASH_CUSTOMER_CREATE',
+        'RESTAURANT_CASH_REPRINT'
       ],
       allOtherBusinessMutations: 'LOCKED',
       canonicalCoreApp: true,
@@ -228,6 +268,7 @@ async function start() {
     });
   });
 
+  lab.use('/api/v1/restaurante/p13-local/caja', createLocalCashRouter(config));
   lab.use(canonicalCoreApp);
 
   const server = await new Promise((resolve, reject) => {
@@ -235,10 +276,10 @@ async function start() {
     instance.once('error', reject);
   });
 
-  console.log(`P13_E4_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
+  console.log(`P13_E5_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
 
   const shutdown = async (signal) => {
-    console.log(`P13_E4_RUNTIME_STOP signal=${signal}`);
+    console.log(`P13_E5_RUNTIME_STOP signal=${signal}`);
     await new Promise((resolve) => server.close(resolve));
     await prisma.$disconnect().catch(() => {});
     process.exit(0);
@@ -251,7 +292,7 @@ async function start() {
 if (require.main === module) {
   require('dotenv').config({ path: process.env.P13_ENV_FILE || path.join(__dirname, '.env') });
   start().catch((error) => {
-    console.error(`P13_E4_RUNTIME_FAILED: ${error.message}`);
+    console.error(`P13_E5_RUNTIME_FAILED: ${error.message}`);
     process.exit(1);
   });
 }
@@ -263,11 +304,14 @@ module.exports = {
   REQUIRED_DB_PORT,
   REQUIRED_DB_NAME,
   LOCAL_RESTAURANT_ENTRY,
+  CASH_HISTORY_MARKER,
+  CASH_HISTORY_TAG,
   CENTRAL_SUPER_CORE_UI_PREFIXES,
   assertLabConfig,
   installOutboundNetworkGuard,
   tenantHeader,
   isCentralSuperCoreUiPath,
+  installCashHistoryOverlay,
   mutationBoundaryForRequest,
   start
 };
