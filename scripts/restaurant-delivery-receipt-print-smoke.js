@@ -29,13 +29,19 @@ assert.match(deliveryReceipt, /deliveryAddress:\s*delivery\.address/);
 
 assert.match(receiptLayout, /labelValueLines\('Teléfono', session\.deliveryPhone/);
 assert.match(receiptLayout, /function deliveryAddressLines/);
+assert.match(receiptLayout, /DELIVERY_ADDRESS_SAFE_COLUMNS\s*=\s*32/);
 assert.match(receiptLayout, /deliveryAddressLines\(session\.deliveryAddress, width\)/);
+
+const compactAddress = 'Carrera 22 # 18-40 Apto 301';
+const compactLines = receiptLayoutRuntime.deliveryAddressLines(compactAddress, 42);
+assert.deepEqual(compactLines, ['Dirección:', compactAddress]);
 
 const sampleAddress = 'Calle 10 # 20-30 Barrio San José Torre 2 Apto 401 Medellín';
 const wrappedAddress = receiptLayoutRuntime.deliveryAddressLines(sampleAddress, 42);
-assert.equal(wrappedAddress.length, 2);
-assert.ok(wrappedAddress.every((line) => line.length <= 42));
-const rebuiltAddress = [wrappedAddress[0].replace(/^Dirección:\s*/, ''), ...wrappedAddress.slice(1)]
+assert.equal(wrappedAddress[0], 'Dirección:');
+assert.ok(wrappedAddress.length >= 3);
+assert.ok(wrappedAddress.slice(1).every((line) => line.length <= receiptLayoutRuntime.DELIVERY_ADDRESS_SAFE_COLUMNS));
+const rebuiltAddress = wrappedAddress.slice(1)
   .join(' ')
   .replace(/\s+/g, ' ')
   .trim();
@@ -62,7 +68,8 @@ console.log(JSON.stringify({
   deliveryReceiptIncludesCustomer: true,
   deliveryReceiptIncludesPhone: true,
   deliveryReceiptIncludesAddress: true,
-  deliveryAddressWrapsToTwoLines: true,
+  deliveryAddressUsesDedicatedLabelLine: true,
+  deliveryAddressUsesSafe32ColumnBody: true,
   deliveryAddressNeverTruncated: true,
   commandKeepsCustomerName: true,
   commandOmitsPhoneAndAddress: true,
