@@ -9,7 +9,8 @@ const {
   DEFAULT_PORT,
   REQUIRED_DB_PORT,
   REQUIRED_DB_NAME,
-  assertLabConfig
+  assertLabConfig,
+  mutationBoundaryForRequest
 } = require('../lab/restaurant-p13/runtime');
 
 const root = path.resolve(__dirname, '..');
@@ -52,25 +53,37 @@ assert.throws(() => assertLabConfig({ ...valid, VANTIX_P13_LAB_ENABLED: 'false' 
 assert.throws(() => assertLabConfig({ ...valid, NODE_ENV: 'production' }), /NODE_ENV=production/);
 assert.throws(() => assertLabConfig({ ...valid, P13_PORT: '8788' }), /puerto local inválido|reservado/);
 assert.throws(() => assertLabConfig({ ...valid, P13_HOST: '0.0.0.0' }), /loopback/);
-assert.throws(() => assertLabConfig({ ...valid, P13_MUTATIONS_ENABLED: 'true' }), /solo lectura/);
+assert.throws(() => assertLabConfig({ ...valid, P13_MUTATIONS_ENABLED: 'true' }), /debe permanecer false/);
 assert.throws(() => assertLabConfig({ ...valid, P13_TENANT_SUBDOMAIN: '' }), /P13_TENANT_SUBDOMAIN/);
 assert.throws(() => assertLabConfig({ ...valid, P13_JWT_SECRET: 'short' }), /P13_JWT_SECRET/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@db.example.com:55432/vantix_p13_lab' }), /base debe ser local/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/vantix_p13_lab' }), /55432/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@127.0.0.1:55432/saas_backend' }), /vantix_p13_lab/);
 
-// P13-A serves the exact canonical app graph. It must never import or copy the
+// P13 serves the exact canonical app graph. It must never import or copy the
 // simplified Edge workspace as its business UI.
 assert.match(runtime, /require\('\.\.\/\.\.\/src\/app'\)/);
 assert.doesNotMatch(runtime, /edge\/workspace\/public\/index\.html/);
 assert.doesNotMatch(runtime, /WORKSPACE_HTML/);
-assert.match(runtime, /P13_A_READ_ONLY/);
-assert.match(runtime, /req\.path === '\/api\/v1\/auth\/login'/);
+assert.match(runtime, /P13_BOUNDARY_LOCKED/);
 assert.match(runtime, /P13_PUBLIC_QR_HYBRID_UNCHANGED/);
 assert.match(runtime, /P13_CONTROL_PLANE_NOT_LOCAL/);
 assert.match(runtime, /P13_OUTBOUND_BLOCKED/);
 assert.match(runtime, /P13_TENANT_LOCK_MISMATCH/);
 assert.match(runtime, /process\.env\.JWT_SECRET = config\.jwtSecret/);
+
+// E1 opens only authentication + Users + RBAC. Every other business mutation
+// remains closed even though the canonical app graph is mounted locally.
+assert.equal(mutationBoundaryForRequest('POST', '/api/v1/auth/login'), 'AUTH_LOGIN');
+assert.equal(mutationBoundaryForRequest('POST', '/api/v1/usuarios'), 'IDENTITY_USERS');
+assert.equal(mutationBoundaryForRequest('PATCH', '/api/v1/usuarios/user-1'), 'IDENTITY_USERS');
+assert.equal(mutationBoundaryForRequest('POST', '/api/v1/seguridad/roles'), 'IDENTITY_RBAC');
+assert.equal(mutationBoundaryForRequest('PUT', '/api/v1/seguridad/roles/role-1/permisos'), 'IDENTITY_RBAC');
+assert.equal(mutationBoundaryForRequest('PUT', '/api/v1/seguridad/usuarios/user-1/roles'), 'IDENTITY_RBAC');
+assert.equal(mutationBoundaryForRequest('PUT', '/api/v1/seguridad/usuarios/user-1/permisos'), 'IDENTITY_RBAC');
+assert.equal(mutationBoundaryForRequest('POST', '/api/v1/terceros'), null);
+assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/pedidos'), null);
+assert.equal(mutationBoundaryForRequest('POST', '/api/v1/comercial/ventas'), null);
 
 // B1 creates only a disposable local demo tenant. Credentials are supplied by env,
 // hashed with bcrypt and never printed or committed.
@@ -116,7 +129,8 @@ console.log(JSON.stringify({
   tenantLock: 'demo-restaurante',
   labJwtIsolated: true,
   localAdminPasswordHashed: true,
-  businessMutationsLocked: true,
+  e1IdentityMutationsOnly: true,
+  allOtherBusinessMutationsLocked: true,
   serverOutboundNetworkBlocked: true,
   publicQrHybridUnchanged: true,
   platformControlPlaneExcluded: true
