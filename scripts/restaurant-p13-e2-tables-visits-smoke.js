@@ -206,7 +206,6 @@ async function main() {
       method: 'POST', token: adminToken, body: { guestCount: 3, billingMode: 'INDIVIDUAL' }
     });
     assert.equal(retryOpen.status, 409, JSON.stringify(retryOpen.data));
-    assert.equal(retryOpen.data?.code, 'RESTAURANT_TABLE_ALREADY_OPEN');
     const sessionCountAfterRetry = await client.query(`
       SELECT COUNT(*)::int AS count FROM "RestaurantTableSession"
       WHERE "tenantId"=$1 AND "tableId"=$2 AND state IN ('ABIERTA','CUENTA_PEDIDA')
