@@ -102,7 +102,7 @@ function installPosSequentialNumbering() {
       where: { id, tenantId, tipo: 'FACTURA_VENTA' },
       select: { id: true, numero: true, sourceId: true }
     });
-    if (sale && String(sale.sourceId || '').startsWith('REST-TABLE-') && !posNumber.isFinalPosNumber(sale.numero)) {
+    if (sale && posNumber.isRestaurantPosSource(sale.sourceId) && !posNumber.isFinalPosNumber(sale.numero)) {
       await posNumber.assignRestaurantPosNumberInTx(tx, tenantId, sale.id);
     }
     return original(tx, tenantId, userId, id, documentType);
