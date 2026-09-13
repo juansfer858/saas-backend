@@ -1,25 +1,29 @@
-name: Restaurant Audit Safe Recovery V86 CI
+name: Restaurant Audit Readable V87 CI
 
 on:
   pull_request:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-audit-log-c84.service.js'
+      - 'src/modules/restaurant/restaurant-business-audit-c85.service.js'
       - 'src/modules/restaurant/restaurant-test-data-reset-v68.service.js'
       - 'src/modules/restaurant/restaurant-test-data-reset-v68.routes.js'
       - 'src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js'
       - 'src/web/restaurant-audit-log-c84.js'
       - 'scripts/restaurant-audit-log-c84-smoke.js'
+      - 'scripts/restaurant-business-audit-c85-smoke.js'
       - '.github/workflows/restaurant-audit-log-c84-ci.yml'
   push:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-audit-log-c84.service.js'
+      - 'src/modules/restaurant/restaurant-business-audit-c85.service.js'
       - 'src/modules/restaurant/restaurant-test-data-reset-v68.service.js'
       - 'src/modules/restaurant/restaurant-test-data-reset-v68.routes.js'
       - 'src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js'
       - 'src/web/restaurant-audit-log-c84.js'
       - 'scripts/restaurant-audit-log-c84-smoke.js'
+      - 'scripts/restaurant-business-audit-c85-smoke.js'
       - '.github/workflows/restaurant-audit-log-c84-ci.yml'
 
 permissions:
@@ -38,16 +42,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Validate audit recovery syntax
+      - name: Validate readable audit syntax
         run: |
           node --check src/modules/restaurant/restaurant-audit-log-c84.service.js
+          node --check src/modules/restaurant/restaurant-business-audit-c85.service.js
           node --check src/modules/restaurant/restaurant-test-data-reset-v68.service.js
           node --check src/modules/restaurant/restaurant-test-data-reset-v68.routes.js
           node --check src/modules/restaurant/restaurant-company-admin-advanced.public.routes.js
           node --check src/web/restaurant-audit-log-c84.js
           node --check scripts/restaurant-audit-log-c84-smoke.js
-      - name: Validate safe audit recovery contract
+          node --check scripts/restaurant-business-audit-c85-smoke.js
+      - name: Validate readable audit and safe recovery contract
         run: node scripts/restaurant-audit-log-c84-smoke.js
+      - name: Validate decimal-safe business audit persistence
+        run: node scripts/restaurant-business-audit-c85-smoke.js
       - name: Validate existing V68 cleanup contract
         run: node scripts/restaurant-test-data-reset-v68-smoke.js
       - name: Load application graph
@@ -58,7 +66,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for exact commit and recovery asset in production
+      - name: Wait for exact commit and readable audit asset in production
         shell: bash
         run: |
           set -euo pipefail
@@ -68,15 +76,16 @@ jobs:
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
               JS="$(curl -fsS "$BASE/app/restaurant-audit-log-c84.js?v=$GITHUB_SHA" 2>/dev/null || true)"
               if echo "$JS" | grep -Fq 'VANTIX_RESTAURANT_AUDIT_SAFE_RECOVERY_V86' \
-                && echo "$JS" | grep -Fq 'VER REGISTRO' \
+                && echo "$JS" | grep -Fq 'VANTIX_RESTAURANT_AUDIT_READABLE_V87' \
+                && echo "$JS" | grep -Fq 'Datos del registro' \
+                && echo "$JS" | grep -Fq 'VER DATOS TÉCNICOS' \
                 && echo "$JS" | grep -Fq 'DESCARGAR COPIA' \
-                && echo "$JS" | grep -Fq '>RESTAURAR<' \
                 && echo "$JS" | grep -Fq '/api/v1/restaurante/auditoria/v84'; then
-                echo "V86 safe audit recovery is live for exact commit $GITHUB_SHA"
+                echo "V87 readable audit is live for exact commit $GITHUB_SHA"
                 exit 0
               fi
             fi
             sleep 10
           done
-          echo "V86 safe audit recovery did not become live for exact commit $GITHUB_SHA" >&2
+          echo "V87 readable audit did not become live for exact commit $GITHUB_SHA" >&2
           exit 1
