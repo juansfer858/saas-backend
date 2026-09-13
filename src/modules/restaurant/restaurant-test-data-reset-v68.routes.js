@@ -51,4 +51,22 @@ router.get('/auditoria/v84', requirePermission('RESTAURANTE.ADMINISTRAR'), async
   }
 });
 
+router.get('/auditoria/v84/:id', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const data = await auditLog.detail(req.tenantId, req.params.id);
+    res.json({ ok: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/auditoria/v84/:id/restaurar', requirePermission('RESTAURANTE.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    const data = await auditLog.restore(req.tenantId, req.userId, req.params.id, req.body?.reason);
+    res.json({ ok: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = { restaurantTestDataResetV68Router: router };
