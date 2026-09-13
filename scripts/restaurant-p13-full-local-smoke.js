@@ -15,6 +15,7 @@ const {
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const runtime = read('lab/restaurant-p13/runtime.js');
+const bootstrap = read('lab/restaurant-p13/bootstrap-demo.js');
 const compose = read('lab/restaurant-p13/docker-compose.postgres.yml');
 const design = read('docs/restaurant-edge-full-runtime-p13.md');
 const p12 = read('src/modules/restaurant/restaurant-v2-only-p12.public.routes.js');
@@ -32,12 +33,16 @@ const valid = {
   P13_HOST: '127.0.0.1',
   P13_PORT: '8790',
   P13_MUTATIONS_ENABLED: 'false',
+  P13_TENANT_SUBDOMAIN: 'demo-restaurante',
+  P13_JWT_SECRET: 'p13-test-secret-that-is-longer-than-thirty-two-characters',
   NODE_ENV: 'development',
   DATABASE_URL: 'postgresql://vantix_p13:test@127.0.0.1:55432/vantix_p13_lab'
 };
 assert.deepEqual(assertLabConfig(valid), {
   host: '127.0.0.1',
   port: 8790,
+  tenantSubdomain: 'demo-restaurante',
+  jwtSecret: valid.P13_JWT_SECRET,
   dbHost: '127.0.0.1',
   dbPort: 55432,
   dbName: 'vantix_p13_lab'
@@ -48,6 +53,8 @@ assert.throws(() => assertLabConfig({ ...valid, NODE_ENV: 'production' }), /NODE
 assert.throws(() => assertLabConfig({ ...valid, P13_PORT: '8788' }), /puerto local inválido|reservado/);
 assert.throws(() => assertLabConfig({ ...valid, P13_HOST: '0.0.0.0' }), /loopback/);
 assert.throws(() => assertLabConfig({ ...valid, P13_MUTATIONS_ENABLED: 'true' }), /solo lectura/);
+assert.throws(() => assertLabConfig({ ...valid, P13_TENANT_SUBDOMAIN: '' }), /P13_TENANT_SUBDOMAIN/);
+assert.throws(() => assertLabConfig({ ...valid, P13_JWT_SECRET: 'short' }), /P13_JWT_SECRET/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@db.example.com:55432/vantix_p13_lab' }), /base debe ser local/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/vantix_p13_lab' }), /55432/);
 assert.throws(() => assertLabConfig({ ...valid, DATABASE_URL: 'postgresql://u:p@127.0.0.1:55432/saas_backend' }), /vantix_p13_lab/);
@@ -62,6 +69,18 @@ assert.match(runtime, /req\.path === '\/api\/v1\/auth\/login'/);
 assert.match(runtime, /P13_PUBLIC_QR_HYBRID_UNCHANGED/);
 assert.match(runtime, /P13_CONTROL_PLANE_NOT_LOCAL/);
 assert.match(runtime, /P13_OUTBOUND_BLOCKED/);
+assert.match(runtime, /P13_TENANT_LOCK_MISMATCH/);
+assert.match(runtime, /process\.env\.JWT_SECRET = config\.jwtSecret/);
+
+// B1 creates only a disposable local demo tenant. Credentials are supplied by env,
+// hashed with bcrypt and never printed or committed.
+assert.match(bootstrap, /assertLabConfig\(process\.env\)/);
+assert.match(bootstrap, /config\.tenantSubdomain !== 'demo-restaurante'/);
+assert.match(bootstrap, /P13_ADMIN_PASSWORD/);
+assert.match(bootstrap, /bcrypt\.hash\(adminPassword, 12\)/);
+assert.match(bootstrap, /ensureRestaurantDemoTenant/);
+assert.match(bootstrap, /tenants\.length !== 1/);
+assert.doesNotMatch(bootstrap, /core\.vantixgc\.com/);
 
 // The existing Edge remains on 8788 and still owns the old emergency workspace;
 // P13 only proves that this separate UI will not be the final local runtime.
@@ -94,6 +113,9 @@ console.log(JSON.stringify({
   productionEdgePortUntouched: 8788,
   localPostgresPort: REQUIRED_DB_PORT,
   localDatabase: REQUIRED_DB_NAME,
+  tenantLock: 'demo-restaurante',
+  labJwtIsolated: true,
+  localAdminPasswordHashed: true,
   businessMutationsLocked: true,
   serverOutboundNetworkBlocked: true,
   publicQrHybridUnchanged: true,
