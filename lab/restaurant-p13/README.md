@@ -1,64 +1,69 @@
-# P13-A/B1 · Runtime local canónico
+# P13 · VantixGC Restaurante Local Runtime
 
-Este directorio es un laboratorio aislado. No sustituye al Edge productivo de `8788` y no debe ejecutarse contra una base de datos de producción.
+Laboratorio aislado para ejecutar la operación diaria del restaurante desde el PC local sin depender de Internet.
 
-## Qué prueba P13-A
+## Arquitectura aprobada
 
-P13-A no construye una segunda interfaz. `runtime.js` importa directamente `src/app.js`, es decir, el mismo grafo Express y los mismos assets versionados de Super Core/Restaurante V2 que usa Core.
+La superficie visible local es **únicamente Restaurante / Centro de Control**.
 
-Entrada prevista del laboratorio:
+```text
+PC / tablets / KDS
+       |
+       v
+VantixGC Restaurante Local
+       |
+       +-- Centro de Control
+       +-- Mesas
+       +-- Mesero / Pedidos
+       +-- Producción / KDS
+       +-- Caja
+       +-- Domicilios
+       +-- Impresión
+       |
+       v
+PostgreSQL local
+       |
+       +------ sync ------> Core nube
+```
 
-`http://127.0.0.1:8790/app/dashboard`
+El **Super Core completo permanece en Internet**. El runtime local puede reutilizar internamente contratos y servicios canónicos necesarios para que Restaurante funcione sin Internet, pero no expone la interfaz administrativa completa del Super Core.
 
-Rutas de Restaurante que deben salir del mismo código canónico:
+Core conserva las funciones de control central: licencias, backups, sincronización, actualizaciones, QR público, acceso remoto, administración y reportes globales.
 
-- `/app/centro-de-control-v2`
-- `/app/restaurante-v2/mesas`
-- `/app/restaurante-v2/pedidos`
-- `/app/restaurante-v2/kds`
-- `/app/restaurante-v2/caja`
-- `/app/restaurante-v2/division`
-- `/app/restaurante-v2/carta`
+## Aislamiento del laboratorio
 
-## P13-B1 · identidad y login locales
+- Runtime P13: `127.0.0.1:8790`.
+- PostgreSQL P13: `127.0.0.1:55432/vantix_p13_lab`.
+- Entrada visible local: `/app/centro-de-control-v2`.
+- Edge productivo actual: `8788`, intacto.
+- `main` no se modifica desde este laboratorio.
+- El PR permanece `DRAFT / NO MERGE` hasta pruebas físicas.
 
-B1 agrega una identidad single-tenant de laboratorio sin copiar datos del restaurante real ni contactar Core. `bootstrap-demo.js` prepara exclusivamente `demo-restaurante` dentro de `vantix_p13_lab`, reutiliza los seeders existentes sobre PostgreSQL local y reemplaza la clave del ADMIN por un hash bcrypt generado desde `P13_ADMIN_PASSWORD`.
+## Fronteras validadas
 
-El runtime queda fijado a `P13_TENANT_SUBDOMAIN`; cualquier API que declare otro tenant se rechaza antes de entrar a Core. Además utiliza `P13_JWT_SECRET` como clave de sesión exclusivamente local, por lo que nunca necesita ni reutiliza el secreto JWT de producción.
+- E1: usuarios, roles y permisos locales.
+- E2: mesas y visitas locales.
+- E3: pedidos, personas, notas y comandas.
+- E4: Producción/KDS y cola local durable de impresión.
+- E5: Caja mínima local: liquidación canónica, últimos cobros, documento liquidado en solo lectura y reimpresión como COPIA sin volver a afectar las tablas canónicas del negocio.
 
-B1 sirve para comprobar físicamente que login, Dashboard, Mesas, Pedidos, KDS, Caja y demás pantallas son las mismas de Core. Las mutaciones siguen bloqueadas.
+## Caja mínima
 
-## Barreras de seguridad
+Caja no replica reportes del Super Core. Mantiene sólo lo necesario para operar:
 
-El proceso se niega a iniciar salvo que se cumplan todas estas condiciones:
+1. Cobrar.
+2. Ver `Últimos cobros`.
+3. Abrir una venta liquidada y ver productos, cantidades, precios y totales.
+4. Reimprimir una `COPIA` del documento.
 
-- `VANTIX_P13_LAB_ENABLED=true`.
-- Host HTTP exclusivo `127.0.0.1` o `::1`.
-- Puerto HTTP exclusivo `8790`.
-- No se puede usar `8788` ni el puerto normal del Core.
-- PostgreSQL debe estar en loopback.
-- PostgreSQL debe usar el puerto `55432`.
-- La base debe llamarse exactamente `vantix_p13_lab`.
-- `NODE_ENV=production` está prohibido.
-- `P13_MUTATIONS_ENABLED=true` está prohibido.
-- `P13_TENANT_SUBDOMAIN` es obligatorio y fija una sola empresa local.
-- `P13_JWT_SECRET` debe ser exclusivo del laboratorio.
-- Todas las mutaciones de negocio responden `423 P13_A_READ_ONLY`.
-- Solo se permite el POST de login contra la base local.
-- El control plane SaaS y `/edge/api` no se exponen como funciones locales.
-- El QR público no se mueve al laboratorio; conserva la arquitectura híbrida actual.
-- Las llamadas HTTP salientes del servidor se bloquean para evitar contacto accidental con servicios externos.
+La reimpresión escribe únicamente en la cola local de impresión. La prueba E5 compara un digest de todas las tablas canónicas del tenant antes y después de reimprimir y exige que no cambie ninguna.
 
-## PostgreSQL de laboratorio
+## QR público
 
-`docker-compose.postgres.yml` define únicamente una base de laboratorio en:
+El QR del cliente es `CORE_CLOUD_ONLY`. No se publica el runtime local a Internet.
 
-`127.0.0.1:55432 / vantix_p13_lab`
+## Siguiente gate
 
-No comparte volumen, puerto ni nombre con producción.
+Construir paquete Windows P13 independiente, instalarlo en paralelo al Edge actual y hacer prueba física:
 
-## Estado
-
-P13-A/B1 demuestra una sola fuente de UI, aislamiento de proceso/base e inicio de sesión local. Todavía no es un POS local operativo: las mutaciones siguen bloqueadas deliberadamente. La siguiente frontera es cargar un snapshot de tenant controlado y después habilitar contratos operativos locales por módulo con outbox/idempotencia.
-
-No fusionar esta rama a `main` ni cambiar el acceso `8788` mientras no se complete la secuencia de pruebas definida en `docs/restaurant-edge-full-runtime-p13.md`.
+`Internet ON -> OFF -> reinicio OFF -> pedido -> KDS -> Caja -> documento liquidado -> reimpresión -> Internet ON -> sync sin duplicados`.
