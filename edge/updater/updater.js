@@ -163,7 +163,11 @@ class EdgeUpdater {
   }
 
   async checkNow() {
-    if (!this.enabled || this.running) return { skipped: true, reason: this.enabled ? 'RUNNING' : 'DISABLED' };
+    // `enabled` controls only the periodic automatic poll in server.js.
+    // An explicit deployment/check requested by Core or by the local API must always
+    // be allowed, otherwise a stale EDGE_AUTO_UPDATE_ENABLED=false can strand a site
+    // in PENDING and require manual PowerShell intervention.
+    if (this.running) return { skipped: true, reason: 'RUNNING' };
     this.running = true;
     let deploymentId = null;
     let install = null;
