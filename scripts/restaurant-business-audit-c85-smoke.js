@@ -46,9 +46,12 @@ assert.match(middleware, /res\.statusCode < 200 \|\| res\.statusCode >= 400/);
 assert.match(coreRoutes, /restaurantBusinessAuditC85/);
 assert.match(coreRoutes, /router\.use\(restaurantBusinessAuditC85\)/);
 assert.match(auditView, /VANTIX_RESTAURANT_BUSINESS_AUDIT_C85/);
-assert.match(auditView, /No registra clics, consultas ni eventos técnicos repetitivos/);
+assert.match(auditView, /El historial de Auditoría es inmutable/);
+assert.match(auditView, /VANTIX_RESTAURANT_AUDIT_SAFE_RECOVERY_V86/);
 assert.match(auditList, /metadata\.label/);
 assert.match(auditList, /module: metadata\.module/);
+assert.match(auditList, /auditHistoryImmutable:\s*true/);
+assert.match(auditList, /FINANCIAL_SUBJECTS/);
 
 console.log('RESTAURANT BUSINESS AUDIT C85 OK', JSON.stringify({
   restaurantOnly:true,
@@ -64,5 +67,7 @@ console.log('RESTAURANT BUSINESS AUDIT C85 OK', JSON.stringify({
   security:true,
   technicalNoiseExcluded:true,
   cleanupAuditNotDuplicated:true,
-  readOnlySurface:true
+  immutableAuditHistory:true,
+  safeRecoverySurface:true,
+  financialGenericRestoreBlocked:true
 }));
