@@ -17,7 +17,9 @@ const fleetRepair = read('edge/supervisor/fleet-repair-windows.ps1');
 const universalEntry = read('edge/agent/universal-entry.js');
 const version = JSON.parse(read('edge/version.json'));
 
-assert.equal(version.version, '2.1.16-self-heal.4');
+// El contrato V95.4 debe sobrevivir nuevas versiones del runtime Edge. La prueba
+// valida identidad versionada válida + rollout de flota, no un número histórico fijo.
+assert.match(version.version, /^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/);
 assert.equal(version.channel, 'PILOT');
 assert.equal(version.fleetRollout, true);
 
