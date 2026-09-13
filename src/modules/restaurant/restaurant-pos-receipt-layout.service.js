@@ -66,6 +66,26 @@ function labelValueLines(label, value, width) {
   return pairOrWrap(label, value, width, 2);
 }
 
+function deliveryAddressLines(value, width) {
+  const address = cleanText(value);
+  if (!address) return [];
+
+  const label = 'Dirección:';
+  const maxWidth = Math.max(8, Number(width) || DEFAULT_COLUMNS_80);
+  const firstWidth = Math.max(8, maxWidth - label.length - 1);
+  let cut = address.length;
+  if (address.length > firstWidth) {
+    const lastSpace = address.lastIndexOf(' ', firstWidth);
+    cut = lastSpace >= Math.floor(firstWidth * 0.55) ? lastSpace : firstWidth;
+  }
+
+  const first = address.slice(0, cut).trim();
+  const remaining = address.slice(cut).trim();
+  const lines = [`${label} ${first}`.trimEnd()];
+  if (remaining) lines.push(...wrapText(remaining, maxWidth));
+  return lines;
+}
+
 function productLines(detail, { width, qty, money }) {
   const quantity = qty(detail?.cantidad);
   const description = cleanText(detail?.descripcion || 'Producto');
@@ -99,7 +119,7 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
   if (when) lines.push(centerLine(`Fecha: ${when}`, width));
   lines.push(...labelValueLines('Cliente', customerDisplay.customerNameFromObservations(sale?.observaciones), width));
   if (session?.deliveryPhone) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
-  if (session?.deliveryAddress) lines.push(...labelValueLines('Dirección', session.deliveryAddress, width));
+  if (session?.deliveryAddress) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
   lines.push(separator);
 
   for (const detail of Array.isArray(sale?.detalles) ? sale.detalles : []) {
@@ -132,6 +152,7 @@ module.exports = {
   pairLine,
   pairOrWrap,
   labelValueLines,
+  deliveryAddressLines,
   productLines,
   receiptLinesFullWidth
 };
