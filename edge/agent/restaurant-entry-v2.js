@@ -1,5 +1,12 @@
 'use strict';
 
+// Restaurante opera Edge-first. Mientras el equipo esté vinculado, la sesión local
+// debe sobrevivir caídas prolongadas de Internet sin exigir una reautenticación cloud.
+// Se mantiene override por entorno para instalaciones que requieran otra política.
+if (!process.env.EDGE_WORKSPACE_SESSION_MS) {
+  process.env.EDGE_WORKSPACE_SESSION_MS = String(30 * 24 * 60 * 60 * 1000);
+}
+
 // El bridge debe instalarse antes de que server.js capture global fetch.
 // Intercepta las respuestas de /relay/pull para operaciones especiales
 // WINDOWS_PRINTERS / WINDOWS_TEST y para el disparo inmediato PRINT_QUEUE.
