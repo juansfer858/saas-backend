@@ -87,8 +87,8 @@ async function main() {
   assert.match(edgeBridge, /WINDOWS_TEST_OPERATION/);
   assert.match(edgeBridge, /RELAY_POLL_FRAGMENT/);
   assert.match(edgeRestaurantEntry, /require\('\.\/restaurant-print-bridge'\)/);
-  const workspaceRequire = edgeRestaurantEntry.match(/require\('\.\/workspace-entry-v\d+'\)/)?.[0] || '';
-  assert.ok(workspaceRequire, 'El runtime Restaurante debe cargar una capa Workspace versionada');
+  const workspaceRequire = edgeRestaurantEntry.match(/require\('\.\/workspace-entry-(?:v\d+|local-first-p0)'\)/)?.[0] || '';
+  assert.ok(workspaceRequire, 'El runtime Restaurante debe cargar una capa Workspace versionada o Local First');
   assert.ok(edgeRestaurantEntry.indexOf("require('./restaurant-print-bridge')") < edgeRestaurantEntry.indexOf(workspaceRequire));
   assert.match(commandBridge, /WINDOWS:/);
   assert.match(commandBridge, /queueName/);
@@ -114,6 +114,7 @@ async function main() {
     controlCenterLoadsPrinterAsset:true,
     windowsTransportRouting:true,
     configurableCommandLayout:true,
+    localFirstWorkspaceAccepted:true,
     edgeVersion:version.version,
     edgeVersionNotHardcoded:true
   }));
