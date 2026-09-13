@@ -40,15 +40,17 @@ try {
   if (Test-Path (Join-Path $InstallDir 'version.json')) { Copy-Item (Join-Path $InstallDir 'version.json') (Join-Path $Backup 'version.json') -Force }
   if (Test-Path (Join-Path $InstallDir 'supervisor\supervisor.js')) { Copy-Item (Join-Path $InstallDir 'supervisor\supervisor.js') (Join-Path $Backup 'supervisor.js') -Force }
 
-  $DisableAutoUpdate = $false
+  # Un EDGE_AUTO_UPDATE_ENABLED=false histórico no debe sobrevivir a una reparación.
+  # Solo un lock explícito de soporte puede conservar el apagado administrado.
+  $ManagedUpdatesLocked = $false
   $EnvFile = Join-Path $InstallDir '.env'
   if (Test-Path $EnvFile) {
     foreach ($Line in Get-Content -LiteralPath $EnvFile) {
-      if ($Line.Trim() -match '^EDGE_AUTO_UPDATE_ENABLED\s*=\s*false\s*$') { $DisableAutoUpdate = $true; break }
+      if ($Line.Trim() -match '^EDGE_MANAGED_UPDATES_LOCKED\s*=\s*true\s*$') { $ManagedUpdatesLocked = $true; break }
     }
   }
 
-  if ($DisableAutoUpdate) {
+  if ($ManagedUpdatesLocked) {
     & $Installer -InstallDir $InstallDir -DisableAutoUpdate
   } else {
     & $Installer -InstallDir $InstallDir
@@ -78,6 +80,8 @@ try {
     backupPath = $Backup
     supervisor = 'restart-liveness-v3-startup-grace'
     watchdog = $true
+    managedUpdatesLocked = $ManagedUpdatesLocked
+    autoUpdateRepaired = (-not $ManagedUpdatesLocked)
   }
   Remove-Item -LiteralPath $Pending -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $Failed -Force -ErrorAction SilentlyContinue
