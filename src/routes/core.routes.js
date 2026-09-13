@@ -25,6 +25,7 @@ const { notificationPushV65Router } = require('../modules/notifications/push-v65
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
 const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaurant-print-template.routes');
+const { restaurantPosReceiptReprintV103Router } = require('../modules/restaurant/restaurant-pos-receipt-reprint-v103.routes');
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
 const { restaurantVisitPaymentsRouter } = require('../modules/restaurant/restaurant-visit-payments.routes');
 const { restaurantCreditPaymentRouter, restaurantCreditRollbackMiddleware } = require('../modules/restaurant/restaurant-credit-payment.routes');
@@ -82,6 +83,7 @@ router.use('/notificaciones/push-v65', notificationPushV65Router);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
+router.use('/restaurante', restaurantPosReceiptReprintV103Router);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
 router.use('/restaurante', restaurantCreditCustomerRouter);
