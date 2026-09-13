@@ -66,9 +66,9 @@ const deliveryCommand = {
 const deliveryJobs = buildCommandPrintJobs([deliveryCommand], [{ id:'p1', name:'Cocina', transport:'WINDOWS', host:'POS-80 Cocina', routeRole:'COCINA', format:'TERMICA_80' }], recommended);
 assert.equal(deliveryJobs.length, 1);
 assert.equal(deliveryJobs[0].payload.tableLabel, 'DOMICILIO D-1234');
-assert.equal(deliveryJobs[0].payload.lines[0], 'CLIENTE: Juan Pérez\nTELÉFONO: 3001234567\nDIRECCIÓN: Carrera 10 # 20-30');
-assert.equal(deliveryJobs[0].payload.lines.length, 2, 'delivery adds name/phone/address before real products');
-assert.match(JSON.stringify(deliveryJobs[0].payload), /TELÉFONO: 3001234567/, 'delivery command must include contact phone for the courier');
+assert.equal(deliveryJobs[0].payload.lines[0], 'CLIENTE: Juan Pérez');
+assert.equal(deliveryJobs[0].payload.lines.length, 2, 'delivery adds customer name before real products');
+assert.doesNotMatch(JSON.stringify(deliveryJobs[0].payload), /TELÉFONO:|DIRECCIÓN:/, 'production command must omit delivery contact data');
 assert.doesNotMatch(JSON.stringify(deliveryJobs[0].payload), /paymentMethod|total/i, 'delivery command must not leak financial data');
 
 const normalizedEdge = normalizeCommandLayout({});
@@ -165,7 +165,8 @@ console.log('RESTAURANT COMMAND TEMPLATE V4 SMOKE OK', JSON.stringify({
   customHeaderFooter:true,
   spacingAndFontSizesEditable:true,
   categoryNotPrinted:true,
-  deliveryAddsNamePhoneAndAddress:true,
+  deliveryCommandKeepsCustomerName:true,
+  deliveryCommandOmitsContactData:true,
   deliveryUsesExistingData:true,
   noOrderFlowMutation:true,
   livePreview58And80:true,
@@ -174,6 +175,5 @@ console.log('RESTAURANT COMMAND TEMPLATE V4 SMOKE OK', JSON.stringify({
   timePrintedOnce:true,
   configurableEscPos:true,
   spanishCodePageSelected:true,
-  edgeBinaryUnchanged:true,
   edgeVersion:version.version
 }));

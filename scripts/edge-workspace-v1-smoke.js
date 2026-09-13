@@ -8,6 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const workspace = read('edge/agent/workspace-entry.js');
 const workspaceV28 = read('edge/agent/workspace-entry-v28.js');
 const workspaceV59 = read('edge/agent/workspace-entry-v59.js');
+const localFirstP0 = read('edge/agent/workspace-entry-local-first-p0.js');
 const restaurantEntry = read('edge/agent/restaurant-entry-v2.js');
 const workspaceHtml = read('edge/workspace/public/index.html');
 const supervisor = read('edge/supervisor/supervisor.js');
@@ -20,7 +21,7 @@ const panelEntry = read('src/web/panel-restaurant-entry.js');
 const app = read('src/app.js');
 const version = JSON.parse(read('edge/version.json'));
 
-for (const file of ['edge/agent/workspace-entry.js','edge/agent/workspace-entry-v28.js','edge/agent/workspace-entry-v59.js','edge/agent/restaurant-entry-v2.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js','src/web/restaurant-control-center.js']) {
+for (const file of ['edge/agent/workspace-entry.js','edge/agent/workspace-entry-v28.js','edge/agent/workspace-entry-v59.js','edge/agent/workspace-entry-local-first-p0.js','edge/agent/restaurant-entry-v2.js','src/modules/edge/edge-workspace.service.js','src/web/panel-restaurant-entry.js','src/web/restaurant-control-center.js']) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, file)], { encoding: 'utf8' });
   assert.equal(result.status, 0, `${file} no compila: ${result.stderr}`);
 }
@@ -42,7 +43,8 @@ assert.match(workspace, /RESTAURANT_ACCOUNT_REQUEST/);
 assert.match(workspace, /require\('\.\/server'\)/);
 
 // V28 remains the historical redirect guard source; V59 carries the same guard
-// forward while adding only the PC Mesero surface patch.
+// forward while adding only the PC Mesero surface patch. Local First P0 wraps V59
+// without replacing that behavior.
 assert.match(workspaceV28, /return true;\\n}`/);
 assert.match(workspaceV28, /VANTIX_EDGE_WORKSPACE_V28_REDIRECT_PATCH/);
 assert.match(workspaceV28, /patched\._compile\(source, target\)/);
@@ -51,7 +53,9 @@ assert.match(workspaceV59, /const fixedRedirect/);
 assert.match(workspaceV59, /res\.end\(\);\\n  return true;/);
 assert.match(workspaceV59, /VANTIX_EDGE_WORKSPACE_PC_WAITER_V59/);
 assert.match(workspaceV59, /patched\._compile\(source, target\)/);
-assert.match(restaurantEntry, /require\('\.\/workspace-entry-v59'\)/);
+assert.match(localFirstP0, /require\('\.\/workspace-entry-v59'\)/);
+assert.match(localFirstP0, /30 \* 24 \* 60 \* 60 \* 1000/);
+assert.match(restaurantEntry, /require\('\.\/workspace-entry-(?:v59|local-first-p0)'\)/);
 assert.doesNotMatch(restaurantEntry, /require\('\.\/workspace-entry-v28'\)/);
 assert.doesNotMatch(restaurantEntry, /require\('\.\/workspace-entry'\);/);
 
@@ -83,4 +87,4 @@ assert.match(panelEntry, /CONTROL_CENTER_PATH/);
 assert.match(app, /core-nav-v7/);
 assert.doesNotMatch(app, /core-nav-v8-edge-workspace/);
 
-console.log('EDGE WORKSPACE V1 + V28 GUARD PRESERVED + V59 PC WAITER STATIC SMOKE OK');
+console.log('EDGE WORKSPACE V1 + V28 GUARD + V59 PC WAITER + LOCAL FIRST P0 STATIC SMOKE OK');

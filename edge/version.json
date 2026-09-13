@@ -1,7 +1,7 @@
 {
-  "version": "2.1.17-cutter-feed.1",
+  "version": "2.1.18-local-first.1",
   "channel": "PILOT",
   "product": "VantixGC Restaurantes",
   "runtime": "Edge Workspace",
-  "fleetRollout": true
+  "fleetRollout": false
 }
