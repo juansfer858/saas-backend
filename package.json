@@ -10,7 +10,9 @@
     "worker:dian": "node scripts/dian-worker.js",
     "worker:notifications": "node scripts/notifications-worker.js",
     "build": "npx prisma generate",
-    "db:push": "npx prisma db push"
+    "db:push": "npx prisma db push",
+    "lab:p13": "node lab/restaurant-p13/runtime.js",
+    "lab:p13:smoke": "node scripts/restaurant-p13-full-local-smoke.js"
   },
   "repository": {
     "type": "git",
