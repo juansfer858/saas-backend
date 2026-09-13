@@ -8,6 +8,7 @@ const posReceipt = require('./restaurant-pos-receipt-print.service');
 
 const ORIGIN_TYPE = 'RESTAURANT_DELIVERY_POS_RECEIPT';
 const INTENT_TTL_MS = 24 * 60 * 60 * 1000;
+const DELIVERY_LOCAL_TIME_ZONE = process.env.RESTAURANT_TIME_ZONE || 'America/Bogota';
 
 function intentTokenHash(tenantId, deliveryId) {
   return crypto.createHash('sha256').update(`restaurant-delivery-pos-receipt:${tenantId}:${deliveryId}`).digest('hex');
@@ -130,7 +131,10 @@ async function buildPendingDeliveryReceiptJobs(tenantId) {
       paymentMethodLabel: paymentLabel(delivery),
       paymentReference: null,
       deliveryPhone: delivery.customerPhone || null,
-      deliveryAddress: delivery.address || null
+      deliveryAddress: delivery.address || null,
+      deliveryNeighborhood: delivery.neighborhood || null,
+      deliveryReference: delivery.deliveryReference || null,
+      deliveryTimeZone: DELIVERY_LOCAL_TIME_ZONE
     };
     const table = {
       id: delivery.id,
@@ -156,6 +160,7 @@ async function buildPendingDeliveryReceiptJobs(tenantId) {
 module.exports = {
   ORIGIN_TYPE,
   INTENT_TTL_MS,
+  DELIVERY_LOCAL_TIME_ZONE,
   intentTokenHash,
   paymentLabel,
   queueDeliveryReceiptIntent,

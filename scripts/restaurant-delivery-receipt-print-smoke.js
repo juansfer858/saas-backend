@@ -26,11 +26,19 @@ assert.match(deliveryReceipt, /sale\.detalles/);
 assert.match(deliveryReceipt, /number\(sale\.saldo\) > 0/);
 assert.match(deliveryReceipt, /deliveryPhone:\s*delivery\.customerPhone/);
 assert.match(deliveryReceipt, /deliveryAddress:\s*delivery\.address/);
+assert.match(deliveryReceipt, /deliveryNeighborhood:\s*delivery\.neighborhood/);
+assert.match(deliveryReceipt, /deliveryReference:\s*delivery\.deliveryReference/);
+assert.match(deliveryReceipt, /DELIVERY_LOCAL_TIME_ZONE/);
+assert.match(deliveryReceipt, /America\/Bogota/);
 
 assert.match(receiptLayout, /labelValueLines\('Teléfono', session\.deliveryPhone/);
 assert.match(receiptLayout, /function deliveryAddressLines/);
+assert.match(receiptLayout, /function deliveryDetailLines/);
+assert.match(receiptLayout, /function formatDeliveryDateTime/);
 assert.match(receiptLayout, /DELIVERY_ADDRESS_SAFE_COLUMNS\s*=\s*32/);
 assert.match(receiptLayout, /deliveryAddressLines\(session\.deliveryAddress, width\)/);
+assert.match(receiptLayout, /deliveryDetailLines\('Barrio\/Zona', session\.deliveryNeighborhood, width\)/);
+assert.match(receiptLayout, /deliveryDetailLines\('Referencia', session\.deliveryReference, width\)/);
 
 const compactAddress = 'Carrera 22 # 18-40 Apto 301';
 const compactLines = receiptLayoutRuntime.deliveryAddressLines(compactAddress, 42);
@@ -46,6 +54,17 @@ const rebuiltAddress = wrappedAddress.slice(1)
   .replace(/\s+/g, ' ')
   .trim();
 assert.equal(rebuiltAddress, sampleAddress);
+
+assert.deepEqual(receiptLayoutRuntime.deliveryDetailLines('Barrio/Zona', 'San José', 42), ['Barrio/Zona:', 'San José']);
+assert.deepEqual(receiptLayoutRuntime.deliveryDetailLines('Referencia', 'Portón azul frente al parque principal', 42), [
+  'Referencia:',
+  'Portón azul frente al parque',
+  'principal'
+]);
+
+const bogotaDate = receiptLayoutRuntime.formatDeliveryDateTime('2026-09-13T00:30:00.000Z', 'America/Bogota', () => 'fallback');
+assert.match(bogotaDate, /12\/09\/2026/);
+assert.match(bogotaDate, /07:30/);
 
 assert.match(printBridge, /CLIENTE:/);
 assert.doesNotMatch(printBridge, /context\.push\(`TELÉFONO:/);
@@ -68,6 +87,9 @@ console.log(JSON.stringify({
   deliveryReceiptIncludesCustomer: true,
   deliveryReceiptIncludesPhone: true,
   deliveryReceiptIncludesAddress: true,
+  deliveryReceiptIncludesNeighborhood: true,
+  deliveryReceiptIncludesReference: true,
+  deliveryReceiptUsesBogotaLocalTimeZone: true,
   deliveryAddressUsesDedicatedLabelLine: true,
   deliveryAddressUsesSafe32ColumnBody: true,
   deliveryAddressNeverTruncated: true,
