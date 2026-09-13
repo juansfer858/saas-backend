@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const express = require('node:express');
+const express = require('express');
 
 const LAB_MARKER = 'VANTIX_RESTAURANT_FULL_LOCAL_P13_A';
 const DEFAULT_HOST = '127.0.0.1';
