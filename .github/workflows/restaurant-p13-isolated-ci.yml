@@ -94,6 +94,9 @@ jobs:
       - name: Validate E3 local orders persons commands restart and transactional outbox
         run: npm run lab:p13:e3-smoke
 
+      - name: Validate E4 local KDS state machine and durable print queue
+        run: npm run lab:p13:e4-smoke
+
       - name: Assert production Edge remains untouched by P13 files
         shell: bash
         run: |
