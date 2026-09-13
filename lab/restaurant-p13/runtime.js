@@ -106,13 +106,13 @@ function mutationBoundaryForRequest(method, rawPath) {
   if (verb === 'POST' && pathname === '/api/v1/seguridad/roles') return 'IDENTITY_RBAC';
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/roles\/[^/]+\/permisos$/.test(pathname)) return 'IDENTITY_RBAC';
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/usuarios\/[^/]+\/(?:roles|permisos)$/.test(pathname)) return 'IDENTITY_RBAC';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/abrir$/.test(pathname)) return 'RESTAURANT_TABLE_VISIT';
   return null;
 }
 
 async function start() {
   const config = assertLabConfig(process.env);
 
-  // P13 uses a lab-only JWT signing key. Never inherit the cloud/production key.
   process.env.JWT_SECRET = config.jwtSecret;
   process.env.DIAN_EMBEDDED_WORKER_ENABLED = 'false';
   process.env.NOTIFICATION_EMBEDDED_WORKER_ENABLED = 'false';
@@ -120,8 +120,8 @@ async function start() {
   process.env.PUBLIC_TENANT_REGISTRATION_ENABLED = 'false';
   installOutboundNetworkGuard();
 
-  // This is the key P13 contract: use the exact same Core application graph and
-  // checked-in Restaurant/Super Core assets. No Edge-only workspace is imported.
+  // El runtime local monta exactamente el mismo grafo canónico que Core.
+  // P13 sólo controla qué fronteras pueden mutar durante cada etapa aislada.
   const { app: canonicalCoreApp } = require('../../src/app');
   const { prisma } = require('../../src/config/prisma');
 
@@ -134,9 +134,9 @@ async function start() {
     res.json({
       ok: true,
       marker: LAB_MARKER,
-      phase: 'P13-E1',
-      mutationMode: 'IDENTITY_ONLY',
-      mutationBoundaries: ['AUTH_LOGIN', 'IDENTITY_USERS', 'IDENTITY_RBAC'],
+      phase: 'P13-E2',
+      mutationMode: 'IDENTITY_AND_TABLE_VISIT',
+      mutationBoundaries: ['AUTH_LOGIN', 'IDENTITY_USERS', 'IDENTITY_RBAC', 'RESTAURANT_TABLE_VISIT'],
       allOtherBusinessMutations: 'LOCKED',
       canonicalCoreApp: true,
       tenantSubdomain: config.tenantSubdomain,
@@ -152,8 +152,6 @@ async function start() {
     res.set('X-VantixGC-P13-Lab', LAB_MARKER);
     res.set('X-VantixGC-P13-Tenant', config.tenantSubdomain);
 
-    // The local runtime is single-tenant. Any API request that declares another
-    // tenant is rejected before it reaches canonical Core middleware.
     const requestedTenant = tenantHeader(req);
     if (requestedTenant && requestedTenant !== config.tenantSubdomain) {
       return res.status(403).json({
@@ -163,8 +161,6 @@ async function start() {
       });
     }
 
-    // Global SaaS/platform control plane is intentionally not part of a restaurant
-    // single-tenant runtime. Public QR also stays on its existing cloud path.
     if (req.path === '/platform' || req.path.startsWith('/platform/') || req.path.startsWith('/edge/api/')) {
       return res.status(404).json({ ok: false, code: 'P13_CONTROL_PLANE_NOT_LOCAL', message: 'Ruta central fuera del runtime local del restaurante.' });
     }
@@ -197,10 +193,10 @@ async function start() {
     instance.once('error', reject);
   });
 
-  console.log(`P13_E1_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
+  console.log(`P13_E2_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
 
   const shutdown = async (signal) => {
-    console.log(`P13_E1_RUNTIME_STOP signal=${signal}`);
+    console.log(`P13_E2_RUNTIME_STOP signal=${signal}`);
     await new Promise((resolve) => server.close(resolve));
     await prisma.$disconnect().catch(() => {});
     process.exit(0);
@@ -213,7 +209,7 @@ async function start() {
 if (require.main === module) {
   require('dotenv').config({ path: process.env.P13_ENV_FILE || path.join(__dirname, '.env') });
   start().catch((error) => {
-    console.error(`P13_E1_RUNTIME_FAILED: ${error.message}`);
+    console.error(`P13_E2_RUNTIME_FAILED: ${error.message}`);
     process.exit(1);
   });
 }
