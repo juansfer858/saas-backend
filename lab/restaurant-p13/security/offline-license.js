@@ -21,11 +21,9 @@ function parseInstant(value, field) {
 function decodeSignature(signature) {
   const text = String(signature || '').trim();
   if (!text) throw new Error('P13_LICENSE_SIGNATURE_MISSING');
-  try {
-    return Buffer.from(text, 'base64url');
-  } catch {
-    throw new Error('P13_LICENSE_SIGNATURE_INVALID_ENCODING');
-  }
+  const bytes = Buffer.from(text, 'base64url');
+  if (!bytes.length) throw new Error('P13_LICENSE_SIGNATURE_INVALID_ENCODING');
+  return bytes;
 }
 
 function assertPayloadShape(payload) {
@@ -35,8 +33,11 @@ function assertPayloadShape(payload) {
   if (Number(payload.licenseVersion) !== LICENSE_VERSION) {
     throw new Error(`P13_LICENSE_VERSION_UNSUPPORTED:${payload.licenseVersion}`);
   }
-  for (const field of ['tenantId', 'tenantSubdomain', 'installationId', 'plan', 'issuedAt', 'validUntil', 'graceUntil', 'keyId']) {
+  for (const field of ['tenantId', 'tenantSubdomain', 'installationId', 'installationPublicKeySha256', 'plan', 'issuedAt', 'validUntil', 'graceUntil', 'keyId']) {
     if (!String(payload[field] || '').trim()) throw new Error(`P13_LICENSE_FIELD_REQUIRED:${field}`);
+  }
+  if (!/^[a-f0-9]{64}$/i.test(String(payload.installationPublicKeySha256))) {
+    throw new Error('P13_LICENSE_INSTALLATION_KEY_FINGERPRINT_INVALID');
   }
   if (!payload.features || typeof payload.features !== 'object' || Array.isArray(payload.features)) {
     throw new Error('P13_LICENSE_FEATURES_INVALID');
@@ -53,7 +54,7 @@ function licenseState(payload, now = Date.now()) {
   return 'EXPIRED';
 }
 
-function verifySignedLicense({ envelope, publicKeyPem, expectedTenantId, expectedTenantSubdomain, expectedInstallationId, now = Date.now(), maxFutureClockSkewMs = 5 * 60 * 1000 }) {
+function verifySignedLicense({ envelope, publicKeyPem, expectedTenantId, expectedTenantSubdomain, expectedInstallationId, expectedInstallationPublicKeySha256, now = Date.now(), maxFutureClockSkewMs = 5 * 60 * 1000 }) {
   if (!envelope || typeof envelope !== 'object') throw new Error('P13_LICENSE_ENVELOPE_INVALID');
   const payload = assertPayloadShape(envelope.payload);
   if (!String(publicKeyPem || '').trim()) throw new Error('P13_LICENSE_PUBLIC_KEY_MISSING');
@@ -66,6 +67,9 @@ function verifySignedLicense({ envelope, publicKeyPem, expectedTenantId, expecte
   if (expectedTenantId && payload.tenantId !== expectedTenantId) throw new Error('P13_LICENSE_TENANT_ID_MISMATCH');
   if (expectedTenantSubdomain && payload.tenantSubdomain !== expectedTenantSubdomain) throw new Error('P13_LICENSE_TENANT_SUBDOMAIN_MISMATCH');
   if (expectedInstallationId && payload.installationId !== expectedInstallationId) throw new Error('P13_LICENSE_INSTALLATION_MISMATCH');
+  if (expectedInstallationPublicKeySha256 && String(payload.installationPublicKeySha256).toLowerCase() !== String(expectedInstallationPublicKeySha256).toLowerCase()) {
+    throw new Error('P13_LICENSE_INSTALLATION_KEY_MISMATCH');
+  }
 
   const issuedAt = parseInstant(payload.issuedAt, 'issuedAt');
   if (issuedAt > now + maxFutureClockSkewMs) throw new Error('P13_LICENSE_ISSUED_IN_FUTURE');
