@@ -107,6 +107,10 @@ function mutationBoundaryForRequest(method, rawPath) {
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/roles\/[^/]+\/permisos$/.test(pathname)) return 'IDENTITY_RBAC';
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/usuarios\/[^/]+\/(?:roles|permisos)$/.test(pathname)) return 'IDENTITY_RBAC';
   if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/abrir$/.test(pathname)) return 'RESTAURANT_TABLE_VISIT';
+  if (verb === 'PATCH' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/servicio$/.test(pathname)) return 'RESTAURANT_ORDER_PERSON';
+  if (verb === 'PUT' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/pedido-borrador\/items\/[^/]+$/.test(pathname)) return 'RESTAURANT_ORDER_DRAFT';
+  if (verb === 'PATCH' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/items\/[^/]+$/.test(pathname)) return 'RESTAURANT_ORDER_ITEM_META';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/pedido-borrador\/enviar$/.test(pathname)) return 'RESTAURANT_ORDER_SEND';
   return null;
 }
 
@@ -134,9 +138,18 @@ async function start() {
     res.json({
       ok: true,
       marker: LAB_MARKER,
-      phase: 'P13-E2',
-      mutationMode: 'IDENTITY_AND_TABLE_VISIT',
-      mutationBoundaries: ['AUTH_LOGIN', 'IDENTITY_USERS', 'IDENTITY_RBAC', 'RESTAURANT_TABLE_VISIT'],
+      phase: 'P13-E3',
+      mutationMode: 'IDENTITY_TABLE_VISIT_AND_ORDER_DRAFT',
+      mutationBoundaries: [
+        'AUTH_LOGIN',
+        'IDENTITY_USERS',
+        'IDENTITY_RBAC',
+        'RESTAURANT_TABLE_VISIT',
+        'RESTAURANT_ORDER_PERSON',
+        'RESTAURANT_ORDER_DRAFT',
+        'RESTAURANT_ORDER_ITEM_META',
+        'RESTAURANT_ORDER_SEND'
+      ],
       allOtherBusinessMutations: 'LOCKED',
       canonicalCoreApp: true,
       tenantSubdomain: config.tenantSubdomain,
@@ -193,10 +206,10 @@ async function start() {
     instance.once('error', reject);
   });
 
-  console.log(`P13_E2_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
+  console.log(`P13_E3_RUNTIME_READY marker=${LAB_MARKER} tenant=${config.tenantSubdomain} url=http://${config.host}:${config.port}`);
 
   const shutdown = async (signal) => {
-    console.log(`P13_E2_RUNTIME_STOP signal=${signal}`);
+    console.log(`P13_E3_RUNTIME_STOP signal=${signal}`);
     await new Promise((resolve) => server.close(resolve));
     await prisma.$disconnect().catch(() => {});
     process.exit(0);
@@ -209,7 +222,7 @@ async function start() {
 if (require.main === module) {
   require('dotenv').config({ path: process.env.P13_ENV_FILE || path.join(__dirname, '.env') });
   start().catch((error) => {
-    console.error(`P13_E2_RUNTIME_FAILED: ${error.message}`);
+    console.error(`P13_E3_RUNTIME_FAILED: ${error.message}`);
     process.exit(1);
   });
 }
