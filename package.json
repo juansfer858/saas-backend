@@ -16,7 +16,8 @@
     "lab:p13:smoke": "node scripts/restaurant-p13-full-local-smoke.js",
     "lab:p13:security-smoke": "node scripts/restaurant-p13-security-smoke.js",
     "lab:p13:sync-smoke": "node scripts/restaurant-p13-sync-smoke.js",
-    "lab:p13:recovery-smoke": "node scripts/restaurant-p13-recovery-smoke.js"
+    "lab:p13:recovery-smoke": "node scripts/restaurant-p13-recovery-smoke.js",
+    "lab:p13:e1-smoke": "node scripts/restaurant-p13-e1-identity-local-smoke.js"
   },
   "repository": {
     "type": "git",
