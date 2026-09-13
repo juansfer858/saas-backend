@@ -4,6 +4,7 @@ const customerDisplay = require('./restaurant-customer-display-name');
 
 const DEFAULT_COLUMNS_80 = 42;
 const DEFAULT_COLUMNS_58 = 32;
+const DELIVERY_ADDRESS_SAFE_COLUMNS = 32;
 
 function paperColumns(format) {
   const normalized = String(format || 'TERMICA_80').trim().toUpperCase();
@@ -70,20 +71,9 @@ function deliveryAddressLines(value, width) {
   const address = cleanText(value);
   if (!address) return [];
 
-  const label = 'Dirección:';
-  const maxWidth = Math.max(8, Number(width) || DEFAULT_COLUMNS_80);
-  const firstWidth = Math.max(8, maxWidth - label.length - 1);
-  let cut = address.length;
-  if (address.length > firstWidth) {
-    const lastSpace = address.lastIndexOf(' ', firstWidth);
-    cut = lastSpace >= Math.floor(firstWidth * 0.55) ? lastSpace : firstWidth;
-  }
-
-  const first = address.slice(0, cut).trim();
-  const remaining = address.slice(cut).trim();
-  const lines = [`${label} ${first}`.trimEnd()];
-  if (remaining) lines.push(...wrapText(remaining, maxWidth));
-  return lines;
+  const configuredWidth = Math.max(8, Number(width) || DEFAULT_COLUMNS_80);
+  const safeWidth = Math.min(configuredWidth, DELIVERY_ADDRESS_SAFE_COLUMNS);
+  return ['Dirección:', ...wrapText(address, safeWidth)];
 }
 
 function productLines(detail, { width, qty, money }) {
@@ -144,6 +134,7 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
 module.exports = {
   DEFAULT_COLUMNS_80,
   DEFAULT_COLUMNS_58,
+  DELIVERY_ADDRESS_SAFE_COLUMNS,
   paperColumns,
   cleanText,
   wrapText,
