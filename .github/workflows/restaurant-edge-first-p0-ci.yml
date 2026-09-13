@@ -1,0 +1,23 @@
+name: Restaurant Edge First P0 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  restaurant-edge-first-p0:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Edge-first contract syntax
+        run: |
+          node --check edge/agent/restaurant-entry-v2.js
+          node --check scripts/restaurant-edge-first-p0-smoke.js
+      - name: Prove restaurant canonical entry is local-first
+        run: node scripts/restaurant-edge-first-p0-smoke.js
