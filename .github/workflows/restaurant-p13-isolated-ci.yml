@@ -13,7 +13,7 @@ on:
 jobs:
   isolated-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -53,6 +53,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Ensure PostgreSQL recovery tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v pg_dump >/dev/null 2>&1 || ! command -v pg_restore >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+          pg_dump --version
+          pg_restore --version
+
       - name: Generate Prisma client
         run: npx prisma generate
 
@@ -70,6 +81,9 @@ jobs:
 
       - name: Validate local outbox/inbox idempotency against PostgreSQL
         run: npm run lab:p13:sync-smoke
+
+      - name: Validate snapshot, replacement-PC restore and continuity
+        run: npm run lab:p13:recovery-smoke
 
       - name: Assert production Edge remains untouched by P13 files
         shell: bash
