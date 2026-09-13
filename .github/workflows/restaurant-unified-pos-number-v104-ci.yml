@@ -1,0 +1,32 @@
+name: Restaurant Unified POS Number V104 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/restaurant-pos-number.service.js'
+      - 'src/modules/restaurant/restaurant-pos-operational-mode.js'
+      - 'src/modules/restaurant/restaurant-delivery.service.js'
+      - 'scripts/restaurant-unified-pos-number-v104-smoke.js'
+      - '.github/workflows/restaurant-unified-pos-number-v104-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  restaurant-unified-pos-number-v104:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax check numbering modules
+        run: |
+          node --check src/modules/restaurant/restaurant-pos-number.service.js
+          node --check src/modules/restaurant/restaurant-pos-operational-mode.js
+          node --check scripts/restaurant-unified-pos-number-v104-smoke.js
+
+      - name: Verify unified Restaurant POS sequence
+        run: node scripts/restaurant-unified-pos-number-v104-smoke.js
