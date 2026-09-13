@@ -71,17 +71,18 @@ function deliveryAddressLines(value, width) {
   if (!address) return [];
 
   const label = 'Dirección:';
-  const firstWidth = Math.max(8, Number(width || DEFAULT_COLUMNS_80) - label.length - 1);
+  const maxWidth = Math.max(8, Number(width) || DEFAULT_COLUMNS_80);
+  const firstWidth = Math.max(8, maxWidth - label.length - 1);
   let cut = address.length;
   if (address.length > firstWidth) {
-    cut = address.lastIndexOf(' ', firstWidth + 1);
-    if (cut < Math.floor(firstWidth * 0.55)) cut = firstWidth;
+    const lastSpace = address.lastIndexOf(' ', firstWidth);
+    cut = lastSpace >= Math.floor(firstWidth * 0.55) ? lastSpace : firstWidth;
   }
 
   const first = address.slice(0, cut).trim();
   const remaining = address.slice(cut).trim();
-  const lines = [`${label} ${first}`.trimEnd().slice(0, width)];
-  if (remaining) lines.push(...wrapText(remaining, width));
+  const lines = [`${label} ${first}`.trimEnd()];
+  if (remaining) lines.push(...wrapText(remaining, maxWidth));
   return lines;
 }
 
