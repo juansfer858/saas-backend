@@ -1,12 +1,30 @@
 'use strict';
 
-// V95.4 fleet validation: supervised runtime + watchdog + one-time in-place repair.
+// V95.4 capability validation: supervised runtime + watchdog + one-time in-place repair.
+// La versión activa puede avanzar y un piloto puede desactivar fleetRollout sin perder
+// las capacidades de autorecuperación que este smoke valida.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+
+function versionTuple(raw) {
+  const match = String(raw || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+  assert.ok(match, `Versión Edge inválida: ${raw}`);
+  return match.slice(1).map(Number);
+}
+
+function versionAtLeast(raw, minimum) {
+  const a = versionTuple(raw);
+  const b = versionTuple(minimum);
+  for (let i = 0; i < 3; i += 1) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return true;
+}
 
 const installer = read('edge/supervisor/install-windows.ps1');
 const watchdog = read('edge/supervisor/watchdog-windows.ps1');
@@ -17,9 +35,9 @@ const fleetRepair = read('edge/supervisor/fleet-repair-windows.ps1');
 const universalEntry = read('edge/agent/universal-entry.js');
 const version = JSON.parse(read('edge/version.json'));
 
-assert.equal(version.version, '2.1.16-self-heal.4');
-assert.equal(version.channel, 'PILOT');
-assert.equal(version.fleetRollout, true);
+assert.ok(versionAtLeast(version.version, '2.1.16'), `Edge ${version.version} no puede retroceder antes del baseline self-heal 2.1.16`);
+assert.ok(['PILOT', 'STABLE'].includes(version.channel));
+assert.equal(typeof version.fleetRollout, 'boolean');
 
 assert.match(installer, /VantixGC Edge Supervisor/);
 assert.match(installer, /VantixGC Edge Watchdog/);
@@ -79,4 +97,9 @@ assert.match(uninstall, /VantixGC Edge Watchdog/);
 assert.match(uninstall, /Unregister-ScheduledTask -TaskName \$WatchdogTask/);
 assert.match(uninstall, /Unregister-ScheduledTask -TaskName \$SupervisorTask/);
 
-console.log('EDGE_WINDOWS_SELF_HEAL_V95_4_FLEET_OK');
+console.log('EDGE_WINDOWS_SELF_HEAL_V95_4_CAPABILITY_OK', JSON.stringify({
+  edgeVersion: version.version,
+  channel: version.channel,
+  fleetRollout: version.fleetRollout,
+  selfHealBaselinePreserved: true
+}));
