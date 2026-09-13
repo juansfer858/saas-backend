@@ -9,6 +9,19 @@ const DEFAULT_PORT = 8790;
 const REQUIRED_DB_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
 const REQUIRED_DB_PORT = 55432;
 const REQUIRED_DB_NAME = 'vantix_p13_lab';
+const LOCAL_RESTAURANT_ENTRY = '/app/centro-de-control-v2';
+const CENTRAL_SUPER_CORE_UI_PREFIXES = Object.freeze([
+  '/app/dashboard',
+  '/app/ventas',
+  '/app/compras',
+  '/app/inventario',
+  '/app/tesoreria',
+  '/app/cartera',
+  '/app/terceros',
+  '/app/contabilidad',
+  '/app/configuracion',
+  '/app/configuracion-avanzada'
+]);
 
 function truthy(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
@@ -96,6 +109,11 @@ function tenantHeader(req) {
   return String(req.headers['x-tenant-subdomain'] || '').trim().toLowerCase();
 }
 
+function isCentralSuperCoreUiPath(rawPath) {
+  const pathname = String(rawPath || '').split('?')[0];
+  return CENTRAL_SUPER_CORE_UI_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 function mutationBoundaryForRequest(method, rawPath) {
   const verb = String(method || '').toUpperCase();
   const pathname = String(rawPath || '').split('?')[0];
@@ -125,13 +143,16 @@ async function start() {
   process.env.PUBLIC_TENANT_REGISTRATION_ENABLED = 'false';
   installOutboundNetworkGuard();
 
-  // El runtime local monta exactamente el mismo grafo canónico que Core.
-  // P13 sólo controla qué fronteras pueden mutar durante cada etapa aislada.
+  // Reutilizamos el grafo canónico como motor. La superficie local visible es sólo Restaurante.
   const { app: canonicalCoreApp } = require('../../src/app');
   const { prisma } = require('../../src/config/prisma');
 
   const lab = express();
   lab.disable('x-powered-by');
+
+  lab.get('/', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
+  lab.get('/app', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
+  lab.get('/app/centro-de-control', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
 
   lab.get('/__p13/status', (_req, res) => {
     res.set('Cache-Control', 'no-store');
@@ -140,6 +161,9 @@ async function start() {
       ok: true,
       marker: LAB_MARKER,
       phase: 'P13-E4',
+      localSurface: 'RESTAURANT_CONTROL_CENTER_ONLY',
+      localEntry: LOCAL_RESTAURANT_ENTRY,
+      superCoreUi: 'CLOUD_ONLY',
       mutationMode: 'IDENTITY_TABLE_VISIT_ORDER_AND_KDS',
       mutationBoundaries: [
         'AUTH_LOGIN',
@@ -159,7 +183,7 @@ async function start() {
       port: config.port,
       database: { host: config.dbHost, port: config.dbPort, name: config.dbName },
       productionEdgePortUntouched: 8788,
-      publicQrPolicy: 'CLOUD_HYBRID_UNCHANGED'
+      publicQrPolicy: 'CORE_CLOUD_ONLY'
     });
   });
 
@@ -179,8 +203,11 @@ async function start() {
     if (req.path === '/platform' || req.path.startsWith('/platform/') || req.path.startsWith('/edge/api/')) {
       return res.status(404).json({ ok: false, code: 'P13_CONTROL_PLANE_NOT_LOCAL', message: 'Ruta central fuera del runtime local del restaurante.' });
     }
+    if (isCentralSuperCoreUiPath(req.path)) {
+      return res.status(404).json({ ok: false, code: 'P13_SUPER_CORE_UI_CLOUD_ONLY', message: 'El Super Core administrativo permanece únicamente en Internet.' });
+    }
     if (req.path.startsWith('/r/')) {
-      return res.status(409).json({ ok: false, code: 'P13_PUBLIC_QR_HYBRID_UNCHANGED', message: 'El QR público permanece en Core y no se mueve al runtime local.' });
+      return res.status(409).json({ ok: false, code: 'P13_PUBLIC_QR_CORE_ONLY', message: 'El QR público permanece únicamente en Core y no se hospeda en el runtime local.' });
     }
 
     if (isReadOnlyMethod(req.method)) return next();
@@ -235,9 +262,12 @@ module.exports = {
   DEFAULT_PORT,
   REQUIRED_DB_PORT,
   REQUIRED_DB_NAME,
+  LOCAL_RESTAURANT_ENTRY,
+  CENTRAL_SUPER_CORE_UI_PREFIXES,
   assertLabConfig,
   installOutboundNetworkGuard,
   tenantHeader,
+  isCentralSuperCoreUiPath,
   mutationBoundaryForRequest,
   start
 };
