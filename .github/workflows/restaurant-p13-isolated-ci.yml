@@ -13,7 +13,31 @@ on:
 jobs:
   isolated-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vantix_p13
+          POSTGRES_PASSWORD: p13-ci-only-password
+          POSTGRES_DB: vantix_p13_lab
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd="pg_isready -U vantix_p13 -d vantix_p13_lab"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      VANTIX_P13_LAB_ENABLED: 'true'
+      P13_HOST: 127.0.0.1
+      P13_PORT: '8790'
+      P13_MUTATIONS_ENABLED: 'false'
+      P13_TENANT_SUBDOMAIN: demo-restaurante
+      P13_JWT_SECRET: p13-ci-jwt-secret-that-is-longer-than-thirty-two-characters
+      P13_ADMIN_PASSWORD: p13-ci-admin-password-only
+      DATABASE_URL: postgresql://vantix_p13:p13-ci-only-password@127.0.0.1:55432/vantix_p13_lab
+      NODE_ENV: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,11 +51,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Prepare isolated P13 PostgreSQL
+        run: npx prisma db push
+
       - name: Validate P13 canonical local isolation
         run: npm run lab:p13:smoke
 
+      - name: Bootstrap disposable single-tenant lab
+        run: npm run lab:p13:bootstrap
+
       - name: Validate offline license and signed updater contract
         run: npm run lab:p13:security-smoke
+
+      - name: Validate local outbox/inbox idempotency against PostgreSQL
+        run: npm run lab:p13:sync-smoke
 
       - name: Assert production Edge remains untouched by P13 files
         shell: bash

@@ -14,7 +14,8 @@
     "lab:p13": "node lab/restaurant-p13/runtime.js",
     "lab:p13:bootstrap": "node lab/restaurant-p13/bootstrap-demo.js",
     "lab:p13:smoke": "node scripts/restaurant-p13-full-local-smoke.js",
-    "lab:p13:security-smoke": "node scripts/restaurant-p13-security-smoke.js"
+    "lab:p13:security-smoke": "node scripts/restaurant-p13-security-smoke.js",
+    "lab:p13:sync-smoke": "node scripts/restaurant-p13-sync-smoke.js"
   },
   "repository": {
     "type": "git",
