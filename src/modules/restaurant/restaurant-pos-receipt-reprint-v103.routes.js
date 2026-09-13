@@ -3,6 +3,7 @@
 const express = require('express');
 const { requirePermission } = require('../../middleware/require-permission');
 const reprint = require('./restaurant-pos-receipt-reprint-v103.service');
+const reprintSignal = require('./restaurant-pos-receipt-reprint-signal-v103.service');
 
 const router = express.Router();
 
@@ -35,7 +36,8 @@ router.post('/ventas/:saleId/reimprimir-tirilla', requirePermission('RESTAURANTE
         data
       });
     }
-    return res.status(202).json({ ok: true, data });
+    const edgeSignal = await reprintSignal.requestPrintQueueSync(req.tenantId);
+    return res.status(202).json({ ok: true, data: { ...data, edgeSignal } });
   } catch (error) { next(error); }
 });
 
