@@ -41,7 +41,12 @@ assert.match(wrapper, /Sincronizar carta/);
 assert.match(wrapper, /return true;\\n}\\n\\nasync function readJson/);
 assert.match(wrapper, /workspacePcWaiterRenderV59/);
 assert.match(wrapper, /\.toString\(\)/);
-assert.match(entry, /require\('\.\/workspace-entry-v59'\)/);
+
+assert.match(entry, /require\('\.\/workspace-entry-(?:v59|local-first-p0)'\)/);
+if (entry.includes("workspace-entry-local-first-p0")) {
+  const localFirst = read('edge/agent/workspace-entry-local-first-p0.js');
+  assert.match(localFirst, /require\('\.\/workspace-entry-v59'\)/);
+}
 assert.doesNotMatch(entry, /require\('\.\/workspace-entry-v28'\)/);
 assertEdgeVersionAtLeast(version.version, '2.1.13');
 assert.equal(version.channel, 'PILOT');
