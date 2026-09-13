@@ -1,0 +1,29 @@
+name: Restaurant Edge Link Return P12 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/modules/restaurant/restaurant-v2-only-p12.public.routes.js'
+      - 'src/modules/edge/edge-workspace.service.js'
+      - 'edge/agent/workspace-entry.js'
+      - 'scripts/restaurant-edge-link-return-p12-smoke.js'
+      - '.github/workflows/restaurant-edge-link-return-p12-ci.yml'
+
+jobs:
+  restaurant-edge-link-return-p12:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-v2-only-p12.public.routes.js
+          node --check scripts/restaurant-edge-link-return-p12-smoke.js
+      - name: Prove Edge link returns to local workspace
+        run: node scripts/restaurant-edge-link-return-p12-smoke.js
