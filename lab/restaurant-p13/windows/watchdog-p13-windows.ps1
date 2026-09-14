@@ -1,7 +1,9 @@
 param(
   [string]$InstallDir = "C:\ProgramData\VantixGC\Restaurant-P13",
   [string]$TaskName = "VantixGC Restaurant P13 Lab",
-  [switch]$ListManagedRuntimeProcessIds
+  [switch]$ListManagedRuntimeProcessIds,
+  [int]$HealthRetryAttempts = 4,
+  [int]$HealthRetryDelaySeconds = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,6 +23,21 @@ function Test-Health {
     $Response = Invoke-RestMethod -UseBasicParsing -Method Get -Uri $HealthUrl -TimeoutSec 4
     return ($Response.ok -eq $true -and [string]$Response.marker -eq 'VANTIX_RESTAURANT_FULL_LOCAL_P13_A')
   } catch { return $false }
+}
+
+function Wait-P13HealthGrace {
+  param(
+    [int]$Attempts = $HealthRetryAttempts,
+    [int]$DelaySeconds = $HealthRetryDelaySeconds
+  )
+
+  $Attempts = [Math]::Max(1, $Attempts)
+  $DelaySeconds = [Math]::Max(1, $DelaySeconds)
+  for ($Attempt = 1; $Attempt -le $Attempts; $Attempt++) {
+    Start-Sleep -Seconds $DelaySeconds
+    if (Test-Health) { return $true }
+  }
+  return $false
 }
 
 function Get-P13RuntimeProcesses {
@@ -50,7 +67,16 @@ if ($ListManagedRuntimeProcessIds) {
 
 if (Test-Health) { exit 0 }
 
-Log 'Health local falló; reiniciando únicamente el runtime Node P13. PostgreSQL local se preserva.'
+# A scheduled watchdog can overlap the normal startup window while the operational
+# SQL preparer is still running. A single failed HTTP probe must never kill a healthy
+# boot in progress. Give the local runtime a bounded grace period first.
+Log 'Health inicial falló; esperando período de gracia antes de cualquier reinicio de Node.'
+if (Wait-P13HealthGrace) {
+  Log 'Runtime P13 respondió durante el período de gracia; no se reinicia ningún proceso.'
+  exit 0
+}
+
+Log 'Health local siguió fallando tras la gracia; reiniciando únicamente el runtime Node P13. PostgreSQL local se preserva.'
 try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
 Start-Sleep -Seconds 1
 
@@ -68,11 +94,14 @@ foreach ($Process in (Get-P13RuntimeProcesses)) {
 # The start task will reuse 55432 when it is healthy and only start PostgreSQL if
 # pg_isready reports that it is actually down.
 Start-ScheduledTask -TaskName $TaskName
-Start-Sleep -Seconds 7
-if (Test-Health) {
+
+# The restarted task also needs time to apply the operational schema before Node
+# begins listening. Reuse the same bounded grace instead of assuming seven seconds
+# is always enough on every Windows PC.
+if (Wait-P13HealthGrace -Attempts ([Math]::Max(5, $HealthRetryAttempts)) -DelaySeconds $HealthRetryDelaySeconds) {
   Log 'Runtime P13 recuperado; PostgreSQL local no fue reiniciado por el watchdog.'
   exit 0
 }
 
-Log 'Runtime P13 sigue sin responder después del reinicio de Node.'
+Log 'Runtime P13 sigue sin responder después del reinicio de Node; PostgreSQL local permanece separado.'
 exit 2
