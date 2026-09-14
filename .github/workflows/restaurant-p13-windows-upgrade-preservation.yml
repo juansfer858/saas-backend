@@ -12,7 +12,7 @@ on:
 jobs:
   preserve-p13-operational-state:
     runs-on: windows-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     env:
       DATABASE_URL: postgresql://vantix_p13:p13-build-only@127.0.0.1:55432/vantix_p13_lab
     steps:
@@ -36,6 +36,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $env:PGCONNECT_TIMEOUT = '5'
           $zip = Resolve-Path 'artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip'
           $source = Join-Path $env:RUNNER_TEMP 'p13-preserve-source'
           $install = 'C:\P13-CI-Preserve'
@@ -45,7 +46,9 @@ jobs:
 
           $installer = Join-Path $source 'lab/restaurant-p13/windows/install-p13-windows.ps1'
           $password = 'P13-CI-Preserve-Regression-Only'
+          Write-Host 'P13_PRESERVE_PHASE_FRESH_INSTALL_BEGIN'
           & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          Write-Host 'P13_PRESERVE_PHASE_FRESH_INSTALL_OK'
 
           $envFile = Join-Path $install '.env'
           $envMap = @{}
@@ -63,6 +66,7 @@ jobs:
           $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
           $pgdata = Join-Path $install 'data/postgres'
           $syncSql = Join-Path $install 'app/lab/restaurant-p13/sql/001-p13-sync.sql'
+          Write-Host 'P13_PRESERVE_PHASE_SEED_BEGIN'
           & $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -v ON_ERROR_STOP=1 -f $syncSql | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar 001-p13-sync.sql.' }
           $global:LASTEXITCODE = 0
@@ -93,10 +97,26 @@ jobs:
           $beforeIdentity = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc "SELECT installation_id FROM p13_installation_identity WHERE installation_id='installation-preserve-regression';").Trim()
           $beforeOutbox = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc "SELECT payload->>'probe' FROM p13_sync_outbox WHERE event_id='event-preserve-regression' AND status='PENDING';").Trim()
           if ($beforeIdentity -ne 'installation-preserve-regression' -or $beforeOutbox -ne 'keep-me') { throw 'Estado P13 previo no quedó sembrado.' }
+          Write-Host 'P13_PRESERVE_PHASE_SEED_OK'
 
-          $reinstallOutput = @(& $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut 2>&1)
-          $reinstallText = $reinstallOutput -join "`n"
-          if ($LASTEXITCODE -ne 0) { throw "Reinstalación P13 falló:`n$reinstallText" }
+          $reinstallLog = Join-Path $env:RUNNER_TEMP 'p13-preserve-reinstall.log'
+          Remove-Item $reinstallLog -Force -ErrorAction SilentlyContinue
+          $reinstallError = $null
+          Write-Host 'P13_PRESERVE_PHASE_REINSTALL_BEGIN'
+          Start-Transcript -Path $reinstallLog -Force | Out-Null
+          try {
+            & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          } catch {
+            $reinstallError = $_
+          } finally {
+            Stop-Transcript | Out-Null
+          }
+          $reinstallText = Get-Content -Raw -LiteralPath $reinstallLog
+          if ($reinstallError) { throw "Reinstalación P13 falló: $($reinstallError.Exception.Message)`n$reinstallText" }
+          if ($LASTEXITCODE -ne 0) { throw "Reinstalación P13 terminó con código $LASTEXITCODE.`n$reinstallText" }
+          Write-Host 'P13_PRESERVE_PHASE_REINSTALL_OK'
+
+          Write-Host 'P13_PRESERVE_PHASE_VERIFY_BEGIN'
           if ($reinstallText -notmatch 'prisma db push omitido') { throw "La actualización no confirmó el modo preservador:`n$reinstallText" }
           if ($reinstallText -match 'data loss|drop the `p13_|drop the p13_') { throw "La actualización emitió una advertencia destructiva:`n$reinstallText" }
 
@@ -111,6 +131,7 @@ jobs:
           Write-Host 'P13_WINDOWS_UPGRADE_PRESERVES_IDENTITY_OK'
           Write-Host 'P13_WINDOWS_UPGRADE_PRESERVES_OUTBOX_OK'
           Write-Host 'P13_WINDOWS_UPGRADE_SKIPS_DESTRUCTIVE_DB_PUSH_OK'
+          Write-Host 'P13_PRESERVE_PHASE_VERIFY_OK'
 
           try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {}
           $global:LASTEXITCODE = 0
