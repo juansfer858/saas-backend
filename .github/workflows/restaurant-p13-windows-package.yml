@@ -106,6 +106,10 @@ jobs:
             }
             if (-not $status -or -not $status.ok -or $status.phase -ne 'P13-E5') { throw 'Runtime P13 instalado no respondió.' }
             if ($status.productionEdgePortUntouched -ne 8788) { throw 'Contrato Edge 8788 inválido.' }
+            $loginPage = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8790/app' -TimeoutSec 5
+            if ($loginPage.StatusCode -ne 200 -or $loginPage.Content -notmatch 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1') { throw 'Login local P13 para navegador no respondió.' }
+            if ($loginPage.Headers['X-VantixGC-P13-Local-Login'] -ne 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1') { throw 'Contrato de login local P13 inválido.' }
+            Write-Host 'P13_WINDOWS_BROWSER_LOGIN_OK'
             $loginBody = @{ email='admin@demo-restaurante.vantixgc.com'; password='P13-CI-Physical-Pilot-Only' } | ConvertTo-Json -Compress
             $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $loginBody -TimeoutSec 8
             if (-not $login.ok -or -not $login.data.token) { throw 'Login local P13 falló.' }
