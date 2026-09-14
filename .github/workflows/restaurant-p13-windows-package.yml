@@ -1,0 +1,136 @@
+name: Restaurant P13 Windows Pilot Package
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p13/windows/**'
+      - 'lab/restaurant-p13/runtime.js'
+      - 'lab/restaurant-p13/bootstrap-demo.js'
+      - 'scripts/restaurant-p13-build-windows-package.ps1'
+      - 'scripts/ensure-restaurant-demo-tenant.js'
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'prisma.config.ts'
+      - '.github/workflows/restaurant-p13-windows-package.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-package:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Windows Prisma client
+        run: npx prisma generate
+
+      - name: Build self-contained P13 Windows package
+        shell: pwsh
+        run: ./scripts/restaurant-p13-build-windows-package.ps1
+
+      - name: Validate bundled runtimes and package contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip'
+          $unpack = Join-Path $env:RUNNER_TEMP 'p13-package-check'
+          Remove-Item $unpack -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $unpack -Force
+          $manifest = Get-Content -Raw (Join-Path $unpack 'package-manifest.json') | ConvertFrom-Json
+          if ($manifest.product -ne 'VantixGC Restaurant P13 Windows Pilot') { throw 'Producto inválido.' }
+          if ($manifest.httpPort -ne 8790 -or $manifest.postgresPort -ne 55432) { throw 'Puertos P13 inválidos.' }
+          if ($manifest.productionEdgeTouched -ne $false -or $manifest.productionEdgePort -ne 8788) { throw 'El paquete no preserva Edge productivo.' }
+          & (Join-Path $unpack 'payload/runtime/node.exe') --version
+          & (Join-Path $unpack 'payload/postgres/bin/postgres.exe') --version
+          & (Join-Path $unpack 'payload/postgres/bin/initdb.exe') --version
+          foreach ($file in @(
+            'INSTALAR_P13.ps1',
+            'lab/restaurant-p13/windows/install-p13-windows.ps1',
+            'payload/ops/start-p13-windows.ps1',
+            'payload/ops/watchdog-p13-windows.ps1',
+            'payload/ops/uninstall-p13-windows.ps1'
+          )) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $unpack $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw "PowerShell inválido: $file :: $($errors[0].Message)" }
+          }
+          Write-Host 'P13_WINDOWS_PACKAGE_CONTRACT_OK'
+
+      - name: Install package in disposable Windows directory
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip'
+          $unpack = Join-Path $env:RUNNER_TEMP 'p13-install-source'
+          $install = 'C:\P13-CI-Isolated'
+          Remove-Item $unpack -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $unpack -Force
+          & (Join-Path $unpack 'lab/restaurant-p13/windows/install-p13-windows.ps1') -InstallDir $install -AdminPassword 'P13-CI-Physical-Pilot-Only' -NoStartupTasks -NoShortcut
+          if (-not (Test-Path (Join-Path $install 'data/postgres/PG_VERSION'))) { throw 'PostgreSQL local no quedó inicializado.' }
+          if (-not (Test-Path (Join-Path $install 'app/lab/restaurant-p13/runtime.js'))) { throw 'Runtime local no quedó instalado.' }
+          if (Test-Path 'C:\ProgramData\VantixGC\Edge\install-state.json') { Write-Host 'Edge existente detectado y no tocado.' }
+          Write-Host 'P13_WINDOWS_INSTALL_DISPOSABLE_OK'
+
+      - name: Boot installed runtime and validate local login
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $install = 'C:\P13-CI-Isolated'
+          $starter = Join-Path $install 'ops/start-p13-windows.ps1'
+          $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
+          try {
+            $status = $null
+            for ($i=0; $i -lt 60; $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p13/status' -TimeoutSec 2
+                if ($status.ok -and $status.phase -eq 'P13-E5') { break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $status -or -not $status.ok -or $status.phase -ne 'P13-E5') { throw 'Runtime P13 instalado no respondió.' }
+            if ($status.productionEdgePortUntouched -ne 8788) { throw 'Contrato Edge 8788 inválido.' }
+            $loginBody = @{ email='admin@demo-restaurante.vantixgc.com'; password='P13-CI-Physical-Pilot-Only' } | ConvertTo-Json -Compress
+            $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $loginBody -TimeoutSec 8
+            if (-not $login.ok -or -not $login.data.token) { throw 'Login local P13 falló.' }
+            Write-Host 'P13_WINDOWS_RUNTIME_LOGIN_OK'
+          } finally {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($install, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {} }
+            $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
+            $pgdata = Join-Path $install 'data/postgres'
+            if (Test-Path $pgctl) { try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {} }
+          }
+
+      - name: Assert production Edge files are untouched by P13 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/p13-win-files.txt
+          if grep -E '^(edge/agent|edge/workspace|edge/updater|edge/supervisor)/' /tmp/p13-win-files.txt; then
+            echo 'P13 Windows pilot cannot modify production Edge.' >&2
+            exit 1
+          fi
+          echo 'P13_WINDOWS_EDGE_ISOLATION_OK'
+
+      - name: Upload P13 Windows pilot ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: vantixgc-restaurant-p13-windows-pilot
+          path: artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip
+          if-no-files-found: error
+          retention-days: 14
