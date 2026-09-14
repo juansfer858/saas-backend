@@ -202,6 +202,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Prisma db push P13 falló.' }
 
   $TenantCountRaw = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT count(*) FROM "Tenant";'
+  if ($LASTEXITCODE -ne 0 -or $null -eq $TenantCountRaw) { throw 'No fue posible consultar la tabla Tenant después de Prisma db push.' }
   $TenantCount = [int]([string]$TenantCountRaw).Trim()
   if ($TenantCount -eq 0) {
     $FreshBootstrap = $true
@@ -209,6 +210,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Bootstrap demo P13 falló.' }
   } else {
     $WrongTenant = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT count(*) FROM "Tenant" WHERE subdomain <> ''demo-restaurante'';'
+    if ($LASTEXITCODE -ne 0 -or $null -eq $WrongTenant) { throw 'No fue posible validar el aislamiento single-tenant P13.' }
     if ([int]([string]$WrongTenant).Trim() -ne 0 -or $TenantCount -ne 1) { throw 'La base local no cumple el aislamiento single-tenant demo-restaurante.' }
   }
 } finally {
