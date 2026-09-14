@@ -80,30 +80,48 @@ jobs:
           if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Watchdog P13 no quedó incluido en el paquete.' }
           Remove-Item -LiteralPath $watchdogLog -Force -ErrorAction SilentlyContinue
 
-          # Regression for the physical field failure: watchdog may run while the
-          # startup task is still applying SQL 001-007. Start watchdog first, then
-          # bring the runtime online inside its grace window. It must recover without
-          # trying to restart Node or requiring a scheduled task.
+          # Regression for the physical field failure. Make the race deterministic:
+          # first prove the watchdog already observed 8790 as unavailable and entered
+          # its grace window; only then start the runtime. A healthy boot inside that
+          # window must not trigger a restart or require a scheduled task.
           $watchdogProc = Start-Process powershell.exe -ArgumentList @(
             '-NoProfile','-ExecutionPolicy','Bypass','-File',$watchdog,
             '-InstallDir',$install,
             '-TaskName','P13-CI-Task-That-Must-Not-Be-Needed',
-            '-HealthRetryAttempts','6',
+            '-HealthRetryAttempts','8',
             '-HealthRetryDelaySeconds','2'
           ) -PassThru -WindowStyle Hidden
-          Start-Sleep -Seconds 2
+
+          $graceObserved = $false
+          for ($i=0; $i -lt 50; $i++) {
+            if (Test-Path -LiteralPath $watchdogLog) {
+              $probeText = Get-Content -LiteralPath $watchdogLog -Raw -ErrorAction SilentlyContinue
+              if ($probeText -match 'Health inicial falló; esperando período de gracia') {
+                $graceObserved = $true
+                break
+              }
+            }
+            if ($watchdogProc.HasExited) { break }
+            Start-Sleep -Milliseconds 200
+          }
+          if (-not $graceObserved) {
+            try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            throw 'La regresión no logró colocar al watchdog dentro del período de gracia antes de arrancar Node.'
+          }
+          Write-Host 'P13_WINDOWS_WATCHDOG_GRACE_ENTERED'
+
           $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
           try {
-            if (-not $watchdogProc.WaitForExit(30000)) {
+            if (-not $watchdogProc.WaitForExit(40000)) {
               try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
               throw 'Watchdog no terminó dentro de la ventana de gracia de arranque.'
             }
             if ($watchdogProc.ExitCode -ne 0) { throw "Watchdog trató el arranque normal como fallo. Exit=$($watchdogProc.ExitCode)" }
             $watchdogText = if (Test-Path -LiteralPath $watchdogLog) { (Get-Content -LiteralPath $watchdogLog -Raw) } else { '' }
-            if ($watchdogText -notmatch 'respondió durante el período de gracia') {
+            if ($watchdogText -notmatch 'Runtime P13 respondió durante el período de gracia') {
               throw 'La regresión no comprobó recuperación del runtime dentro de la gracia del watchdog.'
             }
-            if ($watchdogText -match 'siguió fallando tras la gracia') {
+            if ($watchdogText -match 'Health local siguió fallando tras la gracia') {
               throw 'REGRESIÓN: watchdog intentó reiniciar Node durante un arranque normal.'
             }
             Write-Host 'P13_WINDOWS_WATCHDOG_STARTUP_GRACE_OK'
