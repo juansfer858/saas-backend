@@ -62,7 +62,16 @@ foreach ($File in @('package.json','package-lock.json','prisma.config.ts')) {
 Copy-Tree (Join-Path $Root 'node_modules') (Join-Path $App 'node_modules')
 
 $Node = (Get-Command node.exe -ErrorAction Stop).Source
-Copy-Item -LiteralPath $Node -Destination (Join-Path $Stage 'payload\runtime\node.exe') -Force
+$BundledNode = Join-Path $Stage 'payload\runtime\node.exe'
+Copy-Item -LiteralPath $Node -Destination $BundledNode -Force
+
+Push-Location $App
+try {
+  & $BundledNode -e "require('./src/app'); require('./lab/restaurant-p13/cash/local-cash.routes'); console.log('P13_WINDOWS_MODULE_LOAD_OK')"
+  if ($LASTEXITCODE -ne 0) { throw 'La carga de módulos del runtime P13 empaquetado falló.' }
+} finally {
+  Pop-Location
+}
 
 $PgRoot = Find-PostgresRoot
 foreach ($Dir in @('bin','lib','share')) {
