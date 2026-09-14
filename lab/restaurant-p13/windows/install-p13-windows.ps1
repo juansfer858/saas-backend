@@ -77,6 +77,19 @@ function Test-PgReady([string]$PgBin) {
   return ($LASTEXITCODE -eq 0)
 }
 
+function Invoke-P13PsqlScalar([string]$PgBin, [string]$Database, [string]$Sql) {
+  $SqlFile = Join-Path $env:TEMP ('vantix-p13-' + [guid]::NewGuid().ToString('N') + '.sql')
+  try {
+    $Sql | Set-Content -LiteralPath $SqlFile -Encoding ASCII
+    $Rows = @(& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d $Database -tA -v ON_ERROR_STOP=1 -f $SqlFile)
+    if ($LASTEXITCODE -ne 0) { throw "Consulta PostgreSQL P13 falló para $Database." }
+    if ($Rows.Count -eq 0 -or $null -eq $Rows[0]) { throw "Consulta PostgreSQL P13 no devolvió resultado para $Database." }
+    return ([string]$Rows[0]).Trim()
+  } finally {
+    Remove-Item -LiteralPath $SqlFile -Force -ErrorAction SilentlyContinue
+  }
+}
+
 Assert-Administrator
 if ($InstallDir.Equals($ReservedEdgeDir, [System.StringComparison]::OrdinalIgnoreCase) -or $InstallDir.StartsWith($ReservedEdgeDir + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
   throw 'P13 jamás puede instalarse dentro de C:\ProgramData\VantixGC\Edge.'
@@ -201,17 +214,15 @@ try {
   & $Node $PrismaCli db push
   if ($LASTEXITCODE -ne 0) { throw 'Prisma db push P13 falló.' }
 
-  $TenantCountRaw = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT count(*) FROM "Tenant";'
-  if ($LASTEXITCODE -ne 0 -or $null -eq $TenantCountRaw) { throw 'No fue posible consultar la tabla Tenant después de Prisma db push.' }
-  $TenantCount = [int]([string]$TenantCountRaw).Trim()
+  $TenantCountRaw = Invoke-P13PsqlScalar $PgBin 'vantix_p13_lab' 'SELECT count(*) FROM "Tenant";'
+  $TenantCount = [int]$TenantCountRaw
   if ($TenantCount -eq 0) {
     $FreshBootstrap = $true
     & $Node (Join-Path $AppDir 'lab\restaurant-p13\bootstrap-demo.js')
     if ($LASTEXITCODE -ne 0) { throw 'Bootstrap demo P13 falló.' }
   } else {
-    $WrongTenant = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT count(*) FROM "Tenant" WHERE subdomain <> ''demo-restaurante'';'
-    if ($LASTEXITCODE -ne 0 -or $null -eq $WrongTenant) { throw 'No fue posible validar el aislamiento single-tenant P13.' }
-    if ([int]([string]$WrongTenant).Trim() -ne 0 -or $TenantCount -ne 1) { throw 'La base local no cumple el aislamiento single-tenant demo-restaurante.' }
+    $WrongTenant = Invoke-P13PsqlScalar $PgBin 'vantix_p13_lab' 'SELECT count(*) FROM "Tenant" WHERE subdomain <> ''demo-restaurante'';'
+    if ([int]$WrongTenant -ne 0 -or $TenantCount -ne 1) { throw 'La base local no cumple el aislamiento single-tenant demo-restaurante.' }
   }
 } finally {
   Pop-Location
