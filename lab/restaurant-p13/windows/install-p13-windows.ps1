@@ -169,7 +169,8 @@ if (-not (Test-PgReady $PgBin)) {
 }
 if (-not (Test-PgReady $PgBin)) { throw 'PostgreSQL P13 no respondió en 127.0.0.1:55432.' }
 
-$DbExists = (& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='vantix_p13_lab'" 2>$null).Trim()
+$DbExistsRaw = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='vantix_p13_lab'" 2>$null
+$DbExists = ([string]$DbExistsRaw).Trim()
 if ($DbExists -ne '1') {
   & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 vantix_p13_lab
   if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear vantix_p13_lab.' }
