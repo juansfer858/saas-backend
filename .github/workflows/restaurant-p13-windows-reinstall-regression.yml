@@ -80,10 +80,35 @@ jobs:
           if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Watchdog P13 no quedó incluido en el paquete.' }
           Remove-Item -LiteralPath $watchdogLog -Force -ErrorAction SilentlyContinue
 
-          # Regression for the physical field failure. Make the race deterministic:
-          # first prove the watchdog already observed 8790 as unavailable and entered
-          # its grace window; only then start the runtime. A healthy boot inside that
-          # window must not trigger a restart or require a scheduled task.
+          # Deterministic precondition: 8790 must really be down before starting the
+          # watchdog regression. Stop only the exact P13 Node runtime owned by this
+          # isolated install path; never touch PostgreSQL or unrelated node.exe.
+          $runtimeNodePath = [System.IO.Path]::GetFullPath((Join-Path $install 'runtime/node.exe'))
+          $runtimeScriptPath = [System.IO.Path]::GetFullPath((Join-Path $install 'app/lab/restaurant-p13/runtime.js'))
+          $existingRuntimes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ExecutablePath -and
+            [System.IO.Path]::GetFullPath([string]$_.ExecutablePath).Equals($runtimeNodePath, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.CommandLine -and
+            ([string]$_.CommandLine).IndexOf($runtimeScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+          })
+          foreach ($existingRuntime in $existingRuntimes) {
+            Stop-Process -Id $existingRuntime.ProcessId -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Milliseconds 500
+
+          $unexpectedHealth = $null
+          try {
+            $unexpectedHealth = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p13/status' -TimeoutSec 2
+          } catch {}
+          if ($unexpectedHealth -and $unexpectedHealth.ok -and [string]$unexpectedHealth.marker -eq 'VANTIX_RESTAURANT_FULL_LOCAL_P13_A') {
+            $listeners = @(Get-NetTCPConnection -LocalPort 8790 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+            throw "Precondición inválida: 8790 ya tenía un runtime P13 respondiendo antes de la prueba. PID(s): $($listeners -join ',')."
+          }
+          Write-Host 'P13_WINDOWS_WATCHDOG_PRECONDITION_8790_DOWN'
+
+          # Regression for the physical field failure. First prove the watchdog has
+          # observed 8790 unavailable and entered its grace window; only then start
+          # the runtime. A healthy boot inside that window must not trigger restart.
           $watchdogProc = Start-Process powershell.exe -ArgumentList @(
             '-NoProfile','-ExecutionPolicy','Bypass','-File',$watchdog,
             '-InstallDir',$install,
@@ -144,8 +169,6 @@ jobs:
 
             $pgPid = [int]([string](Get-Content -LiteralPath (Join-Path $pgdata 'postmaster.pid') -TotalCount 1)).Trim()
             if ($pgPid -le 0) { throw 'No se pudo resolver PID de PostgreSQL P13.' }
-            $runtimeNodePath = [System.IO.Path]::GetFullPath((Join-Path $install 'runtime/node.exe'))
-            $runtimeScriptPath = [System.IO.Path]::GetFullPath((Join-Path $install 'app/lab/restaurant-p13/runtime.js'))
             $runtimeProcess = Get-CimInstance Win32_Process | Where-Object {
               $_.ExecutablePath -and
               [System.IO.Path]::GetFullPath([string]$_.ExecutablePath).Equals($runtimeNodePath, [System.StringComparison]::OrdinalIgnoreCase) -and
