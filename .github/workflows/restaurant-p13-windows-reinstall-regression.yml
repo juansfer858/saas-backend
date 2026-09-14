@@ -31,7 +31,7 @@ jobs:
         shell: pwsh
         run: ./scripts/restaurant-p13-build-windows-package.ps1
 
-      - name: Install twice while PostgreSQL is running
+      - name: Reinstall over running PostgreSQL and repair ACL mismatch
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -43,15 +43,36 @@ jobs:
           Expand-Archive -LiteralPath $zip -DestinationPath $source -Force
           $installer = Join-Path $source 'lab/restaurant-p13/windows/install-p13-windows.ps1'
           $password = 'P13-CI-Reinstall-Regression-Only'
+          $pgready = Join-Path $install 'postgres/bin/pg_isready.exe'
+          $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
+          $pgdata = Join-Path $install 'data/postgres'
 
           & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
-          $pgready = Join-Path $install 'postgres/bin/pg_isready.exe'
           & $pgready -h 127.0.0.1 -p 55432 -q
           if ($LASTEXITCODE -ne 0) { throw 'Primera instalación no dejó PostgreSQL P13 activo.' }
 
           & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
           & $pgready -h 127.0.0.1 -p 55432 -q
           if ($LASTEXITCODE -ne 0) { throw 'Reinstalación sobre PostgreSQL activo no recuperó 55432.' }
+          Write-Host 'P13_WINDOWS_REINSTALL_RUNNING_POSTGRES_OK'
+
+          & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo detener PostgreSQL antes de simular ACL dañada.' }
+          $global:LASTEXITCODE = 0
+
+          $checkpoint = Join-Path $pgdata 'pg_logical/replorigin_checkpoint'
+          if (-not (Test-Path -LiteralPath $checkpoint)) { throw 'No existe replorigin_checkpoint para prueba ACL.' }
+          & icacls.exe $checkpoint /inheritance:r /grant:r '*S-1-5-18:(F)' | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo simular ACL restringida del checkpoint.' }
+          $global:LASTEXITCODE = 0
+          Write-Host 'P13_WINDOWS_CHECKPOINT_ACL_RESTRICTED'
+
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          & $pgready -h 127.0.0.1 -p 55432 -q
+          if ($LASTEXITCODE -ne 0) { throw 'Reparación ACL no recuperó PostgreSQL 55432.' }
+          $aclText = (& icacls.exe $checkpoint) -join "`n"
+          if ($aclText -notmatch 'S-1-5-32-544|BUILTIN\\Administrators') { throw 'El checkpoint no recuperó acceso de Administrators.' }
+          Write-Host 'P13_WINDOWS_POSTGRES_ACL_REPAIR_OK'
 
           $starter = Join-Path $install 'ops/start-p13-windows.ps1'
           $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
@@ -64,17 +85,15 @@ jobs:
               } catch {}
               Start-Sleep -Milliseconds 500
             }
-            if (-not $status -or -not $status.ok) { throw 'Runtime no respondió tras reinstalación.' }
+            if (-not $status -or -not $status.ok) { throw 'Runtime no respondió tras reparación ACL.' }
             $page = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8790/app' -TimeoutSec 5
-            if ($page.Content -notmatch 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1') { throw 'Login local no quedó disponible tras reinstalación.' }
+            if ($page.Content -notmatch 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1') { throw 'Login local no quedó disponible tras reparación ACL.' }
             $body = @{ email='admin@demo-restaurante.vantixgc.com'; password=$password } | ConvertTo-Json -Compress
             $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
-            if (-not $login.ok -or -not $login.data.token) { throw 'Credencial ADMIN no se conservó tras reinstalación.' }
-            Write-Host 'P13_WINDOWS_REINSTALL_RUNNING_POSTGRES_OK'
+            if (-not $login.ok -or -not $login.data.token) { throw 'Credencial ADMIN no se conservó tras reparación ACL.' }
+            Write-Host 'P13_WINDOWS_ACL_RUNTIME_LOGIN_OK'
           } finally {
             try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
-            $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
-            $pgdata = Join-Path $install 'data/postgres'
             if (Test-Path $pgctl) {
               try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {}
               $global:LASTEXITCODE = 0
