@@ -1,0 +1,114 @@
+name: Restaurant P13 Windows Upgrade Preservation
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p13/windows/**'
+      - 'lab/restaurant-p13/sql/**'
+      - 'scripts/restaurant-p13-build-windows-package.ps1'
+      - '.github/workflows/restaurant-p13-windows-upgrade-preservation.yml'
+  workflow_dispatch:
+
+jobs:
+  preserve-p13-operational-state:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Build P13 Windows package
+        shell: pwsh
+        run: ./scripts/restaurant-p13-build-windows-package.ps1
+
+      - name: Install, seed P13 state, reinstall, and prove preservation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip'
+          $source = Join-Path $env:RUNNER_TEMP 'p13-preserve-source'
+          $install = 'C:\P13-CI-Preserve'
+          Remove-Item $source -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $source -Force
+
+          $installer = Join-Path $source 'lab/restaurant-p13/windows/install-p13-windows.ps1'
+          $password = 'P13-CI-Preserve-Regression-Only'
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+
+          $envFile = Join-Path $install '.env'
+          $envMap = @{}
+          foreach ($line in Get-Content -LiteralPath $envFile) {
+            $trim = ([string]$line).Trim()
+            if (-not $trim -or $trim.StartsWith('#')) { continue }
+            $idx = $trim.IndexOf('=')
+            if ($idx -le 0) { continue }
+            $envMap[$trim.Substring(0,$idx).Trim()] = $trim.Substring($idx+1).Trim().Trim('"').Trim("'")
+          }
+          $env:PGPASSWORD = [string]$envMap['P13_DB_PASSWORD']
+          if (-not $env:PGPASSWORD) { throw 'P13_DB_PASSWORD no disponible para la regresión.' }
+
+          $psql = Join-Path $install 'postgres/bin/psql.exe'
+          $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
+          $pgdata = Join-Path $install 'data/postgres'
+          $syncSql = Join-Path $install 'app/lab/restaurant-p13/sql/001-p13-sync.sql'
+          & $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -v ON_ERROR_STOP=1 -f $syncSql | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar 001-p13-sync.sql.' }
+          $global:LASTEXITCODE = 0
+
+          $tenantId = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT id FROM "Tenant" WHERE subdomain=''demo-restaurante'';').Trim()
+          if (-not $tenantId) { throw 'Tenant demo-restaurante no encontrado.' }
+
+          $seedSql = @"
+          INSERT INTO p13_installation_identity(installation_id, tenant_id, public_key_sha256, last_seen_at)
+          VALUES ('installation-preserve-regression', '$tenantId', repeat('a',64), NOW())
+          ON CONFLICT (installation_id) DO NOTHING;
+
+          INSERT INTO p13_sync_outbox(
+            event_id, tenant_id, installation_id, entity_type, entity_id, operation,
+            entity_version, occurred_at, payload, payload_sha256, status
+          ) VALUES (
+            'event-preserve-regression', '$tenantId', 'installation-preserve-regression',
+            'REGRESSION_PROBE', 'entity-preserve-regression', 'CREATE', 1, NOW(),
+            '{"probe":"keep-me"}'::jsonb, repeat('b',64), 'PENDING'
+          ) ON CONFLICT (event_id) DO NOTHING;
+          "@
+          $seedFile = Join-Path $env:RUNNER_TEMP 'p13-preserve-seed.sql'
+          $seedSql | Set-Content -LiteralPath $seedFile -Encoding ASCII
+          & $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -v ON_ERROR_STOP=1 -f $seedFile | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo sembrar estado P13 de preservación.' }
+          $global:LASTEXITCODE = 0
+
+          $beforeIdentity = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc "SELECT installation_id FROM p13_installation_identity WHERE installation_id='installation-preserve-regression';").Trim()
+          $beforeOutbox = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc "SELECT payload->>'probe' FROM p13_sync_outbox WHERE event_id='event-preserve-regression' AND status='PENDING';").Trim()
+          if ($beforeIdentity -ne 'installation-preserve-regression' -or $beforeOutbox -ne 'keep-me') { throw 'Estado P13 previo no quedó sembrado.' }
+
+          $reinstallOutput = @(& $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut 2>&1)
+          $reinstallText = $reinstallOutput -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw "Reinstalación P13 falló:`n$reinstallText" }
+          if ($reinstallText -notmatch 'prisma db push omitido') { throw "La actualización no confirmó el modo preservador:`n$reinstallText" }
+          if ($reinstallText -match 'data loss|drop the `p13_|drop the p13_') { throw "La actualización emitió una advertencia destructiva:`n$reinstallText" }
+
+          $afterIdentity = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc "SELECT installation_id FROM p13_installation_identity WHERE installation_id='installation-preserve-regression';").Trim()
+          $afterOutbox = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc "SELECT payload->>'probe' FROM p13_sync_outbox WHERE event_id='event-preserve-regression' AND status='PENDING';").Trim()
+          if ($afterIdentity -ne $beforeIdentity) { throw 'La reinstalación cambió o eliminó la identidad P13.' }
+          if ($afterOutbox -ne $beforeOutbox) { throw 'La reinstalación cambió o eliminó el outbox pendiente.' }
+
+          $state = Get-Content -Raw -LiteralPath (Join-Path $install 'install-state.json') | ConvertFrom-Json
+          if (-not [string]$state.prismaSchemaSha256) { throw 'install-state.json no registró prismaSchemaSha256.' }
+
+          Write-Host 'P13_WINDOWS_UPGRADE_PRESERVES_IDENTITY_OK'
+          Write-Host 'P13_WINDOWS_UPGRADE_PRESERVES_OUTBOX_OK'
+          Write-Host 'P13_WINDOWS_UPGRADE_SKIPS_DESTRUCTIVE_DB_PUSH_OK'
+
+          try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {}
+          $global:LASTEXITCODE = 0
