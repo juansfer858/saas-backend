@@ -51,7 +51,7 @@ function Protect-File([string]$Path) {
 function Copy-Tree([string]$Source, [string]$Destination) {
   if (-not (Test-Path -LiteralPath $Source)) { throw "Falta payload requerido: $Source" }
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
-  $Code = & robocopy.exe $Source $Destination /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP
+  & robocopy.exe $Source $Destination /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
   if ($LASTEXITCODE -gt 7) { throw "Robocopy falló ($LASTEXITCODE) copiando $Source" }
 }
 
@@ -169,8 +169,10 @@ if (-not (Test-PgReady $PgBin)) {
 }
 if (-not (Test-PgReady $PgBin)) { throw 'PostgreSQL P13 no respondió en 127.0.0.1:55432.' }
 
-$DbExistsRaw = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='vantix_p13_lab'" 2>$null
-$DbExists = ([string]$DbExistsRaw).Trim()
+$DbExistsRaw = @(& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='vantix_p13_lab'" 2>$null)
+$DbExists = ''
+if ($DbExistsRaw.Count -gt 0 -and $null -ne $DbExistsRaw[0]) { $DbExists = [string]$DbExistsRaw[0] }
+$DbExists = $DbExists.Trim()
 if ($DbExists -ne '1') {
   & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 vantix_p13_lab
   if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear vantix_p13_lab.' }
