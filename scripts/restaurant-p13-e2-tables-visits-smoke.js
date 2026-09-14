@@ -156,7 +156,9 @@ async function main() {
     `, [tenantId, table.id]);
     assert.equal(before.rows[0].count, 0);
 
-    const opened = await request(`/api/v1/restaurante/mesas/${table.id}/abrir`, {
+    // The physical V2 UI uses /restaurante/v2/mesas/:id/abrir. This exact path
+    // must stay inside the same TABLE_VISIT boundary as the canonical legacy path.
+    const opened = await request(`/api/v1/restaurante/v2/mesas/${table.id}/abrir`, {
       method: 'POST',
       token: adminToken,
       body: { guestCount: 3, billingMode: 'INDIVIDUAL' }
@@ -202,6 +204,8 @@ async function main() {
       assert.ok(!serialized.includes('jwt'));
     }
 
+    // Keep the older canonical alias covered too; it must reach business logic
+    // and return conflict instead of being locked by P13.
     const retryOpen = await request(`/api/v1/restaurante/mesas/${table.id}/abrir`, {
       method: 'POST', token: adminToken, body: { guestCount: 3, billingMode: 'INDIVIDUAL' }
     });
@@ -251,6 +255,7 @@ async function main() {
       ok: true,
       phase: 'P13-E2-TABLES-VISITS-LOCAL',
       localOpenTable: 'OK',
+      v2PhysicalUiOpenRoute: 'OK',
       visitPersistedInPostgres: 'OK',
       canonicalSaleCreated: 'OK',
       transactionalTableSessionOutbox: 'OK',
