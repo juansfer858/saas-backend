@@ -1,0 +1,80 @@
+name: Restaurant P13 Windows Reinstall Regression
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p13/windows/**'
+      - 'scripts/restaurant-p13-build-windows-package.ps1'
+      - '.github/workflows/restaurant-p13-windows-reinstall-regression.yml'
+  workflow_dispatch:
+
+jobs:
+  reinstall-running-postgres:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Build P13 Windows package
+        shell: pwsh
+        run: ./scripts/restaurant-p13-build-windows-package.ps1
+
+      - name: Install twice while PostgreSQL is running
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip'
+          $source = Join-Path $env:RUNNER_TEMP 'p13-reinstall-source'
+          $install = 'C:\P13-CI-Reinstall'
+          Remove-Item $source -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $source -Force
+          $installer = Join-Path $source 'lab/restaurant-p13/windows/install-p13-windows.ps1'
+          $password = 'P13-CI-Reinstall-Regression-Only'
+
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          $pgready = Join-Path $install 'postgres/bin/pg_isready.exe'
+          & $pgready -h 127.0.0.1 -p 55432 -q
+          if ($LASTEXITCODE -ne 0) { throw 'Primera instalación no dejó PostgreSQL P13 activo.' }
+
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          & $pgready -h 127.0.0.1 -p 55432 -q
+          if ($LASTEXITCODE -ne 0) { throw 'Reinstalación sobre PostgreSQL activo no recuperó 55432.' }
+
+          $starter = Join-Path $install 'ops/start-p13-windows.ps1'
+          $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
+          try {
+            $status = $null
+            for ($i=0; $i -lt 60; $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p13/status' -TimeoutSec 2
+                if ($status.ok) { break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $status -or -not $status.ok) { throw 'Runtime no respondió tras reinstalación.' }
+            $page = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8790/app' -TimeoutSec 5
+            if ($page.Content -notmatch 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1') { throw 'Login local no quedó disponible tras reinstalación.' }
+            $body = @{ email='admin@demo-restaurante.vantixgc.com'; password=$password } | ConvertTo-Json -Compress
+            $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
+            if (-not $login.ok -or -not $login.data.token) { throw 'Credencial ADMIN no se conservó tras reinstalación.' }
+            Write-Host 'P13_WINDOWS_REINSTALL_RUNNING_POSTGRES_OK'
+          } finally {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
+            $pgdata = Join-Path $install 'data/postgres'
+            if (Test-Path $pgctl) {
+              try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {}
+              $global:LASTEXITCODE = 0
+            }
+          }
