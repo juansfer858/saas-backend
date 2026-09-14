@@ -28,6 +28,9 @@ async function main(){
   assert.match(uiSource,/function mergeDraftResult/);
   assert.match(uiSource,/function mergeItemResult/);
   assert.match(uiSource,/ENVIANDO PEDIDO/);
+  assert.match(uiSource,/VANTIX_RESTAURANT_V2_TABLET_SEND_RACE_V105/);
+  assert.match(uiSource,/async function waitUntilIdle/,'el envío debe esperar mutaciones iniciadas por blur/change en tablet');
+  assert.match(uiSource,/S\.sending/,'el envío debe tener un bloqueo independiente contra doble toque');
   const setProductSource=between(uiSource,'async function setProduct','async function changeQtyByItem');
   const patchItemSource=between(uiSource,'async function patchItem','async function changePeople');
   const changePeopleSource=between(uiSource,'async function changePeople','function openReview');
@@ -40,6 +43,8 @@ async function main(){
   assert.doesNotMatch(changePeopleSource,/loadDraft|loadBase/,'cambiar personas no debe recargar carta/contexto');
   assert.match(confirmSendSource,/await loadDraft\(\)/,'después de enviar sólo se refresca la sesión seleccionada');
   assert.doesNotMatch(confirmSendSource,/loadBase\(\)/,'enviar pedido no debe recargar contexto, todas las mesas y carta');
+  assert.match(confirmSendSource,/await waitUntilIdle\(\)/,'confirmar no puede descartar silenciosamente el toque mientras se guarda una nota');
+  assert.doesNotMatch(confirmSendSource,/activeSession\|\|S\.busy\)return/,'la carrera táctil no puede abandonar el envío por S.busy');
   assert.doesNotMatch(uiSource,/MutationObserver|setInterval|originalSend|res\.send\s*=/);
   assert.match(coreSource,/restaurantV2OrdersRouter/);
 
