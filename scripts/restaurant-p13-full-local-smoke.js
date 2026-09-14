@@ -10,6 +10,9 @@ const {
   REQUIRED_DB_PORT,
   REQUIRED_DB_NAME,
   LOCAL_RESTAURANT_ENTRY,
+  LOCAL_LOGIN_ENTRY,
+  LOCAL_LOGIN_MARKER,
+  localLoginHtml,
   CENTRAL_SUPER_CORE_UI_PREFIXES,
   assertLabConfig,
   isCentralSuperCoreUiPath,
@@ -32,6 +35,8 @@ assert.equal(DEFAULT_PORT, 8790);
 assert.equal(REQUIRED_DB_PORT, 55432);
 assert.equal(REQUIRED_DB_NAME, 'vantix_p13_lab');
 assert.equal(LOCAL_RESTAURANT_ENTRY, '/app/centro-de-control-v2');
+assert.equal(LOCAL_LOGIN_ENTRY, '/app');
+assert.equal(LOCAL_LOGIN_MARKER, 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1');
 assert.ok(CENTRAL_SUPER_CORE_UI_PREFIXES.includes('/app/dashboard'));
 assert.equal(isCentralSuperCoreUiPath('/app/dashboard'), true);
 assert.equal(isCentralSuperCoreUiPath('/app/contabilidad'), true);
@@ -84,6 +89,15 @@ assert.match(runtime, /P13_CONTROL_PLANE_NOT_LOCAL/);
 assert.match(runtime, /P13_OUTBOUND_BLOCKED/);
 assert.match(runtime, /P13_TENANT_LOCK_MISMATCH/);
 assert.match(runtime, /process\.env\.JWT_SECRET = config\.jwtSecret/);
+assert.match(runtime, /X-VantixGC-P13-Local-Login/);
+const loginHtml = localLoginHtml({ tenantSubdomain:'demo-restaurante' });
+assert.match(loginHtml, /VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1/);
+assert.match(loginHtml, /\/api\/v1\/auth\/login/);
+assert.match(loginHtml, /\/api\/v1\/auth\/session/);
+assert.match(loginHtml, /vantixgc_core_session_v1/);
+assert.match(loginHtml, /\/app\/centro-de-control-v2/);
+assert.match(loginHtml, /demo-restaurante/);
+assert.doesNotMatch(loginHtml, /P13-CI-Physical-Pilot-Only/);
 
 // E1-E4 open only explicitly approved restaurant operational mutations.
 assert.equal(mutationBoundaryForRequest('POST', '/api/v1/auth/login'), 'AUTH_LOGIN');
