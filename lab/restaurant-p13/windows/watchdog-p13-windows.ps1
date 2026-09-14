@@ -1,12 +1,15 @@
 param(
   [string]$InstallDir = "C:\ProgramData\VantixGC\Restaurant-P13",
-  [string]$TaskName = "VantixGC Restaurant P13 Lab"
+  [string]$TaskName = "VantixGC Restaurant P13 Lab",
+  [switch]$ListManagedRuntimeProcessIds
 )
 
 $ErrorActionPreference = 'Stop'
 $HealthUrl = 'http://127.0.0.1:8790/__p13/status'
 $LogDir = Join-Path $InstallDir 'logs'
 $LogFile = Join-Path $LogDir 'watchdog.log'
+$RuntimeNode = [System.IO.Path]::GetFullPath((Join-Path $InstallDir 'runtime\node.exe'))
+$RuntimeScript = [System.IO.Path]::GetFullPath((Join-Path $InstallDir 'app\lab\restaurant-p13\runtime.js'))
 
 function Log([string]$Message) {
   New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
@@ -20,30 +23,56 @@ function Test-Health {
   } catch { return $false }
 }
 
-if (Test-Health) { exit 0 }
-
-Log 'Health local falló; reiniciando tarea P13.'
-try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 1
-
-try {
-  $Processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-    ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDir, [System.StringComparison]::OrdinalIgnoreCase)) -or
-    ($_.CommandLine -and $_.CommandLine.IndexOf((Join-Path $InstallDir 'lab\restaurant-p13\runtime.js'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+function Get-P13RuntimeProcesses {
+  try {
+    return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $Executable = [string]$_.ExecutablePath
+      $CommandLine = [string]$_.CommandLine
+      $Executable -and
+      [System.IO.Path]::GetFullPath($Executable).Equals($RuntimeNode, [System.StringComparison]::OrdinalIgnoreCase) -and
+      $CommandLine -and
+      $CommandLine.IndexOf($RuntimeScript, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    })
+  } catch {
+    Log "No fue posible enumerar el runtime Node P13: $($_.Exception.Message)"
+    return @()
   }
-  foreach ($Process in $Processes) {
-    if ($Process.ProcessId -and $Process.ProcessId -ne $PID) {
-      try { Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
-    }
-  }
-} catch {}
+}
 
-Start-ScheduledTask -TaskName $TaskName
-Start-Sleep -Seconds 7
-if (Test-Health) {
-  Log 'Runtime P13 recuperado.'
+# Diagnostic/read-only probe used by Windows regression and field support. It must
+# list only the Node runtime owned by P13. PostgreSQL is deliberately never part
+# of the managed runtime process set.
+if ($ListManagedRuntimeProcessIds) {
+  $Ids = @((Get-P13RuntimeProcesses) | ForEach-Object { [int]$_.ProcessId })
+  ConvertTo-Json -InputObject $Ids -Compress
   exit 0
 }
 
-Log 'Runtime P13 sigue sin responder después del reinicio.'
+if (Test-Health) { exit 0 }
+
+Log 'Health local falló; reiniciando únicamente el runtime Node P13. PostgreSQL local se preserva.'
+try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
+Start-Sleep -Seconds 1
+
+foreach ($Process in (Get-P13RuntimeProcesses)) {
+  if ($Process.ProcessId -and $Process.ProcessId -ne $PID) {
+    try {
+      Log "Deteniendo runtime Node P13 PID=$($Process.ProcessId)."
+      Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue
+    } catch {}
+  }
+}
+
+# Never terminate postgres.exe here. PostgreSQL is the durable local source of
+# truth and may have a transaction in progress when the HTTP health probe flakes.
+# The start task will reuse 55432 when it is healthy and only start PostgreSQL if
+# pg_isready reports that it is actually down.
+Start-ScheduledTask -TaskName $TaskName
+Start-Sleep -Seconds 7
+if (Test-Health) {
+  Log 'Runtime P13 recuperado; PostgreSQL local no fue reiniciado por el watchdog.'
+  exit 0
+}
+
+Log 'Runtime P13 sigue sin responder después del reinicio de Node.'
 exit 2
