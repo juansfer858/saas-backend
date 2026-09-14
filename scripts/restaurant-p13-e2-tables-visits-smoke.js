@@ -156,12 +156,12 @@ async function main() {
     `, [tenantId, table.id]);
     assert.equal(before.rows[0].count, 0);
 
-    // The physical V2 UI uses /restaurante/v2/mesas/:id/abrir. This exact path
-    // must stay inside the same TABLE_VISIT boundary as the canonical legacy path.
+    // The physical V2 UI uses this exact route and sends only guestCount.
+    // Its business default is CONJUNTA unless the service mode is changed later.
     const opened = await request(`/api/v1/restaurante/v2/mesas/${table.id}/abrir`, {
       method: 'POST',
       token: adminToken,
-      body: { guestCount: 3, billingMode: 'INDIVIDUAL' }
+      body: { guestCount: 3 }
     });
     assert.equal(opened.status, 201, JSON.stringify(opened.data));
     assert.equal(opened.headers.get('x-vantixgc-p13-mutation-boundary'), 'RESTAURANT_TABLE_VISIT');
@@ -171,7 +171,7 @@ async function main() {
     assert.ok(saleId);
     assert.equal(opened.data?.data?.session?.state, 'ABIERTA');
     assert.equal(opened.data?.data?.session?.guestCount, 3);
-    assert.equal(opened.data?.data?.session?.billingMode, 'INDIVIDUAL');
+    assert.equal(opened.data?.data?.session?.billingMode, 'CONJUNTA');
 
     const persisted = await client.query(`
       SELECT s.id, s.state, s."guestCount", s."billingMode", s."saleId", t.state AS table_state
@@ -182,7 +182,7 @@ async function main() {
     assert.equal(persisted.rowCount, 1);
     assert.equal(persisted.rows[0].state, 'ABIERTA');
     assert.equal(persisted.rows[0].guestCount, 3);
-    assert.equal(persisted.rows[0].billingMode, 'INDIVIDUAL');
+    assert.equal(persisted.rows[0].billingMode, 'CONJUNTA');
     assert.equal(persisted.rows[0].saleId, saleId);
     assert.equal(persisted.rows[0].table_state, 'OCUPADA');
 
