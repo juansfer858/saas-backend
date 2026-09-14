@@ -37,6 +37,7 @@ function Test-PgReady {
 
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 Import-DotEnv $EnvFile
+$env:P13_WINDOWS_PILOT = 'true'
 
 if (-not (Test-Path -LiteralPath $Node)) { throw "Runtime Node ausente: $Node" }
 if (-not (Test-Path -LiteralPath $Runtime)) { throw "Runtime P13 ausente: $Runtime" }
