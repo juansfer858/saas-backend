@@ -49,6 +49,13 @@ $App = Join-Path $Stage 'payload\app'
 foreach ($Dir in @('src','prisma','scripts','lab\restaurant-p13')) {
   Copy-Tree (Join-Path $Root $Dir) (Join-Path $App $Dir)
 }
+$EdgePrintSpooler = Join-Path $App 'edge\print-spooler'
+New-Item -ItemType Directory -Force -Path $EdgePrintSpooler | Out-Null
+foreach ($File in @('escpos.js','windows-printer.js')) {
+  $Source = Join-Path $Root "edge\print-spooler\$File"
+  if (-not (Test-Path -LiteralPath $Source)) { throw "Falta dependencia P13 de impresión: $Source" }
+  Copy-Item -LiteralPath $Source -Destination (Join-Path $EdgePrintSpooler $File) -Force
+}
 foreach ($File in @('package.json','package-lock.json','prisma.config.ts')) {
   Copy-Item -LiteralPath (Join-Path $Root $File) -Destination (Join-Path $App $File) -Force
 }
@@ -146,6 +153,12 @@ foreach ($Script in @(
   $Tokens = $null; $Errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile($Script, [ref]$Tokens, [ref]$Errors) | Out-Null
   if ($Errors.Count) { throw "PowerShell inválido en $Script : $($Errors[0].Message)" }
+}
+foreach ($RequiredAppFile in @(
+  (Join-Path $App 'edge\print-spooler\escpos.js'),
+  (Join-Path $App 'edge\print-spooler\windows-printer.js')
+)) {
+  if (-not (Test-Path -LiteralPath $RequiredAppFile)) { throw "Dependencia P13 faltante en paquete: $RequiredAppFile" }
 }
 
 if (Test-Path -LiteralPath $Zip) { Remove-Item -LiteralPath $Zip -Force }
