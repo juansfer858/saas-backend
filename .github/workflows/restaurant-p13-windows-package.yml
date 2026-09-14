@@ -131,6 +131,21 @@ jobs:
             $global:LASTEXITCODE = 0
           }
 
+      - name: Dump P13 Windows logs on boot failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $install = 'C:\P13-CI-Isolated'
+          foreach ($log in @('logs/runtime.log','logs/postgres.log')) {
+            $path = Join-Path $install $log
+            Write-Host "===== $path ====="
+            if (Test-Path -LiteralPath $path) {
+              Get-Content -LiteralPath $path -Tail 300
+            } else {
+              Write-Host 'LOG_NOT_FOUND'
+            }
+          }
+
       - name: Assert production Edge files are untouched by P13 branch
         shell: bash
         run: |
