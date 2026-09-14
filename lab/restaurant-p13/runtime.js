@@ -203,7 +203,7 @@ async function start() {
     res.set('X-VantixGC-P13-Local-Login', LOCAL_LOGIN_MARKER);
     return res.type('html').send(localLoginHtml(config));
   };
-  lab.get('/', (_req, res) => res.redirect(302, LOCAL_LOGIN_ENTRY));
+  lab.get('/', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
   lab.get(LOCAL_LOGIN_ENTRY, sendLocalLogin);
   lab.get('/app/login', sendLocalLogin);
   lab.get('/app/centro-de-control', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
