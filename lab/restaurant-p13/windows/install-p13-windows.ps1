@@ -91,6 +91,20 @@ function Clear-StaleP13PostmasterPid([string]$PgBin, [string]$PgData) {
   Write-Host 'P13: postmaster.pid obsoleto eliminado de forma segura.' -ForegroundColor Yellow
 }
 
+function Repair-P13PostgresAcl([string]$PgData) {
+  if (-not (Test-Path -LiteralPath $PgData)) { return }
+  $CurrentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $SystemGrant = '*S-1-5-18:(OI)(CI)(F)'
+  $AdminsGrant = '*S-1-5-32-544:(OI)(CI)(F)'
+  $UserGrant = ('*{0}:(OI)(CI)(F)' -f $CurrentSid)
+  Write-Host 'P13: normalizando permisos del clúster PostgreSQL para usuario administrador y SYSTEM...' -ForegroundColor Cyan
+  & icacls.exe $PgData /inheritance:e /T /C /Q | Out-Null
+  $global:LASTEXITCODE = 0
+  & icacls.exe $PgData /grant:r $SystemGrant $AdminsGrant $UserGrant /T /C /Q | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'No fue posible reparar los permisos del clúster PostgreSQL P13.' }
+  $global:LASTEXITCODE = 0
+}
+
 function Stop-P13PostgresForUpgrade {
   $ExistingPgBin = Join-Path $InstallDir 'postgres\bin'
   $ExistingPgCtl = Join-Path $ExistingPgBin 'pg_ctl.exe'
@@ -244,6 +258,8 @@ max_connections = 60
 shared_buffers = 128MB
 "@ | Add-Content -LiteralPath (Join-Path $PgData 'postgresql.conf') -Encoding ASCII
 }
+
+Repair-P13PostgresAcl $PgData
 
 if (-not (Test-PgReady $PgBin)) {
   Clear-StaleP13PostmasterPid $PgBin $PgData
