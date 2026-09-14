@@ -110,9 +110,7 @@ $EnvFile = Join-Path $InstallDir '.env'
 $Existing = Read-DotEnv $EnvFile
 $DbPassword = if ($Existing['P13_DB_PASSWORD']) { [string]$Existing['P13_DB_PASSWORD'] } else { New-Secret 48 }
 $JwtSecret = if ($Existing['P13_JWT_SECRET']) { [string]$Existing['P13_JWT_SECRET'] } else { New-Secret 64 }
-if (-not $AdminPassword) {
-  $AdminPassword = if ($Existing['P13_ADMIN_PASSWORD']) { [string]$Existing['P13_ADMIN_PASSWORD'] } else { 'P13-' + (New-Secret 20) }
-}
+if (-not $AdminPassword) { $AdminPassword = 'P13-' + (New-Secret 20) }
 if ($AdminPassword.Length -lt 12) { throw 'AdminPassword debe tener al menos 12 caracteres.' }
 
 $DatabaseUrl = "postgresql://vantix_p13:$DbPassword@127.0.0.1:55432/vantix_p13_lab"
@@ -123,7 +121,6 @@ $EnvLines = @(
   'P13_MUTATIONS_ENABLED=false',
   'P13_TENANT_SUBDOMAIN=demo-restaurante',
   "P13_JWT_SECRET=$JwtSecret",
-  "P13_ADMIN_PASSWORD=$AdminPassword",
   "P13_DB_PASSWORD=$DbPassword",
   "DATABASE_URL=$DatabaseUrl",
   'NODE_ENV=development',
@@ -150,7 +147,6 @@ if (-not (Test-Path -LiteralPath (Join-Path $PgData 'PG_VERSION'))) {
   New-Item -ItemType Directory -Force -Path $PgData | Out-Null
   $PwFile = Join-Path $InstallDir 'secrets\pg-init-password.txt'
   $DbPassword | Set-Content -LiteralPath $PwFile -Encoding ASCII -NoNewline
-  Protect-File $PwFile
   try {
     & (Join-Path $PgBin 'initdb.exe') -D $PgData -U vantix_p13 --pwfile=$PwFile --auth=scram-sha-256 --encoding=UTF8 --locale=C
     if ($LASTEXITCODE -ne 0) { throw 'initdb P13 falló.' }
@@ -194,6 +190,7 @@ $env:NOTIFICATION_EMBEDDED_WORKER_ENABLED = 'false'
 $env:DISABLE_RESTAURANT_DEMO_BOOTSTRAP = 'true'
 $env:PUBLIC_TENANT_REGISTRATION_ENABLED = 'false'
 
+$FreshBootstrap = $false
 Push-Location $AppDir
 try {
   $PrismaCli = Join-Path $AppDir 'node_modules\prisma\build\index.js'
@@ -204,6 +201,7 @@ try {
   $TenantCountRaw = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT count(*) FROM "Tenant";'
   $TenantCount = [int]([string]$TenantCountRaw).Trim()
   if ($TenantCount -eq 0) {
+    $FreshBootstrap = $true
     & $Node (Join-Path $AppDir 'lab\restaurant-p13\bootstrap-demo.js')
     if ($LASTEXITCODE -ne 0) { throw 'Bootstrap demo P13 falló.' }
   } else {
@@ -212,6 +210,7 @@ try {
   }
 } finally {
   Pop-Location
+  Remove-Item Env:P13_ADMIN_PASSWORD -ErrorAction SilentlyContinue
 }
 
 if (-not $NoStartupTasks) {
@@ -256,6 +255,7 @@ Write-Host ''
 Write-Host 'VantixGC Restaurante P13 instalado en modo AISLADO.' -ForegroundColor Green
 Write-Host 'URL local: http://127.0.0.1:8790/app/centro-de-control-v2'
 Write-Host 'Usuario: admin@demo-restaurante.vantixgc.com'
-Write-Host "Clave piloto: $AdminPassword"
+if ($FreshBootstrap) { Write-Host "Clave piloto: $AdminPassword" }
+else { Write-Host 'Clave del ADMIN local existente conservada; no se modificó.' }
 Write-Host 'PostgreSQL local: 127.0.0.1:55432 / vantix_p13_lab'
 Write-Host 'Edge productivo 8788 no fue modificado.' -ForegroundColor Cyan
