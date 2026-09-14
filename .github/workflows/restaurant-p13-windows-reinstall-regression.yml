@@ -76,8 +76,38 @@ jobs:
 
           $starter = Join-Path $install 'ops/start-p13-windows.ps1'
           $watchdog = Join-Path $install 'ops/watchdog-p13-windows.ps1'
+          $watchdogLog = Join-Path $install 'logs/watchdog.log'
+          if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Watchdog P13 no quedó incluido en el paquete.' }
+          Remove-Item -LiteralPath $watchdogLog -Force -ErrorAction SilentlyContinue
+
+          # Regression for the physical field failure: watchdog may run while the
+          # startup task is still applying SQL 001-007. Start watchdog first, then
+          # bring the runtime online inside its grace window. It must recover without
+          # trying to restart Node or requiring a scheduled task.
+          $watchdogProc = Start-Process powershell.exe -ArgumentList @(
+            '-NoProfile','-ExecutionPolicy','Bypass','-File',$watchdog,
+            '-InstallDir',$install,
+            '-TaskName','P13-CI-Task-That-Must-Not-Be-Needed',
+            '-HealthRetryAttempts','6',
+            '-HealthRetryDelaySeconds','2'
+          ) -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 2
           $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
           try {
+            if (-not $watchdogProc.WaitForExit(30000)) {
+              try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+              throw 'Watchdog no terminó dentro de la ventana de gracia de arranque.'
+            }
+            if ($watchdogProc.ExitCode -ne 0) { throw "Watchdog trató el arranque normal como fallo. Exit=$($watchdogProc.ExitCode)" }
+            $watchdogText = if (Test-Path -LiteralPath $watchdogLog) { (Get-Content -LiteralPath $watchdogLog -Raw) } else { '' }
+            if ($watchdogText -notmatch 'respondió durante el período de gracia') {
+              throw 'La regresión no comprobó recuperación del runtime dentro de la gracia del watchdog.'
+            }
+            if ($watchdogText -match 'siguió fallando tras la gracia') {
+              throw 'REGRESIÓN: watchdog intentó reiniciar Node durante un arranque normal.'
+            }
+            Write-Host 'P13_WINDOWS_WATCHDOG_STARTUP_GRACE_OK'
+
             $status = $null
             for ($i=0; $i -lt 60; $i++) {
               try {
@@ -94,7 +124,6 @@ jobs:
             if (-not $login.ok -or -not $login.data.token) { throw 'Credencial ADMIN no se conservó tras reparación ACL.' }
             Write-Host 'P13_WINDOWS_ACL_RUNTIME_LOGIN_OK'
 
-            if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Watchdog P13 no quedó incluido en el paquete.' }
             $pgPid = [int]([string](Get-Content -LiteralPath (Join-Path $pgdata 'postmaster.pid') -TotalCount 1)).Trim()
             if ($pgPid -le 0) { throw 'No se pudo resolver PID de PostgreSQL P13.' }
             $runtimeNodePath = [System.IO.Path]::GetFullPath((Join-Path $install 'runtime/node.exe'))
@@ -121,6 +150,7 @@ jobs:
             Write-Host 'P13_WINDOWS_WATCHDOG_POSTGRES_ISOLATION_OK'
           } finally {
             try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
             if (Test-Path $pgctl) {
               try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {}
               $global:LASTEXITCODE = 0
