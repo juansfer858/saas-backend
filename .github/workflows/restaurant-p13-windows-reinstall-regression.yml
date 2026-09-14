@@ -12,6 +12,8 @@ jobs:
   reinstall-running-postgres:
     runs-on: windows-latest
     timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://vantix_p13:p13-build-only@127.0.0.1:55432/vantix_p13_lab
     steps:
       - uses: actions/checkout@v4
         with:
