@@ -31,7 +31,7 @@ jobs:
         shell: pwsh
         run: ./scripts/restaurant-p13-build-windows-package.ps1
 
-      - name: Reinstall over running PostgreSQL and repair ACL mismatch
+      - name: Reinstall over running PostgreSQL, repair ACL, and isolate watchdog
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -75,6 +75,7 @@ jobs:
           Write-Host 'P13_WINDOWS_POSTGRES_ACL_REPAIR_OK'
 
           $starter = Join-Path $install 'ops/start-p13-windows.ps1'
+          $watchdog = Join-Path $install 'ops/watchdog-p13-windows.ps1'
           $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
           try {
             $status = $null
@@ -92,6 +93,32 @@ jobs:
             $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
             if (-not $login.ok -or -not $login.data.token) { throw 'Credencial ADMIN no se conservó tras reparación ACL.' }
             Write-Host 'P13_WINDOWS_ACL_RUNTIME_LOGIN_OK'
+
+            if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Watchdog P13 no quedó incluido en el paquete.' }
+            $pgPid = [int]([string](Get-Content -LiteralPath (Join-Path $pgdata 'postmaster.pid') -TotalCount 1)).Trim()
+            if ($pgPid -le 0) { throw 'No se pudo resolver PID de PostgreSQL P13.' }
+            $runtimeNodePath = [System.IO.Path]::GetFullPath((Join-Path $install 'runtime/node.exe'))
+            $runtimeScriptPath = [System.IO.Path]::GetFullPath((Join-Path $install 'app/lab/restaurant-p13/runtime.js'))
+            $runtimeProcess = Get-CimInstance Win32_Process | Where-Object {
+              $_.ExecutablePath -and
+              [System.IO.Path]::GetFullPath([string]$_.ExecutablePath).Equals($runtimeNodePath, [System.StringComparison]::OrdinalIgnoreCase) -and
+              $_.CommandLine -and
+              ([string]$_.CommandLine).IndexOf($runtimeScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+            } | Select-Object -First 1
+            if (-not $runtimeProcess) { throw 'No se encontró el node.exe exacto del runtime P13.' }
+
+            $managedJson = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $watchdog -InstallDir $install -ListManagedRuntimeProcessIds) -join ''
+            if ($LASTEXITCODE -ne 0) { throw 'Sondeo del conjunto administrado por watchdog falló.' }
+            $managedIds = @()
+            if ($managedJson.Trim()) { $managedIds = @($managedJson | ConvertFrom-Json) }
+            $managedIds = @($managedIds | ForEach-Object { [int]$_ })
+            if ($managedIds -contains $pgPid) { throw 'REGRESIÓN: watchdog incluyó PostgreSQL entre procesos terminables.' }
+            if (-not ($managedIds -contains [int]$runtimeProcess.ProcessId)) { throw 'Watchdog no identificó su runtime Node P13.' }
+            & $pgready -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -q
+            if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL dejó de responder durante validación de aislamiento watchdog.' }
+            $global:LASTEXITCODE = 0
+            if (-not (Get-Process -Id $pgPid -ErrorAction SilentlyContinue)) { throw 'PostgreSQL P13 terminó durante validación del watchdog.' }
+            Write-Host 'P13_WINDOWS_WATCHDOG_POSTGRES_ISOLATION_OK'
           } finally {
             try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
             if (Test-Path $pgctl) {
