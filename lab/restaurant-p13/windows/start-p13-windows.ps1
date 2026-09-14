@@ -11,7 +11,7 @@ $LogDir = Join-Path $InstallDir 'logs'
 $Node = Join-Path $InstallDir 'runtime\node.exe'
 $AppDir = Join-Path $InstallDir 'app'
 $Runtime = Join-Path $AppDir 'lab\restaurant-p13\runtime.js'
-$SchemaPrep = Join-Path $AppDir 'lab\restaurant-p13\windows\prepare-p13-operational-schemas.ps1'
+$SchemaPrep = Join-Path $AppDir 'lab\restaurant-p13\windows\prepare-p13-operational-schemas.js'
 $PgLog = Join-Path $LogDir 'postgres.log'
 $RuntimeLog = Join-Path $LogDir 'runtime.log'
 
@@ -32,7 +32,7 @@ function Import-DotEnv([string]$Path) {
 function Test-PgReady {
   $PgIsReady = Join-Path $PgBin 'pg_isready.exe'
   if (-not (Test-Path -LiteralPath $PgIsReady)) { return $false }
-  & $PgIsReady -h 127.0.0.1 -p 55432 -d vantix_p13_lab -q
+  & $PgIsReady -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -q 2>$null
   $Ready = ($LASTEXITCODE -eq 0)
   $global:LASTEXITCODE = 0
   return $Ready
@@ -41,6 +41,7 @@ function Test-PgReady {
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 Import-DotEnv $EnvFile
 $env:P13_WINDOWS_PILOT = 'true'
+$env:P13_INSTALL_DIR = $InstallDir
 
 if (-not (Test-Path -LiteralPath $Node)) { throw "Runtime Node ausente: $Node" }
 if (-not (Test-Path -LiteralPath $Runtime)) { throw "Runtime P13 ausente: $Runtime" }
@@ -58,7 +59,18 @@ if (-not (Test-PgReady)) {
 if (-not (Test-PgReady)) { throw 'PostgreSQL P13 no respondió después del arranque.' }
 
 "[$(Get-Date -Format o)] P13 operational schema prepare start" | Add-Content -LiteralPath $RuntimeLog -Encoding UTF8
-& $SchemaPrep -InstallDir $InstallDir >> $RuntimeLog 2>&1
+Push-Location $AppDir
+try {
+  & $Node $SchemaPrep >> $RuntimeLog 2>&1
+  $PrepExit = $LASTEXITCODE
+} finally {
+  Pop-Location
+}
+if ($PrepExit -ne 0) {
+  "[$(Get-Date -Format o)] P13 operational schema prepare failed exit=$PrepExit" | Add-Content -LiteralPath $RuntimeLog -Encoding UTF8
+  throw "La preparación SQL operativa P13 falló (exit=$PrepExit)."
+}
+$global:LASTEXITCODE = 0
 "[$(Get-Date -Format o)] P13 operational schema prepare ok" | Add-Content -LiteralPath $RuntimeLog -Encoding UTF8
 
 Push-Location $AppDir
