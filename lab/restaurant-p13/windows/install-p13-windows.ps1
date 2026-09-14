@@ -189,6 +189,18 @@ $ManifestData = Get-Content -Raw -LiteralPath $Manifest | ConvertFrom-Json
 if ([string]$ManifestData.product -ne 'VantixGC Restaurant P13 Windows Pilot') { throw 'Paquete P13 no reconocido.' }
 if ([int]$ManifestData.httpPort -ne 8790 -or [int]$ManifestData.postgresPort -ne 55432) { throw 'Puertos del paquete P13 no coinciden con el contrato aislado.' }
 
+$PackagePrismaSchema = Join-Path $PayloadApp 'prisma\schema.prisma'
+if (-not (Test-Path -LiteralPath $PackagePrismaSchema)) { throw 'Paquete P13 incompleto: falta prisma\schema.prisma.' }
+$PackagePrismaSchemaHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $PackagePrismaSchema).Hash.ToLowerInvariant()
+$ExistingPrismaSchema = Join-Path $InstallDir 'app\prisma\schema.prisma'
+$ExistingPrismaSchemaHash = $null
+if (Test-Path -LiteralPath $ExistingPrismaSchema) {
+  $ExistingPrismaSchemaHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ExistingPrismaSchema).Hash.ToLowerInvariant()
+  if ($ExistingPrismaSchemaHash -ne $PackagePrismaSchemaHash) {
+    throw 'Actualización P13 bloqueada: cambió prisma/schema.prisma. Este instalador no ejecutará db push destructivo sobre una base operativa; se requiere una migración explícita y preservadora.'
+  }
+}
+
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallDir 'data') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallDir 'logs') | Out-Null
@@ -298,8 +310,20 @@ Push-Location $AppDir
 try {
   $PrismaCli = Join-Path $AppDir 'node_modules\prisma\build\index.js'
   if (-not (Test-Path -LiteralPath $PrismaCli)) { throw 'El paquete no contiene Prisma CLI para preparar la base local.' }
-  & $Node $PrismaCli db push
-  if ($LASTEXITCODE -ne 0) { throw 'Prisma db push P13 falló.' }
+
+  $TenantTableExistsRaw = Invoke-P13PsqlScalar $PgBin 'vantix_p13_lab' 'SELECT CASE WHEN to_regclass(''"Tenant"'') IS NULL THEN 0 ELSE 1 END;'
+  $TenantTableExists = [int]$TenantTableExistsRaw
+  if ($TenantTableExists -eq 1 -and -not $ExistingPrismaSchemaHash) {
+    throw 'Base P13 existente detectada sin huella de esquema instalada. Actualización cancelada antes de ejecutar Prisma para proteger los datos operativos.'
+  }
+
+  if ($TenantTableExists -eq 0) {
+    & $Node $PrismaCli db push
+    if ($LASTEXITCODE -ne 0) { throw 'Prisma db push P13 falló durante la instalación inicial.' }
+    $global:LASTEXITCODE = 0
+  } else {
+    Write-Host 'P13: actualización segura; prisma db push omitido para preservar tablas p13_* y colas locales.' -ForegroundColor Cyan
+  }
 
   $TenantCountRaw = Invoke-P13PsqlScalar $PgBin 'vantix_p13_lab' 'SELECT count(*) FROM "Tenant";'
   $TenantCount = [int]$TenantCountRaw
@@ -349,6 +373,7 @@ $State = [ordered]@{
   httpPort = 8790
   postgresPort = 55432
   tenant = 'demo-restaurante'
+  prismaSchemaSha256 = $PackagePrismaSchemaHash
   edgeProductionUntouched = $true
   startupTasks = (-not $NoStartupTasks)
 }
