@@ -164,7 +164,7 @@ function mutationBoundaryForRequest(method, rawPath) {
   if (verb === 'POST' && pathname === '/api/v1/seguridad/roles') return 'IDENTITY_RBAC';
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/roles\/[^/]+\/permisos$/.test(pathname)) return 'IDENTITY_RBAC';
   if (verb === 'PUT' && /^\/api\/v1\/seguridad\/usuarios\/[^/]+\/(?:roles|permisos)$/.test(pathname)) return 'IDENTITY_RBAC';
-  if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/abrir$/.test(pathname)) return 'RESTAURANT_TABLE_VISIT';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/(?:v2\/)?mesas\/[^/]+\/abrir$/.test(pathname)) return 'RESTAURANT_TABLE_VISIT';
   if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/(?:preparar-cuenta|enviar-caja)$/.test(pathname)) return 'RESTAURANT_ACCOUNT_TO_CASH';
   if (verb === 'PATCH' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/servicio$/.test(pathname)) return 'RESTAURANT_ORDER_PERSON';
   if (verb === 'PUT' && /^\/api\/v1\/restaurante\/sesiones\/[^/]+\/pedido-borrador\/items\/[^/]+$/.test(pathname)) return 'RESTAURANT_ORDER_DRAFT';
