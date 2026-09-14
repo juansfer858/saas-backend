@@ -91,8 +91,55 @@ function Clear-StaleP13PostmasterPid([string]$PgBin, [string]$PgData) {
   Write-Host 'P13: postmaster.pid obsoleto eliminado de forma segura.' -ForegroundColor Yellow
 }
 
+function Test-P13AclHasFullControl([string]$Path, [string[]]$RequiredSids) {
+  if (-not (Test-Path -LiteralPath $Path)) { return $false }
+  try {
+    $Acl = Get-Acl -LiteralPath $Path
+    foreach ($RequiredSid in $RequiredSids) {
+      $Satisfied = $false
+      foreach ($Rule in $Acl.Access) {
+        if ($Rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
+        try {
+          $Sid = $Rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+        } catch { continue }
+        if ($Sid -ne $RequiredSid) { continue }
+        $Rights = [int64]$Rule.FileSystemRights
+        $FullControl = [int64][Security.AccessControl.FileSystemRights]::FullControl
+        if (($Rights -band $FullControl) -eq $FullControl) {
+          $Satisfied = $true
+          break
+        }
+      }
+      if (-not $Satisfied) { return $false }
+    }
+    return $true
+  } catch { return $false }
+}
+
+function Test-P13PostgresAclHealthy([string]$PgData) {
+  if (-not (Test-Path -LiteralPath $PgData)) { return $false }
+  $CurrentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $RequiredSids = @('S-1-5-18', 'S-1-5-32-544', $CurrentSid)
+  $CriticalPaths = @(
+    $PgData,
+    (Join-Path $PgData 'PG_VERSION'),
+    (Join-Path $PgData 'postgresql.conf'),
+    (Join-Path $PgData 'global\pg_control'),
+    (Join-Path $PgData 'pg_logical\replorigin_checkpoint')
+  ) | Where-Object { Test-Path -LiteralPath $_ }
+  if ($CriticalPaths.Count -lt 3) { return $false }
+  foreach ($CriticalPath in $CriticalPaths) {
+    if (-not (Test-P13AclHasFullControl $CriticalPath $RequiredSids)) { return $false }
+  }
+  return $true
+}
+
 function Repair-P13PostgresAcl([string]$PgData) {
   if (-not (Test-Path -LiteralPath $PgData)) { return }
+  if (Test-P13PostgresAclHealthy $PgData) {
+    Write-Host 'P13: permisos PostgreSQL ya compatibles; normalización recursiva omitida.' -ForegroundColor DarkCyan
+    return
+  }
   $CurrentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $SystemGrant = '*S-1-5-18:(OI)(CI)(F)'
   $AdminsGrant = '*S-1-5-32-544:(OI)(CI)(F)'
@@ -103,6 +150,9 @@ function Repair-P13PostgresAcl([string]$PgData) {
   & icacls.exe $PgData /grant:r $SystemGrant $AdminsGrant $UserGrant /T /C /Q | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'No fue posible reparar los permisos del clúster PostgreSQL P13.' }
   $global:LASTEXITCODE = 0
+  if (-not (Test-P13PostgresAclHealthy $PgData)) {
+    throw 'La reparación de permisos PostgreSQL P13 terminó, pero los ACL críticos siguen incompletos.'
+  }
 }
 
 function Stop-P13PostgresForUpgrade {
