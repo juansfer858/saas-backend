@@ -193,7 +193,7 @@ async function start() {
     res.json({
       ok: true,
       marker: LAB_MARKER,
-      phase: 'P13-E4',
+      phase: truthy(process.env.P13_WINDOWS_PILOT) ? 'P13-E5' : 'P13-E4',
       candidatePhase: 'P13-E5',
       localSurface: 'RESTAURANT_CONTROL_CENTER_ONLY',
       localEntry: LOCAL_RESTAURANT_ENTRY,
