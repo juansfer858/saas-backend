@@ -161,7 +161,8 @@ foreach ($Script in @(
   (Join-Path $Stage 'lab\restaurant-p13\windows\install-p13-windows.ps1'),
   (Join-Path $Stage 'payload\ops\start-p13-windows.ps1'),
   (Join-Path $Stage 'payload\ops\watchdog-p13-windows.ps1'),
-  (Join-Path $Stage 'payload\ops\uninstall-p13-windows.ps1')
+  (Join-Path $Stage 'payload\ops\uninstall-p13-windows.ps1'),
+  (Join-Path $App 'lab\restaurant-p13\windows\prepare-p13-operational-schemas.ps1')
 )) {
   $Tokens = $null; $Errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile($Script, [ref]$Tokens, [ref]$Errors) | Out-Null
@@ -170,7 +171,8 @@ foreach ($Script in @(
 foreach ($RequiredAppFile in @(
   (Join-Path $App 'edge\version.json'),
   (Join-Path $App 'edge\print-spooler\escpos.js'),
-  (Join-Path $App 'edge\print-spooler\windows-printer.js')
+  (Join-Path $App 'edge\print-spooler\windows-printer.js'),
+  (Join-Path $App 'lab\restaurant-p13\windows\prepare-p13-operational-schemas.ps1')
 )) {
   if (-not (Test-Path -LiteralPath $RequiredAppFile)) { throw "Dependencia P13 faltante en paquete: $RequiredAppFile" }
 }
