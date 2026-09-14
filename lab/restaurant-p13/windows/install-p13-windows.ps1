@@ -198,7 +198,7 @@ Push-Location $AppDir
 try {
   $PrismaCli = Join-Path $AppDir 'node_modules\prisma\build\index.js'
   if (-not (Test-Path -LiteralPath $PrismaCli)) { throw 'El paquete no contiene Prisma CLI para preparar la base local.' }
-  & $Node $PrismaCli db push --skip-generate
+  & $Node $PrismaCli db push
   if ($LASTEXITCODE -ne 0) { throw 'Prisma db push P13 falló.' }
 
   $TenantCountRaw = & (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -tAc 'SELECT count(*) FROM "Tenant";'
