@@ -53,28 +53,97 @@ function Copy-Tree([string]$Source, [string]$Destination) {
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
   & robocopy.exe $Source $Destination /E /COPY:DAT /DCOPY:DAT /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
   if ($LASTEXITCODE -gt 7) { throw "Robocopy falló ($LASTEXITCODE) copiando $Source" }
+  $global:LASTEXITCODE = 0
+}
+
+function Test-PgReady([string]$PgBin) {
+  $PgReady = Join-Path $PgBin 'pg_isready.exe'
+  if (-not (Test-Path -LiteralPath $PgReady)) { return $false }
+  & $PgReady -h 127.0.0.1 -p 55432 -q 2>$null
+  $Ready = ($LASTEXITCODE -eq 0)
+  $global:LASTEXITCODE = 0
+  return $Ready
+}
+
+function Get-P13PostgresProcess([string]$PgData) {
+  $PidFile = Join-Path $PgData 'postmaster.pid'
+  if (-not (Test-Path -LiteralPath $PidFile)) { return $null }
+  $FirstLine = Get-Content -LiteralPath $PidFile -TotalCount 1 -ErrorAction SilentlyContinue
+  $PostmasterPid = 0
+  if (-not [int]::TryParse(([string]$FirstLine).Trim(), [ref]$PostmasterPid) -or $PostmasterPid -le 0) { return $null }
+  $Process = Get-CimInstance Win32_Process -Filter ("ProcessId = {0}" -f $PostmasterPid) -ErrorAction SilentlyContinue
+  if (-not $Process) { return $null }
+  $ExpectedRoot = [System.IO.Path]::GetFullPath((Join-Path $InstallDir 'postgres')).TrimEnd('\') + '\'
+  $Executable = [string]$Process.ExecutablePath
+  if ($Executable -and $Executable.StartsWith($ExpectedRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $Process }
+  return $null
+}
+
+function Clear-StaleP13PostmasterPid([string]$PgBin, [string]$PgData) {
+  if (Test-PgReady $PgBin) { return }
+  $PidFile = Join-Path $PgData 'postmaster.pid'
+  if (-not (Test-Path -LiteralPath $PidFile)) { return }
+  $P13Postgres = Get-P13PostgresProcess $PgData
+  if ($P13Postgres) {
+    throw "PostgreSQL P13 sigue activo (PID $($P13Postgres.ProcessId)); no se eliminará postmaster.pid mientras el proceso exista."
+  }
+  Remove-Item -LiteralPath $PidFile -Force
+  Write-Host 'P13: postmaster.pid obsoleto eliminado de forma segura.' -ForegroundColor Yellow
+}
+
+function Stop-P13PostgresForUpgrade {
+  $ExistingPgBin = Join-Path $InstallDir 'postgres\bin'
+  $ExistingPgCtl = Join-Path $ExistingPgBin 'pg_ctl.exe'
+  $ExistingPgData = Join-Path $InstallDir 'data\postgres'
+  if (-not (Test-Path -LiteralPath $ExistingPgCtl) -or -not (Test-Path -LiteralPath (Join-Path $ExistingPgData 'PG_VERSION'))) { return }
+
+  $Ready = Test-PgReady $ExistingPgBin
+  $P13Postgres = Get-P13PostgresProcess $ExistingPgData
+  if ($Ready -and -not $P13Postgres) {
+    throw 'El puerto 55432 está ocupado por un PostgreSQL que no pudo identificarse como P13. No se modificará ese proceso.'
+  }
+
+  if ($Ready -or $P13Postgres) {
+    Write-Host 'P13: deteniendo PostgreSQL local limpiamente antes de actualizar...' -ForegroundColor Cyan
+    & $ExistingPgCtl -D $ExistingPgData -m fast -w -t 30 stop
+    if ($LASTEXITCODE -ne 0) { throw 'No fue posible detener PostgreSQL P13 de forma segura antes de actualizar.' }
+    $global:LASTEXITCODE = 0
+  }
+
+  for ($i = 0; $i -lt 30; $i++) {
+    if (-not (Test-PgReady $ExistingPgBin) -and -not (Get-P13PostgresProcess $ExistingPgData)) { break }
+    Start-Sleep -Milliseconds 250
+  }
+  if (Test-PgReady $ExistingPgBin) { throw 'PostgreSQL P13 continúa respondiendo en 55432; actualización cancelada para proteger la base.' }
+  if (Get-P13PostgresProcess $ExistingPgData) { throw 'El proceso PostgreSQL P13 no terminó; actualización cancelada para proteger la base.' }
+  Clear-StaleP13PostmasterPid $ExistingPgBin $ExistingPgData
 }
 
 function Stop-P13Processes {
-  try { Stop-ScheduledTask -TaskName $WatchdogTaskName -ErrorAction SilentlyContinue } catch {}
-  try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
+  foreach ($Name in @($WatchdogTaskName, $TaskName)) {
+    try { Disable-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue | Out-Null } catch {}
+    try { Stop-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue } catch {}
+  }
   Start-Sleep -Milliseconds 500
+  Stop-P13PostgresForUpgrade
+
   try {
     $Processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
       ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDir, [System.StringComparison]::OrdinalIgnoreCase)) -or
       ($_.CommandLine -and $_.CommandLine.IndexOf($InstallDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
     }
     foreach ($Process in $Processes) {
-      if ($Process.ProcessId -and $Process.ProcessId -ne $PID) {
-        try { Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+      if (-not $Process.ProcessId -or $Process.ProcessId -eq $PID) { continue }
+      $Executable = [string]$Process.ExecutablePath
+      if ($Executable -and [System.IO.Path]::GetFileName($Executable).Equals('postgres.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Quedó un proceso postgres.exe P13 activo (PID $($Process.ProcessId)); no será terminado a la fuerza."
       }
+      try { Stop-Process -Id $Process.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
     }
-  } catch {}
-}
-
-function Test-PgReady([string]$PgBin) {
-  & (Join-Path $PgBin 'pg_isready.exe') -h 127.0.0.1 -p 55432 -q
-  return ($LASTEXITCODE -eq 0)
+  } catch {
+    if ($_.Exception.Message -like 'Quedó un proceso postgres.exe P13 activo*') { throw }
+  }
+  Start-Sleep -Milliseconds 500
 }
 
 function Invoke-P13PsqlScalar([string]$PgBin, [string]$Database, [string]$Sql) {
@@ -177,8 +246,10 @@ shared_buffers = 128MB
 }
 
 if (-not (Test-PgReady $PgBin)) {
+  Clear-StaleP13PostmasterPid $PgBin $PgData
   & (Join-Path $PgBin 'pg_ctl.exe') -D $PgData -l $PgLog -w -t 30 start
-  if ($LASTEXITCODE -ne 0) { throw 'No fue posible iniciar PostgreSQL P13 durante la instalación.' }
+  if ($LASTEXITCODE -ne 0) { throw "No fue posible iniciar PostgreSQL P13 durante la instalación. Revisa $PgLog" }
+  $global:LASTEXITCODE = 0
 }
 if (-not (Test-PgReady $PgBin)) { throw 'PostgreSQL P13 no respondió en 127.0.0.1:55432.' }
 
