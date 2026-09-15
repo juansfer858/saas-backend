@@ -1,0 +1,40 @@
+name: Restaurant P14 Local-First Pilot Gate CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/restaurant-local-first-p14-gate.js'
+      - 'scripts/restaurant-local-first-p14-gate-smoke.js'
+      - 'docs/RESTAURANT_LOCAL_FIRST_P14_PILOT.md'
+      - '.github/workflows/restaurant-local-first-p14-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  pilot-isolation-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate fail-closed pilot contract
+        run: node scripts/restaurant-local-first-p14-gate-smoke.js
+
+      - name: Assert production remains opt-in and isolated
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "tenantSubdomain: 'demo-restaurante'" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "installationId: 'HOME-PILOT-01'" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "releaseChannel: 'PILOT'" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "RESTAURANT_LOCAL_FIRST_P14_ENABLED" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          if grep -R "require(.*restaurant-local-first-p14-gate" src/app.js src/routes src/modules/restaurant/*.routes.js 2>/dev/null; then
+            echo 'El gate P14 no puede estar conectado todavía al runtime productivo.' >&2
+            exit 1
+          fi
+          echo 'P14_PILOT_ISOLATION_OK'
