@@ -1,16 +1,17 @@
-name: Restaurant P14 Local-First Pilot Gate CI
+name: Restaurant P14 Local-First Pilot CI
 
 on:
   pull_request:
     paths:
       - 'src/modules/restaurant/restaurant-local-first-p14-gate.js'
-      - 'scripts/restaurant-local-first-p14-gate-smoke.js'
+      - 'lab/restaurant-p14/**'
+      - 'scripts/restaurant-local-first-p14-*.js'
       - 'docs/RESTAURANT_LOCAL_FIRST_P14_PILOT.md'
       - '.github/workflows/restaurant-local-first-p14-ci.yml'
   workflow_dispatch:
 
 jobs:
-  pilot-isolation-gate:
+  pilot-isolation-and-runtime-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,6 +26,9 @@ jobs:
       - name: Validate fail-closed pilot contract
         run: node scripts/restaurant-local-first-p14-gate-smoke.js
 
+      - name: Validate loopback and private LAN runtime contract
+        run: node scripts/restaurant-local-first-p14-runtime-config-smoke.js
+
       - name: Assert production remains opt-in and isolated
         shell: bash
         run: |
@@ -33,8 +37,14 @@ jobs:
           grep -Fq "installationId: 'HOME-PILOT-01'" src/modules/restaurant/restaurant-local-first-p14-gate.js
           grep -Fq "releaseChannel: 'PILOT'" src/modules/restaurant/restaurant-local-first-p14-gate.js
           grep -Fq "RESTAURANT_LOCAL_FIRST_P14_ENABLED" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "productionEdgePort: 8788" lab/restaurant-p14/runtime-config.js
+          grep -Fq "P14_SYNC_ENABLED debe permanecer false" lab/restaurant-p14/runtime-config.js
           if grep -R "require(.*restaurant-local-first-p14-gate" src/app.js src/routes src/modules/restaurant/*.routes.js 2>/dev/null; then
             echo 'El gate P14 no puede estar conectado todavía al runtime productivo.' >&2
+            exit 1
+          fi
+          if grep -R "restaurant-p14" src/app.js src/routes src/modules/restaurant/*.routes.js 2>/dev/null; then
+            echo 'El laboratorio P14 no puede estar montado todavía en producción.' >&2
             exit 1
           fi
           echo 'P14_PILOT_ISOLATION_OK'
