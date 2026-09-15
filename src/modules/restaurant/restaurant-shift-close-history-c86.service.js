@@ -5,6 +5,7 @@ const { decimal, money } = require('../../utils/decimal');
 const { AppError } = require('../../utils/app-error');
 const { toExcelHtml, toSimplePdf } = require('../accounting/accounting-export.service');
 const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
+const { buildCompleteReport, completeRows } = require('./restaurant-shift-complete-report.service');
 
 const MARKER = 'VANTIX_RESTAURANT_SHIFT_CLOSE_HISTORY_C86';
 const VERSION = '86.0.0';
@@ -414,10 +415,13 @@ async function buildSnapshot(tenantId, shiftId, options = {}, client = prisma) {
     ? 'REVISAR'
     : 'CUADRADO';
 
+  const complete = await buildCompleteReport(tenantId, base, client);
   return {
     marker: MARKER,
     version: VERSION,
     immutable: true,
+    complete,
+    detailRows: completeRows({ complete, shift:base.shift }),
     shift: base.shift,
     businessDate: businessDate(base.shift.abiertoEn, offset),
     timezoneOffsetMinutes: offset,
@@ -652,6 +656,7 @@ function aggregateSnapshots(snapshots, date) {
     marker: MARKER,
     version: VERSION,
     kind: 'DAY',
+    detailRows: snapshots.flatMap(s => [['TURNO',s.shift.id,s.shift.cajero || '',s.shift.abiertoEn || '','',''], ...(s.detailRows || completeRows(s))]),
     businessDate: date,
     shiftCount: snapshots.length,
     status,
@@ -726,6 +731,12 @@ function row(section, reference, concept, time, quantity, value) {
 function pdfSpec(tenant, report) {
   const titleDate = report.businessDate || report.shift?.businessDate || 'cierre';
   const rows = [];
+  rows.push(row('TURNO', report.shift?.id, report.shift?.cajero, report.shift?.abiertoEn));
+  rows.push(row('TURNO', report.shift?.cajaNombre, 'Cierre', report.shift?.cerradoEn));
+  rows.push(row('CAJA', '', 'Fondo inicial', '', '', report.cash?.openingBalance));
+  rows.push(row('CAJA', '', 'Entradas efectivo', '', '', report.cash?.cashIncome));
+  rows.push(row('CAJA', '', 'Salidas efectivo', '', '', report.cash?.cashOut));
+  rows.push(row('VENTAS', '', 'Propinas', '', '', report.totals?.tips));
   rows.push(row('RESUMEN', '', 'Estado', '', '', report.status));
   rows.push(row('RESUMEN', '', 'Turnos', '', report.shiftCount || 1, ''));
   rows.push(row('CONCILIACIÓN', '', 'Valor facturado', '', report.totals?.tickets || 0, number(report.totals?.billedValue)));
@@ -746,6 +757,9 @@ function pdfSpec(tenant, report) {
   rows.push(row('CAJA', '', 'Efectivo contado', '', '', number(report.cash?.countedCash)));
   rows.push(row('CAJA', '', 'Descuadre', '', '', number(report.cash?.difference)));
   for (const item of report.exceptions || []) rows.push(row('EXCEPCIÓN', item.reference || '', item.type || 'Revisar', item.at || '', item.quantity || '', number(item.value || 0)));
+  for (const o of report.operations || []) rows.push(row('OPERACIÓN', o.id, `${o.reference} · ${o.saleNumber} · ${o.collectedBy || ''} · ${o.paymentMethod} · ${o.state}`, o.collectedAt, '', o.collectedValue));
+  for (const m of report.movements || []) rows.push(row('MOVIMIENTO', m.id, `${m.type} · ${m.reference || ''} · ${m.concept || ''}`, m.at, '', m.amount));
+  rows.push(...(report.detailRows || completeRows(report)));
   return {
     title: `Cierre operativo ${titleDate} - ${tenant.nombreEmpresa || tenant.subdomain}`,
     headers: ['Sección', 'Referencia', 'Concepto', 'Hora', 'Cantidad', 'Valor'],
@@ -763,33 +777,27 @@ function pdfSpec(tenant, report) {
 }
 
 function excelSpec(tenant, report) {
+  // Both exports carry exactly the same report, including every detail row.
+  const spec = pdfSpec(tenant, report);
+  return { ...spec, columns:spec.columns.map(c => ({...c,type:'text'})) };
+}
+
+function printableSpec(spec) {
+  // The shared PDF writer has fixed-height cells. Continue long text on extra
+  // rows here so IDs, notes and audit reasons are never silently truncated.
   const rows = [];
-  for (const operation of report.operations || []) {
-    rows.push([
-      operation.channel || '', operation.reference || '', operation.saleNumber || '', operation.openedAt || '', operation.orderAt || '', operation.accountAt || '', operation.collectedAt || '', operation.collectedBy || '', number(operation.billedValue), number(operation.collectedValue), operation.paymentMethod || '', operation.state || ''
-    ]);
+  const columns = spec.columns.map(c => ({ ...c, type:'text' }));
+  for (const row of spec.rows) {
+    const parts = row.map((cell, i) => {
+      const text = String(cell ?? '').replace(/[\r\n\t]+/g,' ');
+      const size = Math.max(3, Math.floor((786 * columns[i].width - 8) / (7 * .52)) - 1);
+      const out = [];
+      for (let n=0; n<text.length; n+=size) out.push(text.slice(n,n+size));
+      return out.length ? out : [''];
+    });
+    for (let n=0; n<Math.max(...parts.map(p=>p.length)); n++) rows.push(parts.map(p=>p[n] || ''));
   }
-  if (!rows.length) rows.push(['', '', '', '', '', '', '', '', 0, 0, '', 'Sin operaciones']);
-  return {
-    title: `Planilla cierre ${report.businessDate || ''} - ${tenant.nombreEmpresa || tenant.subdomain}`,
-    headers: ['Canal', 'Mesa / Ticket', 'Venta', 'Apertura', 'Hora pedido', 'Hora cuenta', 'Hora cobro', 'Quién cobró', 'Valor facturado', 'Valor recaudado', 'Método', 'Estado'],
-    columns: [
-      { label: 'Canal', width: 0.08, type: 'text', align: 'left' },
-      { label: 'Mesa / Ticket', width: 0.1, type: 'text', align: 'left' },
-      { label: 'Venta', width: 0.08, type: 'text', align: 'left' },
-      { label: 'Apertura', width: 0.09, type: 'text', align: 'left' },
-      { label: 'Hora pedido', width: 0.09, type: 'text', align: 'left' },
-      { label: 'Hora cuenta', width: 0.09, type: 'text', align: 'left' },
-      { label: 'Hora cobro', width: 0.09, type: 'text', align: 'left' },
-      { label: 'Quién cobró', width: 0.1, type: 'text', align: 'left' },
-      { label: 'Valor facturado', width: 0.08, type: 'number', align: 'right' },
-      { label: 'Valor recaudado', width: 0.08, type: 'number', align: 'right' },
-      { label: 'Método', width: 0.06, type: 'text', align: 'left' },
-      { label: 'Estado', width: 0.06, type: 'text', align: 'left' }
-    ],
-    rows,
-    rowStyles: rows.map(() => 'data')
-  };
+  return { ...spec, columns, rows, rowStyles:rows.map(()=> 'data') };
 }
 
 async function tenantIdentity(tenantId, client = prisma) {
@@ -807,7 +815,7 @@ async function exportReport(tenantId, report, format, client = prisma) {
   }
   if (normalized === 'pdf') {
     const spec = pdfSpec(tenant, report);
-    return { buffer: toSimplePdf(spec), mime: 'application/pdf', extension: 'pdf', title: spec.title };
+    return { buffer: toSimplePdf(printableSpec(spec)), mime: 'application/pdf', extension: 'pdf', title: spec.title };
   }
   throw new AppError(400, 'Formato de cierre no soportado', 'RESTAURANT_SHIFT_CLOSE_EXPORT_FORMAT_INVALID');
 }
@@ -845,6 +853,7 @@ module.exports = {
   queuePrint,
   pdfSpec,
   excelSpec,
+  printableSpec,
   exportClosure,
   exportDay
 };

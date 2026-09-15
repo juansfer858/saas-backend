@@ -79,6 +79,10 @@ async function main() {
     reference: 'C86-DB-CASH'
   });
   assert.equal(charge.charged, true);
+  const pendingTable = await prisma.restaurantTable.create({ data:{tenantId:demo.tenantId, zoneId:zone.id,
+    code:`PEND-${suffix}`, name:'Pendiente informe completo', assignedWaiterId:waiter.id} });
+  const pendingSession = await base.openTable(demo.tenantId, waiter, pendingTable.id, {guestCount:1}, V2_OPTIONS);
+  await identity.setWaiterDraftItem(demo.tenantId, waiter, pendingSession.session.id, item.id, 1, null, V2_OPTIONS);
   const summary = await cashV2.shiftSummary(demo.tenantId, cashier);
   const closed = await cashV2.closeShift(demo.tenantId, cashier, { saldoFinal: Number(summary.systemCashExpected) });
   assert.equal(closed.closed.estado, 'CERRADA');
@@ -93,6 +97,17 @@ async function main() {
   assert.equal(Number(snapshot.cash.difference), 0);
   assert.equal(snapshot.status, 'CUADRADO');
   assert.equal(snapshot.operations.length, 1);
+  assert.equal(snapshot.complete.version, 1);
+  assert.ok(snapshot.complete.pending.some(p => p.id === pendingSession.session.id));
+  assert.ok(snapshot.complete.orders.some(o => o.state === 'BORRADOR' && o.reference === pendingTable.name));
+  assert.ok(snapshot.complete.sales.some(s => s.items.length >= 1));
+  assert.ok(snapshot.detailRows.some(r => r[0] === 'PRODUCTO VENDIDO'));
+  assert.ok(snapshot.detailRows.some(r => r[0] === 'PENDIENTE'));
+  assert.equal(Number(snapshot.complete.totals.sales), Number(snapshot.totals.billedValue), 'borradores no son ventas');
+  assert.ok(Number(snapshot.complete.totals.collected) > 0, 'recaudo proviene de pagos reales');
+  const excelRows = closures.excelSpec({nombreEmpresa:'CI'},snapshot).rows;
+  assert.deepEqual(excelRows, closures.pdfSpec({nombreEmpresa:'CI'},snapshot).rows, 'PDF y Excel deben contener todo el mismo detalle');
+  assert.ok(excelRows.some(r => r[0] === 'MOVIMIENTO'));
   assert.equal(snapshot.operations[0].reference, 'Mesa C86');
   assert.ok(snapshot.operations[0].orderAt, 'debe conservar hora del pedido');
   assert.ok(snapshot.operations[0].accountAt, 'debe conservar hora de solicitud de cuenta');

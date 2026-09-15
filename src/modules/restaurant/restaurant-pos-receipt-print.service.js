@@ -288,6 +288,13 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
 
   lines.push(separator);
   center(`Turno: ${String(snapshot?.shift?.id || '').slice(0, 12).toUpperCase()}`);
+  if (Array.isArray(snapshot.detailRows)) {
+    center('INFORME COMPLETO');
+    for (const row of snapshot.detailRows) {
+      lines.push(...receiptLayout.wrapText(row.filter(v => v !== '' && v != null).join(' · '), width));
+      lines.push(separator);
+    }
+  }
   center('FIN DEL CIERRE');
   return lines;
 }
@@ -363,8 +370,8 @@ async function queueReceiptIntent(tenantId, sessionId, client = prisma) {
   return { queued: true, intentId: intent.id, sessionId: session.id, saleId: sale.id };
 }
 
-async function queueShiftCloseIntent(tenantId, shiftId, client = prisma) {
-  const snapshot = await buildCashCloseSnapshot(tenantId, shiftId, client);
+async function queueShiftCloseIntent(tenantId, shiftId, client = prisma, savedSnapshot = null) {
+  const snapshot = savedSnapshot || await buildCashCloseSnapshot(tenantId, shiftId, client);
   if (!snapshot) return { queued: false, reason: 'SHIFT_NOT_CLOSED' };
   const now = new Date();
   const data = {

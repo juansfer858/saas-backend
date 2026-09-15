@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-shift-complete-report.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.routes.js'
@@ -21,6 +23,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-shift-complete-report.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.routes.js'
@@ -118,3 +122,4 @@ jobs:
           done
           echo "C86 did not become live for exact commit $GITHUB_SHA" >&2
           exit 1
+
