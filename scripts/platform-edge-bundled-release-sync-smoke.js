@@ -12,7 +12,11 @@ const current = manifest?.releases?.[version.version];
 assert.ok(current, `Bundled manifest must contain ${version.version}`);
 assert.equal(current.channel, version.channel);
 assert.equal(String(manifest.fleetRolloutVersion || ''), '', 'fleet rollout automático debe permanecer desactivado');
-assert.equal(manifest.installRecommended, version.version);
+// Recommended installer is deliberately pinned independently of the latest bundle.
+assert.equal(manifest.installRecommended, '2.1.16-self-heal.4');
+const recommended = sync.normalizeBundledRelease(manifest.installRecommended, manifest.releases[manifest.installRecommended]);
+assert.ok(recommended, 'Pinned recommended installer must exist and have a valid manifest entry');
+assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(recommended.artifactPath)).digest('hex'), recommended.sha256, 'Recommended installer bytes must match the published hash');
 assert.match(String(current.sha256 || ''), /^[a-f0-9]{64}$/);
 assert.ok(fs.existsSync(`public/edge-releases/${current.file}`));
 assert.match(sync.fallbackArtifactUrl(version.version, current.file), /github\.com\/juansfer858\/saas-backend\/releases\/download/);
@@ -20,7 +24,9 @@ assert.match(sync.fallbackArtifactUrl(version.version, current.file), /github\.c
 assert.ok(sync.compareEdgeVersions('2.1.15-offline-print.1', version.version) < 0);
 assert.ok(sync.compareEdgeVersions('2.1.16-self-heal.3', version.version) < 0);
 assert.equal(sync.compareEdgeVersions(version.version, version.version), 0);
-assert.ok(sync.compareEdgeVersions('2.1.17-future.1', version.version) > 0);
+const futureVersion = `${Number(version.version.split('.')[0]) + 1}.0.0-future.1`;
+assert.ok(sync.compareEdgeVersions(futureVersion, version.version) > 0);
+assert.ok(sync.compareEdgeVersions(version.version, futureVersion) < 0);
 
 const rows = new Map();
 let creates = 0;
