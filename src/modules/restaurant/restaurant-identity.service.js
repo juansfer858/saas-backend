@@ -287,7 +287,7 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
       await tx.detalleComprobante.delete({ where: { id: oldDetail.id } });
       await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { total: { decrement: oldDetail.totalLinea } } });
       await tx.comprobanteComercial.update({
-        where: { id: ctx.sale.id },
+        where: { id: ctx.sale.id, tenantId, estado: 'BORRADOR' },
         data: {
           subtotal: { decrement: oldDetail.subtotalLinea },
           ivaTotal: { decrement: oldDetail.ivaValor },
@@ -319,7 +319,7 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
       });
       await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { total: { increment: deltaTotal } } });
       await tx.comprobanteComercial.update({
-        where: { id: ctx.sale.id },
+        where: { id: ctx.sale.id, tenantId, estado: 'BORRADOR' },
         data: {
           subtotal: { increment: deltaSubtotal },
           ivaTotal: { increment: deltaIva },
@@ -348,7 +348,7 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
       });
       await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { total: { increment: line.total } } });
       await tx.comprobanteComercial.update({
-        where: { id: ctx.sale.id },
+        where: { id: ctx.sale.id, tenantId, estado: 'BORRADOR' },
         data: {
           subtotal: { increment: line.subtotal },
           ivaTotal: { increment: line.iva },
@@ -602,3 +602,4 @@ module.exports = {
   cashShiftSummary,
   publicQrContext
 };
+
