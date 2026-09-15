@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/modules/restaurant/restaurant.service.js'
       - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/edge/edge-restaurant-immediate-print-bridge.js'
       - 'src/modules/restaurant/restaurant-v2-orders.*'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
@@ -18,6 +19,7 @@ on:
     paths:
       - 'src/modules/restaurant/restaurant.service.js'
       - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/edge/edge-restaurant-immediate-print-bridge.js'
       - 'src/modules/restaurant/restaurant-v2-orders.*'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
