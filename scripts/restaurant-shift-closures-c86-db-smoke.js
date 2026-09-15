@@ -79,6 +79,19 @@ async function main() {
     reference: 'C86-DB-CASH'
   });
   assert.equal(charge.charged, true);
+  const pendingTable = await prisma.restaurantTable.create({ data:{tenantId:demo.tenantId, zoneId:zone.id,
+    code:`PEND-${suffix}`, name:'Pendiente informe completo', assignedWaiterId:waiter.id} });
+  const pendingSession = await base.openTable(demo.tenantId, waiter, pendingTable.id, {guestCount:1}, V2_OPTIONS);
+  await identity.setWaiterDraftItem(demo.tenantId, waiter, pendingSession.session.id, item.id, 1, null, V2_OPTIONS);
+  // A payment of an older credit invoice is cash collected, never a new sale.
+  const yesterday = new Date(Date.now()-86400000);
+  const debtor = await prisma.tercero.create({data:{tenantId:demo.tenantId,tipo:'CLIENTE',tipoDocumento:'CC',identificacion:`C86-${suffix}`,nombre:'Cliente crédito anterior'}});
+  const oldSale = await prisma.comprobanteComercial.create({data:{tenantId:demo.tenantId,tipo:'FACTURA_VENTA',numero:`OLD-${suffix}`,
+    estado:'EMITIDO',formaPago:'CREDITO',creadoPorId:cashier.id,terceroId:debtor.id,subtotal:5000,total:5000,saldo:5000,emitidoEn:yesterday}});
+  await prisma.cartera.create({data:{tenantId:demo.tenantId,terceroId:debtor.id,comprobanteId:oldSale.id,tipo:'CXC',valorOriginal:5000,saldo:5000}});
+  await prisma.restaurantTableSession.create({data:{tenantId:demo.tenantId,tableId:table.id,saleId:oldSale.id,state:'CERRADA',openedByUserId:waiter.id,
+    closedByUserId:cashier.id,openedAt:yesterday,closedAt:yesterday}});
+  await treasury.registerPayment(demo.tenantId,cashier.id,{documentoId:oldSale.id,cajaBancoId:cashAccount.id,metodoPago:'EFECTIVO',monto:1000,referencia:'Abono anterior CI'});
   const summary = await cashV2.shiftSummary(demo.tenantId, cashier);
   const closed = await cashV2.closeShift(demo.tenantId, cashier, { saldoFinal: Number(summary.systemCashExpected) });
   assert.equal(closed.closed.estado, 'CERRADA');
@@ -93,6 +106,23 @@ async function main() {
   assert.equal(Number(snapshot.cash.difference), 0);
   assert.equal(snapshot.status, 'CUADRADO');
   assert.equal(snapshot.operations.length, 1);
+  assert.equal(snapshot.complete.version, 1);
+  assert.ok(snapshot.complete.pending.some(p => p.id === pendingSession.session.id));
+  assert.ok(snapshot.complete.orders.some(o => o.state === 'BORRADOR' && o.reference === pendingTable.name));
+  assert.ok(snapshot.complete.sales.some(s => s.items.length >= 1));
+  assert.ok(snapshot.detailRows.some(r => r[0] === 'PRODUCTO VENDIDO'));
+  assert.ok(snapshot.detailRows.some(r => r[0] === 'PENDIENTE'));
+  assert.equal(Number(snapshot.complete.totals.sales), Number(snapshot.totals.billedValue), 'borradores no son ventas');
+  assert.ok(Number(snapshot.complete.totals.collected) > 0, 'recaudo proviene de pagos reales');
+  assert.equal(Number(snapshot.complete.totals.priorInvoiceCollections),1000);
+  assert.equal(Number(snapshot.complete.totals.collected),Number(snapshot.totals.billedValue)+1000,'abono se suma una sola vez al recaudo');
+  assert.equal(snapshot.complete.sales.some(s=>s.id===oldSale.id),false,'factura anterior no se vuelve a vender');
+  const excelRows = closures.excelSpec({nombreEmpresa:'CI'},snapshot).rows;
+  assert.deepEqual(excelRows, closures.pdfSpec({nombreEmpresa:'CI'},snapshot).rows, 'PDF y Excel deben contener todo el mismo detalle');
+  assert.ok(excelRows.some(r => r[0] === 'MOVIMIENTO'));
+  const longText = 'Motivo extenso '.repeat(30)+'FIN-MOTIVO';
+  const printable = closures.printableSpec({...closures.pdfSpec({nombreEmpresa:'CI'},snapshot),rows:[['AUDITORÍA','identificador-largo',longText,'','','']]});
+  assert.equal(printable.rows.map(r=>r[2]).join(''),longText,'PDF conserva el motivo completo en continuaciones');
   assert.equal(snapshot.operations[0].reference, 'Mesa C86');
   assert.ok(snapshot.operations[0].orderAt, 'debe conservar hora del pedido');
   assert.ok(snapshot.operations[0].accountAt, 'debe conservar hora de solicitud de cuenta');
@@ -126,6 +156,14 @@ async function main() {
   assert.equal(pdf.mime, 'application/pdf');
   assert.ok(excel.buffer.length > 200);
   assert.ok(pdf.buffer.length > 200);
+  const printResult = await closures.queuePrint(demo.tenantId,cashier.id,openedShift.shift.id,{});
+  const printIntent = await prisma.trackingLink.findFirst({where:{tenantId:demo.tenantId,id:printResult.printRequestId}});
+  const receiptService = require('../src/modules/restaurant/restaurant-pos-receipt-print.service');
+  const printSnapshot = receiptService.cashCloseSnapshotFromIntent(printIntent);
+  assert.ok(printSnapshot.detailRows.some(r=>r[0]==='PENDIENTE'));
+  const printLines = receiptService.cashCloseReceiptLines({company:{nombreEmpresa:'CI'},snapshot:printSnapshot});
+  assert.ok(printLines.join(' ').includes('INFORME COMPLETO'));
+  assert.ok(printLines.join(' ').includes('FIN DEL CIERRE'));
 
   console.log(JSON.stringify({
     ok: true,

@@ -6,7 +6,17 @@ const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
 
 async function queuePrint(tenantId, userId, shiftId, options = {}, client = prisma) {
   const snapshot = await base.ensureSnapshot(tenantId, userId, shiftId, options, client);
-  const queued = await posReceiptPrint.queueShiftCloseIntent(tenantId, shiftId, client);
+  const saved = {
+    shift:snapshot.shift,
+    systemCashExpected:snapshot.cash.expectedCash,
+    restaurantClosedTablesTotal:snapshot.totals.expectedSettlement,
+    paymentBreakdown:{ cashSales:snapshot.payments.cash, transferSales:snapshot.payments.transfer,
+      cardSales:snapshot.payments.card, creditSales:snapshot.payments.credit, bankOtherSales:snapshot.payments.other },
+    tables:snapshot.operations.map(o => ({ table:o.reference, saleNumber:o.saleNumber,
+      total:o.collectedValue, paymentMethodLabel:o.paymentMethod })),
+    detailRows:base.pdfSpec({ nombreEmpresa:'' },snapshot).rows
+  };
+  const queued = await posReceiptPrint.queueShiftCloseIntent(tenantId, shiftId, client, saved);
   if (!queued?.queued) {
     const { AppError } = require('../../utils/app-error');
     throw new AppError(409, 'No fue posible preparar la impresión del cierre', 'RESTAURANT_SHIFT_CLOSE_PRINT_QUEUE_FAILED', { reason: queued?.reason || 'UNKNOWN' });
