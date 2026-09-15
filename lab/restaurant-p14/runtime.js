@@ -46,6 +46,8 @@ function mutationBoundaryForRequest(method, rawPath) {
   const verb = normalize(method).toUpperCase();
   const pathname = normalize(rawPath).split('?')[0];
   if (verb === 'POST' && pathname === '/api/v1/auth/login') return 'AUTH_LOGIN';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/abrir$/.test(pathname)) return 'TABLE_OPEN_P14_2A';
+  if (verb === 'POST' && /^\/api\/v1\/restaurante\/mesas\/[^/]+\/cancelar-apertura-v67$/.test(pathname)) return 'TABLE_EMPTY_CANCEL_P14_2A';
   return null;
 }
 
@@ -210,7 +212,7 @@ function installPilotBoundary(config) {
     return res.status(423).json({
       ok: false,
       code: 'P14_OPERATIONAL_MUTATIONS_LOCKED',
-      message: 'P14-1A valida runtime y LAN. Las mutaciones operativas se habilitarán después de superar esta frontera.'
+      message: 'P14 mantiene bloqueados Pedidos, Cocina, Caja e impresión. En esta frontera solo están habilitadas la apertura y la cancelación de mesas vacías.'
     });
   };
 }
