@@ -19,14 +19,14 @@ function canOfferAdminEmptyClose(){
   return ['ADMIN','SUPER_ADMIN'].includes(role)&&Boolean(currentSession()?.id)
     &&S.draft?.session?.id===currentSession().id&&S.draft?.sale?.total!=null
     &&Number(S.draft.sale.total)===0&&!draftItems().length
-    &&!(S.draft?.service?.operationalItems||[]).length;
+    &&(S.draft?.service?.operationalItems||[]).every(item=>item.orderState==='CANCELADO');
 }
 function adminEmptyCloseButton(){return canOfferAdminEmptyClose()?'<button type="button" id="adminCloseEmpty" class="rv2-btn rv2-btn-danger">CERRAR MESA VACÍA</button>':''}
 async function closeAdminEmptyTable(){
   const table=currentTable();
   if(S.busy||S.sending||!canOfferAdminEmptyClose())return;
   const tableId=table.id, sessionId=table.activeSession.id;
-  if(!confirm(`¿Cerrar ${table.name||table.code} sin consumo? La mesa quedará LIBRE y se invalidará el acceso QR de esta visita.`))return;
+  if(!confirm(`¿Cerrar ${table.name||table.code} sin consumo? La mesa quedará LIBRE; se conservarán las cancelaciones y se invalidará el acceso QR de esta visita.`))return;
   S.busy=true;
   const button=$('#adminCloseEmpty');if(button){button.disabled=true;button.textContent='VERIFICANDO MESA…'}
   let closed=false;
@@ -69,3 +69,4 @@ function queueRealtimeRefresh(detail){if(!realtimeRelevant(detail))return;S.real
 window.addEventListener('vantix:tenant-realtime',event=>queueRealtimeRefresh(event.detail||{}));window.addEventListener('vantix:tenant-realtime-ready',()=>queueRealtimeRefresh({topics:['restaurant.tables']}));
 $('#search').oninput=e=>{S.search=e.target.value;renderMenu()};$('#refresh').onclick=loadBase;$('#review').onclick=openReview;$('#closeReview').onclick=()=>$('#reviewDialog').close();$('#confirmSend').onclick=confirmSend;loadBase();
 })();
+

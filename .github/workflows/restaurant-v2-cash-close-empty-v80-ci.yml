@@ -10,6 +10,8 @@ on:
       - 'src/web/restaurant-v2-cash-close-empty-v80.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-smoke.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.service.js'
+      - 'scripts/restaurant-cancelled-visit-close-v108-db-smoke.js'
       - '.github/workflows/restaurant-v2-cash-close-empty-v80-ci.yml'
   push:
     branches: [main, fix/rest-cash-close-empty-v80, fix/rest-cash-close-empty-cashier-v80-1, fix/rest-cash-close-empty-visible-v80-2]
@@ -20,6 +22,8 @@ on:
       - 'src/web/restaurant-v2-cash-close-empty-v80.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-smoke.js'
       - 'scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js'
+      - 'src/modules/restaurant/restaurant-table-live-detail-v67.service.js'
+      - 'scripts/restaurant-cancelled-visit-close-v108-db-smoke.js'
       - '.github/workflows/restaurant-v2-cash-close-empty-v80-ci.yml'
 
 permissions:
@@ -68,6 +72,8 @@ jobs:
         run: node scripts/restaurant-control-center-close-empty-v21-smoke.js
       - name: Validate V80 against PostgreSQL
         run: node scripts/restaurant-v2-cash-close-empty-v80-db-smoke.js
+      - name: Validate cancelled visit closure V108
+        run: node scripts/restaurant-cancelled-visit-close-v108-db-smoke.js
       - name: Syntax check
         run: |
           node --check src/web/restaurant-v2-cash-close-empty-v80.js
@@ -114,3 +120,4 @@ jobs:
           grep -q 'selfShadowSafe:true' /tmp/v80.js
           grep -q 'noPaymentSideEffects:true' /tmp/v80.js
           echo 'PRODUCTION_RESTAURANT_V2_CASH_CLOSE_EMPTY_V80_2_OK'
+

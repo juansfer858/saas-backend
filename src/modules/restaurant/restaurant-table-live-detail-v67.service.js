@@ -55,9 +55,11 @@ function numeric(value) {
 
 function emptyTableFacts(sale, orders, payments, fiscalDocuments, saleDetails = 0) {
   const rows = Array.isArray(orders) ? orders : [];
-  const hasItems = rows.some((order) => (order.items || []).length > 0);
-  const hasSentOrder = rows.some((order) => String(order.state || '').toUpperCase() !== 'BORRADOR');
-  const hasCommands = rows.some((order) => (order.commands || []).length > 0);
+  const cancelled = rows.filter(order => order.state === 'CANCELADO' && (order.commands || []).every(c => c.state === 'CANCELADA'));
+  const active = rows.filter(order => !cancelled.includes(order));
+  const hasItems = active.some((order) => (order.items || []).length > 0);
+  const hasSentOrder = active.some((order) => String(order.state || '').toUpperCase() !== 'BORRADOR');
+  const hasCommands = active.some((order) => (order.commands || []).length > 0);
   const commercialEmpty = Boolean(
     sale
     && String(sale.estado || '').toUpperCase() === 'BORRADOR'
@@ -65,6 +67,7 @@ function emptyTableFacts(sale, orders, payments, fiscalDocuments, saleDetails = 
     && Number(saleDetails || sale?.detalles?.length || 0) === 0
   );
   return {
+    cancelledOrders: cancelled.length,
     hasItems,
     hasSentOrder,
     hasCommands,
@@ -186,6 +189,7 @@ async function liveDetail(tenantId, user, tableId) {
     canManageDraftFromControlCenter: controlCenterDraftManager,
     canCloseEmptyFromControlCenter,
     emptyCloseInfo: canCloseEmptyFromControlCenter ? {
+      cancelledHistory: emptyFacts.cancelledOrders > 0,
       noProducts: true,
       noPayments: true,
       noFiscalDocuments: true,
@@ -298,6 +302,35 @@ async function closeEmptyFromControlCenter(tenantId, user, tableId) {
 
     const draftIds = orders.filter((order) => String(order.state || '').toUpperCase() === 'BORRADOR').map((order) => order.id);
     if (draftIds.length) await tx.restaurantOrder.deleteMany({ where: { tenantId, id: { in: draftIds } } });
+
+    if (facts.cancelledOrders > 0) {
+      // V108: all consumption was cancelled. Keep the entire visit and its
+      // orders for audit; this is neither a sale nor an empty-history deletion.
+      const now = new Date();
+      const closed = await tx.restaurantTableSession.updateMany({
+        where:{id:session.id,tenantId,state:{in:ACTIVE_STATES}},
+        data:{state:'CANCELADA',closedAt:now,closedByUserId:user.id}
+      });
+      const voided = await tx.comprobanteComercial.updateMany({
+        where:{id:sale.id,tenantId,estado:'BORRADOR',total:0},
+        data:{estado:'ANULADO',anuladoEn:now,motivoAnulacion:'Visita finalizada sin consumo: todos los pedidos cancelados'}
+      });
+      if(closed.count !== 1 || voided.count !== 1) throw new AppError(409,'La mesa cambió. Actualiza y vuelve a revisar.','RESTAURANT_EMPTY_CLOSE_CHANGED');
+      // Recheck after locking the sale: even a zero-price item added during
+      // the initial reads must prevent closure. Later draft writes require BORRADOR.
+      const freshOrders = await tx.restaurantOrder.findMany({where:{tenantId,sessionId:session.id},include:{items:true,commands:true}});
+      const freshDetails = await tx.detalleComprobante.count({where:{tenantId,comprobanteId:sale.id}});
+      if (!emptyTableFacts(sale,freshOrders,payments,fiscalDocuments,freshDetails).empty) {
+        throw new AppError(409,'La mesa cambió. Actualiza y vuelve a revisar.','RESTAURANT_EMPTY_CLOSE_CHANGED');
+      }
+      await tx.restaurantQrVisitDevice.updateMany({where:{tenantId,sessionId:session.id,revokedAt:null},data:{revokedAt:now}});
+      const freed = await tx.restaurantTable.update({where:{id:table.id},data:{state:'LIBRE'}});
+      await tx.auditoriaContable.create({data:{tenantId,userId:user.id,entidad:'RESTAURANT_TABLE_SESSION',entidadId:session.id,
+        accion:'RESTAURANT_ZERO_CONSUMPTION_VISIT_CLOSED',metadata:{tableId:table.id,saleId:sale.id,
+          cancelledOrderIds:orders.filter(o=>o.state==='CANCELADO').map(o=>o.id),reason:'Todos los pedidos cancelados; cierre sin cobro',historyPreserved:true}}});
+      return {marker:CONTROL_CENTER_EMPTY_CLOSE_MARKER,closed:true,alreadyFree:false,table:freed,sessionId:session.id,
+        historyPreserved:true,cancelledOrders:facts.cancelledOrders,invalidatedQrAuthorizations:activeQrDevices,closedByUserId:user.id};
+    }
 
     // RestaurantQrVisitDevice uses onDelete:Cascade from the session. Deleting the
     // empty session invalidates every QR authorization for this visit without touching
