@@ -16,6 +16,8 @@ El shell SPA no puede usar `VantixGC / Tenant activo` como identidad sustituta. 
 
 Cambiar entre Dashboard, Ventas, Compras, Inventarios, Tesorería, Cartera, Terceros, Contabilidad y Configuración no puede cambiar la empresa visible. La tarjeta del sidebar y la cabecera deben representar siempre la misma sesión activa durante todo el ciclo de navegación.
 
+> Nota: al cambiar entre módulos debe conservarse siempre la identidad del tenant activo; ninguna transición puede sustituirla, mezclarla o mostrar la identidad de otro tenant.
+
 ## Objetivo
 
 Evitar carreras visuales, cambios de nombre entre módulos y cualquier impresión de que una empresa puede heredar la identidad visual de otra. El placeholder global no representa un tenant.
