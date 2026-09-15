@@ -21,10 +21,23 @@ QR público:      únicamente en Super Core
 
 ## Archivos principales
 
-- `runtime-config.js`: valida tenant, instalación, canal, puertos, base, LAN y secretos.
-- `bootstrap-demo.js`: crea únicamente `demo-restaurante` en la base local y fija la contraseña del administrador piloto.
+- `runtime-config.js`: valida tenant, instalación, canal, puertos, base, LAN y el secreto persistente JWT.
+- `bootstrap-demo.js`: crea únicamente `demo-restaurante`, fija el hash del administrador piloto y desactiva todos los usuarios operativos del seed.
 - `runtime.js`: monta el grafo canónico `src/app.js` detrás de fronteras locales.
 - `.env.example`: plantilla de variables, sin secretos reales.
+
+## Credenciales en P14-1A
+
+La contraseña inicial del administrador se utiliza solo durante `bootstrap-demo.js`. El runtime no la necesita para arrancar después de que PostgreSQL almacena su hash.
+
+El futuro instalador P14-1B debe:
+
+1. solicitar o generar la contraseña inicial;
+2. ejecutar el bootstrap;
+3. comprobar el login;
+4. retirar `P14_ADMIN_PASSWORD` del archivo persistente del runtime.
+
+Los usuarios MESERO, COCINA, BARRA, POSTRES y CAJERO que crea el seed quedan inactivos. Se habilitarán posteriormente, uno por uno, con credenciales propias, cuando se abran sus fronteras operativas. Esto evita dejar disponibles contraseñas de demostración dentro de la LAN.
 
 ## Protección de red
 
@@ -57,6 +70,7 @@ cp lab/restaurant-p14/.env.example lab/restaurant-p14/.env
 npx prisma generate
 npx prisma db push
 node lab/restaurant-p14/bootstrap-demo.js
+# después del bootstrap, retirar P14_ADMIN_PASSWORD del archivo persistente
 node lab/restaurant-p14/runtime.js
 ```
 
@@ -84,6 +98,7 @@ En LAN se reemplaza `127.0.0.1` por `P14_ADVERTISE_HOST`.
 
 ## Qué bloquea P14-1A
 
+- Inicio de sesión de roles operativos todavía no autorizados.
 - Abrir o cerrar mesas.
 - Crear o enviar pedidos.
 - Cambiar estados de Cocina, Barra o Postres.
@@ -109,7 +124,7 @@ node scripts/restaurant-local-first-p14-runtime-config-smoke.js
 node scripts/restaurant-local-first-p14-runtime-shell-smoke.js
 ```
 
-El workflow dedicado también crea un PostgreSQL descartable, ejecuta el bootstrap, arranca el runtime, realiza login, verifica la sesión, comprueba el bloqueo de mutaciones y confirma que el QR continúa cloud-only.
+El workflow dedicado también crea un PostgreSQL descartable, ejecuta el bootstrap, confirma que solo ADMIN quedó activo, arranca el runtime, realiza login, verifica la sesión, comprueba el bloqueo de mutaciones y confirma que el QR continúa cloud-only.
 
 ## Siguiente frontera
 
@@ -119,7 +134,8 @@ El workflow dedicado también crea un PostgreSQL descartable, ejecuta el bootstr
 2. Corregir definitivamente supervisor, arranque y desinstalación.
 3. Crear regla de firewall limitada al CIDR privado.
 4. Detectar y mostrar la IP LAN reservada.
-5. Probar desde otro computador y una tablet en casa.
-6. Mantener todas las mutaciones operativas bloqueadas durante esa prueba.
+5. Eliminar la contraseña de bootstrap del entorno persistente.
+6. Probar desde otro computador y una tablet en casa.
+7. Mantener todas las mutaciones operativas bloqueadas durante esa prueba.
 
 Solo después de superar P14-1B se abrirán, una por una, las fronteras de mesas, pedidos, KDS, Caja e impresión.
