@@ -1,0 +1,293 @@
+name: Restaurant P14 Windows Home Pilot Package
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p14/**'
+      - 'scripts/restaurant-p14-build-windows-package.ps1'
+      - 'scripts/restaurant-local-first-p14-*.js'
+      - 'scripts/ensure-restaurant-demo-tenant.js'
+      - 'src/**'
+      - 'prisma/**'
+      - 'edge/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'prisma.config.ts'
+      - '.github/workflows/restaurant-p14-windows-package.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p14-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-package-install-reinstall:
+    runs-on: windows-latest
+    timeout-minutes: 55
+    env:
+      DATABASE_URL: postgresql://vantix_p14:p14-build-only@127.0.0.1:55432/vantix_p14_home_pilot
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Windows Prisma client
+        run: npx prisma generate
+
+      - name: Build self-contained P14 Windows package
+        shell: pwsh
+        run: ./scripts/restaurant-p14-build-windows-package.ps1
+
+      - name: Validate package contract and bundled runtimes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p14-windows/vantixgc-restaurant-p14-home-pilot.zip'
+          $unpack = Join-Path $env:RUNNER_TEMP 'p14-package-contract'
+          Remove-Item $unpack -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $unpack -Force
+
+          $manifest = Get-Content -Raw (Join-Path $unpack 'package-manifest.json') | ConvertFrom-Json
+          if ($manifest.product -ne 'VantixGC Restaurant P14 Home Pilot') { throw 'Producto P14 inválido.' }
+          if ($manifest.installationId -ne 'HOME-PILOT-01' -or $manifest.tenant -ne 'demo-restaurante') { throw 'Identidad P14 inválida.' }
+          if ($manifest.releaseChannel -ne 'PILOT' -or $manifest.operationalMode -ne 'LOCAL_FIRST') { throw 'Canal o modo P14 inválido.' }
+          if ($manifest.httpPort -ne 8790 -or $manifest.postgresPort -ne 55432) { throw 'Puertos P14 inválidos.' }
+          if ($manifest.productionEdgeTouched -ne $false -or $manifest.productionEdgePort -ne 8788) { throw 'El paquete P14 no preserva Edge 8788.' }
+          if ($manifest.syncEnabled -ne $false -or $manifest.operationalMutations -ne 'LOCKED_P14_1B') { throw 'P14-1B abrió una frontera no autorizada.' }
+
+          & (Join-Path $unpack 'payload/runtime/node.exe') --version
+          & (Join-Path $unpack 'payload/postgres/bin/postgres.exe') --version
+          & (Join-Path $unpack 'payload/postgres/bin/initdb.exe') --version
+
+          foreach ($file in @(
+            'INSTALAR_P14.ps1',
+            'DESINSTALAR_P14.ps1',
+            'lab/restaurant-p14/windows/install-p14-windows.ps1',
+            'payload/ops/start-p14-windows.ps1',
+            'payload/ops/watchdog-p14-windows.ps1',
+            'payload/ops/uninstall-p14-windows.ps1'
+          )) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $unpack $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw "PowerShell inválido: $file :: $($errors[0].Message)" }
+          }
+
+          $installerText = Get-Content -Raw (Join-Path $unpack 'lab/restaurant-p14/windows/install-p14-windows.ps1')
+          foreach ($required in @(
+            'VantixGC Restaurant P14 Home Pilot LAN 8790',
+            'New-NetFirewallRule',
+            '-RemoteAddress $Lan.cidr',
+            'HOME-PILOT-01',
+            'demo-restaurante',
+            'P14_SYNC_ENABLED=false'
+          )) {
+            if ($installerText -notlike "*$required*") { throw "Contrato de instalador faltante: $required" }
+          }
+
+          Write-Host 'P14_WINDOWS_PACKAGE_CONTRACT_OK'
+
+      - name: Install, boot, reinstall with LAN, preserve data, and recover Node
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p14-windows/vantixgc-restaurant-p14-home-pilot.zip'
+          $source = Join-Path $env:RUNNER_TEMP 'p14-install-source'
+          $install = 'C:\P14-CI-Home-Pilot'
+          $password = 'P14-CI-Home-Pilot-Password'
+          Remove-Item $source -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $source -Force
+
+          $installer = Join-Path $source 'lab/restaurant-p14/windows/install-p14-windows.ps1'
+          & $installer -InstallDir $install -AdminPassword $password -EnableLan:$false -NoStartupTasks -NoShortcut -NoFirewall
+
+          if (-not (Test-Path (Join-Path $install 'data/postgres/PG_VERSION'))) { throw 'PostgreSQL P14 no quedó inicializado.' }
+          if (-not (Test-Path (Join-Path $install 'app/lab/restaurant-p14/runtime.js'))) { throw 'Runtime P14 no quedó instalado.' }
+          if (-not (Test-Path (Join-Path $install 'install-state.json'))) { throw 'P14 no generó install-state.json.' }
+
+          function Read-P14Env([string]$Path) {
+            $map = @{}
+            foreach ($line in Get-Content -LiteralPath $Path) {
+              $trim = ([string]$line).Trim()
+              if (-not $trim -or $trim.StartsWith('#')) { continue }
+              $index = $trim.IndexOf('=')
+              if ($index -le 0) { continue }
+              $map[$trim.Substring(0,$index).Trim()] = $trim.Substring($index+1).Trim().Trim('"').Trim("'")
+            }
+            return $map
+          }
+
+          function Wait-P14([int]$Seconds = 60) {
+            for ($i=0; $i -lt ($Seconds * 2); $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p14/status' -TimeoutSec 2
+                if ($status.ok -and $status.marker -eq 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT') { return $status }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            throw 'Runtime P14 no respondió.'
+          }
+
+          function Start-P14([string]$Root) {
+            $starter = Join-Path $Root 'ops/start-p14-windows.ps1'
+            return Start-Process powershell.exe -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$Root) -PassThru -WindowStyle Hidden
+          }
+
+          function Login-P14([string]$ExpectedPassword) {
+            $body = @{ email='admin@demo-restaurante.vantixgc.com'; password=$ExpectedPassword } | ConvertTo-Json -Compress
+            $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
+            if (-not $login.ok -or -not $login.data.token) { throw 'Login P14 falló.' }
+            return [string]$login.data.token
+          }
+
+          function Get-P14RuntimeProcess([string]$Root) {
+            $node = [System.IO.Path]::GetFullPath((Join-Path $Root 'runtime/node.exe'))
+            $script = [System.IO.Path]::GetFullPath((Join-Path $Root 'app/lab/restaurant-p14/runtime.js'))
+            return Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+              $_.ExecutablePath -and
+              [System.IO.Path]::GetFullPath([string]$_.ExecutablePath).Equals($node,[System.StringComparison]::OrdinalIgnoreCase) -and
+              $_.CommandLine -and
+              ([string]$_.CommandLine).IndexOf($script,[System.StringComparison]::OrdinalIgnoreCase) -ge 0
+            } | Select-Object -First 1
+          }
+
+          $starterProcess = Start-P14 $install
+          $status = Wait-P14
+          if ($status.phase -ne 'P14-1A') { throw "Fase P14 inesperada: $($status.phase)" }
+          if ($status.http.lanEnabled -ne $false -or $status.http.bindHost -ne '127.0.0.1') { throw 'La instalación inicial no quedó en loopback.' }
+          if ($status.productionEdgePortUntouched -ne 8788) { throw 'Edge 8788 no quedó protegido.' }
+          $token = Login-P14 $password
+
+          $blocked = $null
+          try {
+            Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/restaurante/v2/caja/turno/abrir' -Headers @{ 'x-tenant-subdomain'='demo-restaurante'; Authorization=("Bearer " + $token) } -ContentType 'application/json' -Body '{}' -TimeoutSec 5 | Out-Null
+          } catch {
+            $blocked = $_.ErrorDetails.Message
+          }
+          if (-not $blocked -or $blocked -notmatch 'P14_OPERATIONAL_MUTATIONS_LOCKED') { throw 'P14-1B abrió una mutación operativa.' }
+
+          $envMap = Read-P14Env (Join-Path $install '.env')
+          $env:PGPASSWORD = $envMap['P14_DB_PASSWORD']
+          $psql = Join-Path $install 'postgres/bin/psql.exe'
+          $sentinelSql = "CREATE TABLE IF NOT EXISTS p14_ci_sentinel(id integer primary key, marker text not null); INSERT INTO p14_ci_sentinel(id,marker) VALUES (1,'PRESERVED') ON CONFLICT (id) DO UPDATE SET marker=EXCLUDED.marker;"
+          & $psql -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -v ON_ERROR_STOP=1 -c $sentinelSql | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear sentinel P14.' }
+          $global:LASTEXITCODE = 0
+
+          & $installer -InstallDir $install -AdminPassword 'THIS-MUST-NOT-REPLACE-THE-EXISTING-PASSWORD' -EnableLan -LanAddress '192.168.50.10' -LanCidr '192.168.50.0/24' -NoStartupTasks -NoShortcut -NoFirewall
+
+          $starterProcess2 = Start-P14 $install
+          $status = Wait-P14
+          if ($status.http.lanEnabled -ne $true) { throw 'P14 no activó modo LAN.' }
+          if ($status.http.bindHost -ne '0.0.0.0' -or $status.http.advertiseHost -ne '192.168.50.10') { throw 'Dirección LAN P14 incorrecta.' }
+          if ($status.http.lanCidr.raw -ne '192.168.50.0/24') { throw 'CIDR LAN P14 incorrecto.' }
+
+          $token = Login-P14 $password
+          $wrongPasswordAccepted = $false
+          try {
+            Login-P14 'THIS-MUST-NOT-REPLACE-THE-EXISTING-PASSWORD' | Out-Null
+            $wrongPasswordAccepted = $true
+          } catch {}
+          if ($wrongPasswordAccepted) { throw 'La reinstalación reemplazó indebidamente la clave ADMIN.' }
+
+          $envMap = Read-P14Env (Join-Path $install '.env')
+          $env:PGPASSWORD = $envMap['P14_DB_PASSWORD']
+          $marker = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -tA -c 'SELECT marker FROM p14_ci_sentinel WHERE id=1;').Trim()
+          if ($marker -ne 'PRESERVED') { throw 'La reinstalación no preservó los datos locales.' }
+
+          $runtimeProcess = Get-P14RuntimeProcess $install
+          if (-not $runtimeProcess) { throw 'No se encontró el node.exe exacto del runtime P14.' }
+          $pgPid = [int]([string](Get-Content -LiteralPath (Join-Path $install 'data/postgres/postmaster.pid') -TotalCount 1)).Trim()
+
+          $watchdog = Join-Path $install 'ops/watchdog-p14-windows.ps1'
+          $managedJson = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $watchdog -InstallDir $install -ListManagedRuntimeProcessIds) -join ''
+          if ($LASTEXITCODE -ne 0) { throw 'Sondeo watchdog P14 falló.' }
+          $managedIds = @()
+          if ($managedJson.Trim()) { $managedIds = @($managedJson | ConvertFrom-Json) }
+          $managedIds = @($managedIds | ForEach-Object { [int]$_ })
+          if (-not ($managedIds -contains [int]$runtimeProcess.ProcessId)) { throw 'Watchdog no identificó el runtime Node P14.' }
+          if ($managedIds -contains $pgPid) { throw 'REGRESIÓN: watchdog incluyó PostgreSQL.' }
+
+          Stop-Process -Id $runtimeProcess.ProcessId -Force
+          Start-Sleep -Seconds 1
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $watchdog -InstallDir $install -HealthRetryAttempts 1 -HealthRetryDelaySeconds 1
+          if ($LASTEXITCODE -ne 0) { throw 'Watchdog P14 no recuperó Node.' }
+          $status = Wait-P14 30
+          if (-not $status.ok) { throw 'P14 no quedó saludable tras watchdog.' }
+
+          & $psql -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -tA -c 'SELECT 1;' | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL dejó de responder durante recuperación de Node.' }
+          $global:LASTEXITCODE = 0
+
+          $uninstall = Join-Path $install 'ops/uninstall-p14-windows.ps1'
+          & $uninstall -InstallDir $install
+          if (-not (Test-Path (Join-Path $install 'data/postgres/PG_VERSION'))) { throw 'Desinstalación preservadora eliminó la base.' }
+          if (-not (Test-Path (Join-Path $install '.env'))) { throw 'Desinstalación preservadora eliminó secretos.' }
+          foreach ($removed in @('app','runtime','postgres','ops')) {
+            if (Test-Path (Join-Path $install $removed)) { throw "Desinstalación preservadora dejó $removed." }
+          }
+
+          Write-Host 'P14_WINDOWS_INSTALL_REINSTALL_LAN_WATCHDOG_OK'
+
+      - name: Dump P14 logs on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $install = 'C:\P14-CI-Home-Pilot'
+          foreach ($log in @('logs/runtime.log','logs/postgres.log','logs/watchdog.log')) {
+            $path = Join-Path $install $log
+            Write-Host "===== $path ====="
+            if (Test-Path -LiteralPath $path) {
+              Get-Content -LiteralPath $path -Tail 400
+            } else {
+              Write-Host 'LOG_NOT_FOUND'
+            }
+          }
+
+      - name: Cleanup disposable P14 installation
+        if: always()
+        shell: pwsh
+        run: |
+          $install = 'C:\P14-CI-Home-Pilot'
+          try { Remove-NetFirewallRule -DisplayName 'VantixGC Restaurant P14 Home Pilot LAN 8790' -ErrorAction SilentlyContinue | Out-Null } catch {}
+          Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            ($_.ExecutablePath -and ([string]$_.ExecutablePath).StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)) -or
+            ($_.CommandLine -and ([string]$_.CommandLine).IndexOf($install,[System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+          } | ForEach-Object {
+            if ($_.ProcessId -and $_.ProcessId -ne $PID) {
+              try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
+            }
+          }
+          Start-Sleep -Milliseconds 500
+          Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Assert production Edge remains untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > /tmp/p14-win-files.txt
+          if grep -E '^(edge/agent|edge/workspace|edge/updater|edge/supervisor)/' /tmp/p14-win-files.txt; then
+            echo 'P14 Windows pilot cannot modify production Edge.' >&2
+            exit 1
+          fi
+          echo 'P14_WINDOWS_EDGE_ISOLATION_OK'
+
+      - name: Upload P14 Windows Home Pilot ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: vantixgc-restaurant-p14-home-pilot
+          path: artifacts/p14-windows/vantixgc-restaurant-p14-home-pilot.zip
+          if-no-files-found: error
+          retention-days: 14
