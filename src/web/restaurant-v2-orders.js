@@ -1,4 +1,4 @@
-/* VANTIX_RESTAURANT_V2_ORDERS_P3 · VANTIX_RESTAURANT_V2_QR_OPEN_REQUEST_P10_FIX · VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81 · VANTIX_RESTAURANT_ORDER_PEOPLE_GROUPS_V94 · VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100 · VANTIX_RESTAURANT_V2_CARD_TARGET_V101 · VANTIX_RESTAURANT_V2_TABLET_SEND_RACE_V105 · VANTIX_RESTAURANT_V2_SEND_TODOS_V106 */
+/* VANTIX_RESTAURANT_V2_ADMIN_EMPTY_TABLE_V107 · VANTIX_RESTAURANT_V2_ORDERS_P3 · VANTIX_RESTAURANT_V2_QR_OPEN_REQUEST_P10_FIX · VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81 · VANTIX_RESTAURANT_ORDER_PEOPLE_GROUPS_V94 · VANTIX_RESTAURANT_V2_PERSON_BUTTONS_V100 · VANTIX_RESTAURANT_V2_CARD_TARGET_V101 · VANTIX_RESTAURANT_V2_TABLET_SEND_RACE_V105 · VANTIX_RESTAURANT_V2_SEND_TODOS_V106 */
 (()=>{'use strict';
 const RV2=window.RestaurantV2;if(!RV2)throw new Error('Restaurant V2 SDK no disponible');
 const session=RV2.requireSession();
@@ -14,7 +14,33 @@ function renderTables(){const rows=activeRows();$('#tables').innerHTML=rows.map(
 function personOptions(guestCount,selected){let html='<option value="">TODOS</option>';for(let i=1;i<=guestCount;i++)html+=`<option value="${i}" ${Number(selected)===i?'selected':''}>Persona ${i}</option>`;return html}
 function targetLabel(seatNumber){return seatNumber?`Persona ${Number(seatNumber)}`:'TODOS'}
 function personTargetButtons(guestCount,selected){let html=`<button type="button" class="rv2-btn person-target-btn ${selected==null?'rv2-btn-primary target-active':''}" data-person-target="" aria-pressed="${selected==null?'true':'false'}">TODOS</button>`;for(let i=1;i<=guestCount;i++)html+=`<button type="button" class="rv2-btn person-target-btn ${Number(selected)===i?'rv2-btn-primary target-active':''}" data-person-target="${i}" aria-pressed="${Number(selected)===i?'true':'false'}">Persona ${i}</button>`;return html}
-function renderServiceControls(){const table=currentTable();if(!table){$('#serviceControls').innerHTML='';return}if(!table.activeSession){const req=requestForTable(table.id);$('#serviceControls').innerHTML=req?'<span><b>Cliente esperando</b> · solicitud desde QR</span><button id="openSelected" class="rv2-btn rv2-btn-primary">ABRIR MESA · CLIENTE ESPERANDO</button>':'<span>Mesa libre</span><button id="openSelected" class="rv2-btn rv2-btn-primary">Abrir mesa y tomar pedido</button>';$('#openSelected').onclick=openSelected;return}const count=Number(S.draft?.session?.guestCount||table.activeSession.guestCount||1);if(S.person&&S.person>count)S.person=null;$('#serviceControls').innerHTML=`<div class="people"><span>Personas:</span><button id="lessPerson" class="rv2-btn" aria-label="Quitar persona">−</button><strong>${count}</strong><button id="morePerson" class="rv2-btn" aria-label="Agregar persona">+</button></div><div class="person-targets" role="group" aria-label="Agregar productos para">${personTargetButtons(count,S.person)}</div>`;$('#lessPerson').onclick=()=>changePeople(count-1);$('#morePerson').onclick=()=>changePeople(count+1);document.querySelectorAll('[data-person-target]').forEach(button=>button.onclick=()=>{S.person=button.dataset.personTarget?Number(button.dataset.personTarget):null;renderServiceControls();renderMenu()});}
+function canOfferAdminEmptyClose(){
+  const role=String(S.context?.user?.rol||session.user?.rol||'').toUpperCase();
+  return ['ADMIN','SUPER_ADMIN'].includes(role)&&Boolean(currentSession()?.id)
+    &&S.draft?.session?.id===currentSession().id&&S.draft?.sale?.total!=null
+    &&Number(S.draft.sale.total)===0&&!draftItems().length
+    &&!(S.draft?.service?.operationalItems||[]).length;
+}
+function adminEmptyCloseButton(){return canOfferAdminEmptyClose()?'<button type="button" id="adminCloseEmpty" class="rv2-btn rv2-btn-danger">CERRAR MESA VACÍA</button>':''}
+async function closeAdminEmptyTable(){
+  const table=currentTable();
+  if(S.busy||S.sending||!canOfferAdminEmptyClose())return;
+  const tableId=table.id, sessionId=table.activeSession.id;
+  if(!confirm(`¿Cerrar ${table.name||table.code} sin consumo? La mesa quedará LIBRE y se invalidará el acceso QR de esta visita.`))return;
+  S.busy=true;
+  const button=$('#adminCloseEmpty');if(button){button.disabled=true;button.textContent='VERIFICANDO MESA…'}
+  let closed=false;
+  try{
+    const detail=await RV2.api(`/api/v1/restaurante/mesas/${encodeURIComponent(tableId)}/detalle-v67`);
+    if(S.tableId!==tableId||detail.session?.id!==sessionId)throw new Error('La visita de la mesa cambió. Actualiza y revisa nuevamente.');
+    if(!detail.canCloseEmptyFromControlCenter)throw new Error('La mesa tiene productos o actividad asociada. Revisa su detalle en Mesas antes de cerrarla.');
+    await RV2.api(`/api/v1/restaurante/mesas/${encodeURIComponent(tableId)}/cerrar-vacia-v21`,{method:'POST',body:'{}'});
+    closed=true;table.activeSession=null;table.state='LIBRE';S.draft=null;renderAll();
+  }catch(error){notice(error.message||'No fue posible cerrar la mesa vacía.',true)}
+  finally{S.busy=false;if(button){button.disabled=false;button.textContent='CERRAR MESA VACÍA'}}
+  if(closed){await loadBase();notice(`${table.name||table.code} quedó LIBRE. La apertura vacía se cerró sin cobrar.`)}
+}
+function renderServiceControls(){const table=currentTable();if(!table){$('#serviceControls').innerHTML='';return}if(!table.activeSession){const req=requestForTable(table.id);$('#serviceControls').innerHTML=req?'<span><b>Cliente esperando</b> · solicitud desde QR</span><button id="openSelected" class="rv2-btn rv2-btn-primary">ABRIR MESA · CLIENTE ESPERANDO</button>':'<span>Mesa libre</span><button id="openSelected" class="rv2-btn rv2-btn-primary">Abrir mesa y tomar pedido</button>';$('#openSelected').onclick=openSelected;return}const count=Number(S.draft?.session?.guestCount||table.activeSession.guestCount||1);if(S.person&&S.person>count)S.person=null;$('#serviceControls').innerHTML=`<div class="people"><span>Personas:</span><button id="lessPerson" class="rv2-btn" aria-label="Quitar persona">−</button><strong>${count}</strong><button id="morePerson" class="rv2-btn" aria-label="Agregar persona">+</button></div><div class="person-targets" role="group" aria-label="Agregar productos para">${personTargetButtons(count,S.person)}</div>${adminEmptyCloseButton()}`;const closeEmpty=$('#adminCloseEmpty');if(closeEmpty)closeEmpty.onclick=closeAdminEmptyTable;$('#lessPerson').onclick=()=>changePeople(count-1);$('#morePerson').onclick=()=>changePeople(count+1);document.querySelectorAll('[data-person-target]').forEach(button=>button.onclick=()=>{S.person=button.dataset.personTarget?Number(button.dataset.personTarget):null;renderServiceControls();renderMenu()});}
 function categories(){return ['TODAS',...new Set(S.menu.map(x=>x.displayCategory||x.category||'MENÚ'))]}
 function renderCategories(){const node=$('#categories');node.innerHTML=categories().map(c=>`<button class="rv2-btn ${S.category===c?'rv2-btn-primary':''}" data-cat="${RV2.esc(c)}">${RV2.esc(c==='TODAS'?'Todo':c)}</button>`).join('');document.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>{S.category=b.dataset.cat;renderCategories();renderMenu()});}
 function filteredMenu(){const q=normalize(S.search);return S.menu.filter(item=>{const cat=item.displayCategory||item.category||'MENÚ';if(S.category!=='TODAS'&&cat!==S.category)return false;if(!q)return true;return normalize(`${item.product?.nombre||''} ${item.product?.descripcion||''} ${item.product?.sku||''} ${cat}`).includes(q)})}
