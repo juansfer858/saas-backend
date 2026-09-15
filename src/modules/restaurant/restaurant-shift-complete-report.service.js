@@ -46,6 +46,23 @@ async function buildCompleteReport(tenantId, base, client) {
     where:{ tenantId, id:{ in:saleIds }, tipo:'FACTURA_VENTA' }, include:{ detalles:true, tercero:{ select:{ nombre:true } } }
   }) : [];
   const saleMap = new Map(sales.map(s => [s.id,s]));
+  // Full cash sales post directly to Treasury; split/credit payments use Pago.
+  // Their treasury documents differ, so collecting both sources does not count
+  // the Pago movement a second time.
+  const directSaleIds = sessions.filter(s => s.cashShiftId === shift.id ||
+    (s.closedByUserId === shift.userId && s.closedAt && new Date(s.closedAt) >= window.gte && new Date(s.closedAt) <= window.lte)).map(s=>s.saleId);
+  directSaleIds.push(...deliveries.filter(d=>d.createdByUserId === shift.userId).map(d=>d.saleId));
+  const directMovements = directSaleIds.length ? await client.movimientoTesoreria.findMany({
+    where:{ tenantId, comprobanteId:{in:directSaleIds}, tipo:'INGRESO', creadoEn:window, comprobante:{estado:{not:'ANULADO'}} },
+    include:{cajaBanco:{select:{nombre:true}}}, orderBy:{creadoEn:'asc'}
+  }) : [];
+  for (const m of directMovements) {
+    const sale = saleMap.get(m.comprobanteId);
+    const s = sessions.find(s=>s.saleId === m.comprobanteId);
+    collections.push({id:m.id,saleId:m.comprobanteId,saleNumber:sale?.numero,customerId:sale?.terceroId,
+      method:s?.paymentMethodKind || sale?.formaPago || 'OTROS',account:m.cajaBanco.nombre,amount:value(m.monto),
+      at:iso(m.creadoEn),userId:shift.userId,priorInvoice:false,source:'TESORERIA_DIRECTA',concept:m.concepto});
+  }
   const ownSales = new Set(sessions.filter(s => s.cashShiftId === shift.id && s.state === 'CERRADA').map(s => s.saleId));
   const emitted = sales.filter(s => s.estado !== 'BORRADOR' && s.estado !== 'ANULADO' && (ownSales.has(s.id) ||
     (s.creadoPorId === shift.userId && s.emitidoEn && new Date(s.emitidoEn) >= window.gte && new Date(s.emitidoEn) <= window.lte)));

@@ -740,7 +740,7 @@ function pdfSpec(tenant, report) {
   rows.push(row('RESUMEN', '', 'Estado', '', '', report.status));
   rows.push(row('RESUMEN', '', 'Turnos', '', report.shiftCount || 1, ''));
   rows.push(row('CONCILIACIÓN', '', 'Valor facturado', '', report.totals?.tickets || 0, number(report.totals?.billedValue)));
-  rows.push(row('CONCILIACIÓN', '', 'Valor recaudado / liquidado', '', report.totals?.accountsCharged || 0, number(report.totals?.settledValue)));
+  rows.push(row('CONCILIACIÓN', '', 'Cuentas liquidadas (incluye crédito)', '', report.totals?.accountsCharged || 0, number(report.totals?.settledValue)));
   rows.push(row('CONCILIACIÓN', '', 'Diferencia operativa', '', '', number(report.totals?.difference)));
   rows.push(row('PRODUCCIÓN', 'COCINA', 'Platos entregados', '', report.production?.COCINA?.deliveredItems || 0, number(report.production?.COCINA?.value)));
   rows.push(row('PRODUCCIÓN', 'BARRA', 'Ítems entregados', '', report.production?.BARRA?.deliveredItems || 0, number(report.production?.BARRA?.value)));
