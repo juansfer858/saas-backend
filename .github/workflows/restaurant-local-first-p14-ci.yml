@@ -29,6 +29,9 @@ jobs:
       - name: Validate loopback and private LAN runtime contract
         run: node scripts/restaurant-local-first-p14-runtime-config-smoke.js
 
+      - name: Validate canonical read-only runtime shell
+        run: node scripts/restaurant-local-first-p14-runtime-shell-smoke.js
+
       - name: Assert production remains opt-in and isolated
         shell: bash
         run: |
@@ -39,6 +42,8 @@ jobs:
           grep -Fq "RESTAURANT_LOCAL_FIRST_P14_ENABLED" src/modules/restaurant/restaurant-local-first-p14-gate.js
           grep -Fq "productionEdgePort: 8788" lab/restaurant-p14/runtime-config.js
           grep -Fq "P14_SYNC_ENABLED debe permanecer false" lab/restaurant-p14/runtime-config.js
+          grep -Fq "allOperationalMutations: 'LOCKED_UNTIL_P14_1A_PASSES'" lab/restaurant-p14/runtime.js
+          grep -Fq "publicQrPolicy: 'CORE_CLOUD_ONLY'" lab/restaurant-p14/runtime.js
           if grep -R "require(.*restaurant-local-first-p14-gate" src/app.js src/routes src/modules/restaurant/*.routes.js 2>/dev/null; then
             echo 'El gate P14 no puede estar conectado todavía al runtime productivo.' >&2
             exit 1
