@@ -193,6 +193,16 @@ async function main() {
   assert.equal(row.active, false);
   assert.equal(row.currentStatus, 'REVOKED');
 
+  const sameQr = await device.createPairing(tenant.id, admin.id, { userId:waiter.id });
+  assert.equal(sameQr.url, pairing.url, 'Ver QR debe conservar el enlace');
+  const rotated = await device.createPairing(tenant.id, admin.id, { userId:waiter.id, rotate:true });
+  assert.notEqual(rotated.url, pairing.url, 'Cambiar QR debe rotar el secreto');
+  await rejectsCode(device.inspectPairing(rawToken), 'RESTAURANT_WAITER_PAIRING_EXPIRED');
+  await rejectsCode(device.claimPairing(rawToken), 'RESTAURANT_WAITER_PAIRING_EXPIRED');
+  const newToken = new URL(rotated.url).searchParams.get('t');
+  assert.equal((await device.inspectPairing(newToken)).expiresAt, null);
+  assert.equal((await device.claimPairing(newToken, {deviceName:'Tablet nuevo QR'})).persistent, true);
+  assert.equal(await device.assertActiveDevice(secondClaim.deviceId, tenant.id, waiter.id), true);
   const deviceAudits = await prisma.notificationAudit.findMany({
     where: { tenantId: tenant.id, entity: 'RestaurantWaiterDevice' },
     orderBy: { creadoEn:'asc' }

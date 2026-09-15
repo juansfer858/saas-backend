@@ -60,7 +60,7 @@
       const selectedWaiter = String(preselectedUserId || '');
       if (selectedWaiter && waiters.some((user) => user.id === selectedWaiter)) dialog.querySelector('#wdWaiter').value = selectedWaiter;
       dialog.querySelector('[data-wd-close]')?.addEventListener('click', () => dialog.close?.());
-      dialog.querySelector('#wdGenerate')?.addEventListener('click', async () => {
+      const generatePairing = async (rotate = false) => {
         const userId = dialog.querySelector('#wdWaiter')?.value;
         const deviceName = dialog.querySelector('#wdDeviceName')?.value || 'Tablet Mesero';
         const result = dialog.querySelector('#wdPairResult');
@@ -68,11 +68,31 @@
         const button = dialog.querySelector('#wdGenerate');
         button.disabled = true; button.textContent = 'Cargando…';
         try {
-          const data = await api('/api/v1/restaurante/dispositivos-mesero/vinculo', { method:'POST', body:JSON.stringify({ userId, deviceName }) });
+          const data = await api('/api/v1/restaurante/dispositivos-mesero/vinculo', { method:'POST', body:JSON.stringify({ userId, deviceName, rotate }) });
           result.innerHTML = `<div style="margin-top:14px;padding:14px;border:1px solid #bfdbfe;border-radius:14px;background:#eff6ff"><div style="display:grid;grid-template-columns:minmax(210px,300px) 1fr;gap:16px;align-items:center"><div style="background:#fff;border-radius:12px;padding:8px">${data.svg}</div><div><b style="font-size:18px">QR reutilizable de ${esc(data.waiter?.nombre || 'Mesero')}</b><p style="margin:6px 0;color:#334155">Puedes escanear este mismo QR desde varias tablets o celulares. No vence por uso y no se consume al vincular un equipo. Cada dispositivo aparece abajo y puede desautorizarse de manera independiente.</p><a class="ri-btn" href="${esc(data.url)}" target="_blank" rel="noopener">Abrir enlace de vinculación</a></div></div></div>`;
+          const actions = document.createElement('div');
+          actions.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:12px';
+          const message = document.createElement('p');
+          message.textContent = 'Piloto: comparte este acceso con los meseros. No tiene vencimiento automático. Todos los pedidos se registrarán a nombre del mesero seleccionado.';
+          const share = document.createElement('button');
+          share.type = 'button'; share.className = 'ri-btn'; share.textContent = 'Compartir enlace';
+          share.onclick = async () => {
+            try {
+              if (navigator.share) await navigator.share({ title:'Acceso Mesero', url:data.url });
+              else { await navigator.clipboard.writeText(data.url); share.textContent = 'Enlace copiado'; }
+            } catch (error) { if (error.name !== 'AbortError') message.textContent = 'Copia el enlace desde Abrir enlace de vinculación.'; }
+          };
+          const change = document.createElement('button');
+          change.type = 'button'; change.className = 'ri-btn danger'; change.textContent = 'Cambiar QR';
+          change.onclick = async () => {
+            if (!confirm('¿Cambiar este QR? El enlace anterior dejará de vincular nuevos equipos. Los equipos ya vinculados conservarán el acceso; puedes desautorizarlos por separado.')) return;
+            change.disabled = true; await generatePairing(true);
+          };
+          actions.append(share, change); result.append(message, actions);
         } catch (error) { result.innerHTML = `<div class="ri-error" style="margin-top:12px">${esc(error.message)}</div>`; }
         finally { button.disabled = false; button.textContent = 'Ver QR'; }
-      });
+      };
+      dialog.querySelector('#wdGenerate')?.addEventListener('click', () => generatePairing());
       dialog.querySelectorAll('[data-wd-revoke]').forEach((button) => button.addEventListener('click', async () => {
         if (!confirm('¿Desautorizar sólo este dispositivo? Los demás equipos del mesero seguirán conectados.')) return;
         button.disabled = true;
