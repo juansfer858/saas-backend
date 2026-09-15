@@ -6,6 +6,8 @@ const {
   isPrivateIpv4,
   parsePrivateCidr,
   cidrContains,
+  normalizeRemoteAddress,
+  isAllowedClientAddress,
   assertRestaurantP14RuntimeConfig
 } = require('../lab/restaurant-p14/runtime-config');
 
@@ -23,7 +25,6 @@ const baseEnv = Object.freeze({
   P14_LAN_CIDR: '',
   DATABASE_URL: 'postgresql://vantix_p14:test-only@127.0.0.1:55432/vantix_p14_home_pilot',
   P14_JWT_SECRET: 'p14-test-only-jwt-secret-longer-than-32-characters',
-  P14_ADMIN_PASSWORD: 'P14-Test-Only-Password',
   P14_CORE_URL: 'https://core.vantixgc.com',
   P14_SYNC_ENABLED: 'false'
 });
@@ -60,6 +61,9 @@ function main() {
   assert.equal(parsePrivateCidr('8.8.8.0/24'), null);
   assert.equal(parsePrivateCidr('192.168.1.0/99'), null);
 
+  assert.equal(normalizeRemoteAddress('::1'), '127.0.0.1');
+  assert.equal(normalizeRemoteAddress('::ffff:192.168.1.80'), '192.168.1.80');
+
   const loopback = assertRestaurantP14RuntimeConfig(env());
   assert.equal(loopback.marker, 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT');
   assert.equal(loopback.pilot.enabled, true);
@@ -71,14 +75,15 @@ function main() {
     port: 55432,
     database: 'vantix_p14_home_pilot'
   });
-  assert.deepEqual(loopback.security, {
-    jwtSecretConfigured: true,
-    adminPasswordConfigured: true
-  });
+  assert.deepEqual(loopback.security, { jwtSecretConfigured: true });
   assert.equal('jwtSecret' in loopback.security, false);
   assert.equal('adminPassword' in loopback.security, false);
+  assert.equal('adminPasswordConfigured' in loopback.security, false);
   assert.equal(loopback.core.syncEnabled, false);
   assert.equal(loopback.productionEdgePortUntouched, 8788);
+  assert.equal(isAllowedClientAddress(loopback, '127.0.0.1'), true);
+  assert.equal(isAllowedClientAddress(loopback, '::1'), true);
+  assert.equal(isAllowedClientAddress(loopback, '192.168.1.80'), false);
 
   const lan = assertRestaurantP14RuntimeConfig(env({
     P14_LAN_ENABLED: 'true',
@@ -91,6 +96,13 @@ function main() {
   assert.equal(lan.http.advertiseHost, '192.168.1.50');
   assert.equal(lan.http.localUrl, 'http://192.168.1.50:8790');
   assert.equal(lan.http.lanCidr.raw, '192.168.1.0/24');
+  assert.equal(isAllowedClientAddress(lan, '::ffff:192.168.1.80'), true);
+  assert.equal(isAllowedClientAddress(lan, '192.168.2.80'), false);
+  assert.equal(isAllowedClientAddress(lan, '8.8.8.8'), false);
+
+  // La contraseña inicial sólo pertenece al bootstrap. El runtime no debe
+  // necesitarla ni conservarla para poder arrancar después.
+  assert.equal(assertRestaurantP14RuntimeConfig(env({ P14_ADMIN_PASSWORD: '' })).pilot.enabled, true);
 
   mustFail({ RESTAURANT_LOCAL_FIRST_P14_ENABLED: 'false' }, 'FEATURE_FLAG_DISABLED');
   mustFail({ P14_RUNTIME_ENABLED: 'false' }, 'P14_RUNTIME_ENABLED=true');
@@ -107,7 +119,6 @@ function main() {
   mustFail({ P14_SYNC_ENABLED: 'true' }, 'debe permanecer false');
   mustFail({ P14_CORE_URL: 'https://otro-core.example.com' }, 'Core debe ser https://core.vantixgc.com');
   mustFail({ P14_JWT_SECRET: 'short' }, 'P14_JWT_SECRET debe tener al menos 32 caracteres');
-  mustFail({ P14_ADMIN_PASSWORD: 'short' }, 'P14_ADMIN_PASSWORD debe tener al menos 12 caracteres');
   mustFail({ P14_LAN_ENABLED: 'true', P14_BIND_HOST: '127.0.0.1' }, 'P14_BIND_HOST debe ser 0.0.0.0');
   mustFail({
     P14_LAN_ENABLED: 'true',
