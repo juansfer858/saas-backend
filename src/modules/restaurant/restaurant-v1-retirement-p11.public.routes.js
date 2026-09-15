@@ -24,6 +24,7 @@ router.get('/app/centro-de-control-v2', (_req, res) => send(res, 'restaurant-v2-
 router.get('/app/restaurant-v2-native-control-p11.js', (_req, res) => send(res, 'restaurant-v2-native-control-p11.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-native-control-p11.css', (_req, res) => send(res, 'restaurant-v2-native-control-p11.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-hybrid-status-v84.css', (_req, res) => send(res, 'restaurant-v2-hybrid-status-v84.css', 'text/css; charset=utf-8'));
+router.get('/app/restaurant-v2-hybrid-p13-detector-v1.js', (_req, res) => send(res, 'restaurant-v2-hybrid-p13-detector-v1.js', 'application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-sidebar-purple-v15.css', (_req, res) => send(res, 'restaurant-v2-sidebar-purple-v15.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-sidebar-super-core-v16.css', (_req, res) => send(res, 'restaurant-v2-sidebar-super-core-v16.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-sidebar-graphite-v17.css', (_req, res) => send(res, 'restaurant-v2-sidebar-graphite-v17.css', 'text/css; charset=utf-8'));
