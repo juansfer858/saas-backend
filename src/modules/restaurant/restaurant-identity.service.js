@@ -395,7 +395,7 @@ async function sendWaiterDraft(tenantId, user, sessionId, options = {}) {
     if (!ctx.order) throw new AppError(409, 'No hay pedido en curso para enviar', 'RESTAURANT_DRAFT_ORDER_NOT_FOUND');
     const items = await tx.restaurantOrderItem.findMany({ where: { tenantId, orderId: ctx.order.id }, orderBy: { creadoEn: 'asc' } });
     if (!items.length) throw new AppError(409, 'Agregue al menos un ítem antes de enviar', 'RESTAURANT_DRAFT_ORDER_EMPTY');
-    if (ctx.session.billingMode === 'INDIVIDUAL') {
+    if (ctx.session.billingMode === 'INDIVIDUAL' && options.optionalSeat !== true) {
       const invalid = items.find((item) => !Number.isInteger(Number(item.seatNumber)) || Number(item.seatNumber) < 1 || Number(item.seatNumber) > Number(ctx.session.guestCount));
       if (invalid) throw new AppError(409, 'Asigna cada producto a una persona antes de enviarlo.', 'RESTAURANT_INDIVIDUAL_ITEM_UNASSIGNED');
     }
