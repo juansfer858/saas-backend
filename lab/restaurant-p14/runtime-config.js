@@ -37,6 +37,11 @@ function isPrivateIpv4(value) {
   return parts[0] === 192 && parts[1] === 168;
 }
 
+function ipv4ToInt(value) {
+  if (net.isIP(value) !== 4) return null;
+  return value.split('.').map(Number).reduce((result, part) => ((result << 8) | part) >>> 0, 0);
+}
+
 function parsePrivateCidr(value) {
   const raw = normalize(value);
   const match = raw.match(/^([^/]+)\/(\d{1,2})$/);
@@ -45,6 +50,14 @@ function parsePrivateCidr(value) {
   if (!Number.isInteger(prefix) || prefix < 8 || prefix > 32) return null;
   if (!isPrivateIpv4(match[1])) return null;
   return Object.freeze({ raw, network: match[1], prefix });
+}
+
+function cidrContains(cidr, ip) {
+  if (!cidr || net.isIP(ip) !== 4) return false;
+  const networkInt = ipv4ToInt(cidr.network);
+  const ipInt = ipv4ToInt(ip);
+  const mask = cidr.prefix === 0 ? 0 : (0xffffffff << (32 - cidr.prefix)) >>> 0;
+  return (networkInt & mask) === (ipInt & mask);
 }
 
 function parseLocalDatabase(databaseUrl) {
@@ -88,7 +101,10 @@ function assertRuntimeSecrets(env) {
     throw new Error('P14 bloqueado: P14_ADMIN_PASSWORD debe tener al menos 12 caracteres.');
   }
 
-  return Object.freeze({ jwtSecret, adminPassword });
+  return Object.freeze({
+    jwtSecretConfigured: true,
+    adminPasswordConfigured: true
+  });
 }
 
 function assertRestaurantP14RuntimeConfig(env = process.env) {
@@ -127,6 +143,9 @@ function assertRestaurantP14RuntimeConfig(env = process.env) {
     if (!lanCidr) {
       throw new Error('P14 bloqueado: P14_LAN_CIDR debe ser una subred IPv4 privada válida, por ejemplo 192.168.1.0/24.');
     }
+    if (!cidrContains(lanCidr, advertiseHost)) {
+      throw new Error(`P14 bloqueado: ${advertiseHost} no pertenece a la subred permitida ${lanCidr.raw}.`);
+    }
   } else {
     if (!LOOPBACK_HOSTS.has(bindHost)) {
       throw new Error(`P14 bloqueado: sin LAN activa, P14_BIND_HOST debe ser loopback; recibido ${bindHost}.`);
@@ -144,7 +163,7 @@ function assertRestaurantP14RuntimeConfig(env = process.env) {
   }
 
   const database = parseLocalDatabase(env.DATABASE_URL);
-  const secrets = assertRuntimeSecrets(env);
+  const security = assertRuntimeSecrets(env);
 
   return Object.freeze({
     marker: P14_RUNTIME_CONTRACT.marker,
@@ -163,7 +182,7 @@ function assertRestaurantP14RuntimeConfig(env = process.env) {
     }),
     database,
     core: Object.freeze({ url: coreUrl, syncEnabled: false }),
-    secrets,
+    security,
     productionEdgePortUntouched: P14_RUNTIME_CONTRACT.productionEdgePort
   });
 }
@@ -174,7 +193,9 @@ module.exports = {
   LAN_BIND_HOST,
   truthy,
   isPrivateIpv4,
+  ipv4ToInt,
   parsePrivateCidr,
+  cidrContains,
   parseLocalDatabase,
   assertRestaurantP14RuntimeConfig
 };
