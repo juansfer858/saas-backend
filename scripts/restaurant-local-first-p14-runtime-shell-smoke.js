@@ -12,6 +12,7 @@ const {
   mutationBoundaryForRequest,
   isAllowedOutboundTarget,
   localLoginHtml,
+  installClientNetworkBoundary,
   installPilotBoundary
 } = require('../lab/restaurant-p14/runtime');
 
@@ -57,10 +58,13 @@ function responseRecorder() {
 function runBoundary(middleware, request) {
   const response = responseRecorder();
   let nextCalls = 0;
+  const remoteAddress = request.remoteAddress || '127.0.0.1';
   middleware({
     method: request.method || 'GET',
     path: request.path || '/',
-    headers: request.headers || {}
+    headers: request.headers || {},
+    ip: remoteAddress,
+    socket: { remoteAddress }
   }, response, () => { nextCalls += 1; });
   return { response, nextCalls };
 }
@@ -107,9 +111,43 @@ function main() {
   assert.doesNotMatch(html, /p14-test-only-jwt-secret/);
   assert.doesNotMatch(html, /P14-Test-Only-Password/);
 
+  const networkBoundary = installClientNetworkBoundary(config);
+
+  let result = runBoundary(networkBoundary, {
+    method: 'GET',
+    path: '/__p14/status',
+    remoteAddress: '127.0.0.1'
+  });
+  assert.equal(result.nextCalls, 1);
+
+  result = runBoundary(networkBoundary, {
+    method: 'GET',
+    path: '/app',
+    remoteAddress: '::ffff:192.168.1.80'
+  });
+  assert.equal(result.nextCalls, 1);
+
+  result = runBoundary(networkBoundary, {
+    method: 'GET',
+    path: '/app',
+    remoteAddress: '192.168.2.80'
+  });
+  assert.equal(result.nextCalls, 0);
+  assert.equal(result.response.statusCode, 403);
+  assert.equal(result.response.body.code, 'P14_LAN_CLIENT_DENIED');
+
+  result = runBoundary(networkBoundary, {
+    method: 'GET',
+    path: '/app',
+    remoteAddress: '8.8.8.8'
+  });
+  assert.equal(result.nextCalls, 0);
+  assert.equal(result.response.statusCode, 403);
+  assert.equal(result.response.body.code, 'P14_LAN_CLIENT_DENIED');
+
   const boundary = installPilotBoundary(config);
 
-  let result = runBoundary(boundary, {
+  result = runBoundary(boundary, {
     method: 'GET',
     path: '/app/restaurante-v2/mesas',
     headers: { 'x-tenant-subdomain': 'demo-restaurante' }
