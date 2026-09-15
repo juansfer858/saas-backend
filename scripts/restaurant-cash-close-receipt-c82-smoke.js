@@ -108,7 +108,7 @@ assert.match(routes, /restaurantShiftCloseHistoryC86Router/);
 assert.doesNotMatch(routes, /queueShiftCloseIntent\(req\.tenantId, shiftId\)/, 'cerrar turno no debe gastar papel automáticamente');
 
 const c86Runtime = fs.readFileSync('src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js', 'utf8');
-assert.match(c86Runtime, /posReceiptPrint\.queueShiftCloseIntent\(tenantId, shiftId, client\)/, 'la impresión explícita debe reutilizar el outbox C82');
+assert.match(c86Runtime, /posReceiptPrint\.queueShiftCloseIntent\(tenantId, shiftId, client, saved\)/, 'la impresión explícita debe reutilizar el outbox C82');
 assert.match(c86Runtime, /PRINT_ACTION/);
 
 const printService = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
@@ -132,3 +132,4 @@ console.log('RESTAURANT CASH CLOSE RECEIPT C82 SMOKE OK', JSON.stringify({
   sameExistingPosOutbox:true,
   edgeUntouched:true
 }));
+

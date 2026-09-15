@@ -17,6 +17,7 @@ function parse(schema, value) {
 
 const pairingSchema = z.object({
   userId: z.string().uuid(),
+  rotate: z.boolean().optional(),
   deviceName: z.string().trim().max(80).optional().nullable()
 });
 

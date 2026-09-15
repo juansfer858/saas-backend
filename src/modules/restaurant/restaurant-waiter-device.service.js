@@ -95,7 +95,7 @@ async function createPairing(tenantId, createdByUserId, input) {
     let enrollment = await tx.trackingLink.findUnique({
       where:{ tenantId_originType_originId:{ tenantId, originType:ENROLLMENT_ORIGIN_TYPE, originId:waiter.id } }
     });
-    let data = reusableEnrollmentData(enrollment);
+    let data = input.rotate === true ? null : reusableEnrollmentData(enrollment);
     if (data) {
       let primary = data.primaryDeviceId ? await tx.trackingLink.findFirst({ where:{ id:data.primaryDeviceId, tenantId, originType:ORIGIN_TYPE } }) : null;
       if (!primary) {
