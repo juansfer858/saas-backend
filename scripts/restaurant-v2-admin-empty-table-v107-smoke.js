@@ -71,6 +71,9 @@ async function database(){
     await identity.setWaiterDraftItem(demo.tenantId,waiter,again.session.id,menu.id,1,null,opts);
     await assert.rejects(live.closeEmptyFromControlCenter(demo.tenantId,admin,table.id),e=>e.code==='RESTAURANT_CONTROL_CENTER_EMPTY_CLOSE_HAS_PRODUCTS');
     assert.ok(await prisma.restaurantTableSession.findUnique({where:{id:again.session.id}}));
+    // Leave no active test visit for the other scripts sharing this CI database.
+    await identity.setWaiterDraftItem(demo.tenantId,waiter,again.session.id,menu.id,0,null,opts);
+    await live.closeEmptyFromControlCenter(demo.tenantId,admin,table.id);
   }finally{await prisma.$disconnect()}
 }
 ui().then(()=>process.argv.includes('--ui-only')?null:database()).then(()=>console.log('V107 admin empty table: OK')).catch(e=>{console.error(e);process.exitCode=1});
