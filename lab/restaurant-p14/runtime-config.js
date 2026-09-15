@@ -60,6 +60,20 @@ function cidrContains(cidr, ip) {
   return (networkInt & mask) === (ipInt & mask);
 }
 
+function normalizeRemoteAddress(value) {
+  const raw = normalize(value).toLowerCase();
+  if (raw === '::1') return '127.0.0.1';
+  if (raw.startsWith('::ffff:')) return raw.slice(7);
+  return raw;
+}
+
+function isAllowedClientAddress(config, remoteAddress) {
+  const address = normalizeRemoteAddress(remoteAddress);
+  if (address === '127.0.0.1') return true;
+  if (!config?.http?.lanEnabled) return false;
+  return net.isIP(address) === 4 && cidrContains(config.http.lanCidr, address);
+}
+
 function parseLocalDatabase(databaseUrl) {
   let parsed;
   try {
@@ -196,6 +210,8 @@ module.exports = {
   ipv4ToInt,
   parsePrivateCidr,
   cidrContains,
+  normalizeRemoteAddress,
+  isAllowedClientAddress,
   parseLocalDatabase,
   assertRestaurantP14RuntimeConfig
 };
