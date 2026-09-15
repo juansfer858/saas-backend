@@ -112,6 +112,19 @@ async function main(){
     draft=await identity.getWaiterDraft(demo.tenantId,waiter,sessionId,V2_OPTIONS);
     assert.equal(draft.order.items.find(x=>x.id===first.id).notes,'sin cebolla');
 
+    // Load the production wrapper: direct service tests previously missed lost options.
+    require('../src/modules/edge/edge-restaurant-immediate-print-bridge');
+    assert.match(identity.sendWaiterDraft.name,/sendWaiterDraftWithImmediatePrint/);
+    await assert.rejects(
+      ()=>identity.sendWaiterDraft(demo.tenantId,waiter,sessionId),
+      error=>error.code==='RESTAURANT_WAITER_TABLE_FORBIDDEN',
+      'Legacy send must retain its assignment guard'
+    );
+    await assert.rejects(
+      ()=>identity.sendWaiterDraft(crypto.randomUUID(),waiter,sessionId,V2_OPTIONS),
+      error=>error.code==='RESTAURANT_SESSION_NOT_FOUND',
+      'Shared floor never permits cross-tenant access'
+    );
     const sent=await identity.sendWaiterDraft(demo.tenantId,waiter,sessionId,V2_OPTIONS);
     assert.equal(sent.state,'ENVIADO');
     assert.ok(sent.items.some(item=>item.seatNumber==null),'V2 puede enviar a producción un producto para TODOS sin asignarlo silenciosamente');

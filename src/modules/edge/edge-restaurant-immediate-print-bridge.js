@@ -72,8 +72,8 @@ function install() {
   // placeWaiterOrder() path so a command marked ENVIADO is physically dispatched.
   if (!identity[DRAFT_INSTALL_FLAG]) {
     const originalDraftSend = identity.sendWaiterDraft.bind(identity);
-    identity.sendWaiterDraft = async function sendWaiterDraftWithImmediatePrint(tenantId, user, sessionId) {
-      const order = await originalDraftSend(tenantId, user, sessionId);
+    identity.sendWaiterDraft = async function sendWaiterDraftWithImmediatePrint(tenantId, user, sessionId, options) {
+      const order = await originalDraftSend(tenantId, user, sessionId, options);
       try { await requestImmediatePrint(tenantId, order); } catch {}
       return order;
     };
