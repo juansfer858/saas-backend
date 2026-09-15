@@ -7,7 +7,7 @@
   <title>VantixGC Restaurante · QR y dispositivos V2</title>
   <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
   <link rel="stylesheet" href="/app/restaurant-v2-admin-parity.css">
-  <link rel="stylesheet" href="/app/restaurant-v2-hybrid-status-v84.css?v=v84">
+  <link rel="stylesheet" href="/app/restaurant-v2-hybrid-status-v84.css?v=v84-p13-v1">
 </head>
 <body data-rv2-module-header="true" data-rv2-module-title="AUTO_ADMIN">
   <header class="admin-top rv2-module-top">
@@ -65,7 +65,7 @@
           <div>
             <small>OPERACIÓN HÍBRIDA</small>
             <h2 id="hybridStateTitle">Estado local y nube</h2>
-            <p>La nube mantiene la operación por Internet. Edge aporta continuidad local y periféricos del restaurante cuando está disponible.</p>
+            <p>P13 es el motor local objetivo del restaurante. Edge se conserva temporalmente como respaldo heredado mientras terminamos la validación física y de reconexión.</p>
           </div>
           <span id="hybridStateBadge" class="hybrid-state-badge">COMPROBANDO</span>
         </div>
@@ -76,13 +76,18 @@
             <small id="hybridCloudDetail">Esta pantalla está conectada al Core.</small>
           </article>
           <article class="hybrid-state-card">
-            <span>Edge local</span>
+            <span>Motor local P13</span>
+            <strong id="hybridP13Status">Comprobando…</strong>
+            <small id="hybridP13Detail">Validando 127.0.0.1:8790 y el tenant de esta sesión.</small>
+          </article>
+          <article class="hybrid-state-card">
+            <span>Edge heredado</span>
             <strong id="hybridEdgeStatus">Comprobando…</strong>
-            <small id="hybridEdgeDetail">Consultando la instalación local.</small>
+            <small id="hybridEdgeDetail">Consultando el respaldo Edge existente.</small>
           </article>
         </div>
-        <div id="hybridStateMeta" class="hybrid-state-meta">Consultando telemetría Edge…</div>
-        <p class="hybrid-state-note">Este estado es informativo. Una desconexión de Edge no bloquea pedidos, caja ni la operación disponible por nube.</p>
+        <div id="hybridStateMeta" class="hybrid-state-meta">Comprobando P13 y telemetría Edge…</div>
+        <p class="hybrid-state-note">Fase informativa: esta pantalla todavía no cambia automáticamente el origen de operación. Una ausencia local no bloquea la operación disponible por nube.</p>
       </section>
 
       <section class="rv2-panel" id="edgeRepairPanel" aria-labelledby="edgeRepairTitle" style="padding:18px;display:grid;gap:12px">
@@ -131,6 +136,7 @@
 
   <script src="/app/restaurant-v2-sdk.js"></script>
   <script src="/app/restaurant-v2-admin-parity.js?v=hybrid-v84"></script>
+  <script src="/app/restaurant-v2-hybrid-p13-detector-v1.js?v=p13-detector-v1"></script>
   <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
 </body>
 </html>

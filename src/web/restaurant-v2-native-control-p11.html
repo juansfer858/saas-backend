@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>VantixGC Restaurante · Operación V2</title>
   <link rel="stylesheet" href="/app/restaurant-v2-native-control-p11.css?v=p11-hybrid-status-v84">
-  <link rel="stylesheet" href="/app/restaurant-v2-hybrid-status-v84.css?v=v84">
+  <link rel="stylesheet" href="/app/restaurant-v2-hybrid-status-v84.css?v=v84-p13-v1">
   <link rel="stylesheet" href="/app/restaurant-v2-sidebar-super-core-v16.css?v=v16">
   <link rel="stylesheet" href="/app/restaurant-v2-sidebar-graphite-v17.css?v=v17">
   <style>
@@ -28,8 +28,8 @@
     <main id="p11Main" class="p11-main">
       <button id="p11HybridStatus" class="p11-hybrid-status is-checking" type="button" aria-label="Abrir Estado local y nube en Dispositivos">
         <span class="p11-hybrid-dot" aria-hidden="true"></span>
-        <strong id="p11HybridLabel">HÍBRIDO · Comprobando Edge…</strong>
-        <small id="p11HybridDetail">Nube disponible · consultando acceso local</small>
+        <strong id="p11HybridLabel">LOCAL · Comprobando P13…</strong>
+        <small id="p11HybridDetail">Nube disponible · validando motor local y respaldo Edge</small>
         <span class="p11-hybrid-open" aria-hidden="true">Estado local y nube →</span>
       </button>
       <div id="p11Message" class="p11-message" hidden></div>
@@ -39,5 +39,6 @@
     </main>
   </div>
   <script src="/app/restaurant-v2-native-control-p11.js?v=p11-hybrid-status-v84"></script>
+  <script src="/app/restaurant-v2-hybrid-p13-detector-v1.js?v=p13-detector-v1"></script>
 </body>
 </html>

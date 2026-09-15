@@ -7,6 +7,7 @@ on:
       - 'src/web/restaurant-v2-native-control-p11.html'
       - 'src/web/restaurant-v2-native-control-p11.js'
       - 'src/web/restaurant-v2-hybrid-status-v84.css'
+      - 'src/web/restaurant-v2-hybrid-p13-detector-v1.js'
       - 'src/web/restaurant-v2-admin-parity.html'
       - 'src/web/restaurant-v2-admin-parity.js'
       - 'src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js'
@@ -18,6 +19,7 @@ on:
       - 'src/web/restaurant-v2-native-control-p11.html'
       - 'src/web/restaurant-v2-native-control-p11.js'
       - 'src/web/restaurant-v2-hybrid-status-v84.css'
+      - 'src/web/restaurant-v2-hybrid-p13-detector-v1.js'
       - 'src/web/restaurant-v2-admin-parity.html'
       - 'src/web/restaurant-v2-admin-parity.js'
       - 'src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js'
@@ -36,6 +38,7 @@ jobs:
       - name: Syntax
         run: |
           node --check src/web/restaurant-v2-native-control-p11.js
+          node --check src/web/restaurant-v2-hybrid-p13-detector-v1.js
           node --check src/web/restaurant-v2-admin-parity.js
           node --check src/modules/restaurant/restaurant-v1-retirement-p11.public.routes.js
           node --check scripts/restaurant-v2-hybrid-status-v84-smoke.js
@@ -78,28 +81,32 @@ jobs:
           grep -q '"phase":"READY"' /tmp/runtime.json
           grep -q "\"commit\":\"${GITHUB_SHA}\"" /tmp/runtime.json
 
-      - name: Verify hybrid status V84 assets in production
+      - name: Verify hybrid P13 detector assets in production
         shell: bash
         run: |
           set -euo pipefail
           curl -fsSL --max-time 20 -o /tmp/control.html 'https://core.vantixgc.com/app/centro-de-control-v2'
           grep -q 'id="p11HybridStatus"' /tmp/control.html
-          grep -q 'restaurant-v2-hybrid-status-v84.css?v=v84' /tmp/control.html
+          grep -q 'restaurant-v2-hybrid-status-v84.css?v=v84-p13-v1' /tmp/control.html
+          grep -q 'restaurant-v2-hybrid-p13-detector-v1.js?v=p13-detector-v1' /tmp/control.html
+          grep -q 'LOCAL · Comprobando P13' /tmp/control.html
 
-          curl -fsSL --max-time 20 -o /tmp/control.js 'https://core.vantixgc.com/app/restaurant-v2-native-control-p11.js?v=p11-hybrid-status-v84'
-          grep -q 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84' /tmp/control.js
-          grep -q '/api/v1/edge/installations' /tmp/control.js
-          grep -q 'HÍBRIDO · Edge sin conexión' /tmp/control.js
-          grep -q 'estado-local-nube' /tmp/control.js
+          curl -fsSL --max-time 20 -o /tmp/detector.js 'https://core.vantixgc.com/app/restaurant-v2-hybrid-p13-detector-v1.js?v=p13-detector-v1'
+          grep -q 'VANTIX_RESTAURANT_HYBRID_P13_DETECTOR_V1' /tmp/detector.js
+          grep -q 'VANTIX_RESTAURANT_FULL_LOCAL_P13_A' /tmp/detector.js
+          grep -q '127.0.0.1' /tmp/detector.js
+          grep -q '__p13/status' /tmp/detector.js
+          grep -q 'LOCAL P13 DISPONIBLE' /tmp/detector.js
+          grep -q 'LOCAL P13 NO DISPONIBLE' /tmp/detector.js
+          grep -q 'automaticFailover:false' /tmp/detector.js
 
           curl -fsSL --max-time 20 -o /tmp/devices.html 'https://core.vantixgc.com/app/restaurante-v2/dispositivos'
           grep -q 'id="estado-local-nube"' /tmp/devices.html
-          grep -q 'Estado local y nube' /tmp/devices.html
+          grep -q 'id="hybridP13Status"' /tmp/devices.html
+          grep -q 'Motor local P13' /tmp/devices.html
+          grep -q 'Edge heredado' /tmp/devices.html
+          grep -q 'todavía no cambia automáticamente el origen de operación' /tmp/devices.html
 
-          curl -fsSL --max-time 20 -o /tmp/admin.js 'https://core.vantixgc.com/app/restaurant-v2-admin-parity.js?v=hybrid-v84'
-          grep -q 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84' /tmp/admin.js
-          grep -q '/api/v1/edge/installations' /tmp/admin.js
-
-          curl -fsSL --max-time 20 -o /tmp/hybrid.css 'https://core.vantixgc.com/app/restaurant-v2-hybrid-status-v84.css?v=v84'
-          grep -q 'VANTIX_RESTAURANT_V2_HYBRID_STATUS_V84' /tmp/hybrid.css
-          echo 'PRODUCTION_RESTAURANT_V2_HYBRID_STATUS_V84_READY'
+          curl -fsSL --max-time 20 -o /tmp/hybrid.css 'https://core.vantixgc.com/app/restaurant-v2-hybrid-status-v84.css?v=v84-p13-v1'
+          grep -q 'grid-template-columns:repeat(3,minmax(0,1fr))' /tmp/hybrid.css
+          echo 'PRODUCTION_RESTAURANT_V2_HYBRID_P13_DETECTOR_READY'
