@@ -93,7 +93,91 @@ param(
   [string]$LanCidr = ""
 )
 $ErrorActionPreference = 'Stop'
+$DefaultHttpPort = 8790
+$DefaultPostgresPort = 55432
+$PhysicalHttpPort = 8791
+$PhysicalPostgresPort = 55433
 $Installer = Join-Path $PSScriptRoot 'lab\restaurant-p14\windows\install-p14-windows.ps1'
+
+function Stop-ExistingP14Installation {
+  foreach ($TaskName in @('VantixGC Restaurant P14 Watchdog','VantixGC Restaurant P14 Home Pilot')) {
+    try { Disable-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null } catch {}
+    try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue } catch {}
+  }
+
+  try {
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $_.ProcessId -ne $PID -and
+      (($_.ExecutablePath -and ([string]$_.ExecutablePath).StartsWith($InstallDir,[System.StringComparison]::OrdinalIgnoreCase)) -or
+       ($_.CommandLine -and ([string]$_.CommandLine).IndexOf($InstallDir,[System.StringComparison]::OrdinalIgnoreCase) -ge 0))
+    } | Where-Object { ([string]$_.Name) -ieq 'node.exe' } | ForEach-Object {
+      Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+  } catch {}
+
+  $PgCtl = Join-Path $InstallDir 'postgres\bin\pg_ctl.exe'
+  $PgData = Join-Path $InstallDir 'data\postgres'
+  if ((Test-Path -LiteralPath $PgCtl) -and (Test-Path -LiteralPath (Join-Path $PgData 'postmaster.pid'))) {
+    & $PgCtl -D $PgData -m fast -w -t 30 stop | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+      throw 'No fue posible detener el PostgreSQL P14 anterior antes de cambiar los puertos.'
+    }
+    $global:LASTEXITCODE = 0
+  }
+}
+
+function Assert-LocalPortFree([int]$Port,[string]$Purpose) {
+  $Listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+  if ($Listeners.Count -eq 0) { return }
+  $Owners = @()
+  foreach ($Listener in $Listeners) {
+    $Process = Get-CimInstance Win32_Process -Filter ("ProcessId = {0}" -f $Listener.OwningProcess) -ErrorAction SilentlyContinue
+    $Owners += if ($Process) { "PID=$($Process.ProcessId) $($Process.Name) $($Process.ExecutablePath)" } else { "PID=$($Listener.OwningProcess)" }
+  }
+  throw "No se puede instalar P14: el puerto $Port reservado para $Purpose ya está ocupado. $($Owners -join '; ')"
+}
+
+function Replace-PackageLiteral([string]$Path,[string]$Old,[string]$New) {
+  if (-not (Test-Path -LiteralPath $Path)) { throw "Paquete P14 incompleto: falta $Path" }
+  $Text = [System.IO.File]::ReadAllText($Path)
+  if ($Text.Contains($Old)) {
+    $Text = $Text.Replace($Old,$New)
+    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path,$Text,$Utf8NoBom)
+  }
+}
+
+function Prepare-P14PhysicalPorts {
+  Stop-ExistingP14Installation
+  Assert-LocalPortFree $PhysicalHttpPort 'el runtime HTTP P14'
+  Assert-LocalPortFree $PhysicalPostgresPort 'PostgreSQL P14'
+
+  $Files = @(
+    (Join-Path $PSScriptRoot 'lab\restaurant-p14\windows\install-p14-windows.ps1'),
+    (Join-Path $PSScriptRoot 'payload\app\lab\restaurant-p14\runtime-config.js'),
+    (Join-Path $PSScriptRoot 'payload\app\lab\restaurant-p14\.env.example'),
+    (Join-Path $PSScriptRoot 'payload\app\lab\restaurant-p14\README.md'),
+    (Join-Path $PSScriptRoot 'payload\app\lab\restaurant-p14\windows\install-p14-windows.ps1'),
+    (Join-Path $PSScriptRoot 'payload\ops\start-p14-windows.ps1'),
+    (Join-Path $PSScriptRoot 'payload\ops\watchdog-p14-windows.ps1'),
+    (Join-Path $PSScriptRoot 'payload\ops\uninstall-p14-windows.ps1'),
+    (Join-Path $PSScriptRoot 'package-manifest.json'),
+    (Join-Path $PSScriptRoot 'LEEME_PRIMERO.txt')
+  )
+  foreach ($File in $Files) {
+    Replace-PackageLiteral $File ([string]$DefaultHttpPort) ([string]$PhysicalHttpPort)
+    Replace-PackageLiteral $File ([string]$DefaultPostgresPort) ([string]$PhysicalPostgresPort)
+  }
+
+  $ExistingPostgresConfig = Join-Path $InstallDir 'data\postgres\postgresql.conf'
+  if (Test-Path -LiteralPath $ExistingPostgresConfig) {
+    Replace-PackageLiteral $ExistingPostgresConfig ([string]$DefaultPostgresPort) ([string]$PhysicalPostgresPort)
+  }
+
+  Write-Host "P14 usará HTTP $PhysicalHttpPort y PostgreSQL $PhysicalPostgresPort para no chocar con el laboratorio P13." -ForegroundColor Cyan
+}
+
+Prepare-P14PhysicalPorts
 & $Installer -InstallDir $InstallDir -AdminPassword $AdminPassword -EnableLan:$EnableLan -LanAddress $LanAddress -LanCidr $LanCidr
 exit $LASTEXITCODE
 '@
