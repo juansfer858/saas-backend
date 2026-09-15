@@ -4,6 +4,7 @@ const path = require('node:path');
 const {
   P14_RUNTIME_CONTRACT,
   LOOPBACK_HOSTS,
+  isAllowedClientAddress,
   assertRestaurantP14RuntimeConfig
 } = require('./runtime-config');
 
@@ -140,6 +141,18 @@ function localLoginHtml(config) {
 </html>`;
 }
 
+function installClientNetworkBoundary(config) {
+  return (req, res, next) => {
+    const remoteAddress = req?.socket?.remoteAddress || req?.ip || '';
+    if (isAllowedClientAddress(config, remoteAddress)) return next();
+    return res.status(403).json({
+      ok: false,
+      code: 'P14_LAN_CLIENT_DENIED',
+      message: 'Este dispositivo no pertenece a la red privada autorizada para el piloto.'
+    });
+  };
+}
+
 function installPilotBoundary(config) {
   return (req, res, next) => {
     res.set('X-VantixGC-P14-Pilot', P14_RUNTIME_CONTRACT.marker);
@@ -220,6 +233,7 @@ async function start(env = process.env) {
   const local = express();
   local.disable('x-powered-by');
   local.use(express.json({ limit: '256kb' }));
+  local.use(installClientNetworkBoundary(config));
 
   const sendLocalLogin = (_req, res) => {
     res.set('Cache-Control', 'no-store, max-age=0');
@@ -303,6 +317,7 @@ module.exports = {
   installOutboundNetworkGuard,
   escapeHtml,
   localLoginHtml,
+  installClientNetworkBoundary,
   installPilotBoundary,
   start
 };
