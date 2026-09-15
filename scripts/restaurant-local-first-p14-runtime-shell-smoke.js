@@ -88,6 +88,9 @@ function main() {
   assert.equal(isCentralSuperCoreUiPath('/app/restaurante-v2/mesas'), false);
 
   assert.equal(mutationBoundaryForRequest('POST', '/api/v1/auth/login'), 'AUTH_LOGIN');
+  assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/mesas/table-1/abrir'), 'TABLE_OPEN_P14_2A');
+  assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/mesas/table-1/cancelar-apertura-v67'), 'TABLE_EMPTY_CANCEL_P14_2A');
+  assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/mesas/table-1/pedir-cuenta'), null);
   assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/v2/caja/turno/abrir'), null);
   assert.equal(mutationBoundaryForRequest('PATCH', '/api/v1/restaurante/v2/kds/comandas/1'), null);
 
@@ -188,6 +191,22 @@ function main() {
   });
   assert.equal(result.nextCalls, 1);
   assert.equal(result.response.headers['x-vantixgc-p14-mutation-boundary'], 'AUTH_LOGIN');
+
+  result = runBoundary(boundary, {
+    method: 'POST',
+    path: '/api/v1/restaurante/mesas/table-1/abrir',
+    headers: { 'x-tenant-subdomain': 'demo-restaurante' }
+  });
+  assert.equal(result.nextCalls, 1);
+  assert.equal(result.response.headers['x-vantixgc-p14-mutation-boundary'], 'TABLE_OPEN_P14_2A');
+
+  result = runBoundary(boundary, {
+    method: 'POST',
+    path: '/api/v1/restaurante/mesas/table-1/cancelar-apertura-v67',
+    headers: { 'x-tenant-subdomain': 'demo-restaurante' }
+  });
+  assert.equal(result.nextCalls, 1);
+  assert.equal(result.response.headers['x-vantixgc-p14-mutation-boundary'], 'TABLE_EMPTY_CANCEL_P14_2A');
 
   result = runBoundary(boundary, {
     method: 'POST',
