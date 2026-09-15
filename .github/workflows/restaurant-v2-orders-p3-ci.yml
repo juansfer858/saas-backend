@@ -10,6 +10,8 @@ on:
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
+      - 'src/web/restaurant-v2-tables.js'
+      - 'scripts/restaurant-table-order-nav-v109-smoke.js'
       - 'src/web/restaurant-v2-person-buttons-v100.css'
       - 'scripts/restaurant-v2-admin-empty-table-v107-smoke.js'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
@@ -25,6 +27,8 @@ on:
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
+      - 'src/web/restaurant-v2-tables.js'
+      - 'scripts/restaurant-table-order-nav-v109-smoke.js'
       - 'src/web/restaurant-v2-person-buttons-v100.css'
       - 'scripts/restaurant-v2-admin-empty-table-v107-smoke.js'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
@@ -55,6 +59,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx prisma db push
+      - run: node scripts/restaurant-table-order-nav-v109-smoke.js
       - run: node scripts/restaurant-v2-admin-empty-table-v107-smoke.js
       - run: node scripts/restaurant-v2-orders-p3-db-smoke.js
       - run: node scripts/restaurant-v2-person-buttons-v100-smoke.js
@@ -82,6 +87,8 @@ jobs:
               grep -Fqi 'X-VantixGC-Restaurant-V2-Orders: p3-orders-independent' "$H"
               grep -Fq 'RESTAURANTE V2 · PEDIDOS' "$P"
               grep -Fq 'REVISAR PEDIDO' "$P"
+              grep -Fq 'VOLVER A MESAS' "$P"
+              grep -Fq 'VANTIX_RESTAURANT_TABLE_ORDER_NAV_V109' "$J"
               grep -Fq 'restaurant-v2-person-buttons-v100.css' "$P"
               grep -Fq 'VANTIX_RESTAURANT_V2_ORDERS_P3' "$J"
               grep -Fq 'VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81' "$J"
