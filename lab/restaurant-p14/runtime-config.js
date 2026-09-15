@@ -104,21 +104,13 @@ function parseLocalDatabase(databaseUrl) {
   return Object.freeze({ host, port, database });
 }
 
-function assertRuntimeSecrets(env) {
+function assertRuntimeSecurity(env) {
   const jwtSecret = normalize(env.P14_JWT_SECRET);
   if (jwtSecret.length < 32) {
     throw new Error('P14 bloqueado: P14_JWT_SECRET debe tener al menos 32 caracteres.');
   }
 
-  const adminPassword = normalize(env.P14_ADMIN_PASSWORD);
-  if (adminPassword.length < 12) {
-    throw new Error('P14 bloqueado: P14_ADMIN_PASSWORD debe tener al menos 12 caracteres.');
-  }
-
-  return Object.freeze({
-    jwtSecretConfigured: true,
-    adminPasswordConfigured: true
-  });
+  return Object.freeze({ jwtSecretConfigured: true });
 }
 
 function assertRestaurantP14RuntimeConfig(env = process.env) {
@@ -177,7 +169,7 @@ function assertRestaurantP14RuntimeConfig(env = process.env) {
   }
 
   const database = parseLocalDatabase(env.DATABASE_URL);
-  const security = assertRuntimeSecrets(env);
+  const security = assertRuntimeSecurity(env);
 
   return Object.freeze({
     marker: P14_RUNTIME_CONTRACT.marker,
@@ -213,5 +205,6 @@ module.exports = {
   normalizeRemoteAddress,
   isAllowedClientAddress,
   parseLocalDatabase,
+  assertRuntimeSecurity,
   assertRestaurantP14RuntimeConfig
 };
