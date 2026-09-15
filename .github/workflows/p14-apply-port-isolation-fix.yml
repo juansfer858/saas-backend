@@ -45,15 +45,23 @@ jobs:
           grep -Fq "P14_P13_PORT_COEXISTENCE_OK" .github/workflows/restaurant-p14-windows-package.yml
           grep -Fq "p14-win-home-pilot.2-port-isolated" scripts/restaurant-p14-build-windows-package.ps1
 
-      - name: Commit isolated ports to pilot branch
+      - name: Export generated workflow files
+        uses: actions/upload-artifact@v4
+        with:
+          name: p14-port-isolated-workflows
+          path: |
+            .github/workflows/restaurant-local-first-p14-ci.yml
+            .github/workflows/restaurant-p14-windows-package.yml
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Commit non-workflow P14 isolation changes
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/restaurant-local-first-p14-ci.yml \
-                  .github/workflows/restaurant-p14-windows-package.yml \
-                  docs/RESTAURANT_LOCAL_FIRST_P14_PILOT.md \
+          git add docs/RESTAURANT_LOCAL_FIRST_P14_PILOT.md \
                   lab/restaurant-p14 \
                   scripts/restaurant-local-first-p14-runtime-config-smoke.js \
                   scripts/restaurant-local-first-p14-runtime-shell-smoke.js \
