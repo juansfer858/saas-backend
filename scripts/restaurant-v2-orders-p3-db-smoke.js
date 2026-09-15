@@ -29,6 +29,10 @@ async function main(){
   assert.match(uiSource,/function mergeItemResult/);
   assert.match(uiSource,/ENVIANDO PEDIDO/);
   assert.match(uiSource,/VANTIX_RESTAURANT_V2_TABLET_SEND_RACE_V105/);
+  assert.match(uiSource,/VANTIX_RESTAURANT_V2_SEND_TODOS_V106/);
+  assert.match(uiSource,/function reviewError/,'el rechazo debe verse dentro del diálogo de revisión');
+  assert.match(routeSource,/optionalSeat:true/,'Pedidos V2 conserva persona opcional');
+  assert.match(fs.readFileSync('src/modules/restaurant/restaurant-identity.service.js','utf8'),/options\.optionalSeat !== true/,'V1 sigue estricto y sólo V2 admite TODOS al enviar');
   assert.match(uiSource,/async function waitUntilIdle/,'el envío debe esperar mutaciones iniciadas por blur/change en tablet');
   assert.match(uiSource,/S\.sending/,'el envío debe tener un bloqueo independiente contra doble toque');
   const setProductSource=between(uiSource,'async function setProduct','async function changeQtyByItem');
@@ -80,9 +84,10 @@ async function main(){
     assert.equal(occupied.activeSession.sale?.numero,opened.sale.numero);
     assert.ok(occupied.activeSession.sale?.creadoEn instanceof Date,'la fecha real disponible debe venir de creadoEn');
 
-    const peopleResult=await identity.updateTableServiceSetup(demo.tenantId,waiter,sessionId,{guestCount:2},V2_OPTIONS);
+    const peopleResult=await identity.updateTableServiceSetup(demo.tenantId,waiter,sessionId,{guestCount:2,billingMode:'INDIVIDUAL'},V2_OPTIONS);
     assert.equal(Number(peopleResult.session.guestCount),2,'PATCH personas devuelve sesión utilizable sin recarga global');
     assert.equal(Number(peopleResult.service.guestCount),2,'PATCH personas devuelve resumen utilizable sin recarga global');
+    assert.equal(peopleResult.session.billingMode,'INDIVIDUAL','la regresión se prueba sobre cuenta individual real');
     const menu=await base.listMenu(demo.tenantId);
     const usable=menu.filter(x=>!x.warning&&x.product).slice(0,2);
     assert.equal(usable.length,2);
@@ -95,7 +100,8 @@ async function main(){
     assert.ok(draft.order?.id);
     assert.equal(draft.service.seats[0].items.length,1,'producto opcionalmente asignado a Persona 1');
     assert.equal(draft.service.unassigned.items.length,1,'producto puede seguir perteneciendo a la mesa');
-    assert.equal(draft.service.billingMode,'CONJUNTA');
+    assert.equal(draft.service.billingMode,'INDIVIDUAL');
+    assert.equal(draft.service.unassigned.items.length,1,'TODOS permanece sin persona en cuenta individual V2');
     assert.equal(draft.order.state,'BORRADOR','agregar productos no puede enviar a cocina');
     assert.equal(await prisma.restaurantCommand.count({where:{tenantId:demo.tenantId,orderId:draft.order.id}}),0,'no hay comanda antes de confirmar');
 
@@ -108,6 +114,7 @@ async function main(){
 
     const sent=await identity.sendWaiterDraft(demo.tenantId,waiter,sessionId,V2_OPTIONS);
     assert.equal(sent.state,'ENVIADO');
+    assert.ok(sent.items.some(item=>item.seatNumber==null),'V2 puede enviar a producción un producto para TODOS sin asignarlo silenciosamente');
     assert.ok(sent.commands.length>=1,'confirmar crea comandas reales');
     assert.ok(Number((await prisma.comprobanteComercial.findUnique({where:{id:saleId}})).total)>0,'venta borrador conserva total real');
 
