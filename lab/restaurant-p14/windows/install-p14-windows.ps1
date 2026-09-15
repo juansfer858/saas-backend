@@ -49,9 +49,11 @@ function Read-DotEnv([string]$Path) {
 }
 
 function Protect-File([string]$Path) {
+  $CurrentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $CurrentUserGrant = ('*{0}:(F)' -f $CurrentSid)
   & icacls.exe $Path /inheritance:r | Out-Null
   $global:LASTEXITCODE = 0
-  & icacls.exe $Path /grant:r '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' | Out-Null
+  & icacls.exe $Path /grant:r '*S-1-5-18:(F)' '*S-1-5-32-544:(F)' $CurrentUserGrant | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "No fue posible proteger $Path." }
   $global:LASTEXITCODE = 0
 }
@@ -107,7 +109,14 @@ function Test-AddressInCidr([string]$Address, [string]$Cidr) {
 }
 
 function Resolve-LanConfiguration([hashtable]$Existing) {
-  $LanEnabled = if ($script:EnableLanWasSpecified) { [bool]$EnableLan } elseif ($Existing.ContainsKey('P14_LAN_ENABLED')) { Test-Truthy $Existing['P14_LAN_ENABLED'] } else { $false }
+  $LanEnabled = if ($script:EnableLanWasSpecified) {
+    [bool]$EnableLan
+  } elseif ($Existing.ContainsKey('P14_LAN_ENABLED')) {
+    Test-Truthy $Existing['P14_LAN_ENABLED']
+  } else {
+    $false
+  }
+
   if (-not $LanEnabled) {
     return [ordered]@{
       enabled = $false
