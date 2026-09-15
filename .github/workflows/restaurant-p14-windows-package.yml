@@ -25,7 +25,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 55
     env:
-      DATABASE_URL: postgresql://vantix_p14:p14-build-only@127.0.0.1:55432/vantix_p14_home_pilot
+      DATABASE_URL: postgresql://vantix_p14:p14-build-only@127.0.0.1:55433/vantix_p14_home_pilot
 
     steps:
       - name: Checkout
@@ -62,7 +62,7 @@ jobs:
           if ($manifest.product -ne 'VantixGC Restaurant P14 Home Pilot') { throw 'Producto P14 inválido.' }
           if ($manifest.installationId -ne 'HOME-PILOT-01' -or $manifest.tenant -ne 'demo-restaurante') { throw 'Identidad P14 inválida.' }
           if ($manifest.releaseChannel -ne 'PILOT' -or $manifest.operationalMode -ne 'LOCAL_FIRST') { throw 'Canal o modo P14 inválido.' }
-          if ($manifest.httpPort -ne 8790 -or $manifest.postgresPort -ne 55432) { throw 'Puertos P14 inválidos.' }
+          if ($manifest.httpPort -ne 8791 -or $manifest.postgresPort -ne 55433) { throw 'Puertos P14 inválidos.' }
           if ($manifest.productionEdgeTouched -ne $false -or $manifest.productionEdgePort -ne 8788) { throw 'El paquete P14 no preserva Edge 8788.' }
           if ($manifest.syncEnabled -ne $false -or $manifest.operationalMutations -ne 'LOCKED_P14_1B') { throw 'P14-1B abrió una frontera no autorizada.' }
 
@@ -86,7 +86,7 @@ jobs:
 
           $installerText = Get-Content -Raw (Join-Path $unpack 'lab/restaurant-p14/windows/install-p14-windows.ps1')
           foreach ($required in @(
-            'VantixGC Restaurant P14 Home Pilot LAN 8790',
+            'VantixGC Restaurant P14 Home Pilot LAN 8791',
             'New-NetFirewallRule',
             '-RemoteAddress $Lan.cidr',
             'HOME-PILOT-01',
@@ -94,6 +94,16 @@ jobs:
             'P14_SYNC_ENABLED=false'
           )) {
             if ($installerText -notlike "*$required*") { throw "Contrato de instalador faltante: $required" }
+          }
+
+          if ($manifest.httpPort -ne 8791 -or $manifest.postgresPort -ne 55433) {
+            throw 'P14 debe permanecer aislado en 8791/55433.'
+          }
+          if ($installerText -notmatch 'Assert-PortFree 8791' -or $installerText -notmatch 'Assert-PortFree 55433') {
+            throw 'El instalador P14 no protege sus puertos aislados.'
+          }
+          if ($installerText -notmatch 'Set-P14PostgresNetworkConfig') {
+            throw 'El instalador P14 no repara clústeres parciales creados con el puerto antiguo.'
           }
 
           Write-Host 'P14_WINDOWS_PACKAGE_CONTRACT_OK'
@@ -109,6 +119,24 @@ jobs:
           Remove-Item $source -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
           Expand-Archive -LiteralPath $zip -DestinationPath $source -Force
+
+          # Reproduce the real home topology: an older P13 already owns 8790/55432.
+          # P14 must install and run on 8791/55433 without stopping those listeners.
+          $p13Guard = Start-Job -ScriptBlock {
+            $listeners = @(
+              [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 8790),
+              [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 55432)
+            )
+            foreach ($listener in $listeners) { $listener.Start() }
+            try { while ($true) { Start-Sleep -Seconds 30 } }
+            finally { foreach ($listener in $listeners) { try { $listener.Stop() } catch {} } }
+          }
+          Start-Sleep -Seconds 2
+          foreach ($legacyPort in @(8790,55432)) {
+            if (-not (Get-NetTCPConnection -State Listen -LocalPort $legacyPort -ErrorAction SilentlyContinue)) {
+              throw "No se logró reservar el puerto legado P13 $legacyPort para la regresión."
+            }
+          }
 
           $installer = Join-Path $source 'lab/restaurant-p14/windows/install-p14-windows.ps1'
           & $installer -InstallDir $install -AdminPassword $password -EnableLan:$false -NoStartupTasks -NoShortcut -NoFirewall
@@ -132,7 +160,7 @@ jobs:
           function Wait-P14([int]$Seconds = 60) {
             for ($i=0; $i -lt ($Seconds * 2); $i++) {
               try {
-                $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p14/status' -TimeoutSec 2
+                $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8791/__p14/status' -TimeoutSec 2
                 if ($status.ok -and $status.marker -eq 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT') { return $status }
               } catch {}
               Start-Sleep -Milliseconds 500
@@ -147,7 +175,7 @@ jobs:
 
           function Login-P14([string]$ExpectedPassword) {
             $body = @{ email='admin@demo-restaurante.vantixgc.com'; password=$ExpectedPassword } | ConvertTo-Json -Compress
-            $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
+            $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8791/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
             if (-not $login.ok -or -not $login.data.token) { throw 'Login P14 falló.' }
             return [string]$login.data.token
           }
@@ -172,7 +200,7 @@ jobs:
 
           $blocked = $null
           try {
-            Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/restaurante/v2/caja/turno/abrir' -Headers @{ 'x-tenant-subdomain'='demo-restaurante'; Authorization=("Bearer " + $token) } -ContentType 'application/json' -Body '{}' -TimeoutSec 5 | Out-Null
+            Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8791/api/v1/restaurante/v2/caja/turno/abrir' -Headers @{ 'x-tenant-subdomain'='demo-restaurante'; Authorization=("Bearer " + $token) } -ContentType 'application/json' -Body '{}' -TimeoutSec 5 | Out-Null
           } catch {
             $blocked = $_.ErrorDetails.Message
           }
@@ -182,7 +210,7 @@ jobs:
           $env:PGPASSWORD = $envMap['P14_DB_PASSWORD']
           $psql = Join-Path $install 'postgres/bin/psql.exe'
           $sentinelSql = "CREATE TABLE IF NOT EXISTS p14_ci_sentinel(id integer primary key, marker text not null); INSERT INTO p14_ci_sentinel(id,marker) VALUES (1,'PRESERVED') ON CONFLICT (id) DO UPDATE SET marker=EXCLUDED.marker;"
-          & $psql -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -v ON_ERROR_STOP=1 -c $sentinelSql | Out-Null
+          & $psql -h 127.0.0.1 -p 55433 -U vantix_p14 -d vantix_p14_home_pilot -v ON_ERROR_STOP=1 -c $sentinelSql | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear sentinel P14.' }
           $global:LASTEXITCODE = 0
 
@@ -204,7 +232,7 @@ jobs:
 
           $envMap = Read-P14Env (Join-Path $install '.env')
           $env:PGPASSWORD = $envMap['P14_DB_PASSWORD']
-          $marker = (& $psql -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -tA -c 'SELECT marker FROM p14_ci_sentinel WHERE id=1;').Trim()
+          $marker = (& $psql -h 127.0.0.1 -p 55433 -U vantix_p14 -d vantix_p14_home_pilot -tA -c 'SELECT marker FROM p14_ci_sentinel WHERE id=1;').Trim()
           if ($marker -ne 'PRESERVED') { throw 'La reinstalación no preservó los datos locales.' }
 
           $runtimeProcess = Get-P14RuntimeProcess $install
@@ -227,7 +255,7 @@ jobs:
           $status = Wait-P14 30
           if (-not $status.ok) { throw 'P14 no quedó saludable tras watchdog.' }
 
-          & $psql -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -tA -c 'SELECT 1;' | Out-Null
+          & $psql -h 127.0.0.1 -p 55433 -U vantix_p14 -d vantix_p14_home_pilot -tA -c 'SELECT 1;' | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL dejó de responder durante recuperación de Node.' }
           $global:LASTEXITCODE = 0
 
@@ -238,6 +266,15 @@ jobs:
           foreach ($removed in @('app','runtime','postgres','ops')) {
             if (Test-Path (Join-Path $install $removed)) { throw "Desinstalación preservadora dejó $removed." }
           }
+
+          foreach ($legacyPort in @(8790,55432)) {
+            if (-not (Get-NetTCPConnection -State Listen -LocalPort $legacyPort -ErrorAction SilentlyContinue)) {
+              throw "REGRESIÓN: P14 interrumpió el puerto legado P13 $legacyPort."
+            }
+          }
+          Stop-Job $p13Guard -ErrorAction SilentlyContinue
+          Remove-Job $p13Guard -Force -ErrorAction SilentlyContinue
+          Write-Host 'P14_P13_PORT_COEXISTENCE_OK'
 
           Write-Host 'P14_WINDOWS_INSTALL_REINSTALL_LAN_WATCHDOG_OK'
 
@@ -261,7 +298,7 @@ jobs:
         shell: pwsh
         run: |
           $install = 'C:\P14-CI-Home-Pilot'
-          try { Remove-NetFirewallRule -DisplayName 'VantixGC Restaurant P14 Home Pilot LAN 8790' -ErrorAction SilentlyContinue | Out-Null } catch {}
+          try { Remove-NetFirewallRule -DisplayName 'VantixGC Restaurant P14 Home Pilot LAN 8791' -ErrorAction SilentlyContinue | Out-Null } catch {}
           Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
             ($_.ExecutablePath -and ([string]$_.ExecutablePath).StartsWith($install,[System.StringComparison]::OrdinalIgnoreCase)) -or
             ($_.CommandLine -and ([string]$_.CommandLine).IndexOf($install,[System.StringComparison]::OrdinalIgnoreCase) -ge 0)
