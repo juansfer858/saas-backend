@@ -7,9 +7,9 @@ const {
 
 const P14_RUNTIME_CONTRACT = Object.freeze({
   marker: 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT',
-  httpPort: 8790,
+  httpPort: 8791,
   productionEdgePort: 8788,
-  postgresPort: 55432,
+  postgresPort: 55433,
   postgresDatabase: 'vantix_p14_home_pilot',
   tenantSubdomain: 'demo-restaurante',
   installationId: 'HOME-PILOT-01',

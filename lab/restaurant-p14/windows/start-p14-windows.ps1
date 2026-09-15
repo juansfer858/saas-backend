@@ -29,7 +29,7 @@ function Import-DotEnv([string]$Path) {
 function Test-PgReady {
   $PgIsReady = Join-Path $PgBin 'pg_isready.exe'
   if (-not (Test-Path -LiteralPath $PgIsReady)) { return $false }
-  & $PgIsReady -h 127.0.0.1 -p 55432 -U vantix_p14 -d vantix_p14_home_pilot -q 2>$null
+  & $PgIsReady -h 127.0.0.1 -p 55433 -U vantix_p14 -d vantix_p14_home_pilot -q 2>$null
   $Ready = ($LASTEXITCODE -eq 0)
   $global:LASTEXITCODE = 0
   return $Ready

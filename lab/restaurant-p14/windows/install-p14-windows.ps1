@@ -12,7 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $TaskName = 'VantixGC Restaurant P14 Home Pilot'
 $WatchdogTaskName = 'VantixGC Restaurant P14 Watchdog'
-$FirewallRuleName = 'VantixGC Restaurant P14 Home Pilot LAN 8790'
+$FirewallRuleName = 'VantixGC Restaurant P14 Home Pilot LAN 8791'
+$LegacyFirewallRuleName = 'VantixGC Restaurant P14 Home Pilot LAN 8790'
 $ReservedEdgeDir = [System.IO.Path]::GetFullPath('C:\ProgramData\VantixGC\Edge').TrimEnd('\')
 $InstallDir = [System.IO.Path]::GetFullPath($InstallDir).TrimEnd('\')
 $PackageRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..')).TrimEnd('\')
@@ -179,10 +180,35 @@ function Resolve-LanConfiguration([hashtable]$Existing) {
 function Test-PgReady([string]$PgBin) {
   $PgReady = Join-Path $PgBin 'pg_isready.exe'
   if (-not (Test-Path -LiteralPath $PgReady)) { return $false }
-  & $PgReady -h 127.0.0.1 -p 55432 -U vantix_p14 -d postgres -q 2>$null
+  & $PgReady -h 127.0.0.1 -p 55433 -U vantix_p14 -d postgres -q 2>$null
   $Ready = ($LASTEXITCODE -eq 0)
   $global:LASTEXITCODE = 0
   return $Ready
+}
+
+function Get-ListeningProcessIds([int]$Port) {
+  try {
+    return @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty OwningProcess -Unique |
+      Where-Object { $_ -and [int]$_ -gt 0 })
+  } catch {
+    return @()
+  }
+}
+
+function Assert-PortFree([int]$Port, [string]$Purpose) {
+  $Owners = @(Get-ListeningProcessIds $Port)
+  if ($Owners.Count -eq 0) { return }
+  $Details = @()
+  foreach ($OwnerPid in $Owners) {
+    $Process = Get-CimInstance Win32_Process -Filter ("ProcessId = {0}" -f $OwnerPid) -ErrorAction SilentlyContinue
+    if ($Process) {
+      $Details += ("PID={0} NAME={1} PATH={2}" -f $OwnerPid, $Process.Name, $Process.ExecutablePath)
+    } else {
+      $Details += ("PID={0}" -f $OwnerPid)
+    }
+  }
+  throw ("P14 no puede usar el puerto {0} para {1}; ya está ocupado por {2}. P13 y Edge no serán detenidos." -f $Port, $Purpose, ($Details -join '; '))
 }
 
 function Get-P14PostgresProcess([string]$PgData) {
@@ -207,6 +233,16 @@ function Clear-StalePostmasterPid([string]$PgBin, [string]$PgData) {
   if ($OwnedProcess) { throw "PostgreSQL P14 sigue activo (PID $($OwnedProcess.ProcessId))." }
   Remove-Item -LiteralPath $PidFile -Force
   Write-Host 'P14: postmaster.pid obsoleto eliminado.' -ForegroundColor Yellow
+}
+
+function Set-P14PostgresNetworkConfig([string]$PgData) {
+  $ConfigPath = Join-Path $PgData 'postgresql.conf'
+  if (-not (Test-Path -LiteralPath $ConfigPath)) { throw "No existe $ConfigPath" }
+  $Content = Get-Content -Raw -LiteralPath $ConfigPath
+  $Content = [regex]::Replace($Content, '(?m)^\s*listen_addresses\s*=.*(?:\r?\n)?', '')
+  $Content = [regex]::Replace($Content, '(?m)^\s*port\s*=\s*(?:55432|55433)\s*(?:#.*)?(?:\r?\n)?', '')
+  $Content = $Content.TrimEnd() + "`r`n`r`n# VantixGC Restaurant P14 Home Pilot - canonical isolated ports`r`nlisten_addresses = '127.0.0.1'`r`nport = 55433`r`n"
+  Set-Content -LiteralPath $ConfigPath -Value $Content -Encoding ASCII
 }
 
 function Repair-PostgresAcl([string]$PgData) {
@@ -256,7 +292,7 @@ function Stop-P14ForUpgrade {
   $Ready = Test-PgReady $PgBin
   $OwnedProcess = Get-P14PostgresProcess $PgData
   if ($Ready -and -not $OwnedProcess) {
-    throw 'El puerto 55432 está ocupado por un PostgreSQL ajeno a P14. Instalación cancelada.'
+    throw 'El puerto 55433 está ocupado por un PostgreSQL ajeno a P14. Instalación cancelada.'
   }
   if ($Ready -or $OwnedProcess) {
     & $PgCtl -D $PgData -m fast -w -t 30 stop
@@ -270,7 +306,7 @@ function Invoke-P14PsqlScalar([string]$PgBin, [string]$Database, [string]$Sql) {
   $SqlFile = Join-Path $env:TEMP ('vantix-p14-' + [guid]::NewGuid().ToString('N') + '.sql')
   try {
     $Sql | Set-Content -LiteralPath $SqlFile -Encoding ASCII
-    $Rows = @(& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p14 -d $Database -tA -v ON_ERROR_STOP=1 -f $SqlFile)
+    $Rows = @(& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55433 -U vantix_p14 -d $Database -tA -v ON_ERROR_STOP=1 -f $SqlFile)
     if ($LASTEXITCODE -ne 0) { throw "Consulta PostgreSQL P14 falló para $Database." }
     if ($Rows.Count -eq 0 -or $null -eq $Rows[0]) { throw "Consulta PostgreSQL P14 no devolvió resultado para $Database." }
     return ([string]$Rows[0]).Trim()
@@ -281,6 +317,7 @@ function Invoke-P14PsqlScalar([string]$PgBin, [string]$Database, [string]$Sql) {
 
 function Configure-P14Firewall([System.Collections.IDictionary]$Lan) {
   try { Remove-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue | Out-Null } catch {}
+  try { Remove-NetFirewallRule -DisplayName $LegacyFirewallRuleName -ErrorAction SilentlyContinue | Out-Null } catch {}
   if (-not $Lan.enabled -or $NoFirewall) { return }
   New-NetFirewallRule `
     -DisplayName $FirewallRuleName `
@@ -289,7 +326,7 @@ function Configure-P14Firewall([System.Collections.IDictionary]$Lan) {
     -Enabled True `
     -Profile Any `
     -Protocol TCP `
-    -LocalPort 8790 `
+    -LocalPort 8791 `
     -RemoteAddress $Lan.cidr `
     -Description 'P14 HOME-PILOT-01: acceso al runtime local únicamente desde la subred privada autorizada.' | Out-Null
 }
@@ -297,7 +334,7 @@ function Configure-P14Firewall([System.Collections.IDictionary]$Lan) {
 function Wait-P14Health([int]$Seconds = 60) {
   for ($Index = 0; $Index -lt ($Seconds * 2); $Index++) {
     try {
-      $Status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p14/status' -TimeoutSec 2
+      $Status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8791/__p14/status' -TimeoutSec 2
       if ($Status.ok -and [string]$Status.marker -eq 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT') { return $true }
     } catch {}
     Start-Sleep -Milliseconds 500
@@ -306,6 +343,7 @@ function Wait-P14Health([int]$Seconds = 60) {
 }
 
 Assert-Administrator
+Write-Host 'P14 aislado: runtime 8791 y PostgreSQL 55433. P13 8790/55432 y Edge 8788 permanecen intactos.' -ForegroundColor Cyan
 if ($InstallDir.Equals($ReservedEdgeDir, [System.StringComparison]::OrdinalIgnoreCase) -or $InstallDir.StartsWith($ReservedEdgeDir + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
   throw 'P14 jamás puede instalarse dentro de C:\ProgramData\VantixGC\Edge.'
 }
@@ -320,7 +358,7 @@ if (-not (Test-Path -LiteralPath $ManifestPath)) { throw 'Paquete P14 incompleto
 $Manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
 if ([string]$Manifest.product -ne 'VantixGC Restaurant P14 Home Pilot') { throw 'Paquete P14 no reconocido.' }
 if ([string]$Manifest.installationId -ne 'HOME-PILOT-01' -or [string]$Manifest.tenant -ne 'demo-restaurante') { throw 'Identidad del paquete P14 inválida.' }
-if ([int]$Manifest.httpPort -ne 8790 -or [int]$Manifest.postgresPort -ne 55432 -or [int]$Manifest.productionEdgePort -ne 8788) { throw 'Puertos del paquete P14 inválidos.' }
+if ([int]$Manifest.httpPort -ne 8791 -or [int]$Manifest.postgresPort -ne 55433 -or [int]$Manifest.productionEdgePort -ne 8788) { throw 'Puertos del paquete P14 inválidos.' }
 if ([bool]$Manifest.productionEdgeTouched) { throw 'Paquete P14 inválido: declara modificación de Edge productivo.' }
 
 $EnvFile = Join-Path $InstallDir '.env'
@@ -343,6 +381,8 @@ foreach ($Directory in @($InstallDir, (Join-Path $InstallDir 'data'), (Join-Path
   New-Item -ItemType Directory -Force -Path $Directory | Out-Null
 }
 Stop-P14ForUpgrade
+Assert-PortFree 8791 'runtime HTTP local'
+Assert-PortFree 55433 'PostgreSQL local'
 
 foreach ($Name in @('app','runtime','postgres','ops')) {
   $Target = Join-Path $InstallDir $Name
@@ -357,7 +397,7 @@ Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $InstallDir 'packag
 
 $DbPassword = if ($Existing['P14_DB_PASSWORD']) { [string]$Existing['P14_DB_PASSWORD'] } else { New-Secret 48 }
 $JwtSecret = if ($Existing['P14_JWT_SECRET']) { [string]$Existing['P14_JWT_SECRET'] } else { New-Secret 64 }
-$DatabaseUrl = "postgresql://vantix_p14:$DbPassword@127.0.0.1:55432/vantix_p14_home_pilot"
+$DatabaseUrl = "postgresql://vantix_p14:$DbPassword@127.0.0.1:55433/vantix_p14_home_pilot"
 $EnvLines = @(
   'RESTAURANT_LOCAL_FIRST_P14_ENABLED=true',
   'P14_RUNTIME_ENABLED=true',
@@ -365,7 +405,7 @@ $EnvLines = @(
   'P14_INSTALLATION_ID=HOME-PILOT-01',
   'P14_RELEASE_CHANNEL=PILOT',
   'P14_OPERATIONAL_MODE=LOCAL_FIRST',
-  'P14_HTTP_PORT=8790',
+  'P14_HTTP_PORT=8791',
   ('P14_LAN_ENABLED=' + ([string]$Lan.enabled).ToLowerInvariant()),
   ('P14_BIND_HOST=' + $Lan.bindHost),
   ('P14_ADVERTISE_HOST=' + $Lan.advertiseHost),
@@ -410,12 +450,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $PgData 'PG_VERSION'))) {
 
 # VantixGC Restaurant P14 Home Pilot
 listen_addresses = '127.0.0.1'
-port = 55432
+port = 55433
 max_connections = 60
 shared_buffers = 128MB
 "@ | Add-Content -LiteralPath (Join-Path $PgData 'postgresql.conf') -Encoding ASCII
 }
 
+Set-P14PostgresNetworkConfig $PgData
 Repair-PostgresAcl $PgData
 if (-not (Test-PgReady $PgBin)) {
   Clear-StalePostmasterPid $PgBin $PgData
@@ -423,12 +464,12 @@ if (-not (Test-PgReady $PgBin)) {
   if ($LASTEXITCODE -ne 0) { throw "No fue posible iniciar PostgreSQL P14. Revisa $PgLog" }
   $global:LASTEXITCODE = 0
 }
-if (-not (Test-PgReady $PgBin)) { throw 'PostgreSQL P14 no respondió en 127.0.0.1:55432.' }
+if (-not (Test-PgReady $PgBin)) { throw 'PostgreSQL P14 no respondió en 127.0.0.1:55433.' }
 
-$DbExistsRaw = @(& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55432 -U vantix_p14 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='vantix_p14_home_pilot'" 2>$null)
+$DbExistsRaw = @(& (Join-Path $PgBin 'psql.exe') -h 127.0.0.1 -p 55433 -U vantix_p14 -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='vantix_p14_home_pilot'" 2>$null)
 $DbExists = if ($DbExistsRaw.Count -gt 0 -and $null -ne $DbExistsRaw[0]) { ([string]$DbExistsRaw[0]).Trim() } else { '' }
 if ($DbExists -ne '1') {
-  & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p 55432 -U vantix_p14 vantix_p14_home_pilot
+  & (Join-Path $PgBin 'createdb.exe') -h 127.0.0.1 -p 55433 -U vantix_p14 vantix_p14_home_pilot
   if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear vantix_p14_home_pilot.' }
   $global:LASTEXITCODE = 0
 }
@@ -439,7 +480,7 @@ $env:P14_TENANT_SUBDOMAIN = 'demo-restaurante'
 $env:P14_INSTALLATION_ID = 'HOME-PILOT-01'
 $env:P14_RELEASE_CHANNEL = 'PILOT'
 $env:P14_OPERATIONAL_MODE = 'LOCAL_FIRST'
-$env:P14_HTTP_PORT = '8790'
+$env:P14_HTTP_PORT = '8791'
 $env:P14_LAN_ENABLED = ([string]$Lan.enabled).ToLowerInvariant()
 $env:P14_BIND_HOST = $Lan.bindHost
 $env:P14_ADVERTISE_HOST = $Lan.advertiseHost
@@ -523,7 +564,7 @@ if (-not $NoShortcut) {
     $Shortcut = Join-Path $Desktop 'VantixGC Restaurante P14 Piloto.url'
     @"
 [InternetShortcut]
-URL=http://$($Lan.advertiseHost):8790/app/centro-de-control-v2
+URL=http://$($Lan.advertiseHost):8791/app/centro-de-control-v2
 "@ | Set-Content -LiteralPath $Shortcut -Encoding ASCII
   } catch {
     Write-Warning "No se pudo crear el acceso directo: $($_.Exception.Message)"
@@ -539,11 +580,11 @@ $State = [ordered]@{
   installationId = 'HOME-PILOT-01'
   releaseChannel = 'PILOT'
   operationalMode = 'LOCAL_FIRST'
-  localUrl = "http://$($Lan.advertiseHost):8790"
+  localUrl = "http://$($Lan.advertiseHost):8791"
   lanEnabled = [bool]$Lan.enabled
   lanCidr = [string]$Lan.cidr
-  httpPort = 8790
-  postgresPort = 55432
+  httpPort = 8791
+  postgresPort = 55433
   prismaSchemaSha256 = $PackagePrismaSchemaHash
   edgeProductionUntouched = $true
   startupTasks = (-not $NoStartupTasks)
@@ -557,11 +598,11 @@ Protect-File $StatePath
 
 Write-Host ''
 Write-Host 'VantixGC Restaurante P14 Home Pilot instalado.' -ForegroundColor Green
-Write-Host "URL local: http://$($Lan.advertiseHost):8790/app/centro-de-control-v2"
+Write-Host "URL local: http://$($Lan.advertiseHost):8791/app/centro-de-control-v2"
 Write-Host 'Usuario: admin@demo-restaurante.vantixgc.com'
 if ($FreshBootstrap) { Write-Host "Clave piloto: $AdminPassword" -ForegroundColor Yellow }
 else { Write-Host 'La clave ADMIN local existente se conservó.' }
-Write-Host 'PostgreSQL local: 127.0.0.1:55432 / vantix_p14_home_pilot'
+Write-Host 'PostgreSQL local: 127.0.0.1:55433 / vantix_p14_home_pilot'
 if ($Lan.enabled) { Write-Host "LAN autorizada: $($Lan.cidr)" }
 else { Write-Host 'LAN desactivada: acceso solamente desde este PC.' }
 Write-Host 'Operaciones bloqueadas en P14-1B; QR y sincronización siguen en Super Core.' -ForegroundColor Cyan

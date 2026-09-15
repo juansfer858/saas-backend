@@ -93,8 +93,8 @@ param(
   [string]$LanCidr = ""
 )
 $ErrorActionPreference = 'Stop'
-$DefaultHttpPort = 8790
-$DefaultPostgresPort = 55432
+$DefaultHttpPort = 8791
+$DefaultPostgresPort = 55433
 $PhysicalHttpPort = 8791
 $PhysicalPostgresPort = 55433
 $Installer = Join-Path $PSScriptRoot 'lab\restaurant-p14\windows\install-p14-windows.ps1'
@@ -210,7 +210,7 @@ $NodeVersion = (& $NodeSource --version).Trim()
 $PostgresVersion = (& (Join-Path $PostgresRoot 'bin\postgres.exe') --version).Trim()
 $Manifest = [ordered]@{
   product = 'VantixGC Restaurant P14 Home Pilot'
-  packageVersion = 'p14-win-home-pilot.1'
+  packageVersion = 'p14-win-home-pilot.2-port-isolated'
   builtAt = (Get-Date).ToUniversalTime().ToString('o')
   node = $NodeVersion
   postgres = $PostgresVersion
@@ -218,9 +218,9 @@ $Manifest = [ordered]@{
   tenant = 'demo-restaurante'
   releaseChannel = 'PILOT'
   operationalMode = 'LOCAL_FIRST'
-  httpPort = 8790
+  httpPort = 8791
   postgresHost = '127.0.0.1'
-  postgresPort = 55432
+  postgresPort = 55433
   database = 'vantix_p14_home_pilot'
   productionEdgePort = 8788
   productionEdgeTouched = $false
@@ -238,11 +238,11 @@ NO INSTALAR EN EL RESTAURANTE REAL.
 
 1. Extraiga TODO el ZIP.
 2. Clic derecho sobre INSTALAR_P14_COMO_ADMIN.bat y elija Ejecutar como administrador.
-3. El instalador detecta la red privada activa y limita el puerto 8790 a esa subred.
+3. El instalador detecta la red privada activa y limita el puerto 8791 a esa subred.
 4. Instalación: C:\ProgramData\VantixGC\Restaurant-P14-Home-Pilot
 5. Usuario local: admin@demo-restaurante.vantixgc.com
 6. La contraseña piloto se genera durante la primera instalación y se muestra una sola vez.
-7. PostgreSQL permanece solamente en 127.0.0.1:55432.
+7. PostgreSQL permanece solamente en 127.0.0.1:55433.
 8. Edge productivo 8788 y C:\ProgramData\VantixGC\Edge no se modifican.
 9. QR y Super Core permanecen en Internet.
 10. En P14-1B las operaciones siguen bloqueadas; esta fase valida Windows y LAN.

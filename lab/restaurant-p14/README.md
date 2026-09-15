@@ -11,8 +11,8 @@ Tenant:          demo-restaurante
 Instalación:     HOME-PILOT-01
 Canal:           PILOT
 Modo:            LOCAL_FIRST
-Runtime HTTP:    8790
-PostgreSQL:      55432/vantix_p14_home_pilot
+Runtime HTTP:    8791
+PostgreSQL:      55433/vantix_p14_home_pilot
 Edge productivo: 8788, sin tocar
 Super Core:      https://core.vantixgc.com
 Sincronización:  apagada hasta P14-3
@@ -41,7 +41,7 @@ Los usuarios MESERO, COCINA, BARRA, POSTRES y CAJERO que crea el seed quedan ina
 
 ## Protección de red
 
-En loopback el runtime escucha solo en `127.0.0.1:8790`.
+En loopback el runtime escucha solo en `127.0.0.1:8791`.
 
 En modo LAN:
 
@@ -54,10 +54,10 @@ P14_LAN_CIDR=<subred privada autorizada>
 
 La protección es doble:
 
-1. Windows Firewall deberá permitir `8790` únicamente desde la subred configurada.
+1. Windows Firewall deberá permitir `8791` únicamente desde la subred configurada.
 2. El runtime vuelve a comprobar la IP remota y rechaza cualquier cliente externo a la subred, incluso si el firewall quedara mal configurado.
 
-PostgreSQL nunca escucha para otros equipos; permanece en loopback `127.0.0.1:55432`.
+PostgreSQL nunca escucha para otros equipos; permanece en loopback `127.0.0.1:55433`.
 
 ## Arranque técnico de laboratorio
 
@@ -77,13 +77,13 @@ node lab/restaurant-p14/runtime.js
 Estado:
 
 ```text
-GET http://127.0.0.1:8790/__p14/status
+GET http://127.0.0.1:8791/__p14/status
 ```
 
 Acceso local:
 
 ```text
-http://127.0.0.1:8790/app
+http://127.0.0.1:8791/app
 ```
 
 En LAN se reemplaza `127.0.0.1` por `P14_ADVERTISE_HOST`.

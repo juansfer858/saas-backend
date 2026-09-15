@@ -23,12 +23,12 @@ const baseEnv = Object.freeze({
   P14_INSTALLATION_ID: 'HOME-PILOT-01',
   P14_RELEASE_CHANNEL: 'PILOT',
   P14_OPERATIONAL_MODE: 'LOCAL_FIRST',
-  P14_HTTP_PORT: '8790',
+  P14_HTTP_PORT: '8791',
   P14_LAN_ENABLED: 'true',
   P14_BIND_HOST: '0.0.0.0',
   P14_ADVERTISE_HOST: '192.168.1.50',
   P14_LAN_CIDR: '192.168.1.0/24',
-  DATABASE_URL: 'postgresql://vantix_p14:test-only@127.0.0.1:55432/vantix_p14_home_pilot',
+  DATABASE_URL: 'postgresql://vantix_p14:test-only@127.0.0.1:55433/vantix_p14_home_pilot',
   P14_JWT_SECRET: 'p14-test-only-jwt-secret-longer-than-32-characters',
   P14_ADMIN_PASSWORD: 'P14-Test-Only-Password',
   P14_CORE_URL: 'https://core.vantixgc.com',
@@ -91,8 +91,8 @@ function main() {
   assert.equal(mutationBoundaryForRequest('POST', '/api/v1/restaurante/v2/caja/turno/abrir'), null);
   assert.equal(mutationBoundaryForRequest('PATCH', '/api/v1/restaurante/v2/kds/comandas/1'), null);
 
-  assert.equal(isAllowedOutboundTarget('http://127.0.0.1:8790/__p14/status', config), true);
-  assert.equal(isAllowedOutboundTarget('http://localhost:55432', config), true);
+  assert.equal(isAllowedOutboundTarget('http://127.0.0.1:8791/__p14/status', config), true);
+  assert.equal(isAllowedOutboundTarget('http://localhost:55433', config), true);
   assert.equal(isAllowedOutboundTarget('https://core.vantixgc.com/api/v1/edge/sync', config), false);
   assert.equal(isAllowedOutboundTarget('https://example.com', config), false);
   assert.equal(isAllowedOutboundTarget('not-a-url', config), false);
@@ -106,7 +106,7 @@ function main() {
   assert.match(html, /P14 · piloto local-first aislado/);
   assert.match(html, /demo-restaurante/);
   assert.match(html, /HOME-PILOT-01/);
-  assert.match(html, /192\.168\.1\.50:8790/);
+  assert.match(html, /192\.168\.1\.50:8791/);
   assert.match(html, /admin@demo-restaurante\.vantixgc\.com/);
   assert.doesNotMatch(html, /p14-test-only-jwt-secret/);
   assert.doesNotMatch(html, /P14-Test-Only-Password/);

@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $TaskName = 'VantixGC Restaurant P14 Home Pilot'
 $WatchdogTaskName = 'VantixGC Restaurant P14 Watchdog'
-$FirewallRuleName = 'VantixGC Restaurant P14 Home Pilot LAN 8790'
+$FirewallRuleName = 'VantixGC Restaurant P14 Home Pilot LAN 8791'
 $PgCtl = Join-Path $InstallDir 'postgres\bin\pg_ctl.exe'
 $PgData = Join-Path $InstallDir 'data\postgres'
 $RuntimeNode = [System.IO.Path]::GetFullPath((Join-Path $InstallDir 'runtime\node.exe'))

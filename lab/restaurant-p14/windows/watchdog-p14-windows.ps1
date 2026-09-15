@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$HealthUrl = 'http://127.0.0.1:8790/__p14/status'
+$HealthUrl = 'http://127.0.0.1:8791/__p14/status'
 $ExpectedMarker = 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT'
 $LogDir = Join-Path $InstallDir 'logs'
 $LogFile = Join-Path $LogDir 'watchdog.log'
