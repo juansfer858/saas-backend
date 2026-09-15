@@ -11,6 +11,7 @@ on:
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
       - 'src/web/restaurant-v2-person-buttons-v100.css'
+      - 'scripts/restaurant-v2-admin-empty-table-v107-smoke.js'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
       - 'scripts/restaurant-v2-person-buttons-v100-smoke.js'
       - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
@@ -25,6 +26,7 @@ on:
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
       - 'src/web/restaurant-v2-person-buttons-v100.css'
+      - 'scripts/restaurant-v2-admin-empty-table-v107-smoke.js'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
       - 'scripts/restaurant-v2-person-buttons-v100-smoke.js'
       - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
@@ -53,6 +55,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx prisma db push
+      - run: node scripts/restaurant-v2-admin-empty-table-v107-smoke.js
       - run: node scripts/restaurant-v2-orders-p3-db-smoke.js
       - run: node scripts/restaurant-v2-person-buttons-v100-smoke.js
       - run: node --check src/modules/restaurant/restaurant.service.js
@@ -88,6 +91,7 @@ jobs:
               grep -Fq '>TODOS</button>' "$J"
               grep -Fq 'draft-target-label' "$J"
               grep -Fq '/pedido/enviar' "$J"
+              grep -Fq 'VANTIX_RESTAURANT_V2_ADMIN_EMPTY_TABLE_V107' "$J"
               grep -Fq 'ENVIANDO PEDIDO' "$J"
               grep -Fq 'mergeDraftResult(result)' "$J"
               grep -Fq 'if(sent){S.realtimeQueued=false;await loadDraft()}' "$J"
@@ -105,3 +109,4 @@ jobs:
             sleep 10
           done
           exit 1
+
