@@ -9,6 +9,8 @@ if (require.main === module) {
 
 const { assertRestaurantP14RuntimeConfig } = require('./runtime-config');
 
+const LOCAL_ADMIN_EMAIL = 'admin@demo-restaurante.vantixgc.com';
+
 async function bootstrap(env = process.env) {
   const config = assertRestaurantP14RuntimeConfig(env);
   if (config.tenantSubdomain !== 'demo-restaurante' || config.installationId !== 'HOME-PILOT-01') {
@@ -17,6 +19,10 @@ async function bootstrap(env = process.env) {
 
   process.env.JWT_SECRET = String(env.P14_JWT_SECRET || '');
   const adminPassword = String(env.P14_ADMIN_PASSWORD || '');
+  if (adminPassword.length < 12) {
+    throw new Error('P14_ADMIN_PASSWORD debe tener al menos 12 caracteres y sólo se usa durante el bootstrap local.');
+  }
+
   const { prisma } = require('../../src/config/prisma');
   const { ensureRestaurantDemoTenant } = require('../../scripts/ensure-restaurant-demo-tenant');
 
@@ -36,12 +42,23 @@ async function bootstrap(env = process.env) {
       throw new Error('P14 no pudo fijar la identidad single-tenant local.');
     }
 
+    // P14-1A valida únicamente el acceso administrativo. Los usuarios de roles
+    // operativos se habilitarán después, con credenciales propias, en la frontera
+    // que abra Mesero/KDS. Nunca dejamos activas las credenciales demo del seed.
+    await prisma.user.updateMany({
+      where: {
+        tenantId: tenant.id,
+        email: { not: LOCAL_ADMIN_EMAIL }
+      },
+      data: { activo: false }
+    });
+
     const passwordHash = await bcrypt.hash(adminPassword, 12);
     const admin = await prisma.user.update({
       where: {
         tenantId_email: {
           tenantId: tenant.id,
-          email: 'admin@demo-restaurante.vantixgc.com'
+          email: LOCAL_ADMIN_EMAIL
         }
       },
       data: {
@@ -66,13 +83,28 @@ async function bootstrap(env = process.env) {
 
     const counts = Object.freeze({
       users: await prisma.user.count({ where: { tenantId: tenant.id } }),
+      activeUsers: await prisma.user.count({ where: { tenantId: tenant.id, activo: true } }),
+      inactiveOperationalUsers: await prisma.user.count({
+        where: {
+          tenantId: tenant.id,
+          activo: false,
+          email: { not: LOCAL_ADMIN_EMAIL }
+        }
+      }),
       products: await prisma.producto.count({ where: { tenantId: tenant.id } }),
       tables: await prisma.restaurantTable.count({ where: { tenantId: tenant.id } }),
       menuItems: await prisma.restaurantMenuItem.count({ where: { tenantId: tenant.id } })
     });
 
-    if (counts.users < 6 || counts.products < 10 || counts.tables !== 6 || counts.menuItems < 4) {
-      throw new Error(`P14 bootstrap incompleto: ${JSON.stringify(counts)}.`);
+    if (
+      counts.users < 6 ||
+      counts.activeUsers !== 1 ||
+      counts.inactiveOperationalUsers < 5 ||
+      counts.products < 10 ||
+      counts.tables !== 6 ||
+      counts.menuItems < 4
+    ) {
+      throw new Error(`P14 bootstrap incompleto o inseguro: ${JSON.stringify(counts)}.`);
     }
 
     const result = Object.freeze({
@@ -90,6 +122,7 @@ async function bootstrap(env = process.env) {
         role: admin.rol,
         active: admin.activo
       }),
+      operationalUsers: 'DISABLED_UNTIL_P14_OPERATIONAL_BOUNDARIES',
       counts
     });
 
@@ -107,4 +140,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { bootstrap };
+module.exports = { LOCAL_ADMIN_EMAIL, bootstrap };
