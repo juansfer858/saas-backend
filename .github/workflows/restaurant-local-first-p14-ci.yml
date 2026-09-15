@@ -51,6 +51,8 @@ jobs:
           grep -Fq "releaseChannel: 'PILOT'" src/modules/restaurant/restaurant-local-first-p14-gate.js
           grep -Fq "RESTAURANT_LOCAL_FIRST_P14_ENABLED" src/modules/restaurant/restaurant-local-first-p14-gate.js
           grep -Fq "productionEdgePort: 8788" lab/restaurant-p14/runtime-config.js
+          grep -Fq "httpPort: 8791" lab/restaurant-p14/runtime-config.js
+          grep -Fq "postgresPort: 55433" lab/restaurant-p14/runtime-config.js
           grep -Fq "P14_SYNC_ENABLED debe permanecer false" lab/restaurant-p14/runtime-config.js
           grep -Fq "allOperationalMutations: 'LOCKED_UNTIL_P14_1A_PASSES'" lab/restaurant-p14/runtime.js
           grep -Fq "publicQrPolicy: 'CORE_CLOUD_ONLY'" lab/restaurant-p14/runtime.js
@@ -77,7 +79,7 @@ jobs:
           POSTGRES_PASSWORD: p14-ci-db-password
           POSTGRES_DB: vantix_p14_home_pilot
         ports:
-          - 55432:5432
+          - 55433:5432
         options: >-
           --health-cmd="pg_isready -U vantix_p14 -d vantix_p14_home_pilot"
           --health-interval=5s
@@ -91,7 +93,7 @@ jobs:
       P14_INSTALLATION_ID: HOME-PILOT-01
       P14_RELEASE_CHANNEL: PILOT
       P14_OPERATIONAL_MODE: LOCAL_FIRST
-      P14_HTTP_PORT: '8790'
+      P14_HTTP_PORT: '8791'
       P14_LAN_ENABLED: 'false'
       P14_BIND_HOST: 127.0.0.1
       P14_ADVERTISE_HOST: 127.0.0.1
@@ -100,7 +102,7 @@ jobs:
       P14_SYNC_ENABLED: 'false'
       P14_JWT_SECRET: p14-ci-jwt-secret-that-is-longer-than-thirty-two-characters
       P14_ADMIN_PASSWORD: P14-CI-Admin-Password-Only
-      DATABASE_URL: postgresql://vantix_p14:p14-ci-db-password@127.0.0.1:55432/vantix_p14_home_pilot
+      DATABASE_URL: postgresql://vantix_p14:p14-ci-db-password@127.0.0.1:55433/vantix_p14_home_pilot
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -137,7 +139,7 @@ jobs:
           trap cleanup EXIT
 
           for attempt in {1..60}; do
-            if curl -fsS http://127.0.0.1:8790/__p14/status > /tmp/p14-status.json 2>/dev/null; then
+            if curl -fsS http://127.0.0.1:8791/__p14/status > /tmp/p14-status.json 2>/dev/null; then
               break
             fi
             if ! kill -0 "$runtime_pid" 2>/dev/null; then
@@ -161,7 +163,7 @@ jobs:
           NODE
 
           login_code=$(curl -sS -o /tmp/p14-login.json -w '%{http_code}' \
-            -X POST http://127.0.0.1:8790/api/v1/auth/login \
+            -X POST http://127.0.0.1:8791/api/v1/auth/login \
             -H 'Accept: application/json' \
             -H 'Content-Type: application/json' \
             -H 'x-tenant-subdomain: demo-restaurante' \
@@ -170,7 +172,7 @@ jobs:
           token=$(node -e "const login=require('/tmp/p14-login.json');process.stdout.write(login.data?.token||'')")
           test -n "$token"
 
-          curl -fsS http://127.0.0.1:8790/api/v1/auth/session \
+          curl -fsS http://127.0.0.1:8791/api/v1/auth/session \
             -H 'Accept: application/json' \
             -H 'x-tenant-subdomain: demo-restaurante' \
             -H "Authorization: Bearer $token" > /tmp/p14-session.json
@@ -181,13 +183,13 @@ jobs:
           NODE
 
           wrong_tenant_code=$(curl -sS -o /tmp/p14-wrong-tenant.json -w '%{http_code}' \
-            http://127.0.0.1:8790/app/restaurante-v2/mesas \
+            http://127.0.0.1:8791/app/restaurante-v2/mesas \
             -H 'x-tenant-subdomain: demo-core')
           test "$wrong_tenant_code" = '403'
           grep -Fq 'P14_TENANT_LOCK_MISMATCH' /tmp/p14-wrong-tenant.json
 
           blocked_code=$(curl -sS -o /tmp/p14-blocked.json -w '%{http_code}' \
-            -X POST http://127.0.0.1:8790/api/v1/restaurante/v2/caja/turno/abrir \
+            -X POST http://127.0.0.1:8791/api/v1/restaurante/v2/caja/turno/abrir \
             -H 'Content-Type: application/json' \
             -H 'x-tenant-subdomain: demo-restaurante' \
             -H "Authorization: Bearer $token" \
@@ -196,7 +198,7 @@ jobs:
           grep -Fq 'P14_OPERATIONAL_MUTATIONS_LOCKED' /tmp/p14-blocked.json
 
           qr_code=$(curl -sS -o /tmp/p14-qr.json -w '%{http_code}' \
-            http://127.0.0.1:8790/r/demo-restaurante/mesa-1)
+            http://127.0.0.1:8791/r/demo-restaurante/mesa-1)
           test "$qr_code" = '409'
           grep -Fq 'P14_PUBLIC_QR_CORE_ONLY' /tmp/p14-qr.json
 
