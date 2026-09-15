@@ -19,3 +19,5 @@ Cambiar entre Dashboard, Ventas, Compras, Inventarios, Tesorería, Cartera, Terc
 ## Objetivo
 
 Evitar carreras visuales, cambios de nombre entre módulos y cualquier impresión de que una empresa puede heredar la identidad visual de otra. El placeholder global no representa un tenant.
+
+<!-- Vantix Control secure GitHub flow test 2026-09-05T12:51:16.202Z -->
