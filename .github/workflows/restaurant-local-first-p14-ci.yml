@@ -16,6 +16,10 @@ on:
       - '.github/workflows/restaurant-local-first-p14-ci.yml'
   workflow_dispatch:
 
+concurrency:
+  group: restaurant-p14-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pilot-isolation-and-runtime-contract:
     runs-on: ubuntu-latest
