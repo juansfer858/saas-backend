@@ -3,6 +3,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { money, qty } = require('../../utils/decimal');
 const reservations = require('../inventory/inventory-reservation.service');
+const commercial = require('../commercial/commercial.service');
 const sales = require('../commercial/sales.service');
 
 function workOrderNumber() {
@@ -32,26 +33,17 @@ async function getWorkOrder(tenantId, id, client = prisma) {
 }
 
 async function recalcTotals(tx, tenantId, workOrderId) {
-  const items = await tx.bikeWorkOrderItem.findMany({
-    where: { tenantId, workOrderId, status: { notIn: ['REJECTED', 'CANCELLED'] } }
-  });
+  const items = await tx.bikeWorkOrderItem.findMany({ where: { tenantId, workOrderId, status: { notIn: ['REJECTED', 'CANCELLED'] } } });
   const subtotal = items.reduce((sum, item) => sum.plus(money(item.lineTotal)), money(0));
-  return tx.bikeWorkOrder.update({
-    where: { id: workOrderId },
-    data: { subtotal, total: subtotal }
-  });
+  return tx.bikeWorkOrder.update({ where: { id: workOrderId }, data: { subtotal, total: subtotal } });
 }
 
 async function createWorkOrder(tenantId, userId, input) {
   return prisma.$transaction(async (tx) => {
     const bike = await getBike(tenantId, input.bikeId, tx);
     if (bike.status === 'INACTIVE') throw new AppError(409, 'La bicicleta está inactiva', 'BIKE_INACTIVE');
-    const open = await tx.bikeWorkOrder.findFirst({
-      where: { tenantId, bikeId: bike.id, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
-      select: { id: true, number: true }
-    });
+    const open = await tx.bikeWorkOrder.findFirst({ where: { tenantId, bikeId: bike.id, status: { notIn: ['DELIVERED', 'CANCELLED'] } }, select: { id: true, number: true } });
     if (open) throw new AppError(409, `La bicicleta ya tiene una orden abierta: ${open.number}`, 'BIKE_WORK_ORDER_ALREADY_OPEN');
-
     const created = await tx.bikeWorkOrder.create({
       data: {
         tenantId,
@@ -77,21 +69,14 @@ async function listWorkOrders(tenantId, filters = {}) {
   if (filters.bikeId) where.bikeId = filters.bikeId;
   if (filters.customerThirdPartyId) where.customerThirdPartyId = filters.customerThirdPartyId;
   if (filters.assignedUserId) where.assignedUserId = filters.assignedUserId;
-  return prisma.bikeWorkOrder.findMany({
-    where,
-    include: { bike: true, _count: { select: { items: true, findings: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: Math.min(Number(filters.limit) || 100, 500)
-  });
+  return prisma.bikeWorkOrder.findMany({ where, include: { bike: true, _count: { select: { items: true, findings: true } } }, orderBy: { createdAt: 'desc' }, take: Math.min(Number(filters.limit) || 100, 500) });
 }
 
 async function addFinding(tenantId, userId, workOrderId, input) {
   return prisma.$transaction(async (tx) => {
     const workOrder = await getWorkOrder(tenantId, workOrderId, tx);
     if (['DELIVERED', 'CANCELLED'].includes(workOrder.status)) throw new AppError(409, 'La orden está cerrada', 'BIKE_WORK_ORDER_CLOSED');
-    const finding = await tx.bikeDiagnosticFinding.create({
-      data: { tenantId, workOrderId, ...input, createdByUserId: userId }
-    });
+    const finding = await tx.bikeDiagnosticFinding.create({ data: { tenantId, workOrderId, ...input, createdByUserId: userId } });
     await tx.bikeWorkOrder.update({ where: { id: workOrderId }, data: { status: 'DIAGNOSIS' } });
     return finding;
   });
@@ -101,12 +86,10 @@ async function addItem(tenantId, workOrderId, input) {
   return prisma.$transaction(async (tx) => {
     const workOrder = await getWorkOrder(tenantId, workOrderId, tx);
     if (['DELIVERED', 'CANCELLED'].includes(workOrder.status)) throw new AppError(409, 'La orden está cerrada', 'BIKE_WORK_ORDER_CLOSED');
-
     let productId;
     let serviceCatalogId = null;
     let description;
     let unitPrice;
-
     if (input.type === 'SERVICE') {
       const service = await tx.bikeServiceCatalog.findFirst({ where: { id: input.serviceCatalogId, tenantId, active: true } });
       if (!service) throw new AppError(404, 'Servicio Bike no encontrado', 'BIKE_SERVICE_NOT_FOUND');
@@ -123,23 +106,9 @@ async function addItem(tenantId, workOrderId, input) {
       description = input.description || product.nombre;
       unitPrice = input.unitPrice ?? Number(product.precio1);
     }
-
     const quantity = qty(input.quantity || 1);
     const lineTotal = money(quantity.mul(unitPrice));
-    const item = await tx.bikeWorkOrderItem.create({
-      data: {
-        tenantId,
-        workOrderId,
-        type: input.type,
-        serviceCatalogId,
-        productId,
-        description,
-        quantity,
-        unitPrice,
-        lineTotal,
-        status: 'PROPOSED'
-      }
-    });
+    const item = await tx.bikeWorkOrderItem.create({ data: { tenantId, workOrderId, type: input.type, serviceCatalogId, productId, description, quantity, unitPrice, lineTotal, status: 'PROPOSED' } });
     await recalcTotals(tx, tenantId, workOrderId);
     await tx.bikeWorkOrder.update({ where: { id: workOrderId }, data: { status: 'WAITING_APPROVAL' } });
     return item;
@@ -152,32 +121,13 @@ async function authorizeItem(tenantId, userId, workOrderId, itemId, authorizedBy
     const item = await tx.bikeWorkOrderItem.findFirst({ where: { id: itemId, tenantId, workOrderId } });
     if (!item) throw new AppError(404, 'Línea de OT no encontrada', 'BIKE_WORK_ORDER_ITEM_NOT_FOUND');
     if (item.status !== 'PROPOSED') throw new AppError(409, 'La línea ya fue resuelta', 'BIKE_WORK_ORDER_ITEM_ALREADY_RESOLVED');
-
     let nextStatus = 'AUTHORIZED';
     let reservation = null;
     if (item.type === 'PART') {
-      reservation = await reservations.reserveInTx(tx, {
-        tenantId,
-        productId: item.productId,
-        sourceType: 'BIKE_WORK_ORDER',
-        sourceId: workOrderId,
-        sourceLineId: item.id,
-        quantity: item.quantity,
-        createdByUserId: userId,
-        metadata: { workOrderId, itemId: item.id }
-      });
+      reservation = await reservations.reserveInTx(tx, { tenantId, productId: item.productId, sourceType: 'BIKE_WORK_ORDER', sourceId: workOrderId, sourceLineId: item.id, quantity: item.quantity, createdByUserId: userId, metadata: { workOrderId, itemId: item.id } });
       nextStatus = 'RESERVED';
     }
-
-    const updated = await tx.bikeWorkOrderItem.update({
-      where: { id: item.id },
-      data: {
-        status: nextStatus,
-        authorizedAt: new Date(),
-        authorizedBy: authorizedBy || userId,
-        inventoryRef: reservation?.id || null
-      }
-    });
+    const updated = await tx.bikeWorkOrderItem.update({ where: { id: item.id }, data: { status: nextStatus, authorizedAt: new Date(), authorizedBy: authorizedBy || userId, inventoryRef: reservation?.id || null } });
     const unresolved = await tx.bikeWorkOrderItem.count({ where: { tenantId, workOrderId, status: 'PROPOSED' } });
     if (!unresolved) await tx.bikeWorkOrder.update({ where: { id: workOrderId }, data: { status: 'APPROVED', approvedAt: new Date() } });
     return updated;
@@ -189,8 +139,8 @@ async function rejectItem(tenantId, workOrderId, itemId, reason) {
     await getWorkOrder(tenantId, workOrderId, tx);
     const item = await tx.bikeWorkOrderItem.findFirst({ where: { id: itemId, tenantId, workOrderId } });
     if (!item) throw new AppError(404, 'Línea de OT no encontrada', 'BIKE_WORK_ORDER_ITEM_NOT_FOUND');
-    if (item.status === 'RESERVED') await reservations.releaseSourceLineInTx(tx, tenantId, 'BIKE_WORK_ORDER', item.id, 'CANCELLED');
     if (!['PROPOSED', 'AUTHORIZED', 'RESERVED'].includes(item.status)) throw new AppError(409, 'La línea ya está en ejecución o terminada', 'BIKE_WORK_ORDER_ITEM_LOCKED');
+    if (item.status === 'RESERVED') await reservations.releaseSourceLineInTx(tx, tenantId, 'BIKE_WORK_ORDER', item.id, 'CANCELLED');
     const updated = await tx.bikeWorkOrderItem.update({ where: { id: item.id }, data: { status: 'REJECTED', rejectionReason: reason } });
     await recalcTotals(tx, tenantId, workOrderId);
     return updated;
@@ -231,56 +181,43 @@ async function installPart(tenantId, workOrderId, itemId) {
 async function finalTest(tenantId, userId, workOrderId, input) {
   return prisma.$transaction(async (tx) => {
     const workOrder = await getWorkOrder(tenantId, workOrderId, tx);
-    const blockers = workOrder.items.filter((item) => {
-      if (['REJECTED', 'CANCELLED'].includes(item.status)) return false;
-      return item.type === 'SERVICE' ? item.status !== 'COMPLETED' : item.status !== 'INSTALLED';
-    });
+    const blockers = workOrder.items.filter((item) => !['REJECTED', 'CANCELLED'].includes(item.status) && (item.type === 'SERVICE' ? item.status !== 'COMPLETED' : item.status !== 'INSTALLED'));
     if (blockers.length) throw new AppError(409, 'Hay trabajos o repuestos pendientes antes de la prueba final', 'BIKE_FINAL_TEST_BLOCKED', { itemIds: blockers.map((item) => item.id) });
     const test = await tx.bikeFinalTest.create({ data: { tenantId, workOrderId, checklist: input.checklist, approved: input.approved, notes: input.notes || null, testedByUserId: userId } });
-    await tx.bikeWorkOrder.update({
-      where: { id: workOrderId },
-      data: input.approved ? { status: 'READY', readyAt: new Date() } : { status: 'IN_PROGRESS', readyAt: null }
-    });
+    await tx.bikeWorkOrder.update({ where: { id: workOrderId }, data: input.approved ? { status: 'READY', readyAt: new Date() } : { status: 'IN_PROGRESS', readyAt: null } });
     return test;
   });
 }
 
 async function createBillingDraft(tenantId, userId, workOrderId, input) {
-  const workOrder = await getWorkOrder(tenantId, workOrderId);
-  if (workOrder.status !== 'READY') throw new AppError(409, 'La OT debe estar lista y aprobada en prueba final antes de facturar', 'BIKE_WORK_ORDER_NOT_READY');
-  if (workOrder.commercialDocumentId) return sales.get(tenantId, workOrder.commercialDocumentId);
-
-  const billable = workOrder.items.filter((item) => ['COMPLETED', 'INSTALLED'].includes(item.status));
-  if (!billable.length) throw new AppError(409, 'La OT no tiene líneas facturables', 'BIKE_WORK_ORDER_EMPTY');
-
-  const sale = await sales.create(tenantId, userId, {
-    sourceId: `BIKE-WO-${workOrder.id}`,
-    terceroId: workOrder.customerThirdPartyId,
-    cajaBancoId: input.cajaBancoId || null,
-    formaPago: input.formaPago,
-    documentType: input.documentType,
-    notas: input.notas || `Orden taller ${workOrder.number}`,
-    estado: 'BORRADOR',
-    detalles: billable.map((item) => ({
-      productoId: item.productId,
-      descripcion: item.description,
-      cantidad: Number(item.quantity),
-      precioUnitario: Number(item.unitPrice),
-      descuentoPct: 0,
-      ivaPct: 0,
-      impoconsumoPct: 0
-    }))
+  const snapshot = await getWorkOrder(tenantId, workOrderId);
+  if (snapshot.commercialDocumentId) return sales.get(tenantId, snapshot.commercialDocumentId);
+  return prisma.$transaction(async (tx) => {
+    const workOrder = await getWorkOrder(tenantId, workOrderId, tx);
+    if (workOrder.status !== 'READY') throw new AppError(409, 'La OT debe estar lista y aprobada en prueba final antes de facturar', 'BIKE_WORK_ORDER_NOT_READY');
+    const billable = workOrder.items.filter((item) => ['COMPLETED', 'INSTALLED'].includes(item.status));
+    if (!billable.length) throw new AppError(409, 'La OT no tiene líneas facturables', 'BIKE_WORK_ORDER_EMPTY');
+    const sale = await commercial.createDocumentInTx(tx, tenantId, userId, {
+      tipo: 'FACTURA_VENTA',
+      estado: 'BORRADOR',
+      sourceId: `BIKE-WO-${workOrder.id}`,
+      terceroId: workOrder.customerThirdPartyId,
+      cajaBancoId: input.cajaBancoId || null,
+      formaPago: input.formaPago,
+      observaciones: sales.packMeta({ documentType: input.documentType, notes: input.notas || `Orden taller ${workOrder.number}` }),
+      detalles: billable.map((item) => ({ productoId: item.productId, descripcion: item.description, cantidad: Number(item.quantity), precioUnitario: Number(item.unitPrice), descuentoPct: 0 }))
+    });
+    await tx.bikeWorkOrder.update({ where: { id: workOrder.id }, data: { commercialDocumentId: sale.id } });
+    return sale;
   });
-  await prisma.bikeWorkOrder.update({ where: { id: workOrder.id }, data: { commercialDocumentId: sale.id } });
-  return sale;
 }
 
 async function emitBilling(tenantId, userId, workOrderId) {
+  const snapshot = await getWorkOrder(tenantId, workOrderId);
+  if (!snapshot.commercialDocumentId) throw new AppError(409, 'Primero debe crear la venta borrador de la OT', 'BIKE_BILLING_DRAFT_REQUIRED');
+  if (snapshot.billedAt) return sales.get(tenantId, snapshot.commercialDocumentId);
   return prisma.$transaction(async (tx) => {
     const workOrder = await getWorkOrder(tenantId, workOrderId, tx);
-    if (!workOrder.commercialDocumentId) throw new AppError(409, 'Primero debe crear la venta borrador de la OT', 'BIKE_BILLING_DRAFT_REQUIRED');
-    if (workOrder.billedAt) return sales.get(tenantId, workOrder.commercialDocumentId);
-
     await reservations.releaseSourceInTx(tx, tenantId, 'BIKE_WORK_ORDER', workOrder.id, 'RELEASED');
     const sale = await sales.emitSaleInTx(tx, tenantId, userId, workOrder.commercialDocumentId);
     await reservations.markSourceConsumedInTx(tx, tenantId, 'BIKE_WORK_ORDER', workOrder.id);
