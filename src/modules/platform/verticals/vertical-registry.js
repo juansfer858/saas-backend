@@ -14,6 +14,21 @@ const VERTICALS = Object.freeze({
       'TABLES', 'WAITER', 'ORDERS', 'KDS', 'CASH_SHIFT', 'LOCAL_PRINT', 'REMOTE_ORDER_CHANNELS'
     ])
   }),
+  BIKE: Object.freeze({
+    code: 'BIKE',
+    aliases: Object.freeze(['BICICLETA', 'BICICLETAS', 'CICLISMO']),
+    label: 'VantixGC Bike',
+    state: 'AVAILABLE',
+    // Foundation V1 is cloud/Core only. This flag changes to true only when the
+    // Bike Edge adapter and local workspace are delivered and validated.
+    localFirst: false,
+    cloudAppPath: null,
+    edgeAdapter: null,
+    edgeWorkspace: null,
+    capabilities: Object.freeze([
+      'BIKE_PASSPORT', 'WORKSHOP_FOUNDATION', 'SERVICE_CATALOG'
+    ])
+  }),
   LITHOGRAPHY: Object.freeze({
     code: 'LITHOGRAPHY',
     aliases: Object.freeze(['LITOGRAFIA']),
