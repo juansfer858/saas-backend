@@ -42,6 +42,10 @@ const receiptPrintSchema = z.object({
   sessionId: z.string().uuid()
 });
 
+const linePriceSchema = z.object({
+  unitPrice: z.coerce.number().min(0).max(1000000000000)
+});
+
 const customerSchema = z.object({
   tipoDocumento: z.string().trim().min(1).max(20),
   identificacion: z.string().trim().min(3).max(40),
@@ -132,6 +136,14 @@ router.post('/v2/caja/mesas/:tableId/cobrar', requirePermission('RESTAURANTE.CER
   }
 });
 
+router.patch('/v2/caja/mesas/:tableId/items/:detailId/precio', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    const input = parse(linePriceSchema, req.body, 'Precio inválido');
+    const data = await service.updateLinePrice(req.tenantId, req.user, req.params.tableId, req.params.detailId, input);
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+});
+
 router.post('/v2/caja/recibo/imprimir', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
     const input = parse(receiptPrintSchema, req.body, 'Datos de impresión inválidos');
@@ -158,6 +170,7 @@ module.exports = {
   openShiftSchema,
   closeShiftSchema,
   chargeSchema,
+  linePriceSchema,
   receiptPrintSchema,
   customerSchema
 };
