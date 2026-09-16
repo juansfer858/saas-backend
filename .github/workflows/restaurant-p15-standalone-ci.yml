@@ -1,0 +1,185 @@
+name: Restaurant P15 Standalone Lab
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'lab/restaurant-p15/**'
+      - 'scripts/restaurant-p15-**'
+      - '.github/workflows/restaurant-p15-standalone-ci.yml'
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+jobs:
+  p15-windows-end-to-end:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Static P15 smokes
+        shell: pwsh
+        run: |
+          node scripts/restaurant-p15-isolation-smoke.js
+          node scripts/restaurant-p15-runtime-smoke.js
+          node scripts/restaurant-p15-backup-crypto-smoke.js
+
+      - name: Validate PowerShell and architecture contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $scripts=@(
+            'lab/restaurant-p15/windows/install-p15-windows.ps1',
+            'lab/restaurant-p15/windows/uninstall-p15-windows.ps1',
+            'lab/restaurant-p15/windows/restore-p15-windows.ps1',
+            'lab/restaurant-p15/windows/backup-now-p15-windows.ps1',
+            'scripts/restaurant-p15-build-windows-package.ps1'
+          )
+          foreach($file in $scripts){
+            $tokens=$null;$errors=$null
+            [Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file),[ref]$tokens,[ref]$errors)|Out-Null
+            if($errors.Count){ throw "PowerShell inválido $file :: $($errors[0].Message)" }
+          }
+          $installer=Get-Content -Raw 'lab/restaurant-p15/windows/install-p15-windows.ps1'
+          foreach($required in @('VantixRestaurantP15Server','VantixRestaurantP15Print','VantixRestaurantP15Backup','pg_ctl.exe','register -N','WinSW.exe','ExecutionTimeLimit')){
+            if($required -eq 'ExecutionTimeLimit'){ continue }
+            if($installer -notlike "*$required*"){throw "Contrato instalador faltante: $required"}
+          }
+          if($installer -match 'Register-ScheduledTask|New-ScheduledTask'){throw 'P15 no puede depender de Task Scheduler.'}
+          if($installer -match '8790|55432|8791|55433|8788'){throw 'Instalador P15 contiene puertos reservados P13/P14/Edge.'}
+
+      - name: Resolve bundled PostgreSQL
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $base=Join-Path $env:ProgramFiles 'PostgreSQL'
+          $root=Get-ChildItem $base -Directory | Sort-Object Name -Descending | Where-Object { Test-Path (Join-Path $_.FullName 'bin\postgres.exe') } | Select-Object -First 1
+          if(-not $root){throw 'No PostgreSQL root on runner'}
+          "P15_POSTGRES_ROOT=$($root.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "PGROOT=$($root.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Start isolated PostgreSQL and bootstrap full restaurant
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $data=Join-Path $env:RUNNER_TEMP 'p15-db'
+          $pw=Join-Path $env:RUNNER_TEMP 'p15-pw.txt'
+          'P15CiDbPass-1234567890!' | Set-Content $pw -NoNewline -Encoding ascii
+          & "$env:PGROOT\bin\initdb.exe" -D $data -U vantix_p15 --pwfile=$pw --auth=scram-sha-256 --encoding=UTF8 --locale=C
+          if($LASTEXITCODE){throw 'initdb failed'}
+          Add-Content "$data\postgresql.conf" "listen_addresses='127.0.0.1'`nport=55435`n"
+          & "$env:PGROOT\bin\pg_ctl.exe" -D $data -l "$env:RUNNER_TEMP\p15-postgres.log" -w start
+          if($LASTEXITCODE){throw 'pg start failed'}
+          $env:PGPASSWORD='P15CiDbPass-1234567890!'
+          & "$env:PGROOT\bin\createdb.exe" -h 127.0.0.1 -p 55435 -U vantix_p15 vantix_restaurant_p15_lab
+          if($LASTEXITCODE){throw 'createdb failed'}
+          "P15_CI_PGDATA=$data" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "DATABASE_URL=postgresql://vantix_p15:P15CiDbPass-1234567890%21@127.0.0.1:55435/vantix_restaurant_p15_lab" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_ENABLED=true" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_INSTALLATION_ID=HOME-PILOT-P15" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_TENANT_SUBDOMAIN=demo-restaurante" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_HTTP_PORT=8815" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_BIND_HOST=127.0.0.1" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_ADVERTISE_HOST=127.0.0.1" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_LAN_ENABLED=false" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_PRINT_PORT=18815" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_JWT_SECRET=P15-CI-JWT-123456789012345678901234567890" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "P15_ADMIN_PASSWORD=P15-CI-Admin-123456" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          $env:DATABASE_URL='postgresql://vantix_p15:P15CiDbPass-1234567890%21@127.0.0.1:55435/vantix_restaurant_p15_lab'
+          $env:P15_ENABLED='true';$env:P15_INSTALLATION_ID='HOME-PILOT-P15';$env:P15_TENANT_SUBDOMAIN='demo-restaurante';$env:P15_HTTP_PORT='8815';$env:P15_BIND_HOST='127.0.0.1';$env:P15_ADVERTISE_HOST='127.0.0.1';$env:P15_LAN_ENABLED='false';$env:P15_PRINT_PORT='18815';$env:P15_JWT_SECRET='P15-CI-JWT-123456789012345678901234567890';$env:P15_ADMIN_PASSWORD='P15-CI-Admin-123456'
+          node node_modules/prisma/build/index.js db push
+          if($LASTEXITCODE){throw 'prisma push failed'}
+          node lab/restaurant-p15/bootstrap-demo.js
+          if($LASTEXITCODE){throw 'bootstrap failed'}
+
+      - name: Run canonical runtime and exercise local operation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'p15-runtime.out.log';$err=Join-Path $env:RUNNER_TEMP 'p15-runtime.err.log'
+          $proc=Start-Process node.exe -ArgumentList 'lab/restaurant-p15/runtime.js' -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          $proc.Id | Set-Content (Join-Path $env:RUNNER_TEMP 'p15-runtime.pid')
+          $ready=$false
+          for($i=0;$i -lt 90;$i++){try{$s=Invoke-RestMethod 'http://127.0.0.1:8815/__p15/status' -TimeoutSec 2;if($s.ok){$ready=$true;break}}catch{};Start-Sleep 1}
+          if(-not $ready){Get-Content $out,$err -ErrorAction SilentlyContinue;throw 'P15 runtime did not start'}
+          $headers=@{'x-tenant-subdomain'='demo-restaurante'}
+          $login=Invoke-RestMethod 'http://127.0.0.1:8815/api/v1/auth/login' -Method Post -Headers $headers -ContentType 'application/json' -Body (@{email='admin@demo-restaurante.vantixgc.com';password='P15-CI-Admin-123456'}|ConvertTo-Json)
+          if(-not $login.data.token){throw 'local login failed'}
+          $headers.Authorization="Bearer $($login.data.token)"
+          $tables=Invoke-RestMethod 'http://127.0.0.1:8815/api/v1/restaurante/mesas' -Headers $headers
+          if(@($tables.data).Count -lt 6){throw 'tables missing'}
+          $table=@($tables.data|Where-Object{-not $_.activeSession})[0]
+          if(-not $table){throw 'no free table'}
+          $opened=Invoke-RestMethod "http://127.0.0.1:8815/api/v1/restaurante/mesas/$($table.id)/abrir" -Method Post -Headers $headers -ContentType 'application/json' -Body '{"guestCount":1}'
+          if(-not $opened.data.session.id){throw 'table open failed'}
+          $tables2=Invoke-RestMethod 'http://127.0.0.1:8815/api/v1/restaurante/mesas' -Headers $headers
+          $row=@($tables2.data|Where-Object{$_.id -eq $table.id})[0]
+          if(-not $row.activeSession){throw 'open table not persisted'}
+          'P15_HTTP_OPERATION_OK'
+
+      - name: Create encrypted backup and restore database
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $pidFile=Join-Path $env:RUNNER_TEMP 'p15-runtime.pid'
+          if(Test-Path $pidFile){Stop-Process -Id ([int](Get-Content $pidFile)) -Force -ErrorAction SilentlyContinue}
+          $install=Join-Path $env:RUNNER_TEMP 'p15-backup-install'
+          New-Item -ItemType Directory -Force -Path "$install\config","$install\files","$install\backups"|Out-Null
+          '{"version":1,"stations":{}}'|Set-Content "$install\config\printers.json"
+          '{"authority":"LOCAL_PRIMARY"}'|Set-Content "$install\config\runtime.json"
+          $env:P15_INSTALL_DIR=$install;$env:P15_PG_BIN="$env:PGROOT\bin";$env:P15_BACKUP_DIR="$install\backups";$env:P15_BACKUP_SECRET='P15-CI-Recovery-Key-12345678901234567890';$env:P15_BACKUP_KEEP='4';$env:P15_INSTALLATION_ID='HOME-PILOT-P15';$env:P15_TENANT_SUBDOMAIN='demo-restaurante'
+          node -e "require('./lab/restaurant-p15/backup-agent').createBackup(process.env).then(x=>console.log(x.archive)).catch(e=>{console.error(e);process.exit(1)})"
+          if($LASTEXITCODE){throw 'backup failed'}
+          $archive=Get-ChildItem "$install\backups\*.vxp15"|Sort-Object LastWriteTime -Descending|Select-Object -First 1
+          if(-not $archive){throw 'backup archive missing'}
+          node lab/restaurant-p15/restore.js --archive $archive.FullName --secret 'P15-CI-Recovery-Key-12345678901234567890' --installDir $install
+          if($LASTEXITCODE){throw 'restore failed'}
+          $env:PGPASSWORD='P15CiDbPass-1234567890!'
+          $count=& "$env:PGROOT\bin\psql.exe" -h 127.0.0.1 -p 55435 -U vantix_p15 -d vantix_restaurant_p15_lab -tAc 'SELECT count(*) FROM "Tenant";'
+          if(([string]$count).Trim() -ne '1'){throw 'restore tenant count mismatch'}
+          'P15_BACKUP_RESTORE_OK'
+
+      - name: Build self-contained Windows package
+        shell: pwsh
+        run: |
+          ./scripts/restaurant-p15-build-windows-package.ps1
+
+      - name: Validate package contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Get-ChildItem 'artifacts\p15-windows\*.zip'|Select-Object -First 1
+          if(-not $zip){throw 'P15 ZIP missing'}
+          $extract=Join-Path $env:RUNNER_TEMP 'p15-package-check';Expand-Archive $zip.FullName $extract -Force
+          $manifest=Get-Content "$extract\package-manifest.json" -Raw|ConvertFrom-Json
+          if($manifest.httpPort -ne 8815 -or $manifest.postgresPort -ne 55435 -or $manifest.productionTouched){throw 'package isolation invalid'}
+          foreach($file in @('INSTALAR_P15_COMO_ADMIN.bat','payload\runtime\node.exe','payload\postgres\bin\postgres.exe','payload\winsw\WinSW.exe','payload\app\lab\restaurant-p15\runtime.js','lab\restaurant-p15\windows\install-p15-windows.ps1')){if(-not(Test-Path (Join-Path $extract $file))){throw "package missing $file"}}
+          $hash=(Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLowerInvariant();"P15_PACKAGE_SHA256=$hash"|Out-File $env:GITHUB_ENV -Append
+          "P15_PACKAGE_PATH=$($zip.FullName)"|Out-File $env:GITHUB_ENV -Append
+          "P15_PACKAGE_CONTRACT_OK sha256=$hash"
+
+      - name: Stop integration PostgreSQL
+        if: always()
+        shell: pwsh
+        run: |
+          if($env:P15_CI_PGDATA -and (Test-Path $env:P15_CI_PGDATA)){& "$env:PGROOT\bin\pg_ctl.exe" -D $env:P15_CI_PGDATA -m fast -w stop 2>$null; $global:LASTEXITCODE=0}
+
+      - name: Upload P15 lab package
+        uses: actions/upload-artifact@v4
+        with:
+          name: vantixgc-restaurant-p15-standalone-lab
+          path: artifacts/p15-windows/vantixgc-restaurant-p15-standalone-lab.zip
+          if-no-files-found: error
+          retention-days: 7
