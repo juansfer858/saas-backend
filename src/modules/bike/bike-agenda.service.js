@@ -92,7 +92,23 @@ async function assertBikeOwnership(tenantId, bikeId, customerThirdPartyId, clien
 }
 
 async function lockMechanic(tx, tenantId, userId) {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${userId}))`;
+  const rows = await tx.$queryRawUnsafe(
+    'SELECT "id" FROM "User" WHERE "id" = $1 AND "tenantId" = $2 AND "activo" = true FOR UPDATE',
+    userId,
+    tenantId
+  );
+  if (!Array.isArray(rows) || rows.length !== 1) throw new AppError(404, 'Mecánico/usuario no encontrado en esta empresa', 'BIKE_AGENDA_USER_NOT_FOUND');
+  return rows[0];
+}
+
+async function lockAppointment(tx, tenantId, appointmentId) {
+  const rows = await tx.$queryRawUnsafe(
+    'SELECT "id" FROM "BikeAppointment" WHERE "id" = $1 AND "tenantId" = $2 FOR UPDATE',
+    appointmentId,
+    tenantId
+  );
+  if (!Array.isArray(rows) || rows.length !== 1) throw new AppError(404, 'Cita no encontrada', 'BIKE_APPOINTMENT_NOT_FOUND');
+  return rows[0];
 }
 
 async function createScheduleRule(tenantId, input) {
@@ -322,7 +338,7 @@ async function createAppointment(tenantId, actorUserId, input) {
         type: 'CREATED',
         actorUserId: actorUserId || null,
         source: appointment.source,
-        data: { startsAt: slot.startsAt, endsAt: slot.endsAt, serviceCatalogId: input.serviceCatalogId }
+        data: { startsAt: slot.startsAt.toISOString(), endsAt: slot.endsAt.toISOString(), serviceCatalogId: input.serviceCatalogId }
       }
     });
     return appointment;
@@ -388,12 +404,24 @@ async function rescheduleAppointment(tenantId, actorUserId, id, input) {
       startsAt: input.startsAt,
       excludeAppointmentId: id
     });
-    const previous = { startsAt: appointment.startsAt, endsAt: appointment.endsAt, assignedUserId: appointment.assignedUserId };
+    const previous = { startsAt: appointment.startsAt.toISOString(), endsAt: appointment.endsAt.toISOString(), assignedUserId: appointment.assignedUserId };
     const updated = await tx.bikeAppointment.update({
       where: { id },
       data: { assignedUserId, serviceCatalogId, branchId: branchId || null, startsAt: slot.startsAt, endsAt: slot.endsAt }
     });
-    await tx.bikeAppointmentEvent.create({ data: { tenantId, appointmentId: id, type: 'RESCHEDULED', actorUserId: actorUserId || null, source: 'INTERNAL', data: { previous, next: { startsAt: slot.startsAt, endsAt: slot.endsAt, assignedUserId } } } });
+    await tx.bikeAppointmentEvent.create({
+      data: {
+        tenantId,
+        appointmentId: id,
+        type: 'RESCHEDULED',
+        actorUserId: actorUserId || null,
+        source: 'INTERNAL',
+        data: {
+          previous,
+          next: { startsAt: slot.startsAt.toISOString(), endsAt: slot.endsAt.toISOString(), assignedUserId }
+        }
+      }
+    });
     return updated;
   });
 }
@@ -405,7 +433,7 @@ function workOrderNumber() {
 
 async function convertAppointmentToWorkOrder(tenantId, actorUserId, id) {
   return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${tenantId}), hashtext(${`APPOINTMENT:${id}`}))`;
+    await lockAppointment(tx, tenantId, id);
     const existingLink = await tx.bikeAppointmentWorkOrderLink.findUnique({ where: { appointmentId: id } });
     if (existingLink) {
       const existingOrder = await tx.bikeWorkOrder.findFirst({ where: { id: existingLink.workOrderId, tenantId } });
