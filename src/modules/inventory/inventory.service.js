@@ -110,13 +110,19 @@ async function applyMovement(tx, params) {
     const reserved = await reservedQuantity(tx, params.tenantId, product.id);
     const available = oldStock.minus(reserved).toDecimalPlaces(4);
     if (available.lt(quantity) && !edgeContext?.allowNegativeInventory) {
-      throw new AppError(409, `Stock disponible insuficiente para ${product.nombre}`, 'INVENTORY_INSUFFICIENT_AVAILABLE_STOCK', {
-        productoId: product.id,
-        stockActual: oldStock.toString(),
-        reservado: reserved.toString(),
-        disponible: available.toString(),
-        solicitado: quantity.toString()
-      });
+      const constrainedByReservation = reserved.gt(0);
+      throw new AppError(
+        409,
+        constrainedByReservation ? `Stock disponible insuficiente para ${product.nombre}` : `Stock insuficiente para ${product.nombre}`,
+        constrainedByReservation ? 'INVENTORY_INSUFFICIENT_AVAILABLE_STOCK' : 'INVENTORY_INSUFFICIENT_STOCK',
+        {
+          productoId: product.id,
+          stockActual: oldStock.toString(),
+          reservado: reserved.toString(),
+          disponible: available.toString(),
+          solicitado: quantity.toString()
+        }
+      );
     }
     unitCost = oldAvg;
     newStock = oldStock.minus(quantity).toDecimalPlaces(4);
