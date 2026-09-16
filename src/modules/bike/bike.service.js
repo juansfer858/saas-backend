@@ -11,6 +11,19 @@ async function assertCustomer(tenantId, customerThirdPartyId, client = prisma) {
   return customer;
 }
 
+async function assertServiceProduct(tenantId, productId, client = prisma) {
+  const product = await client.producto.findFirst({
+    where: { id: productId, tenantId, activo: true }
+  });
+  if (!product) {
+    throw new AppError(404, 'Producto de servicio no encontrado en esta empresa', 'BIKE_SERVICE_PRODUCT_NOT_FOUND');
+  }
+  if (product.tipo !== 'SERVICIO') {
+    throw new AppError(409, 'El catálogo técnico Bike solo puede vincular productos tipo SERVICIO', 'BIKE_SERVICE_PRODUCT_TYPE_INVALID');
+  }
+  return product;
+}
+
 async function createBike(tenantId, input) {
   await assertCustomer(tenantId, input.customerThirdPartyId);
   try {
@@ -92,22 +105,24 @@ async function updateBike(tenantId, id, input) {
 }
 
 async function createServiceCatalogItem(tenantId, input) {
+  const product = await assertServiceProduct(tenantId, input.productId);
   try {
     return await prisma.bikeServiceCatalog.create({
       data: {
         tenantId,
-        code: input.code,
-        name: input.name,
+        productId: product.id,
+        code: product.sku,
+        name: product.nombre,
         category: input.category,
         estimatedMinutes: input.estimatedMinutes,
-        basePrice: input.basePrice,
+        basePrice: product.precio1,
         active: input.active !== false,
         metadata: input.metadata || undefined
       }
     });
   } catch (error) {
     if (error?.code === 'P2002') {
-      throw new AppError(409, 'El código de servicio Bike ya existe', 'BIKE_SERVICE_CODE_EXISTS');
+      throw new AppError(409, 'Ese servicio del Core ya está vinculado al catálogo Bike', 'BIKE_SERVICE_MAPPING_EXISTS');
     }
     throw error;
   }
@@ -124,21 +139,49 @@ async function listServiceCatalog(tenantId, filters = {}) {
       { category: { contains: filters.q, mode: 'insensitive' } }
     ];
   }
-  return prisma.bikeServiceCatalog.findMany({
+  const rows = await prisma.bikeServiceCatalog.findMany({
     where,
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
     take: Math.min(Number(filters.limit) || 200, 500)
   });
+  if (!rows.length) return rows;
+
+  const products = await prisma.producto.findMany({
+    where: { tenantId, id: { in: rows.map((row) => row.productId) } },
+    select: {
+      id: true,
+      sku: true,
+      nombre: true,
+      descripcion: true,
+      precio1: true,
+      ivaPct: true,
+      impoconsumoPct: true,
+      activo: true,
+      tipo: true
+    }
+  });
+  const byId = new Map(products.map((product) => [product.id, product]));
+  return rows.map((row) => ({ ...row, product: byId.get(row.productId) || null }));
 }
 
 async function updateServiceCatalogItem(tenantId, id, input) {
   const item = await prisma.bikeServiceCatalog.findFirst({ where: { id, tenantId } });
   if (!item) throw new AppError(404, 'Servicio Bike no encontrado', 'BIKE_SERVICE_NOT_FOUND');
+
+  const product = await assertServiceProduct(tenantId, input.productId || item.productId);
+  const data = {
+    ...input,
+    productId: product.id,
+    code: product.sku,
+    name: product.nombre,
+    basePrice: product.precio1
+  };
+
   try {
-    return await prisma.bikeServiceCatalog.update({ where: { id }, data: input });
+    return await prisma.bikeServiceCatalog.update({ where: { id }, data });
   } catch (error) {
     if (error?.code === 'P2002') {
-      throw new AppError(409, 'El código de servicio Bike ya existe', 'BIKE_SERVICE_CODE_EXISTS');
+      throw new AppError(409, 'Ese servicio del Core ya está vinculado al catálogo Bike', 'BIKE_SERVICE_MAPPING_EXISTS');
     }
     throw error;
   }
@@ -158,10 +201,12 @@ async function foundationStatus(tenantId) {
     tenantId,
     boundaries: {
       customers: 'SUPER_CORE_TERCEROS',
+      products: 'SUPER_CORE_PRODUCTO',
       inventory: 'SUPER_CORE_INVENTARIO',
       sales: 'SUPER_CORE_COMERCIAL',
       cash: 'SUPER_CORE_TESORERIA',
       security: 'SUPER_CORE_RBAC',
+      entitlement: 'SUPER_CORE_VERTICAL_ENTITLEMENT',
       sync: 'SUPER_CORE_EDGE',
       notifications: 'SUPER_CORE_NOTIFICACIONES'
     },
@@ -171,6 +216,7 @@ async function foundationStatus(tenantId) {
 
 module.exports = {
   assertCustomer,
+  assertServiceProduct,
   createBike,
   listBikes,
   getBike,
