@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { lockOperation } = require('./restaurant-operation-lock-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty, pct } = require('../../utils/decimal');
@@ -165,6 +166,7 @@ async function loadDelivery(tenantId, id, client = prisma) {
 
 async function createDelivery(tenantId, user, input) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const customer = await ensureCustomer(tx, tenantId, input);
     const prepared = groupPreparedLines(await resolveMenuLines(tx, tenantId, input.items));
     const itemsSubtotal = prepared.reduce((acc, line) => money(decimal(acc).plus(line.total)), money(0));
@@ -339,6 +341,7 @@ async function recentCustomerByPhone(tenantId, phone) {
 
 async function acceptDelivery(tenantId, user, id) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const delivery = await tx.restaurantDeliveryOrder.findFirst({ where: { id, tenantId }, include: { items: true, commands: true } });
     if (!delivery) throw new AppError(404, 'Domicilio no encontrado', 'RESTAURANT_DELIVERY_NOT_FOUND');
     if (delivery.state !== 'NUEVO') return loadDelivery(tenantId, id, tx);
@@ -454,6 +457,7 @@ async function listKdsCommands(tenantId, user, filters = {}) {
 async function updateDeliveryCommandState(tenantId, user, commandId, state) {
   if (!COMMAND_STATES.includes(state)) throw new AppError(400, 'Estado de comanda inválido', 'RESTAURANT_COMMAND_STATE_INVALID');
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const command = await tx.restaurantDeliveryCommand.findFirst({ where: { id: commandId, tenantId }, include: { delivery: true } });
     if (!command) throw new AppError(404, 'Comanda de domicilio no encontrada', 'RESTAURANT_DELIVERY_COMMAND_NOT_FOUND');
     const forced = stationForRole(user);
@@ -480,6 +484,7 @@ async function updateDeliveryCommandState(tenantId, user, commandId, state) {
 
 async function markOnRoute(tenantId, user, id, input = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const delivery = await tx.restaurantDeliveryOrder.findFirst({ where: { id, tenantId }, include: { commands: true } });
     if (!delivery) throw new AppError(404, 'Domicilio no encontrado', 'RESTAURANT_DELIVERY_NOT_FOUND');
     if (delivery.state === 'EN_CAMINO' || delivery.state === 'ENTREGADO') return loadDelivery(tenantId, id, tx);
@@ -495,6 +500,7 @@ async function markOnRoute(tenantId, user, id, input = {}) {
 
 async function markDelivered(tenantId, user, id) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const delivery = await tx.restaurantDeliveryOrder.findFirst({ where: { id, tenantId } });
     if (!delivery) throw new AppError(404, 'Domicilio no encontrado', 'RESTAURANT_DELIVERY_NOT_FOUND');
     if (delivery.state === 'ENTREGADO') return loadDelivery(tenantId, id, tx);
@@ -506,6 +512,7 @@ async function markDelivered(tenantId, user, id) {
 
 async function ensureSaleEmitted(tenantId, userId, deliveryId) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const delivery = await tx.restaurantDeliveryOrder.findFirst({ where: { id: deliveryId, tenantId } });
     if (!delivery) throw new AppError(404, 'Domicilio no encontrado', 'RESTAURANT_DELIVERY_NOT_FOUND');
     const sale = await tx.comprobanteComercial.findFirst({ where: { id: delivery.saleId, tenantId } });
@@ -558,6 +565,7 @@ async function registerDeliveryPayment(tenantId, user, id, input) {
 
 async function cancelDelivery(tenantId, user, id) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const delivery = await tx.restaurantDeliveryOrder.findFirst({ where: { id, tenantId }, include: { commands: true } });
     if (!delivery) throw new AppError(404, 'Domicilio no encontrado', 'RESTAURANT_DELIVERY_NOT_FOUND');
     if (delivery.state === 'CANCELADO') return loadDelivery(tenantId, id, tx);
@@ -591,3 +599,4 @@ module.exports = {
   groupPreparedLines,
   presentDelivery
 };
+
