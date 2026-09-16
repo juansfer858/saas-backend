@@ -1,0 +1,42 @@
+name: Commerce Scoped Permission V1 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  commerce-scoped-permission:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check
+        run: |
+          node --check src/modules/platform/rbac/scope-policy.service.js
+          node --check src/modules/platform/rbac/commerce-scope-resolver.service.js
+          node --check src/modules/platform/rbac/require-scoped-permission.middleware.js
+          node --check src/modules/platform/rbac/commerce-scope-lab.routes.js
+          node --check scripts/check-commerce-scope-contract.js
+          node --check scripts/check-commerce-assigned-register-scope.js
+          node --check scripts/check-commerce-scoped-permission-http.js
+
+      - name: Validate pure scope contract
+        run: node scripts/check-commerce-scope-contract.js
+
+      - name: Validate assigned register resolver contract
+        run: node scripts/check-commerce-assigned-register-scope.js
+
+      - name: Validate HTTP scope isolation
+        run: node scripts/check-commerce-scoped-permission-http.js
