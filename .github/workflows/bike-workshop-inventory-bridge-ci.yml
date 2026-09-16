@@ -1,0 +1,51 @@
+name: Bike Workshop Inventory Bridge CI
+
+on:
+  pull_request:
+    paths:
+      - 'prisma/bike-core-v1.prisma'
+      - 'prisma/inventory-reservation-v1.prisma'
+      - 'src/modules/bike/**'
+      - 'src/modules/inventory/**'
+      - 'scripts/bike-workshop-inventory-bridge-smoke.js'
+      - '.github/workflows/bike-workshop-inventory-bridge-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-bike-workshop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: bike-workshop-ci-secret-bike-workshop-ci-secret-bike-workshop-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate Prisma
+        run: npx prisma validate
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Push ephemeral schema
+        run: npx prisma db push
+      - name: Load workshop modules
+        run: node -e "require('./src/modules/inventory/inventory-reservation.service'); require('./src/modules/bike/bike-workshop.schemas'); require('./src/modules/bike/bike-workshop.service'); require('./src/modules/bike/bike-workshop.controller'); require('./src/modules/bike/bike.routes'); console.log('BIKE_WORKSHOP_MODULE_LOAD_OK')"
+      - name: Run workshop and reservation DB smoke
+        run: node scripts/bike-workshop-inventory-bridge-smoke.js
