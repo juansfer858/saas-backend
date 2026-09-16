@@ -2,6 +2,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty } = require('../../utils/decimal');
 const { getEdgeSyncContext } = require('../edge/edge-sync-context');
+const { lockProductRow } = require('./inventory-concurrency.service');
 
 const ENTRY_TYPES = new Set(['COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_VENTA']);
 const EXIT_TYPES = new Set(['VENTA', 'AJUSTE_SALIDA', 'MERMA', 'DEVOLUCION_COMPRA']);
@@ -52,10 +53,7 @@ async function deactivateProduct(tenantId, id) {
 
 async function reservedQuantity(tx, tenantId, productId) {
   if (!tx.inventoryReservation) return qty(0);
-  const row = await tx.inventoryReservation.aggregate({
-    where: { tenantId, productId, state: 'ACTIVE' },
-    _sum: { quantity: true }
-  });
+  const row = await tx.inventoryReservation.aggregate({ where: { tenantId, productId, state: 'ACTIVE' }, _sum: { quantity: true } });
   return qty(row._sum.quantity || 0);
 }
 
@@ -83,11 +81,16 @@ async function createNegativeStockAlert(tx, context, product, oldStock, quantity
 }
 
 async function applyMovement(tx, params) {
-  const product = await getProduct(params.tenantId, params.productoId, tx);
+  let product = await getProduct(params.tenantId, params.productoId, tx);
   if (product.tipo === 'SERVICIO' || !product.controlaInventario) return { movement: null, product, costOfMovement: money(0) };
 
   const quantity = qty(params.cantidad);
   if (quantity.lte(0)) throw new AppError(400, 'La cantidad debe ser mayor que cero', 'INVENTORY_INVALID_QTY');
+
+  // El mismo lock se usa para reservas y movimientos. La lectura de stock que
+  // decide una salida siempre ocurre después de adquirir la fila del producto.
+  await lockProductRow(tx, params.tenantId, params.productoId);
+  product = await getProduct(params.tenantId, params.productoId, tx);
 
   const oldStock = qty(product.stockActual);
   const oldAvg = decimal(product.costoPromedio);
