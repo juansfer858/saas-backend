@@ -1,5 +1,6 @@
-const { summaryPdfSpec } = require('./restaurant-cash-close-summary.service');
 'use strict';
+
+const { summaryPdfSpec } = require('./restaurant-cash-close-summary.service');
 
 const { prisma } = require('../../config/prisma');
 const { decimal, money } = require('../../utils/decimal');

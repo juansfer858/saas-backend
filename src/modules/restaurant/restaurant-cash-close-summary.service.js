@@ -51,8 +51,11 @@ function summaryRows(report){
   add('ARQUEO','Efectivo contado',amount(cash.countedCash));
   add('ARQUEO','DESCUADRE',amount(cash.difference));
   const diff=cash.difference==null?null:Number(cash.difference);
-  add('ARQUEO','Estado efectivo',diff==null?'SIN REGISTRO':diff===0?'CUADRADO':diff>0?'SOBRANTE':'FALTANTE');
-  if(day)add('ARQUEO','Alcance','Suma de turnos; revisar cada caja');
+  add('ARQUEO','Estado efectivo',diff==null||!Number.isFinite(diff)?'SIN REGISTRO':diff===0?'CUADRADO':diff>0?'SOBRANTE':'FALTANTE');
+  if(day){
+    add('ARQUEO','Alcance','Suma de turnos; revisar cada caja');
+    add('CONTROL','Turnos con alertas',(report.shifts||[]).filter(s=>s.status==='REVISAR').length);
+  }
   add('CONTROL','Diferencia operativa',amount(totals.difference));
   const exceptions=report.exceptions;
   add('CONTROL','Alertas operativas',Array.isArray(exceptions)?exceptions.length:'Ver informe completo');
