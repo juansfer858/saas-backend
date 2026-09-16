@@ -78,7 +78,14 @@
     const root=document.createElement('div');root.id='vantixPushV65';root.innerHTML='<button type="button" id="vantixPushV65Main">🔔 Push</button><button type="button" id="vantixPushV65Test" hidden>Probar</button>';
     Object.assign(root.style,{position:'fixed',right:'14px',bottom:'14px',zIndex:'2147483000',display:'flex',gap:'7px',alignItems:'center'});
     root.querySelectorAll('button').forEach((btn)=>Object.assign(btn.style,{border:'1px solid #cbd5e1',borderRadius:'999px',background:'#fff',color:'#10233f',minHeight:'40px',padding:'8px 13px',font:'800 12px system-ui',boxShadow:'0 8px 24px rgba(15,23,42,.15)',cursor:'pointer'}));
-    document.body.appendChild(root);
+    // VANTIX_RESTAURANT_WAITER_PUSH_HEADER_V112: presentation only.
+    const waiterActions=document.querySelector('body[data-vantix-device="waiter"] .rv2-order-top .top-actions');
+    if(waiterActions){
+      Object.assign(waiterActions.style,{flexWrap:'wrap',alignItems:'center',justifyContent:'flex-end',maxWidth:'100%',minWidth:'0'});
+      Object.assign(root.style,{position:'static',right:'auto',bottom:'auto',zIndex:'auto',flexWrap:'wrap',maxWidth:'100%'});
+      root.querySelectorAll('button').forEach(btn=>Object.assign(btn.style,{maxWidth:'100%',whiteSpace:'normal',overflowWrap:'anywhere'}));
+      waiterActions.appendChild(root);
+    }else document.body.appendChild(root);
     document.getElementById('vantixPushV65Main').addEventListener('click',activate);
     document.getElementById('vantixPushV65Test').addEventListener('click',sendTest);
   }
