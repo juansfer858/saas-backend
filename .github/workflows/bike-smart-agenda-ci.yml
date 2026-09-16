@@ -6,6 +6,9 @@ on:
       - 'prisma/bike-agenda-v1.prisma'
       - 'src/modules/bike/bike-agenda.**'
       - 'src/modules/bike/bike.routes.js'
+      - 'src/web/bike-control-center.html'
+      - 'src/web/bike-control-center.js'
+      - 'server.js'
       - 'scripts/bike-smart-agenda-smoke.js'
       - '.github/workflows/bike-smart-agenda-ci.yml'
   workflow_dispatch:
@@ -46,5 +49,11 @@ jobs:
         run: npx prisma db push
       - name: Load agenda routes
         run: node -e "require('./src/modules/bike/bike-agenda.service'); require('./src/modules/bike/bike-agenda.schemas'); require('./src/modules/bike/bike-agenda.controller'); require('./src/modules/bike/bike-agenda.routes'); require('./src/modules/bike/bike.routes'); console.log('BIKE_AGENDA_MODULE_LOAD_OK')"
+      - name: Validate Bike control center runtime syntax
+        run: |
+          node --check src/web/bike-control-center.js
+          node --check server.js
+          grep -q 'Vantix Bike' src/web/bike-control-center.html
+          grep -q '/bike/control-center.js' src/web/bike-control-center.html
       - name: Run smart agenda DB smoke
         run: node scripts/bike-smart-agenda-smoke.js
