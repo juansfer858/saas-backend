@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const path = require('node:path');
 const { app } = require('./src/app');
 const { prisma } = require('./src/config/prisma');
 const dianTransmission = require('./src/modules/platform/dian/dian-transmission.service');
@@ -23,6 +24,8 @@ const EDGE_SCHEMA_RETRY_MS = Math.max(Number(process.env.EDGE_SCHEMA_RETRY_MS) |
 const EDGE_SCHEMA_MAX_ATTEMPTS = Math.max(Number(process.env.EDGE_SCHEMA_MAX_ATTEMPTS) || 12, 1);
 const SELF_SERVICE_SCHEMA_RETRY_MS = Math.max(Number(process.env.SELF_SERVICE_SCHEMA_RETRY_MS) || 5000, 1000);
 const SELF_SERVICE_SCHEMA_MAX_ATTEMPTS = Math.max(Number(process.env.SELF_SERVICE_SCHEMA_MAX_ATTEMPTS) || 12, 1);
+const BIKE_CONTROL_CENTER_HTML = path.join(__dirname, 'src', 'web', 'bike-control-center.html');
+const BIKE_CONTROL_CENTER_JS = path.join(__dirname, 'src', 'web', 'bike-control-center.js');
 
 let server = null;
 let restaurantDemoTimer = null;
@@ -149,6 +152,17 @@ function startEmbeddedWorkers() {
     console.log('NOTIFICATION_EMBEDDED_WORKER_DISABLED');
   }
 }
+
+// Bike UI is isolated from /app so the Restaurant shell and its catch-all remain untouched.
+app.get('/bike/control-center.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.type('application/javascript').sendFile(BIKE_CONTROL_CENTER_JS);
+});
+app.get('/bike', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-VantixGC-Vertical', 'BIKE');
+  res.sendFile(BIKE_CONTROL_CENTER_HTML);
+});
 
 app.get('/healthz', (_req, res) => {
   res.set('Cache-Control', 'no-store');
