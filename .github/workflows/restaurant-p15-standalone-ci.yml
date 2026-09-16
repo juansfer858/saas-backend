@@ -17,6 +17,8 @@ jobs:
   p15-windows-end-to-end:
     runs-on: windows-2025
     timeout-minutes: 60
+    env:
+      DATABASE_URL: postgresql://vantix_p15:ci@127.0.0.1:55435/vantix_restaurant_p15_lab
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
