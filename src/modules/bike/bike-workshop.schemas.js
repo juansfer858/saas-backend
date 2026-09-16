@@ -53,6 +53,14 @@ const billingDraftSchema = z.object({
   cajaBancoId: z.string().uuid().optional().nullable(),
   documentType: z.enum(['FACTURA_ELECTRONICA', 'DOCUMENTO_EQUIVALENTE_POS']).default('DOCUMENTO_EQUIVALENTE_POS'),
   notas: z.string().trim().max(1000).optional().nullable()
+}).superRefine((value, ctx) => {
+  if (value.formaPago !== 'CREDITO' && !value.cajaBancoId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['cajaBancoId'],
+      message: 'La venta de contado requiere caja o banco'
+    });
+  }
 });
 
 const cancelSchema = z.object({
