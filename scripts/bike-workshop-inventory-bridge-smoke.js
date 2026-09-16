@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { prisma } = require('../src/config/prisma');
 const bike = require('../src/modules/bike/bike-workshop.service');
+const cancelService = require('../src/modules/bike/bike-workshop-cancel.service');
 const inventory = require('../src/modules/inventory/inventory.service');
 const reservations = require('../src/modules/inventory/inventory-reservation.service');
 
@@ -17,8 +18,6 @@ async function main() {
   const service = await prisma.bikeServiceCatalog.create({ data: { tenantId: tenant.id, productId: serviceProduct.id, code: `MANT-${suffix}`, name: 'Mantenimiento general', category: 'MANTENIMIENTO', estimatedMinutes: 90, basePrice: 100000 } });
   const asset = await prisma.bikeAsset.create({ data: { tenantId: tenant.id, customerThirdPartyId: customer.id, code: `BIKE-${suffix}`, brand: 'Trek', model: 'Marlin 7' } });
 
-  // Dos transacciones compiten por una sola unidad. El lock de Producto obliga
-  // a que la segunda vea la reserva de la primera y falle, sin sobreventa.
   const concurrent = await Promise.allSettled([
     reservations.reserve({ tenantId: tenant.id, productId: lastUnit.id, sourceType: 'CONCURRENCY_TEST', sourceId: 'A', sourceLineId: `A-${suffix}`, quantity: 1, createdByUserId: user.id }),
     reservations.reserve({ tenantId: tenant.id, productId: lastUnit.id, sourceType: 'CONCURRENCY_TEST', sourceId: 'B', sourceLineId: `B-${suffix}`, quantity: 1, createdByUserId: user.id })
@@ -59,6 +58,11 @@ async function main() {
   const reservationAfterInstall = await prisma.inventoryReservation.findUnique({ where: { tenantId_sourceType_sourceLineId: { tenantId: tenant.id, sourceType: 'BIKE_WORK_ORDER', sourceLineId: partLine.id } } });
   assert.equal(reservationAfterInstall.state, 'ACTIVE');
 
+  await assert.rejects(
+    () => cancelService.cancelWorkOrderSafe(tenant.id, order.id, 'Cliente desistió tarde'),
+    (error) => error?.code === 'BIKE_WORK_ORDER_CANCEL_REQUIRES_SETTLEMENT'
+  );
+
   await bike.finalTest(tenant.id, user.id, order.id, { checklist: { brakes: true, shifting: true, torque: true }, approved: true, notes: 'Prueba aprobada' });
   const ready = await bike.getWorkOrder(tenant.id, order.id);
   assert.equal(ready.status, 'READY');
@@ -73,7 +77,7 @@ async function main() {
   const finalStock = await prisma.producto.findUnique({ where: { id: part.id } });
   assert.equal(Number(finalStock.stockActual), 2, 'El borrador comercial tampoco debe descontar stock');
 
-  console.log('BIKE_WORKSHOP_INVENTORY_BRIDGE_OK', JSON.stringify({ tenantId: tenant.id, orderId: order.id, saleDraftId: saleDraft.id, concurrencyProtected: true }));
+  console.log('BIKE_WORKSHOP_INVENTORY_BRIDGE_OK', JSON.stringify({ tenantId: tenant.id, orderId: order.id, saleDraftId: saleDraft.id, concurrencyProtected: true, unsafeCancellationBlocked: true }));
 }
 
 main().catch((error) => {
