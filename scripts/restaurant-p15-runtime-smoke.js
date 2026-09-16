@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {CONTRACT,assertConfig,addressInCidr}=require('../lab/restaurant-p15/runtime-config');
+const env={P15_ENABLED:'true',P15_INSTALLATION_ID:'HOME-PILOT-P15',P15_TENANT_SUBDOMAIN:'demo-restaurante',P15_HTTP_PORT:'8815',P15_BIND_HOST:'0.0.0.0',P15_ADVERTISE_HOST:'192.168.10.20',P15_LAN_ENABLED:'true',P15_LAN_CIDR:'192.168.10.0/24',P15_PRINT_PORT:'18815',DATABASE_URL:'postgresql://vantix_p15:secret@127.0.0.1:55435/vantix_restaurant_p15_lab',P15_BACKUP_ENABLED:'true'};
+const cfg=assertConfig(env);
+assert.equal(cfg.marker,'VANTIX_RESTAURANT_STANDALONE_P15_LAB');
+assert.equal(cfg.http.port,8815);assert.equal(cfg.database.port,55435);assert.equal(cfg.database.name,'vantix_restaurant_p15_lab');assert.equal(cfg.print.port,18815);assert.equal(cfg.http.lanEnabled,true);assert.equal(addressInCidr('192.168.10.55','192.168.10.0/24'),true);assert.equal(addressInCidr('192.168.11.55','192.168.10.0/24'),false);
+assert.notEqual(CONTRACT.httpPort,8788);assert.notEqual(CONTRACT.httpPort,8790);assert.notEqual(CONTRACT.httpPort,8791);assert.notEqual(CONTRACT.postgresPort,55432);assert.notEqual(CONTRACT.postgresPort,55433);
+assert.throws(()=>assertConfig({...env,P15_HTTP_PORT:'8791'}),/8815/);assert.throws(()=>assertConfig({...env,DATABASE_URL:'postgresql://x:y@127.0.0.1:55433/vantix_restaurant_p15_lab'}),/aislamiento/);
+console.log('RESTAURANT_P15_RUNTIME_SMOKE_OK');
