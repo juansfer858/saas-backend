@@ -14,6 +14,8 @@ on:
       - 'src/web/restaurant-push-v65.js'
       - 'scripts/ensure-restaurant-runtime-schema.js'
       - 'scripts/restaurant-push-core-v65-smoke.js'
+      - 'scripts/restaurant-waiter-push-header-v112-smoke.js'
+      - 'scripts/restaurant-waiter-push-header-v112-browser.js'
       - '.github/workflows/restaurant-push-core-v65-ci.yml'
       - '.env.example'
   push:
@@ -29,6 +31,8 @@ on:
       - 'src/web/restaurant-push-v65.js'
       - 'scripts/ensure-restaurant-runtime-schema.js'
       - 'scripts/restaurant-push-core-v65-smoke.js'
+      - 'scripts/restaurant-waiter-push-header-v112-smoke.js'
+      - 'scripts/restaurant-waiter-push-header-v112-browser.js'
       - '.github/workflows/restaurant-push-core-v65-ci.yml'
       - '.env.example'
 
@@ -54,6 +58,13 @@ jobs:
       - run: npx prisma validate
       - name: Validate Push Core contract
         run: node scripts/restaurant-push-core-v65-smoke.js
+      - name: Validate waiter header placement without changing Push behavior
+        run: node scripts/restaurant-waiter-push-header-v112-smoke.js
+      - name: Validate tablet portrait and landscape layout in Chromium
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          npx playwright install --with-deps chromium
+          node scripts/restaurant-waiter-push-header-v112-browser.js
 
   verify-production:
     if: github.event_name == 'push'
@@ -75,6 +86,7 @@ jobs:
                 && curl -fsS "$BASE/app/push-v65-sw.js?v=$GITHUB_SHA" -o "$SW" \
                 && curl -fsS "$BASE/api/public/restaurante/push-v65/config?v=$GITHUB_SHA" -o "$CFG" \
                 && grep -Fq 'VANTIX_RESTAURANT_PUSH_CLIENT_V65' "$CLIENT" \
+                && grep -Fq 'VANTIX_RESTAURANT_WAITER_PUSH_HEADER_V112' "$CLIENT" \
                 && grep -Fq 'VANTIX_RESTAURANT_PUSH_SW_V65' "$SW" \
                 && grep -Fq 'VANTIX_RESTAURANT_PUSH_CORE_V65' "$CFG"; then
                 echo "V65 exact commit and Push public surfaces are live: $GITHUB_SHA"
