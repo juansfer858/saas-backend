@@ -33,6 +33,9 @@ jobs:
       - name: Prepare hardened Windows source
         shell: pwsh
         run: ./scripts/restaurant-p15-prepare-windows-source.ps1
+      - name: Fix persistent backup service loop
+        shell: pwsh
+        run: ./scripts/restaurant-p15-backup-service-fix.ps1
       - name: Prepare complete package source
         shell: pwsh
         run: ./scripts/restaurant-p15-prepare-package-source.ps1
