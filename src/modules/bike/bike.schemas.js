@@ -25,6 +25,7 @@ const updateBikeSchema = createBikeSchema.partial().omit({ customerThirdPartyId:
 });
 
 const createServiceSchema = z.object({
+  productId: z.string().uuid(),
   code: z.string().trim().min(1).max(60),
   name: z.string().trim().min(1).max(160),
   category: z.string().trim().min(1).max(100),
