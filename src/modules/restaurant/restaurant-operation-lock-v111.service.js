@@ -8,3 +8,4 @@ async function lockOperation(tx, tenantId, exclusive = false) {
   else await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock_shared(hashtextextended(${key}, 0))`;
 }
 module.exports = {lockOperation};
+

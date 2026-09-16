@@ -1,5 +1,6 @@
 'use strict';
 
+const { lockOperation } = require('./restaurant-operation-lock-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
@@ -23,6 +24,7 @@ async function moveTableVisit(tenantId, user, sourceTableId, destinationTableId)
   }
 
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     await lockTables(tx, tenantId, sourceTableId, destinationTableId);
 
     const [source, destination] = await Promise.all([
@@ -114,3 +116,4 @@ async function moveTableVisit(tenantId, user, sourceTableId, destinationTableId)
 }
 
 module.exports = { MARKER, moveTableVisit };
+

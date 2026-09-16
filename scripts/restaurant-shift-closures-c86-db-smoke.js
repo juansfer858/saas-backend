@@ -107,11 +107,12 @@ async function main() {
   assert.equal(snapshot.status, 'CUADRADO');
   assert.equal(snapshot.operations.length, 1);
   assert.equal(snapshot.complete.version, 1);
-  assert.ok(snapshot.complete.pending.some(p => p.id === pendingSession.session.id));
-  assert.ok(snapshot.complete.orders.some(o => o.state === 'BORRADOR' && o.reference === pendingTable.name));
+  assert.ok(!snapshot.complete.pending.some(p => p.id === pendingSession.session.id));
+  assert.equal((await prisma.restaurantTableSession.findUnique({where:{id:pendingSession.session.id}})).state,'CANCELADA');
+  assert.ok(snapshot.complete.orders.some(o => o.state === 'CANCELADO' && o.reference === pendingTable.name));
   assert.ok(snapshot.complete.sales.some(s => s.items.length >= 1));
   assert.ok(snapshot.detailRows.some(r => r[0] === 'PRODUCTO VENDIDO'));
-  assert.ok(snapshot.detailRows.some(r => r[0] === 'PENDIENTE'));
+  assert.ok(snapshot.detailRows.some(r => r[0] === 'PEDIDO' && r[2].includes('CANCELADO')));
   assert.equal(Number(snapshot.complete.totals.sales), Number(snapshot.totals.billedValue), 'borradores no son ventas');
   assert.ok(Number(snapshot.complete.totals.collected) > 0, 'recaudo proviene de pagos reales');
   assert.equal(Number(snapshot.complete.totals.priorInvoiceCollections),1000);
@@ -162,7 +163,7 @@ async function main() {
   const printSnapshot = receiptService.cashCloseSnapshotFromIntent(printIntent);
   assert.ok(printSnapshot.summaryRows.some(r=>r.label==='Pendientes restaurante'));
   assert.equal(printSnapshot.detailRows,undefined);
-  assert.ok(snapshot.detailRows.some(r=>r[0]==='PENDIENTE'),'el historial conserva el detalle completo');
+  assert.ok(snapshot.detailRows.some(r=>r[0]==='PEDIDO'),'el historial conserva los pedidos cancelados');
   const printLines = receiptService.cashCloseReceiptLines({company:{nombreEmpresa:'CI'},snapshot:printSnapshot});
   assert.ok(!printLines.join(' ').includes('INFORME COMPLETO'));
   assert.ok(printLines.length<100);
@@ -193,4 +194,5 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 }).finally(() => prisma.$disconnect());
+
 

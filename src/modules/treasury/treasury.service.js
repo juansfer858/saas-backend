@@ -62,8 +62,8 @@ async function openCashSession(tenantId, userId, cajaBancoId, input) {
   });
 }
 
-async function closeCashSession(tenantId, userId, sessionId, input) {
-  const session = await prisma.aperturaCierreCaja.findFirst({
+async function closeCashSession(tenantId, userId, sessionId, input, client = prisma) {
+  const session = await client.aperturaCierreCaja.findFirst({
     where: { id: sessionId, tenantId, estado: 'ABIERTA' }
   });
   if (!session) throw new AppError(404, 'Turno de caja abierto no encontrado', 'CASH_SESSION_NOT_FOUND');
@@ -75,7 +75,7 @@ async function closeCashSession(tenantId, userId, sessionId, input) {
   const finalBalance = money(input.saldoFinal);
   const difference = finalBalance.minus(expected).toDecimalPlaces(2);
 
-  return prisma.aperturaCierreCaja.update({
+  return client.aperturaCierreCaja.update({
     where: { id: session.id },
     data: {
       estado: 'CERRADA',
