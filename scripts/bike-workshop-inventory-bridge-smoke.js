@@ -13,8 +13,22 @@ async function main() {
   const customer = await prisma.tercero.create({ data: { tenantId: tenant.id, tipo: 'CLIENTE', tipoDocumento: 'CC', identificacion: `C-${suffix}`, nombre: 'Cliente Bike', telefono: '3000000000' } });
   const serviceProduct = await prisma.producto.create({ data: { tenantId: tenant.id, tipo: 'SERVICIO', sku: `SERV-${suffix}`, nombre: 'Mantenimiento general', controlaInventario: false, precio1: 100000, stockActual: 0 } });
   const part = await prisma.producto.create({ data: { tenantId: tenant.id, tipo: 'PRODUCTO', sku: `PART-${suffix}`, nombre: 'Cadena Shimano', controlaInventario: true, precio1: 80000, costoPromedio: 40000, stockActual: 2 } });
+  const lastUnit = await prisma.producto.create({ data: { tenantId: tenant.id, tipo: 'PRODUCTO', sku: `LAST-${suffix}`, nombre: 'Última pastilla', controlaInventario: true, precio1: 30000, costoPromedio: 15000, stockActual: 1 } });
   const service = await prisma.bikeServiceCatalog.create({ data: { tenantId: tenant.id, productId: serviceProduct.id, code: `MANT-${suffix}`, name: 'Mantenimiento general', category: 'MANTENIMIENTO', estimatedMinutes: 90, basePrice: 100000 } });
   const asset = await prisma.bikeAsset.create({ data: { tenantId: tenant.id, customerThirdPartyId: customer.id, code: `BIKE-${suffix}`, brand: 'Trek', model: 'Marlin 7' } });
+
+  // Dos transacciones compiten por una sola unidad. El lock de Producto obliga
+  // a que la segunda vea la reserva de la primera y falle, sin sobreventa.
+  const concurrent = await Promise.allSettled([
+    reservations.reserve({ tenantId: tenant.id, productId: lastUnit.id, sourceType: 'CONCURRENCY_TEST', sourceId: 'A', sourceLineId: `A-${suffix}`, quantity: 1, createdByUserId: user.id }),
+    reservations.reserve({ tenantId: tenant.id, productId: lastUnit.id, sourceType: 'CONCURRENCY_TEST', sourceId: 'B', sourceLineId: `B-${suffix}`, quantity: 1, createdByUserId: user.id })
+  ]);
+  assert.equal(concurrent.filter((x) => x.status === 'fulfilled').length, 1, 'Solo una reserva concurrente debe ganar');
+  assert.equal(concurrent.filter((x) => x.status === 'rejected').length, 1, 'La segunda reserva concurrente debe ser rechazada');
+  assert.equal(concurrent.find((x) => x.status === 'rejected').reason?.code, 'INVENTORY_RESERVATION_INSUFFICIENT_STOCK');
+  const lastAvailability = await reservations.availability(tenant.id, lastUnit.id);
+  assert.equal(lastAvailability.reserved.toString(), '1');
+  assert.equal(lastAvailability.available.toString(), '0');
 
   const order = await bike.createWorkOrder(tenant.id, user.id, { bikeId: asset.id, customerRequest: 'Revisión completa' });
   assert.equal(order.status, 'RECEIVED');
@@ -59,7 +73,7 @@ async function main() {
   const finalStock = await prisma.producto.findUnique({ where: { id: part.id } });
   assert.equal(Number(finalStock.stockActual), 2, 'El borrador comercial tampoco debe descontar stock');
 
-  console.log('BIKE_WORKSHOP_INVENTORY_BRIDGE_OK', JSON.stringify({ tenantId: tenant.id, orderId: order.id, saleDraftId: saleDraft.id }));
+  console.log('BIKE_WORKSHOP_INVENTORY_BRIDGE_OK', JSON.stringify({ tenantId: tenant.id, orderId: order.id, saleDraftId: saleDraft.id, concurrencyProtected: true }));
 }
 
 main().catch((error) => {
