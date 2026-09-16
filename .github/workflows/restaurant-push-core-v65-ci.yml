@@ -15,6 +15,7 @@ on:
       - 'scripts/ensure-restaurant-runtime-schema.js'
       - 'scripts/restaurant-push-core-v65-smoke.js'
       - 'scripts/restaurant-waiter-push-header-v112-smoke.js'
+      - 'scripts/restaurant-waiter-push-header-v112-browser.js'
       - '.github/workflows/restaurant-push-core-v65-ci.yml'
       - '.env.example'
   push:
@@ -31,6 +32,7 @@ on:
       - 'scripts/ensure-restaurant-runtime-schema.js'
       - 'scripts/restaurant-push-core-v65-smoke.js'
       - 'scripts/restaurant-waiter-push-header-v112-smoke.js'
+      - 'scripts/restaurant-waiter-push-header-v112-browser.js'
       - '.github/workflows/restaurant-push-core-v65-ci.yml'
       - '.env.example'
 
@@ -58,6 +60,11 @@ jobs:
         run: node scripts/restaurant-push-core-v65-smoke.js
       - name: Validate waiter header placement without changing Push behavior
         run: node scripts/restaurant-waiter-push-header-v112-smoke.js
+      - name: Validate tablet portrait and landscape layout in Chromium
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          npx playwright install --with-deps chromium
+          node scripts/restaurant-waiter-push-header-v112-browser.js
 
   verify-production:
     if: github.event_name == 'push'
