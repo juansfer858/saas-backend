@@ -99,6 +99,39 @@ if ($content.Contains($upgradeAnchor)) {
   throw 'No se pudo agregar frontera segura de upgrade P15.'
 }
 
+$oldWait = "if (-not `$NoServices -and -not (Wait-Tcp `$HttpPort 90)) { throw 'Servidor P15 no inició en 8815.' }"
+$newWait = @'
+if (-not $NoServices -and -not (Wait-Tcp $HttpPort 90)) {
+  Write-Host '=== P15 SERVER STARTUP DIAGNOSTICS ===' -ForegroundColor Yellow
+  try { Get-Service -Name $ServerServiceId -ErrorAction SilentlyContinue | Format-List * | Out-String | Write-Host } catch {}
+  try {
+    $winService = Get-CimInstance Win32_Service -Filter ("Name='{0}'" -f $ServerServiceId) -ErrorAction SilentlyContinue
+    if ($winService) { $winService | Select-Object Name,State,Status,ExitCode,ProcessId,PathName,StartName | Format-List | Out-String | Write-Host }
+  } catch {}
+  try {
+    Get-ChildItem -LiteralPath $LogsDir -File -ErrorAction SilentlyContinue | ForEach-Object {
+      Write-Host ("--- LOG {0} ---" -f $_.FullName)
+      Get-Content -LiteralPath $_.FullName -Tail 200 -ErrorAction SilentlyContinue | Write-Host
+    }
+  } catch {}
+  try {
+    $xmlPath = Join-Path $ServicesDir "$ServerServiceId.xml"
+    if (Test-Path -LiteralPath $xmlPath) {
+      Write-Host '--- SERVER XML REDACTED ---'
+      $xmlText = Get-Content -LiteralPath $xmlPath -Raw
+      $xmlText = [regex]::Replace($xmlText, '(?i)(name="(?:P15_JWT_SECRET|DATABASE_URL|P15_BACKUP_SECRET|P15_PRINT_TOKEN)" value=")[^"]+', '$1***')
+      Write-Host $xmlText
+    }
+  } catch {}
+  throw 'Servidor P15 no inició en 8815.'
+}
+'@
+if ($content.Contains($oldWait)) {
+  $content = $content.Replace($oldWait, $newWait)
+} elseif ($content -notmatch 'P15 SERVER STARTUP DIAGNOSTICS') {
+  throw 'No se pudo instalar diagnóstico de arranque P15.'
+}
+
 Set-Content -LiteralPath $Installer -Value $content -Encoding UTF8
 $tokens = $null
 $errors = $null
