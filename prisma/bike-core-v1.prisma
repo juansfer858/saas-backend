@@ -148,6 +148,7 @@ model BikeWorkOrder {
   bikeId                String
   customerThirdPartyId  String
   assignedUserId        String?
+  commercialDocumentId  String?
   status                BikeWorkOrderStatus @default(RECEIVED)
   customerRequest       String?
   intakeNotes           String?
@@ -156,6 +157,7 @@ model BikeWorkOrder {
   approvedAt            DateTime?
   readyAt               DateTime?
   deliveredAt           DateTime?
+  billedAt              DateTime?
   cancelledAt           DateTime?
   cancellationReason    String?
   subtotal              Decimal             @default(0) @db.Decimal(18, 2)
@@ -173,6 +175,7 @@ model BikeWorkOrder {
   finalTests            BikeFinalTest[]
 
   @@unique([tenantId, number])
+  @@unique([tenantId, commercialDocumentId])
   @@index([tenantId, branchId, status])
   @@index([tenantId, bikeId, createdAt])
   @@index([tenantId, customerThirdPartyId, createdAt])
