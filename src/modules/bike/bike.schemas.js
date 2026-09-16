@@ -24,13 +24,12 @@ const updateBikeSchema = createBikeSchema.partial().omit({ customerThirdPartyId:
   status: z.enum(['ACTIVE', 'IN_WORKSHOP', 'SOLD', 'INACTIVE']).optional()
 });
 
+// El producto SERVICIO del Super Core es la fuente comercial canónica para
+// SKU, nombre y precio. Bike solo agrega semántica técnica (categoría/tiempo).
 const createServiceSchema = z.object({
   productId: z.string().uuid(),
-  code: z.string().trim().min(1).max(60),
-  name: z.string().trim().min(1).max(160),
   category: z.string().trim().min(1).max(100),
   estimatedMinutes: z.coerce.number().int().min(5).max(1440),
-  basePrice: z.coerce.number().min(0),
   active: z.boolean().optional(),
   metadata: z.record(z.string(), z.any()).optional().nullable()
 });
