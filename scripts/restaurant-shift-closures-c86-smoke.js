@@ -63,8 +63,9 @@ assert.match(cashUi, />NO</);
 const historyUi = fs.readFileSync(path.join(root, 'src/web/restaurant-shift-closures-c86.js'), 'utf8');
 assert.match(historyUi, /Exportar Excel/);
 assert.match(historyUi, /Exportar PDF/);
-assert.match(historyUi, /Imprimir POS/);
+assert.match(historyUi, /Imprimir resumen POS/);
 assert.match(historyUi, /Platos cocina entregados/);
 assert.match(historyUi, /MOSTRADOR/);
 
 console.log('Restaurant shift closures C86 smoke: OK');
+

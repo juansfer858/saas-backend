@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { prisma } = require('../../config/prisma');
 const { decimal, money: decimalMoney } = require('../../utils/decimal');
 const companyService = require('./restaurant-company-profile.service');
+const { summaryRows, legacyReport } = require('./restaurant-cash-close-summary.service');
 const receiptLayout = require('./restaurant-pos-receipt-layout.service');
 
 const POS_ROLE = 'CAJA';
@@ -242,59 +243,27 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
   const lines = [];
   const pair = (left, right) => lines.push(...receiptLayout.pairOrWrap(left, right, width, 2));
   const center = (value) => lines.push(...receiptLayout.centeredWrapped(value, width));
-
-  center(company?.nombreEmpresa || 'Restaurante');
-  for (const line of companyService.receiptCompanyLines(company)) center(line);
-  lines.push(separator);
+  center(String(company?.nombreEmpresa || 'Restaurante').slice(0, 80));
+  if (company?.nit) center(`NIT ${String(company.nit).slice(0, 30)}`);
   center('CIERRE DE TURNO / CAJA');
-  pair('Caja', snapshot?.shift?.cajaNombre || 'Caja');
-  pair('Cajero', snapshot?.shift?.cajero || 'Cajero');
-  const opened = dateTime(snapshot?.shift?.abiertoEn);
-  const closed = dateTime(snapshot?.shift?.cerradoEn);
-  if (opened) center(`Apertura: ${opened}`);
-  if (closed) center(`Cierre: ${closed}`);
-  lines.push(separator);
-
-  pair('Ventas cerradas', String(snapshot?.tables?.length || 0));
-  pair('Total ventas + propinas', cop(snapshot?.restaurantClosedTablesTotal));
-  lines.push(separator);
-  center('VENTAS POR MEDIO DE PAGO');
-  pair('Efectivo', cop(snapshot?.paymentBreakdown?.cashSales));
-  pair('Transferencias / QR', cop(snapshot?.paymentBreakdown?.transferSales));
-  pair('Tarjetas', cop(snapshot?.paymentBreakdown?.cardSales));
-  pair('Crédito / cartera', cop(snapshot?.paymentBreakdown?.creditSales));
-  if (number(snapshot?.paymentBreakdown?.bankOtherSales) !== 0) pair('Banco / otros', cop(snapshot.paymentBreakdown.bankOtherSales));
-  lines.push(separator);
-
-  center('ARQUEO DE CAJA');
-  pair('Fondo inicial', cop(snapshot?.shift?.saldoInicial));
-  pair('Ingresos efectivo', cop(snapshot?.shift?.ingresosEfectivo));
-  pair('Ingresos voucher', cop(snapshot?.shift?.ingresosVoucher));
-  pair('Egresos efectivo', cop(snapshot?.shift?.egresosEfectivo));
-  pair('Efectivo esperado', cop(snapshot?.systemCashExpected));
-  pair('Conteo final', cop(snapshot?.shift?.saldoFinal));
-  pair('DESCUADRE', cop(snapshot?.shift?.descuadre));
-
-  if (Array.isArray(snapshot?.tables) && snapshot.tables.length) {
-    lines.push(separator);
-    center('DETALLE DE VENTAS');
-    for (const row of snapshot.tables) {
-      const label = `${row.table || 'Mesa'} · ${row.saleNumber || 'S/N'}`;
-      pair(label, cop(row.total));
-      const method = String(row.paymentMethodLabel || row.paymentMethodKind || '').trim();
-      if (method) lines.push(...receiptLayout.wrapText(`  ${method}`, width));
-    }
-  }
-
-  lines.push(separator);
-  center(`Turno: ${String(snapshot?.shift?.id || '').slice(0, 12).toUpperCase()}`);
-  if (Array.isArray(snapshot.detailRows)) {
-    center('INFORME COMPLETO');
-    for (const row of snapshot.detailRows) {
-      lines.push(...receiptLayout.wrapText(row.filter(v => v !== '' && v != null).join(' · '), width));
+  center('RESUMEN');
+  // VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V110
+  // Old queued jobs may contain thousands of detailRows: never print those lists.
+  const rows = snapshot.summaryRows || summaryRows(legacyReport(snapshot));
+  const sections = { TURNO:'DATOS DEL TURNO', 'OPERACIÓN':'VENTAS', PAGOS:'VENTAS POR MEDIO DE PAGO',
+    CANALES:'VENTAS POR CANAL', ARQUEO:'ARQUEO DE CAJA', CONTROL:'CONTROL', FIRMAS:'FIRMAS' };
+  let previous;
+  for (const row of rows) {
+    if (row.section !== previous) {
       lines.push(separator);
+      center(sections[row.section] || row.section);
+      previous = row.section;
     }
+    pair(row.label, row.value);
   }
+  lines.push(separator);
+  center('Detalle: Historial de cierres');
+  center('Control interno - no es factura');
   center('FIN DEL CIERRE');
   return lines;
 }
@@ -514,3 +483,4 @@ module.exports = {
   buildPendingReceiptJobs,
   buildRecentReceiptJobs: buildPendingReceiptJobs
 };
+
