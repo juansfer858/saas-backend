@@ -121,7 +121,7 @@ function Patch-WatchdogFile([string]$Path, [string]$BackupName) {
   $Tokens = $null
   $Errors = $null
   [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$Tokens, [ref]$Errors) | Out-Null
-  if ($Errors.Count) { throw "Watchdog inválido después de reparar $Path: $($Errors[0].Message)" }
+  if ($Errors.Count) { throw "Watchdog inválido después de reparar ${Path}: $($Errors[0].Message)" }
 }
 
 function Add-Report([string]$Text) {
