@@ -202,6 +202,13 @@ async function main() {
   const summary = await cashV2.shiftSummary(demo.tenantId, cashier);
   assert.equal(summary.shift.id, openedShift.shift.id);
   assert.ok(Number(summary.restaurantCashRecorded) > 0);
+  await assert.rejects(cashV2.closeShift(demo.tenantId,cashier,{saldoFinal:Number(summary.systemCashExpected)}),e=>e.code==='RESTAURANT_SHIFT_CLOSE_PENDING');
+  const pendingCommands=await prisma.restaurantCommand.findMany({where:{tenantId:demo.tenantId,order:{sessionId:{in:[cashTable.sessionId,creditTable.sessionId]}}}});
+  for(const command of pendingCommands){
+    await base.updateCommandState(demo.tenantId,cashier,command.id,'EN_PREPARACION');
+    await base.updateCommandState(demo.tenantId,cashier,command.id,'LISTA');
+    await base.updateCommandState(demo.tenantId,cashier,command.id,'ENTREGADA');
+  }
   const closedShift = await cashV2.closeShift(demo.tenantId, cashier, { saldoFinal: Number(summary.systemCashExpected) });
   assert.equal(closedShift.closed.estado, 'CERRADA');
   assert.equal(Number(closedShift.closed.descuadre), 0);

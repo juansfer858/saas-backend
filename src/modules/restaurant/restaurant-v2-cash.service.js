@@ -1,5 +1,6 @@
 'use strict';
 
+const { closeRestaurantShift } = require('./restaurant-shift-close-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { money } = require('../../utils/decimal');
@@ -259,10 +260,12 @@ async function shiftSummary(tenantId, user) {
 
 async function closeShift(tenantId, user, input) {
   const shift = await requireOwnShift(tenantId, user.id);
-  const result = await base.closeCashShift(tenantId, user.id, shift.id, { saldoFinal: Number(input.saldoFinal || 0) });
+  const result = await closeRestaurantShift(tenantId, user.id, shift.id, input,
+    tx => base.closeCashShift(tenantId, user.id, shift.id, { saldoFinal: Number(input.saldoFinal || 0) }, tx));
   return {
     marker: CASH_V2_MARKER,
     closed: publicShift(result.closed),
+    operationalClose: result.operationalClose,
     summary: {
       restaurantClosedTablesTotal: decimalString(result.before.restaurantClosedTablesTotal),
       systemCashExpected: decimalString(result.before.systemCashExpected),

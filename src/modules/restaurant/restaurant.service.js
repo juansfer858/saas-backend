@@ -1,3 +1,4 @@
+const { lockOperation } = require('./restaurant-shift-close-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty, pct } = require('../../utils/decimal');
@@ -171,6 +172,7 @@ async function listTables(tenantId, user = null, options = {}) {
 
 async function updateTable(tenantId, id, input) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const table = await tx.restaurantTable.findFirst({ where: { id, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
     if (Object.prototype.hasOwnProperty.call(input, 'assignedWaiterId')) await validateAssignedWaiter(tenantId, input.assignedWaiterId || null, tx);
@@ -197,6 +199,7 @@ async function updateTable(tenantId, id, input) {
 
 async function removeTable(tenantId, id) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const table = await tx.restaurantTable.findFirst({ where: { id, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
     const open = await tx.restaurantTableSession.findFirst({ where: { tenantId, tableId: id, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } } });
@@ -213,6 +216,7 @@ function assertWaiterTableAccess(user, table, options = {}) {
 
 async function openTable(tenantId, user, tableId, input = {}, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
     assertWaiterTableAccess(user, table, options);
@@ -248,6 +252,7 @@ async function openTable(tenantId, user, tableId, input = {}, options = {}) {
 
 async function requestAccount(tenantId, user, tableId, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const table = await tx.restaurantTable.findFirst({ where: { id: tableId, tenantId, active: true } });
     if (!table) throw new AppError(404, 'Mesa no encontrada', 'RESTAURANT_TABLE_NOT_FOUND');
     assertWaiterTableAccess(user, table, options);
@@ -344,6 +349,7 @@ async function loadOrder(tenantId, id, client = prisma) {
 }
 
 async function placeOrderInTx(tx, params) {
+  await lockOperation(tx, params.tenantId);
   if (params.externalRequestId) {
     const existing = await tx.restaurantOrder.findFirst({ where: { tenantId: params.tenantId, externalRequestId: params.externalRequestId } });
     if (existing) return loadOrder(params.tenantId, existing.id, tx);
@@ -744,6 +750,7 @@ async function postTipInTx(tx, params) {
 
 async function closeTable(tenantId, user, tableId, input) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const config = await getOrCreateConfig(tenantId, tx);
     const session = await tx.restaurantTableSession.findFirst({
       where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
@@ -837,12 +844,12 @@ async function openCashShift(tenantId, userId, input) {
   return treasury.openCashSession(tenantId, userId, input.cajaBancoId, { saldoInicial: input.saldoInicial || 0 });
 }
 
-async function cashShiftSummary(tenantId, userId, shiftId) {
-  const shift = await prisma.aperturaCierreCaja.findFirst({ where: { id: shiftId, tenantId } });
+async function cashShiftSummary(tenantId, userId, shiftId, client = prisma) {
+  const shift = await client.aperturaCierreCaja.findFirst({ where: { id: shiftId, tenantId } });
   if (!shift) throw new AppError(404, 'Turno de caja no encontrado', 'RESTAURANT_CASH_SHIFT_NOT_FOUND');
   if (shift.userId !== userId) throw new AppError(403, 'El turno pertenece a otro usuario', 'CASH_SESSION_USER_MISMATCH');
-  const sessions = await prisma.restaurantTableSession.findMany({ where: { tenantId, cashShiftId: shift.id, state: 'CERRADA' }, include: { table: true } });
-  const salesRows = sessions.length ? await prisma.comprobanteComercial.findMany({ where: { tenantId, id: { in: sessions.map((x) => x.saleId) } }, select: { id: true, numero: true, total: true } }) : [];
+  const sessions = await client.restaurantTableSession.findMany({ where: { tenantId, cashShiftId: shift.id, state: 'CERRADA' }, include: { table: true } });
+  const salesRows = sessions.length ? await client.comprobanteComercial.findMany({ where: { tenantId, id: { in: sessions.map((x) => x.saleId) } }, select: { id: true, numero: true, total: true } }) : [];
   const saleById = new Map(salesRows.map((x) => [x.id, x]));
   const tables = sessions.map((session) => {
     const sale = saleById.get(session.saleId);
@@ -854,9 +861,9 @@ async function cashShiftSummary(tenantId, userId, shiftId) {
   return { shift, tables, restaurantClosedTablesTotal: restaurantTotal, systemCashExpected: expectedDrawer, restaurantCashRecorded: shift.ingresosEfectivo };
 }
 
-async function closeCashShift(tenantId, userId, shiftId, input) {
-  const before = await cashShiftSummary(tenantId, userId, shiftId);
-  const closed = await treasury.closeCashSession(tenantId, userId, shiftId, { saldoFinal: input.saldoFinal });
+async function closeCashShift(tenantId, userId, shiftId, input, client = prisma) {
+  const before = await cashShiftSummary(tenantId, userId, shiftId, client);
+  const closed = await treasury.closeCashSession(tenantId, userId, shiftId, { saldoFinal: input.saldoFinal }, client);
   return { before, closed };
 }
 
@@ -892,3 +899,4 @@ module.exports = {
   productionStatus,
   computeSplit
 };
+

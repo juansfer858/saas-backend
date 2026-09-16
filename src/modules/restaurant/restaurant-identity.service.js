@@ -1,3 +1,4 @@
+const { lockOperation } = require('./restaurant-shift-close-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty, pct } = require('../../utils/decimal');
@@ -197,6 +198,7 @@ async function sessionServiceSummaryInTx(tx, tenantId, session, options = {}) {
 
 async function getWaiterDraft(tenantId, user, sessionId, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false, options);
     const service = await sessionServiceSummaryInTx(tx, tenantId, ctx.session, options);
     if (!ctx.order) return { order: null, sale: ctx.sale, session: ctx.session, service };
@@ -235,6 +237,7 @@ function detailValues(line) {
 
 async function updateTableServiceSetup(tenantId, user, sessionId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const session = await tx.restaurantTableSession.findFirst({
       where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
       include: { table: true }
@@ -273,6 +276,7 @@ async function updateTableServiceSetup(tenantId, user, sessionId, input, options
 
 async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantity, seatNumber = null, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, true, options);
     const seat = normalizeSeatNumber(ctx.session, seatNumber, options);
     const requestedQty = qty(quantity);
@@ -363,6 +367,7 @@ async function setWaiterDraftItem(tenantId, user, sessionId, menuItemId, quantit
 
 async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const session = await tx.restaurantTableSession.findFirst({
       where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
       include: { table: true }
@@ -391,6 +396,7 @@ async function updateOrderItemMeta(tenantId, user, sessionId, itemId, input, opt
 
 async function sendWaiterDraft(tenantId, user, sessionId, options = {}) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const ctx = await ensureDraftContext(tx, tenantId, user, sessionId, false, options);
     if (!ctx.order) throw new AppError(409, 'No hay pedido en curso para enviar', 'RESTAURANT_DRAFT_ORDER_NOT_FOUND');
     const items = await tx.restaurantOrderItem.findMany({ where: { tenantId, orderId: ctx.order.id }, orderBy: { creadoEn: 'asc' } });
@@ -484,6 +490,7 @@ async function validateBillReadyInTx(tx, tenantId, user, tableId) {
 
 async function prepareAccount(tenantId, user, tableId) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const { session, service } = await validateBillReadyInTx(tx, tenantId, user, tableId);
     const preparedAt = new Date();
     const updated = await tx.restaurantTableSession.update({
@@ -497,6 +504,7 @@ async function prepareAccount(tenantId, user, tableId) {
 
 async function sendAccountToCash(tenantId, user, tableId) {
   return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
     const { session, service } = await validateBillReadyInTx(tx, tenantId, user, tableId);
     const now = new Date();
     const updated = await tx.restaurantTableSession.update({
@@ -602,4 +610,5 @@ module.exports = {
   cashShiftSummary,
   publicQrContext
 };
+
 

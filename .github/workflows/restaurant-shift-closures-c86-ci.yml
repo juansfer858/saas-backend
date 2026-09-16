@@ -4,6 +4,14 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-shift-close-v111.service.js'
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/treasury/treasury.service.js'
+      - 'src/modules/restaurant/restaurant-v2-table-move.service.js'
+      - 'src/modules/restaurant/restaurant-delivery.service.js'
+      - 'scripts/restaurant-shift-close-v111-db-smoke.js'
       - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
       - 'scripts/restaurant-cash-close-receipt-c82-smoke.js'
       - 'src/modules/restaurant/restaurant-shift-complete-report.service.js'
@@ -26,6 +34,14 @@ on:
   push:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-shift-close-v111.service.js'
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/treasury/treasury.service.js'
+      - 'src/modules/restaurant/restaurant-v2-table-move.service.js'
+      - 'src/modules/restaurant/restaurant-delivery.service.js'
+      - 'scripts/restaurant-shift-close-v111-db-smoke.js'
       - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
       - 'scripts/restaurant-cash-close-receipt-c82-smoke.js'
       - 'src/modules/restaurant/restaurant-shift-complete-report.service.js'
@@ -99,6 +115,8 @@ jobs:
         run: node scripts/restaurant-cash-close-receipt-c82-smoke.js
       - name: Validate C86 with PostgreSQL real
         run: node scripts/restaurant-shift-closures-c86-db-smoke.js
+      - name: Validate V111 atomic operational closure and concurrent sender
+        run: node scripts/restaurant-shift-close-v111-db-smoke.js
       - name: Validate Caja P4 existing source graph
         run: node -e "require('./src/modules/restaurant/restaurant-v2-cash.routes')"
       - name: Load application graph
@@ -122,7 +140,7 @@ jobs:
               DASH="$(curl -fsS "$BASE/app/restaurant-shift-closures-c86-dashboard.js?v=86-$GITHUB_SHA" 2>/dev/null || true)"
               NAV="$(curl -fsS "$BASE/app/restaurant-v2-native-control-p11.js?v=$GITHUB_SHA" 2>/dev/null || true)"
               if [[ "$NAV" == *"Historial de cierres"* ]] && echo "$HISTORY" | grep -Fq 'VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V110' \
-                && echo "$CASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSE_C86_CASH' \
+                && echo "$CASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSE_ALL_TABLES_V111' \
                 && echo "$DASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSURES_C86_DASHBOARD'; then
                 echo "C86 closures are live for exact commit $GITHUB_SHA"
                 exit 0
@@ -132,5 +150,6 @@ jobs:
           done
           echo "C86 did not become live for exact commit $GITHUB_SHA" >&2
           exit 1
+
 
 
