@@ -14,6 +14,8 @@ jobs:
   validate-bike-foundation:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_ci
     steps:
       - uses: actions/checkout@v4
 
@@ -25,13 +27,9 @@ jobs:
       - run: npm ci
 
       - name: Validate composed Prisma schema
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_ci
         run: npx prisma validate
 
       - name: Generate Prisma client
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_ci
         run: npx prisma generate
 
       - name: Validate Bike module loads
