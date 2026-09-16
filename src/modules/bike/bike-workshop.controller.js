@@ -1,4 +1,5 @@
 const service = require('./bike-workshop.service');
+const cancelService = require('./bike-workshop-cancel.service');
 const schemas = require('./bike-workshop.schemas');
 
 async function createWorkOrder(req, res, next) {
@@ -85,7 +86,7 @@ async function deliverWorkOrder(req, res, next) {
 async function cancelWorkOrder(req, res, next) {
   try {
     const input = schemas.parse(schemas.cancelSchema, req.body);
-    res.json({ ok: true, data: await service.cancelWorkOrder(req.tenantId, req.params.id, input.reason) });
+    res.json({ ok: true, data: await cancelService.cancelWorkOrderSafe(req.tenantId, req.params.id, input.reason) });
   } catch (error) { next(error); }
 }
 
