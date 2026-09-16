@@ -2,7 +2,9 @@ param()
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Installer = Join-Path $Root 'lab\restaurant-p15\windows\install-p15-windows.ps1'
+$BackupAgent = Join-Path $Root 'lab\restaurant-p15\backup-agent.js'
 if (-not (Test-Path -LiteralPath $Installer)) { throw "No existe $Installer" }
+if (-not (Test-Path -LiteralPath $BackupAgent)) { throw "No existe $BackupAgent" }
 $content = Get-Content -LiteralPath $Installer -Raw
 
 $oldProtect = @'
@@ -102,4 +104,18 @@ $tokens = $null
 $errors = $null
 [Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$tokens, [ref]$errors) | Out-Null
 if ($errors.Count) { throw "Instalador P15 inválido después de preparar fuente: $($errors[0].Message)" }
+
+$backupContent = Get-Content -LiteralPath $BackupAgent -Raw
+$oldTimer = "  await runOnce(); const timer=setInterval(runOnce,intervalMs); timer.unref?.(); console.log(``P15_BACKUP_AGENT_READY intervalMs=`${intervalMs}``);`r`n  await new Promise(()=>{});"
+$newTimer = "  await runOnce(); setInterval(runOnce,intervalMs); console.log(``P15_BACKUP_AGENT_READY intervalMs=`${intervalMs}``);`r`n  await new Promise(()=>{});"
+if ($backupContent.Contains($oldTimer)) {
+  $backupContent = $backupContent.Replace($oldTimer, $newTimer)
+} elseif ($backupContent -match 'timer\.unref') {
+  throw 'No se pudo corregir el temporizador persistente del backup agent.'
+}
+Set-Content -LiteralPath $BackupAgent -Value $backupContent -Encoding UTF8
+& node.exe --check $BackupAgent
+if ($LASTEXITCODE -ne 0) { throw 'backup-agent.js quedó inválido después de preparar fuente.' }
+$global:LASTEXITCODE = 0
+
 Write-Host 'P15_WINDOWS_SOURCE_PREPARED_OK'
