@@ -1,0 +1,282 @@
+enum BikeAssetStatus {
+  ACTIVE
+  IN_WORKSHOP
+  SOLD
+  INACTIVE
+}
+
+enum BikeWorkOrderStatus {
+  RECEIVED
+  DIAGNOSIS
+  WAITING_APPROVAL
+  APPROVED
+  IN_PROGRESS
+  FINAL_TEST
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum BikeWorkOrderItemType {
+  SERVICE
+  PART
+}
+
+enum BikeWorkOrderItemStatus {
+  PROPOSED
+  AUTHORIZED
+  REJECTED
+  RESERVED
+  IN_PROGRESS
+  COMPLETED
+  INSTALLED
+  CANCELLED
+}
+
+enum BikeAppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum BikeAppointmentSource {
+  INTERNAL
+  RIDER_PORTAL
+  WHATSAPP
+}
+
+enum BikeFindingSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum BikeEvidenceType {
+  INTAKE
+  DIAGNOSIS
+  PROGRESS
+  FINAL_TEST
+  DELIVERY
+  WARRANTY
+}
+
+model BikeAsset {
+  id                    String          @id @default(uuid())
+  tenantId              String
+  branchId              String?
+  customerThirdPartyId  String
+  code                  String
+  serial                String?
+  brand                 String
+  model                 String
+  bikeType              String?
+  year                  Int?
+  frameSize             String?
+  color                 String?
+  odometerKm            Decimal?        @db.Decimal(12, 2)
+  status                BikeAssetStatus @default(ACTIVE)
+  notes                 String?
+  metadata              Json?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  components            BikeComponent[]
+  workOrders            BikeWorkOrder[]
+  appointments          BikeAppointment[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, serial])
+  @@index([tenantId, customerThirdPartyId])
+  @@index([tenantId, branchId, status])
+}
+
+model BikeComponent {
+  id                  String    @id @default(uuid())
+  tenantId            String
+  bikeId              String
+  system              String
+  componentType       String
+  brand               String?
+  model               String?
+  serial              String?
+  installedAt         DateTime?
+  installedOdometerKm Decimal?  @db.Decimal(12, 2)
+  serviceIntervalKm   Decimal?  @db.Decimal(12, 2)
+  notes               String?
+  active              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  bike                 BikeAsset @relation(fields: [bikeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, bikeId, active])
+  @@index([tenantId, system, componentType])
+}
+
+model BikeServiceCatalog {
+  id               String   @id @default(uuid())
+  tenantId         String
+  code             String
+  name             String
+  category         String
+  estimatedMinutes Int
+  basePrice        Decimal  @db.Decimal(18, 2)
+  active           Boolean  @default(true)
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  workOrderItems   BikeWorkOrderItem[]
+  appointments     BikeAppointment[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active, category])
+}
+
+model BikeWorkOrder {
+  id                    String              @id @default(uuid())
+  tenantId              String
+  branchId              String?
+  number                String
+  bikeId                String
+  customerThirdPartyId  String
+  assignedUserId        String?
+  status                BikeWorkOrderStatus @default(RECEIVED)
+  customerRequest       String?
+  intakeNotes           String?
+  diagnosisSummary      String?
+  estimatedReadyAt      DateTime?
+  approvedAt            DateTime?
+  readyAt               DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+  cancellationReason    String?
+  subtotal              Decimal             @default(0) @db.Decimal(18, 2)
+  discountTotal         Decimal             @default(0) @db.Decimal(18, 2)
+  total                 Decimal             @default(0) @db.Decimal(18, 2)
+  metadata              Json?
+  createdByUserId       String
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  bike                  BikeAsset            @relation(fields: [bikeId], references: [id], onDelete: Restrict)
+  items                 BikeWorkOrderItem[]
+  findings              BikeDiagnosticFinding[]
+  evidence              BikeEvidence[]
+  finalTests            BikeFinalTest[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, bikeId, createdAt])
+  @@index([tenantId, customerThirdPartyId, createdAt])
+  @@index([tenantId, assignedUserId, status])
+}
+
+model BikeWorkOrderItem {
+  id               String                  @id @default(uuid())
+  tenantId         String
+  workOrderId      String
+  type             BikeWorkOrderItemType
+  serviceCatalogId String?
+  productId        String?
+  description      String
+  quantity         Decimal                 @default(1) @db.Decimal(12, 4)
+  unitPrice        Decimal                 @db.Decimal(18, 2)
+  lineTotal        Decimal                 @db.Decimal(18, 2)
+  status           BikeWorkOrderItemStatus @default(PROPOSED)
+  authorizedAt     DateTime?
+  authorizedBy     String?
+  rejectionReason  String?
+  inventoryRef     String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  workOrder        BikeWorkOrder           @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  service          BikeServiceCatalog?     @relation(fields: [serviceCatalogId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, workOrderId, status])
+  @@index([tenantId, productId])
+}
+
+model BikeDiagnosticFinding {
+  id             String              @id @default(uuid())
+  tenantId       String
+  workOrderId    String
+  system         String
+  condition      String
+  severity       BikeFindingSeverity @default(INFO)
+  finding        String
+  recommendation String?
+  visibleToRider Boolean             @default(true)
+  createdByUserId String
+  createdAt      DateTime            @default(now())
+
+  workOrder      BikeWorkOrder       @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, workOrderId, severity])
+}
+
+model BikeEvidence {
+  id             String           @id @default(uuid())
+  tenantId       String
+  workOrderId    String
+  type           BikeEvidenceType
+  storageKey     String
+  mimeType       String?
+  sha256         String?
+  caption        String?
+  visibleToRider Boolean          @default(true)
+  createdByUserId String?
+  createdAt      DateTime         @default(now())
+
+  workOrder      BikeWorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, workOrderId, type])
+}
+
+model BikeFinalTest {
+  id               String        @id @default(uuid())
+  tenantId         String
+  workOrderId      String
+  checklist        Json
+  approved         Boolean
+  notes            String?
+  testedByUserId   String
+  testedAt         DateTime      @default(now())
+
+  workOrder        BikeWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, workOrderId, approved])
+}
+
+model BikeAppointment {
+  id                    String                @id @default(uuid())
+  tenantId              String
+  branchId              String?
+  bikeId                String?
+  customerThirdPartyId  String
+  serviceCatalogId      String?
+  assignedUserId        String?
+  startsAt              DateTime
+  endsAt                DateTime
+  status                BikeAppointmentStatus @default(PENDING)
+  source                BikeAppointmentSource @default(INTERNAL)
+  customerNotes         String?
+  internalNotes         String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  bike                  BikeAsset?             @relation(fields: [bikeId], references: [id], onDelete: Restrict)
+  service               BikeServiceCatalog?    @relation(fields: [serviceCatalogId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, branchId, startsAt, endsAt])
+  @@index([tenantId, assignedUserId, startsAt, endsAt])
+  @@index([tenantId, customerThirdPartyId, startsAt])
+}
