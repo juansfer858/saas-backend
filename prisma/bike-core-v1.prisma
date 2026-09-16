@@ -121,6 +121,7 @@ model BikeComponent {
 model BikeServiceCatalog {
   id               String   @id @default(uuid())
   tenantId         String
+  productId        String
   code             String
   name             String
   category         String
@@ -135,6 +136,7 @@ model BikeServiceCatalog {
   appointments     BikeAppointment[]
 
   @@unique([tenantId, code])
+  @@unique([tenantId, productId])
   @@index([tenantId, active, category])
 }
 
