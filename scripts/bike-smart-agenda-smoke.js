@@ -37,10 +37,23 @@ async function main() {
     source: 'RIDER_PORTAL'
   };
 
+  const baseline = await agenda.findAvailability(tenant.id, {
+    date: '2030-01-07',
+    serviceCatalogId: service.id,
+    assignedUserId: mechanic.id,
+    stepMinutes: 15
+  });
+  const targetStart = new Date('2030-01-07T09:00:00-05:00').toISOString();
+  console.log('BIKE_AGENDA_BASELINE', JSON.stringify(baseline));
+  assert.equal(baseline.some((slot) => slot.startsAt === targetStart), true, '09:00 debe aparecer antes de reservar');
+
   const competing = await Promise.allSettled([
     agenda.createAppointment(tenant.id, admin.id, common),
     agenda.createAppointment(tenant.id, admin.id, common)
   ]);
+  console.log('BIKE_AGENDA_COMPETING', JSON.stringify(competing.map((result) => result.status === 'fulfilled'
+    ? { status: result.status, id: result.value.id }
+    : { status: result.status, code: result.reason?.code, message: result.reason?.message })));
   const wins = competing.filter((result) => result.status === 'fulfilled');
   const losses = competing.filter((result) => result.status === 'rejected');
   assert.equal(wins.length, 1, 'Solo una cita concurrente puede tomar el horario');
