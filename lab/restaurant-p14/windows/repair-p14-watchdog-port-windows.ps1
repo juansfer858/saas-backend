@@ -289,3 +289,4 @@ Write-Host 'P14 ESTABLE: el watchdog verificó 8791 y no volvió a terminar Node
 Write-Host 'La mesa y los datos locales se conservaron.'
 Write-Host "Reporte: $ReportPath"
 Write-Host 'P13 8790, PostgreSQL, Edge 8788, Super Core y el restaurante real no fueron modificados.' -ForegroundColor Cyan
+exit 0
