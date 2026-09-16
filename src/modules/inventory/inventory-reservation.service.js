@@ -1,6 +1,7 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { qty } = require('../../utils/decimal');
+const { lockProductRow } = require('./inventory-concurrency.service');
 
 async function getProduct(tenantId, productId, client = prisma) {
   const product = await client.producto.findFirst({ where: { id: productId, tenantId, activo: true } });
@@ -25,6 +26,10 @@ async function availability(tenantId, productId, client = prisma) {
 async function reserveInTx(tx, params) {
   const quantity = qty(params.quantity);
   if (quantity.lte(0)) throw new AppError(400, 'La cantidad a reservar debe ser mayor que cero', 'INVENTORY_RESERVATION_INVALID_QTY');
+
+  // Reserva y salida de inventario usan el mismo candado de fila. Así, dos
+  // autorizaciones simultáneas no pueden prometer la misma última unidad.
+  await lockProductRow(tx, params.tenantId, params.productId);
   const product = await getProduct(params.tenantId, params.productId, tx);
   if (product.tipo !== 'PRODUCTO' || !product.controlaInventario) throw new AppError(409, 'El producto no admite reserva de inventario', 'INVENTORY_RESERVATION_NOT_APPLICABLE');
 
