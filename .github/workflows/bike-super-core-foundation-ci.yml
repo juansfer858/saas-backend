@@ -36,6 +36,10 @@ jobs:
         run: |
           node -e "require('./src/modules/bike/bike.rbac'); require('./src/modules/bike/bike.schemas'); require('./src/modules/bike/bike.service'); require('./src/modules/bike/bike.controller'); require('./src/modules/bike/bike.routes'); console.log('BIKE_MODULE_LOAD_OK')"
 
+      - name: Validate Bike mount does not break Core router
+        run: |
+          node -e "require('./src/routes/core.routes'); console.log('BIKE_CORE_ROUTE_LOAD_OK')"
+
       - name: Enforce vertical isolation contract
         shell: bash
         run: |
