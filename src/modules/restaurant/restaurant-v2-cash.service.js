@@ -3,7 +3,8 @@
 const { closeRestaurantShift } = require('./restaurant-shift-close-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
-const { money } = require('../../utils/decimal');
+const { money, qty, pct } = require('../../utils/decimal');
+const { lockOperation } = require('./restaurant-operation-lock-v111.service');
 const { installOperationalPosMode, operationalStatus } = require('./restaurant-pos-operational-mode');
 const identity = require('./restaurant-identity.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
@@ -90,7 +91,12 @@ function assertWholeAccountBoundary(session) {
 async function saleForSession(tenantId, session, includeDetails = false) {
   const sale = await prisma.comprobanteComercial.findFirst({
     where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA' },
-    include: includeDetails ? { detalles: { orderBy: { id: 'asc' } } } : undefined
+    include: includeDetails ? {
+      detalles: {
+        orderBy: { id: 'asc' },
+        include: { producto: { select: { precio1: true } } }
+      }
+    } : undefined
   });
   if (!sale) throw new AppError(409, 'La venta de la mesa no está disponible', 'RESTAURANT_V2_CASH_SALE_NOT_FOUND');
   return sale;
@@ -116,12 +122,149 @@ function publicSale(sale, includeDetails = false) {
     description: detail.descripcion,
     quantity: String(detail.cantidad),
     unitPrice: decimalString(detail.precioUnitario),
+    catalogUnitPrice: detail.producto ? decimalString(detail.producto.precio1) : null,
     subtotal: decimalString(detail.subtotalLinea),
     iva: decimalString(detail.ivaValor),
     impoconsumo: decimalString(detail.impoconsumoValor),
     total: decimalString(detail.totalLinea)
   }));
   return data;
+}
+
+function calculateAppliedLine(detail, unitPrice) {
+  const quantity = qty(detail?.cantidad || 0);
+  const price = money(unitPrice);
+  if (!quantity.gt(0)) throw new AppError(409, 'La cantidad del producto no es válida', 'RESTAURANT_V2_CASH_LINE_QUANTITY_INVALID');
+  if (price.lt(0)) throw new AppError(400, 'El precio del producto no puede ser negativo', 'RESTAURANT_V2_CASH_LINE_PRICE_INVALID');
+  const ivaPct = pct(detail?.ivaPct || 0);
+  const impoconsumoPct = pct(detail?.impoconsumoPct || 0);
+  const subtotal = money(quantity.mul(price));
+  const iva = money(subtotal.mul(ivaPct).div(100));
+  const impoconsumo = money(subtotal.mul(impoconsumoPct).div(100));
+  return {
+    quantity,
+    price,
+    ivaPct,
+    impoconsumoPct,
+    subtotal,
+    iva,
+    impoconsumo,
+    total: money(subtotal.plus(iva).plus(impoconsumo))
+  };
+}
+
+async function updateLinePrice(tenantId, user, tableId, detailId, input) {
+  return prisma.$transaction(async (tx) => {
+    await lockOperation(tx, tenantId);
+    const session = await tx.restaurantTableSession.findFirst({
+      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      include: { table: true },
+      orderBy: { openedAt: 'desc' }
+    });
+    if (!session) throw new AppError(404, 'No hay una cuenta abierta para esta mesa', 'RESTAURANT_V2_CASH_SESSION_NOT_FOUND');
+    assertWholeAccountBoundary(session);
+
+    const sale = await tx.comprobanteComercial.findFirst({
+      where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: 'BORRADOR' }
+    });
+    if (!sale) throw new AppError(409, 'La cuenta ya fue procesada y no admite cambios de precio', 'RESTAURANT_V2_CASH_PRICE_SALE_NOT_DRAFT');
+
+    const detail = await tx.detalleComprobante.findFirst({
+      where: { id: detailId, tenantId, comprobanteId: sale.id },
+      include: { producto: { select: { id: true, precio1: true } } }
+    });
+    if (!detail) throw new AppError(404, 'El producto ya no está disponible en esta cuenta', 'RESTAURANT_V2_CASH_PRICE_DETAIL_NOT_FOUND');
+
+    const next = calculateAppliedLine(detail, input.unitPrice);
+    const previousPrice = money(detail.precioUnitario);
+    if (next.price.eq(previousPrice)) throw new AppError(400, 'El precio nuevo debe ser diferente al actual', 'RESTAURANT_V2_CASH_LINE_PRICE_UNCHANGED');
+
+    const deltaSubtotal = money(next.subtotal.minus(detail.subtotalLinea));
+    const deltaIva = money(next.iva.minus(detail.ivaValor));
+    const deltaImpoconsumo = money(next.impoconsumo.minus(detail.impoconsumoValor));
+    const deltaTotal = money(next.total.minus(detail.totalLinea));
+    const nextSaleTotal = money(money(sale.total).plus(deltaTotal));
+    if (!nextSaleTotal.gt(0)) {
+      throw new AppError(400, 'La cuenta completa debe conservar un total mayor a cero', 'RESTAURANT_V2_CASH_TOTAL_MUST_BE_POSITIVE');
+    }
+
+    const orderItems = await tx.restaurantOrderItem.findMany({
+      where: { tenantId, saleDetailId: detail.id },
+      select: { id: true, orderId: true }
+    });
+    await tx.detalleComprobante.update({
+      where: { id: detail.id },
+      data: {
+        precioUnitario: next.price,
+        descuentoPct: 0,
+        subtotalLinea: next.subtotal,
+        ivaValor: next.iva,
+        impoconsumoValor: next.impoconsumo,
+        totalLinea: next.total
+      }
+    });
+    if (orderItems.length) {
+      await tx.restaurantOrderItem.updateMany({
+        where: { tenantId, saleDetailId: detail.id },
+        data: { unitPrice: next.price, lineTotal: next.total }
+      });
+      for (const orderId of [...new Set(orderItems.map((row) => row.orderId))]) {
+        const aggregate = await tx.restaurantOrderItem.aggregate({
+          where: { tenantId, orderId },
+          _sum: { lineTotal: true }
+        });
+        await tx.restaurantOrder.update({
+          where: { id: orderId },
+          data: { total: money(aggregate._sum.lineTotal || 0) }
+        });
+      }
+    }
+
+    const updatedSale = await tx.comprobanteComercial.update({
+      where: { id: sale.id },
+      data: {
+        subtotal: { increment: deltaSubtotal },
+        ivaTotal: { increment: deltaIva },
+        impoconsumoTotal: { increment: deltaImpoconsumo },
+        total: { increment: deltaTotal }
+      }
+    });
+    await tx.auditoriaContable.create({
+      data: {
+        tenantId,
+        userId: user.id,
+        entidad: 'DETALLE_COMPROBANTE',
+        entidadId: detail.id,
+        accion: 'RESTAURANT_CASH_LINE_PRICE_UPDATED',
+        metadata: {
+          marker: 'VANTIX_RESTAURANT_CASH_LINE_PRICE_V113',
+          tableId: session.tableId,
+          sessionId: session.id,
+          saleId: sale.id,
+          productId: detail.productoId,
+          catalogUnitPrice: detail.producto ? decimalString(detail.producto.precio1) : null,
+          before: { unitPrice: previousPrice.toString(), lineTotal: decimalString(detail.totalLinea), saleTotal: decimalString(sale.total) },
+          after: { unitPrice: next.price.toString(), lineTotal: next.total.toString(), saleTotal: decimalString(updatedSale.total) }
+        }
+      }
+    });
+
+    const refreshed = await tx.comprobanteComercial.findUnique({
+      where: { id: sale.id },
+      include: {
+        detalles: {
+          orderBy: { id: 'asc' },
+          include: { producto: { select: { precio1: true } } }
+        }
+      }
+    });
+    return {
+      marker: 'VANTIX_RESTAURANT_CASH_LINE_PRICE_V113',
+      changed: true,
+      item: publicSale(refreshed, true).items.find((row) => row.id === detail.id),
+      sale: publicSale(refreshed, true)
+    };
+  });
 }
 
 async function workspace(tenantId, user) {
@@ -409,8 +552,10 @@ module.exports = {
   shiftSummary,
   closeShift,
   chargeWholeAccount,
+  updateLinePrice,
   queueReceiptPrint,
   listCustomers,
   createCustomer,
-  assertWholeAccountBoundary
+  assertWholeAccountBoundary,
+  calculateAppliedLine
 };
