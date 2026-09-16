@@ -33,6 +33,9 @@ jobs:
       - name: Prepare hardened Windows source
         shell: pwsh
         run: ./scripts/restaurant-p15-prepare-windows-source.ps1
+      - name: Prepare complete package source
+        shell: pwsh
+        run: ./scripts/restaurant-p15-prepare-package-source.ps1
       - name: Validate local printing bridge
         shell: pwsh
         run: node scripts/restaurant-p15-local-print-smoke.js
