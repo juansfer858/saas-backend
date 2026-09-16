@@ -62,6 +62,41 @@ if ($content.Contains($oldPush)) {
   throw 'No se pudo agregar Prisma generate al instalador P15.'
 }
 
+$printPortLine = '  "P15_PRINT_PORT=$PrintPort",'
+$printTokenLine = '  "P15_PRINT_TOKEN=$printToken",'
+if ($content.Contains($printPortLine) -and -not $content.Contains($printTokenLine)) {
+  $content = $content.Replace($printPortLine, "$printPortLine`r`n$printTokenLine")
+}
+if (-not $content.Contains($printTokenLine)) { throw 'No se pudo agregar P15_PRINT_TOKEN al runtime local.' }
+
+$upgradeAnchor = @'
+foreach ($directory in @($InstallDir, $ConfigDir, $SecretsDir, $LogsDir, $BackupDir, $ServicesDir, $FilesDir, (Join-Path $InstallDir 'data'))) {
+  New-Item -ItemType Directory -Force -Path $directory | Out-Null
+}
+Copy-Tree (Join-Path $Payload 'app') $AppDir
+'@
+$upgradeReplacement = @'
+foreach ($directory in @($InstallDir, $ConfigDir, $SecretsDir, $LogsDir, $BackupDir, $ServicesDir, $FilesDir, (Join-Path $InstallDir 'data'))) {
+  New-Item -ItemType Directory -Force -Path $directory | Out-Null
+}
+# Reinstalación/upgrade P15: detener sólo servicios propios antes de reemplazar binarios.
+foreach ($serviceId in @($BackupServiceId, $PrintServiceId, $ServerServiceId)) {
+  $serviceExe = Join-Path $ServicesDir "$serviceId.exe"
+  if (Test-Path -LiteralPath $serviceExe) {
+    try { & $serviceExe stop 2>$null | Out-Null } catch {}
+    $global:LASTEXITCODE = 0
+  }
+}
+try { Stop-Service -Name $PgService -Force -ErrorAction SilentlyContinue } catch {}
+Start-Sleep -Milliseconds 500
+Copy-Tree (Join-Path $Payload 'app') $AppDir
+'@
+if ($content.Contains($upgradeAnchor)) {
+  $content = $content.Replace($upgradeAnchor, $upgradeReplacement)
+} elseif ($content -notmatch 'Reinstalación/upgrade P15') {
+  throw 'No se pudo agregar frontera segura de upgrade P15.'
+}
+
 Set-Content -LiteralPath $Installer -Value $content -Encoding UTF8
 $tokens = $null
 $errors = $null
