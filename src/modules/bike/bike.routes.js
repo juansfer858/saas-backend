@@ -1,6 +1,7 @@
 const express = require('express');
 const controller = require('./bike.controller');
 const workshop = require('./bike-workshop.controller');
+const { bikeAgendaRouter } = require('./bike-agenda.routes');
 const { requirePermission } = require('../../middleware/require-permission');
 const { requireBikeEntitlement } = require('./bike-entitlement.middleware');
 
@@ -20,6 +21,8 @@ router.get('/servicios', requirePermission('BIKE_TALLER.VER'), controller.listSe
 router.post('/servicios', requirePermission('BIKE_TALLER.ADMINISTRAR'), controller.createServiceCatalogItem);
 router.patch('/servicios/:id', requirePermission('BIKE_TALLER.ADMINISTRAR'), controller.updateServiceCatalogItem);
 router.put('/servicios/:id', requirePermission('BIKE_TALLER.ADMINISTRAR'), controller.updateServiceCatalogItem);
+
+router.use('/agenda', bikeAgendaRouter);
 
 router.get('/ordenes', requirePermission('BIKE_TALLER.VER'), workshop.listWorkOrders);
 router.post('/ordenes', requirePermission('BIKE_TALLER.CREAR'), workshop.createWorkOrder);
