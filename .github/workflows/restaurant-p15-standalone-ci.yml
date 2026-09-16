@@ -30,6 +30,9 @@ jobs:
         run: |
           npm ci
           node node_modules/prisma/build/index.js generate
+      - name: Prepare hardened Windows source
+        shell: pwsh
+        run: ./scripts/restaurant-p15-prepare-windows-source.ps1
       - name: Run P15 Windows end-to-end
         shell: pwsh
         run: ./scripts/restaurant-p15-ci-windows.ps1
