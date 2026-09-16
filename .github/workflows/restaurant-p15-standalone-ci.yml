@@ -13,6 +13,10 @@ on:
       - 'package-lock.json'
   workflow_dispatch:
 
+concurrency:
+  group: restaurant-p15-standalone-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   p15-windows-end-to-end:
     runs-on: windows-2025
