@@ -1,0 +1,29 @@
+enum InventoryReservationState {
+  ACTIVE
+  RELEASED
+  CONSUMED
+  CANCELLED
+  EXPIRED
+}
+
+model InventoryReservation {
+  id              String                    @id @default(uuid())
+  tenantId        String
+  productId       String
+  sourceType      String
+  sourceId        String
+  sourceLineId    String
+  quantity        Decimal                   @db.Decimal(18, 4)
+  state           InventoryReservationState @default(ACTIVE)
+  createdByUserId String?
+  expiresAt       DateTime?
+  metadata        Json?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  releasedAt      DateTime?
+  consumedAt      DateTime?
+
+  @@unique([tenantId, sourceType, sourceLineId])
+  @@index([tenantId, productId, state])
+  @@index([tenantId, sourceType, sourceId, state])
+}
