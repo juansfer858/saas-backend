@@ -1,8 +1,11 @@
 const express = require('express');
 const controller = require('./bike.controller');
 const { requirePermission } = require('../../middleware/require-permission');
+const { requireBikeEntitlement } = require('./bike-entitlement.middleware');
 
 const router = express.Router();
+
+router.use(requireBikeEntitlement);
 
 router.get('/status', requirePermission('BIKE.VER'), controller.foundationStatus);
 
