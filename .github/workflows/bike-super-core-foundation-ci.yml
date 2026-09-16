@@ -1,0 +1,48 @@
+name: Bike Super Core Foundation CI
+
+on:
+  pull_request:
+    paths:
+      - 'prisma/bike-core-v1.prisma'
+      - 'src/modules/bike/**'
+      - 'src/routes/core.routes.js'
+      - 'docs/BIKE_SUPER_CORE_ARCHITECTURE_V1.md'
+      - '.github/workflows/bike-super-core-foundation-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-bike-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate composed Prisma schema
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_ci
+        run: npx prisma validate
+
+      - name: Generate Prisma client
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vantix_ci
+        run: npx prisma generate
+
+      - name: Validate Bike module loads
+        run: |
+          node -e "require('./src/modules/bike/bike.rbac'); require('./src/modules/bike/bike.schemas'); require('./src/modules/bike/bike.service'); require('./src/modules/bike/bike.controller'); require('./src/modules/bike/bike.routes'); console.log('BIKE_MODULE_LOAD_OK')"
+
+      - name: Enforce vertical isolation contract
+        shell: bash
+        run: |
+          if grep -R "modules/restaurant\|../restaurant\|restaurant/" src/modules/bike prisma/bike-core-v1.prisma; then
+            echo 'Bike must not depend on Restaurant'
+            exit 1
+          fi
+          echo 'BIKE_VERTICAL_ISOLATION_OK'
