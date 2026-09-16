@@ -1,0 +1,24 @@
+name: Sales Full Document View CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/web/sales.html'
+      - 'scripts/sales-full-document-view-smoke.js'
+      - '.github/workflows/sales-full-document-view-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  sales-full-document-view:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify Ventas full document view
+        run: node scripts/sales-full-document-view-smoke.js
