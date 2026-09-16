@@ -4,6 +4,7 @@ const { requirePermission } = require('../../middleware/require-permission');
 
 const router = express.Router();
 
+router.get('/mecanicos', requirePermission('BIKE_AGENDA.VER'), controller.listMechanics);
 router.get('/disponibilidad', requirePermission('BIKE_AGENDA.VER'), controller.findAvailability);
 
 router.get('/reglas', requirePermission('BIKE_AGENDA.VER'), controller.listScheduleRules);
