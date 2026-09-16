@@ -5,6 +5,7 @@ on:
     paths:
       - 'prisma/bike-core-v1.prisma'
       - 'src/modules/bike/**'
+      - 'src/modules/platform/verticals/vertical-registry.js'
       - 'src/routes/core.routes.js'
       - 'docs/BIKE_SUPER_CORE_ARCHITECTURE_V1.md'
       - '.github/workflows/bike-super-core-foundation-ci.yml'
@@ -34,7 +35,19 @@ jobs:
 
       - name: Validate Bike module loads
         run: |
-          node -e "require('./src/modules/bike/bike.rbac'); require('./src/modules/bike/bike.schemas'); require('./src/modules/bike/bike.service'); require('./src/modules/bike/bike.controller'); require('./src/modules/bike/bike.routes'); console.log('BIKE_MODULE_LOAD_OK')"
+          node -e "require('./src/modules/bike/bike.rbac'); require('./src/modules/bike/bike.schemas'); require('./src/modules/bike/bike.service'); require('./src/modules/bike/bike.controller'); require('./src/modules/bike/bike-entitlement.middleware'); require('./src/modules/bike/bike.routes'); console.log('BIKE_MODULE_LOAD_OK')"
+
+      - name: Validate Bike vertical registry contract
+        run: |
+          node - <<'NODE'
+          const registry = require('./src/modules/platform/verticals/vertical-registry');
+          const bike = registry.getVertical('BIKE');
+          if (!bike || bike.state !== 'AVAILABLE') throw new Error('BIKE_VERTICAL_NOT_AVAILABLE');
+          if (bike.localFirst !== false) throw new Error('Bike must stay cloud/Core-only until Edge adapter is delivered');
+          if (bike.edgeAdapter !== null || bike.edgeWorkspace !== null) throw new Error('Bike Edge must not be advertised before implementation');
+          if (registry.normalizeVerticalCode('BICICLETAS') !== 'BIKE') throw new Error('BIKE_ALIAS_INVALID');
+          console.log('BIKE_VERTICAL_REGISTRY_OK');
+          NODE
 
       - name: Validate Bike mount does not break Core router
         run: |
