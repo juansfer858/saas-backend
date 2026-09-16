@@ -1,0 +1,50 @@
+name: Bike Smart Agenda CI
+
+on:
+  pull_request:
+    paths:
+      - 'prisma/bike-agenda-v1.prisma'
+      - 'src/modules/bike/bike-agenda.**'
+      - 'src/modules/bike/bike.routes.js'
+      - 'scripts/bike-smart-agenda-smoke.js'
+      - '.github/workflows/bike-smart-agenda-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  validate-bike-agenda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate Prisma
+        run: npx prisma validate
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Push ephemeral schema
+        run: npx prisma db push
+      - name: Load agenda routes
+        run: node -e "require('./src/modules/bike/bike-agenda.service'); require('./src/modules/bike/bike-agenda.schemas'); require('./src/modules/bike/bike-agenda.controller'); require('./src/modules/bike/bike-agenda.routes'); require('./src/modules/bike/bike.routes'); console.log('BIKE_AGENDA_MODULE_LOAD_OK')"
+      - name: Run smart agenda DB smoke
+        run: node scripts/bike-smart-agenda-smoke.js
