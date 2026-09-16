@@ -121,7 +121,7 @@ async function createBackup(env = process.env) {
     await fsp.writeFile(path.join(stage,'manifest.json'), JSON.stringify(manifest,null,2));
     const zip = path.join(work,'bundle.zip');
     if (process.platform === 'win32') {
-      const command = `Compress-Archive -LiteralPath '${stage.replace(/'/g,"''")}\\*' -DestinationPath '${zip.replace(/'/g,"''")}' -CompressionLevel Optimal -Force`;
+      const command = `Compress-Archive -Path '${stage.replace(/'/g,"''")}\\*' -DestinationPath '${zip.replace(/'/g,"''")}' -CompressionLevel Optimal -Force`;
       await run('powershell.exe',['-NoProfile','-NonInteractive','-Command',command]);
     } else {
       await run('zip',['-qr',zip,'.'],{cwd:stage});
