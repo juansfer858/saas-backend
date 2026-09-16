@@ -1,3 +1,4 @@
+const { summaryPdfSpec } = require('./restaurant-cash-close-summary.service');
 'use strict';
 
 const { prisma } = require('../../config/prisma');
@@ -813,6 +814,10 @@ async function exportReport(tenantId, report, format, client = prisma) {
     const spec = excelSpec(tenant, report);
     return { buffer: toExcelHtml(spec), mime: 'application/vnd.ms-excel', extension: 'xls', title: spec.title };
   }
+  if (normalized === 'pdf-resumen') {
+    const spec = summaryPdfSpec(tenant, report);
+    return { buffer: toSimplePdf(spec), mime: 'application/pdf', extension: 'pdf', title: spec.title };
+  }
   if (normalized === 'pdf') {
     const spec = pdfSpec(tenant, report);
     return { buffer: toSimplePdf(printableSpec(spec)), mime: 'application/pdf', extension: 'pdf', title: spec.title };
@@ -857,3 +862,4 @@ module.exports = {
   exportClosure,
   exportDay
 };
+

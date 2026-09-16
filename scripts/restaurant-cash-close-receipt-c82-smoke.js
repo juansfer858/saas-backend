@@ -65,16 +65,45 @@ assert.equal(receipt.cashCloseColumns('80mm'), 48);
 assert.equal(receipt.cashCloseColumns('TERMICA_58'), 32);
 
 const lines = receipt.cashCloseReceiptLines({ company, snapshot, paperFormat:'TERMICA_80' });
-assert.ok(lines.length > 25, 'el cierre debe incluir encabezado, medios de pago, arqueo y detalle');
+assert.ok(lines.length > 25, 'el cierre debe incluir encabezado, medios de pago y arqueo resumido');
 assert.ok(lines.every((line) => String(line).length <= 48), 'ninguna línea puede desbordar la Epson de 80 mm');
 assert.ok(lines.some((line) => line.includes('CIERRE DE TURNO / CAJA')));
 assert.ok(lines.some((line) => line.includes('VENTAS POR MEDIO DE PAGO')));
 assert.ok(lines.some((line) => line.includes('ARQUEO DE CAJA')));
-assert.ok(lines.some((line) => line.includes('DETALLE DE VENTAS')));
+assert.ok(!lines.some((line) => line.includes('DETALLE DE VENTAS')));
 assert.ok(lines.some((line) => line.includes('Transferencias / QR')));
 assert.ok(lines.some((line) => line.includes('DESCUADRE')));
-assert.ok(lines.some((line) => line.includes('000000')), 'la primera venta POS 000000 debe imprimirse correctamente en el cierre');
+assert.ok(!lines.some((line) => line.includes('000000')), 'las ventas individuales quedan en el informe completo');
 assert.ok(lines.filter((line) => /^-+$/.test(line)).every((line) => line.length === 48), 'separadores deben consumir el ancho completo de 80 mm');
+
+// The printed length is independent of historical order/audit list size, including old queued jobs.
+const large = {...snapshot, tables:Array(10000).fill(snapshot.tables[0]), detailRows:Array(10000).fill(['PEDIDO','PRODUCTO QUE NO DEBE IMPRIMIRSE'])};
+for (const paperFormat of ['TERMICA_80','TERMICA_58']) {
+  const shortLines = receipt.cashCloseReceiptLines({company,snapshot,paperFormat});
+  const longLines = receipt.cashCloseReceiptLines({company,snapshot:large,paperFormat});
+  assert.equal(longLines.length, shortLines.length);
+  assert.ok(longLines.length < 100, 'resumen acotado incluso en 58 mm');
+  assert.ok(longLines.every(line=>line.length<=receipt.cashCloseColumns(paperFormat)));
+  assert.doesNotMatch(longLines.join(' '),/PRODUCTO QUE NO|DETALLE DE VENTAS|INFORME COMPLETO/);
+}
+const {summaryRows,legacyReport,summaryPdfSpec} = require('../src/modules/restaurant/restaurant-cash-close-summary.service');
+const valueOf=(report,label)=>summaryRows(report).find(row=>row.label===label)?.value;
+const report=legacyReport(snapshot);
+assert.equal(valueOf(report,'Estado efectivo'),'FALTANTE');
+assert.match(valueOf(report,'DESCUADRE'),/-.*2\.000/);
+assert.equal(valueOf({...report,cash:{...report.cash,difference:0}},'Estado efectivo'),'CUADRADO');
+assert.equal(valueOf({...report,cash:{...report.cash,difference:1}},'Estado efectivo'),'SOBRANTE');
+assert.equal(valueOf({...report,cash:{...report.cash,countedCash:null,difference:null}},'Efectivo contado'),'Sin registro');
+assert.equal(valueOf({...report,cash:{...report.cash,difference:null}},'Estado efectivo'),'SIN REGISTRO');
+assert.equal(valueOf(report,'Apertura'),'2026-09-11 08:00');
+assert.match(valueOf(report,'Crédito / no es efectivo'),/30\.000/);
+assert.equal(valueOf(report,'Valor facturado'),'Sin registro','legacy total with tips is not invented as invoiced sales');
+const busyReport={...report,channels:Object.fromEntries(['MESAS','MOSTRADOR','DOMICILIOS','PARA_LLEVAR'].map(k=>[k,{tickets:10,settledValue:100}])),
+  payments:{...report.payments,other:1},exceptions:Array(10000).fill({type:'PRODUCCION_PENDIENTE'}),
+  complete:{pending:Array(10000).fill({}),historicalReconstruction:true,totals:{collected:100,priorInvoiceCollections:1,discount:1,vat:1,consumptionTax:1}}};
+assert.equal(valueOf(busyReport,'Alertas operativas'),'10000');
+assert.ok(summaryPdfSpec(company,busyReport).rows.length<=25,'resumen PDF cabe en una página con todas las secciones');
+assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=25);
 
 const job = receipt.buildCashCloseJob({ company, snapshot, printer });
 assert.match(job.id, /^restaurant-cash-close:/);
@@ -126,10 +155,11 @@ console.log('RESTAURANT CASH CLOSE RECEIPT C82 SMOKE OK', JSON.stringify({
   centeredHeader:true,
   paymentBreakdown:true,
   cashReconciliation:true,
-  salesDetail:true,
+  boundedSummary:true,
   stablePrintJob:true,
   optionalPrintDecision:true,
   sameExistingPosOutbox:true,
   edgeUntouched:true
 }));
+
 

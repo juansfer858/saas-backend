@@ -4,6 +4,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
+      - 'scripts/restaurant-cash-close-receipt-c82-smoke.js'
       - 'src/modules/restaurant/restaurant-shift-complete-report.service.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.service.js'
@@ -24,6 +26,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
+      - 'scripts/restaurant-cash-close-receipt-c82-smoke.js'
       - 'src/modules/restaurant/restaurant-shift-complete-report.service.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-history-c86.service.js'
@@ -91,6 +95,8 @@ jobs:
           node --check scripts/restaurant-shift-closures-c86-db-smoke.js
       - name: Validate C86 close/history contract
         run: node scripts/restaurant-shift-closures-c86-smoke.js
+      - name: Validate bounded receipt summary for 58 and 80 mm
+        run: node scripts/restaurant-cash-close-receipt-c82-smoke.js
       - name: Validate C86 with PostgreSQL real
         run: node scripts/restaurant-shift-closures-c86-db-smoke.js
       - name: Validate Caja P4 existing source graph
@@ -115,7 +121,7 @@ jobs:
               CASH="$(curl -fsS "$BASE/app/restaurant-shift-close-c86-cash.js?v=86-$GITHUB_SHA" 2>/dev/null || true)"
               DASH="$(curl -fsS "$BASE/app/restaurant-shift-closures-c86-dashboard.js?v=86-$GITHUB_SHA" 2>/dev/null || true)"
               NAV="$(curl -fsS "$BASE/app/restaurant-v2-native-control-p11.js?v=$GITHUB_SHA" 2>/dev/null || true)"
-              if [[ "$NAV" == *"Historial de cierres"* ]] && echo "$HISTORY" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSURES_C86' \
+              if [[ "$NAV" == *"Historial de cierres"* ]] && echo "$HISTORY" | grep -Fq 'VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V110' \
                 && echo "$CASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSE_C86_CASH' \
                 && echo "$DASH" | grep -Fq 'VANTIX_RESTAURANT_SHIFT_CLOSURES_C86_DASHBOARD'; then
                 echo "C86 closures are live for exact commit $GITHUB_SHA"
@@ -126,4 +132,5 @@ jobs:
           done
           echo "C86 did not become live for exact commit $GITHUB_SHA" >&2
           exit 1
+
 

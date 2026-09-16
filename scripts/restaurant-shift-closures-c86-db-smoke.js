@@ -160,9 +160,18 @@ async function main() {
   const printIntent = await prisma.trackingLink.findFirst({where:{tenantId:demo.tenantId,id:printResult.printRequestId}});
   const receiptService = require('../src/modules/restaurant/restaurant-pos-receipt-print.service');
   const printSnapshot = receiptService.cashCloseSnapshotFromIntent(printIntent);
-  assert.ok(printSnapshot.detailRows.some(r=>r[0]==='PENDIENTE'));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.label==='Pendientes restaurante'));
+  assert.equal(printSnapshot.detailRows,undefined);
+  assert.ok(snapshot.detailRows.some(r=>r[0]==='PENDIENTE'),'el historial conserva el detalle completo');
   const printLines = receiptService.cashCloseReceiptLines({company:{nombreEmpresa:'CI'},snapshot:printSnapshot});
-  assert.ok(printLines.join(' ').includes('INFORME COMPLETO'));
+  assert.ok(!printLines.join(' ').includes('INFORME COMPLETO'));
+  assert.ok(printLines.length<100);
+  const shortPdf = await closures.exportClosure(demo.tenantId,cashier.id,openedShift.shift.id,'pdf-resumen',{tzOffsetMinutes:300});
+  const dayPdf = await closures.exportDay(demo.tenantId,cashier.id,snapshot.businessDate,'pdf-resumen',{tzOffsetMinutes:300});
+  for(const exported of [shortPdf,dayPdf]) {
+    assert.equal(exported.mime,'application/pdf');
+    assert.match(exported.buffer.toString('latin1'),/\/Count 1\b/);
+  }
   assert.ok(printLines.join(' ').includes('FIN DEL CIERRE'));
 
   console.log(JSON.stringify({
@@ -184,3 +193,4 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 }).finally(() => prisma.$disconnect());
+
