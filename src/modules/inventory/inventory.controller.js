@@ -1,4 +1,5 @@
 const service = require('./inventory.service');
+const reservationService = require('./inventory-reservation.service');
 const accountingService = require('./inventory-accounting.service');
 const { productSchema, updateProductSchema, movementSchema, accountedAdjustmentSchema } = require('./inventory.schemas');
 const { AppError } = require('../../utils/app-error');
@@ -31,6 +32,21 @@ async function listProducts(req, res, next) {
 async function getProduct(req, res, next) {
   try {
     res.json({ ok: true, data: await service.getProduct(req.tenantId, req.params.id) });
+  } catch (error) { next(error); }
+}
+
+async function getProductAvailability(req, res, next) {
+  try {
+    const data = await reservationService.availability(req.tenantId, req.params.id);
+    res.json({
+      ok: true,
+      data: {
+        product: data.product,
+        physical: data.physical.toString(),
+        reserved: data.reserved.toString(),
+        available: data.available.toString()
+      }
+    });
   } catch (error) { next(error); }
 }
 
@@ -82,6 +98,7 @@ module.exports = {
   createProduct,
   listProducts,
   getProduct,
+  getProductAvailability,
   updateProduct,
   deactivateProduct,
   createMovement,
