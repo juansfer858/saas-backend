@@ -23,6 +23,8 @@ const { edgeHybridLocalOriginV53Router } = require('../modules/edge/edge-hybrid-
 const { notificationsRouter } = require('../modules/notifications/notifications.routes');
 const { notificationPushV65Router } = require('../modules/notifications/push-v65.routes');
 const { metaTechRouter } = require('../modules/notifications/meta-tech.routes');
+const { bikeRouter } = require('../modules/bike/bike.routes');
+const { installBikeRbac } = require('../modules/bike/bike.rbac');
 const { restaurantRouter } = require('../modules/restaurant/restaurant.routes');
 const { restaurantPrintTemplateRouter } = require('../modules/restaurant/restaurant-print-template.routes');
 const { restaurantCashShiftRecoveryRouter } = require('../modules/restaurant/restaurant-cash-shift-recovery.routes');
@@ -51,6 +53,7 @@ const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/r
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
 installRestaurantRbac();
+installBikeRbac();
 
 const router = express.Router();
 
@@ -81,6 +84,7 @@ router.use('/edge', edgeTenantUpdateGuard, edgeTenantRouter);
 router.use('/notificaciones/push-v65', notificationPushV65Router);
 router.use('/notificaciones', metaTechRouter);
 router.use('/notificaciones', notificationsRouter);
+router.use('/bike', bikeRouter);
 router.use('/restaurante', restaurantPrintTemplateRouter);
 router.use('/restaurante', restaurantMenuImportRouter);
 router.use('/restaurante', restaurantVisitPaymentsRouter);
