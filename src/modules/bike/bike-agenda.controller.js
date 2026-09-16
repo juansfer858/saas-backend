@@ -1,5 +1,11 @@
 const service = require('./bike-agenda.service');
+const mechanics = require('./bike-agenda-mechanics.service');
 const schemas = require('./bike-agenda.schemas');
+
+async function listMechanics(req, res, next) {
+  try { res.json({ ok: true, data: await mechanics.listMechanics(req.tenantId) }); }
+  catch (error) { next(error); }
+}
 
 async function createScheduleRule(req, res, next) {
   try { res.status(201).json({ ok: true, data: await service.createScheduleRule(req.tenantId, schemas.parse(schemas.scheduleRuleSchema, req.body)) }); }
@@ -87,6 +93,7 @@ async function convertAppointmentToWorkOrder(req, res, next) {
 }
 
 module.exports = {
+  listMechanics,
   createScheduleRule,
   listScheduleRules,
   deactivateScheduleRule,
