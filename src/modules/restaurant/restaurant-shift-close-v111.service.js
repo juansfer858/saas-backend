@@ -9,13 +9,7 @@ const ACTIVE = ['ABIERTA', 'CUENTA_PEDIDA'];
 const PENDING = ['PENDIENTE', 'EN_PREPARACION', 'LISTA'];
 const REASON = 'Cierre de turno';
 
-// Shared transaction locks allow normal orders in parallel. Closure takes the
-// exclusive tenant lock, so a draft cannot be sent while it is being archived.
-async function lockOperation(tx, tenantId, exclusive = false) {
-  const key = `restaurant-shift-close-v111:${tenantId}`;
-  if (exclusive) await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
-  else await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock_shared(hashtextextended(${key}, 0))`;
-}
+const { lockOperation } = require('./restaurant-operation-lock-v111.service');
 
 function blocker(reference, reason, extra = {}) { return { reference, reason, ...extra }; }
 

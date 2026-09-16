@@ -1,6 +1,6 @@
 'use strict';
 
-const { lockOperation } = require('./restaurant-shift-close-v111.service');
+const { lockOperation } = require('./restaurant-operation-lock-v111.service');
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 
