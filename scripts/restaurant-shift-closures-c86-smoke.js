@@ -125,8 +125,8 @@ assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.lab
 assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'Transferencia / QR total recibida' && /30\.000|30,000|30000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'Transferencia / QR restaurante' && /25\.000|25,000|25000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'GASTOS' && row.label === 'TOTAL GASTOS (2)' && /20\.000|20,000|20000/.test(row.value)));
-assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Recibidos por transferencia / QR' && /5\.000|5,000|5000/.test(row.value)));
-assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'TOTAL FONDOS DE TERCEROS'));
+assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Cargos de domicilio / fondos terceros (3)' && /13\.000|13,000|13000/.test(row.value)));
+assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Recibidos por banco' && /9\.500|9,500|9500/.test(row.value)));
 assert.equal(rows.some((row) => ['CRUCE FINAL','ARQUEO','ARQUEO FINAL'].includes(row.section)), false, 'el resumen no debe incluir arqueo final ni cruce final');
 
 // Se conserva el cross legado para reportes detallados; no se altera contabilidad ni Tesorería.
