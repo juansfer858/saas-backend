@@ -161,7 +161,8 @@ async function main() {
   const printIntent = await prisma.trackingLink.findFirst({where:{tenantId:demo.tenantId,id:printResult.printRequestId}});
   const receiptService = require('../src/modules/restaurant/restaurant-pos-receipt-print.service');
   const printSnapshot = receiptService.cashCloseSnapshotFromIntent(printIntent);
-  assert.ok(printSnapshot.summaryRows.some(r=>r.label==='Pendientes restaurante'));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.label==='Valor total'));
+  assert.ok(printSnapshot.summaryRows.every(r=>['TURNO','VENTAS','FIRMAS'].includes(r.section)));
   assert.equal(printSnapshot.detailRows,undefined);
   assert.ok(snapshot.detailRows.some(r=>r[0]==='PEDIDO'),'el historial conserva los pedidos cancelados');
   const printLines = receiptService.cashCloseReceiptLines({company:{nombreEmpresa:'CI'},snapshot:printSnapshot});
