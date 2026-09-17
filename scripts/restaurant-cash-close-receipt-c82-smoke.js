@@ -65,14 +65,20 @@ assert.equal(receipt.cashCloseColumns('80mm'), 48);
 assert.equal(receipt.cashCloseColumns('TERMICA_58'), 32);
 
 const lines = receipt.cashCloseReceiptLines({ company, snapshot, paperFormat:'TERMICA_80' });
-assert.ok(lines.length > 25, 'el cierre debe incluir encabezado, medios de pago y arqueo resumido');
+assert.ok(lines.length > 15, 'el cierre debe conservar datos del turno, ventas y firmas');
 assert.ok(lines.every((line) => String(line).length <= 48), 'ninguna línea puede desbordar la Epson de 80 mm');
 assert.ok(lines.some((line) => line.includes('CIERRE DE TURNO / CAJA')));
-assert.ok(lines.some((line) => line.includes('VENTAS POR MEDIO DE PAGO')));
-assert.ok(lines.some((line) => line.includes('ARQUEO DE CAJA')));
-assert.ok(!lines.some((line) => line.includes('DETALLE DE VENTAS')));
+assert.ok(lines.some((line) => line.trim() === 'VENTAS'));
+assert.ok(lines.some((line) => line.includes('Efectivo')));
 assert.ok(lines.some((line) => line.includes('Transferencias / QR')));
-assert.ok(lines.some((line) => line.includes('DESCUADRE')));
+assert.ok(lines.some((line) => line.includes('Crédito')));
+assert.ok(lines.some((line) => line.includes('Valor total')));
+assert.ok(lines.some((line) => line.trim() === 'FIRMAS'));
+assert.ok(!lines.some((line) => line.includes('ARQUEO DE CAJA')));
+assert.ok(!lines.some((line) => line.trim() === 'CONTROL'));
+assert.ok(!lines.some((line) => line.includes('VENTAS POR CANAL')));
+assert.ok(!lines.some((line) => line.includes('DESCUADRE')));
+assert.ok(!lines.some((line) => line.includes('DETALLE DE VENTAS')));
 assert.ok(!lines.some((line) => line.includes('000000')), 'las ventas individuales quedan en el informe completo');
 assert.ok(lines.filter((line) => /^-+$/.test(line)).every((line) => line.length === 48), 'separadores deben consumir el ancho completo de 80 mm');
 
@@ -82,28 +88,34 @@ for (const paperFormat of ['TERMICA_80','TERMICA_58']) {
   const shortLines = receipt.cashCloseReceiptLines({company,snapshot,paperFormat});
   const longLines = receipt.cashCloseReceiptLines({company,snapshot:large,paperFormat});
   assert.equal(longLines.length, shortLines.length);
-  assert.ok(longLines.length < 100, 'resumen acotado incluso en 58 mm');
+  assert.ok(longLines.length < 60, 'resumen acotado incluso en 58 mm');
   assert.ok(longLines.every(line=>line.length<=receipt.cashCloseColumns(paperFormat)));
-  assert.doesNotMatch(longLines.join(' '),/PRODUCTO QUE NO|DETALLE DE VENTAS|INFORME COMPLETO/);
+  assert.doesNotMatch(longLines.join(' '),/PRODUCTO QUE NO|DETALLE DE VENTAS/);
 }
+
 const {summaryRows,legacyReport,summaryPdfSpec} = require('../src/modules/restaurant/restaurant-cash-close-summary.service');
 const valueOf=(report,label)=>summaryRows(report).find(row=>row.label===label)?.value;
 const report=legacyReport(snapshot);
-assert.equal(valueOf(report,'Estado efectivo'),'FALTANTE');
-assert.match(valueOf(report,'DESCUADRE'),/-.*2\.000/);
-assert.equal(valueOf({...report,cash:{...report.cash,difference:0}},'Estado efectivo'),'CUADRADO');
-assert.equal(valueOf({...report,cash:{...report.cash,difference:1}},'Estado efectivo'),'SOBRANTE');
-assert.equal(valueOf({...report,cash:{...report.cash,countedCash:null,difference:null}},'Efectivo contado'),'Sin registro');
-assert.equal(valueOf({...report,cash:{...report.cash,difference:null}},'Estado efectivo'),'SIN REGISTRO');
 assert.equal(valueOf(report,'Apertura'),'2026-09-11 08:00');
-assert.match(valueOf(report,'Crédito / no es efectivo'),/30\.000/);
-assert.equal(valueOf(report,'Valor facturado'),'Sin registro','legacy total with tips is not invented as invoiced sales');
+assert.match(valueOf(report,'Efectivo'),/450\.000/);
+assert.match(valueOf(report,'Transferencias / QR'),/180\.000/);
+assert.match(valueOf(report,'Tarjetas'),/120\.000/);
+assert.match(valueOf(report,'Crédito'),/30\.000/);
+assert.match(valueOf(report,'Valor total'),/780\.000/);
+assert.equal(valueOf(report,'DESCUADRE'),undefined);
+assert.equal(valueOf(report,'Estado efectivo'),undefined);
+assert.equal(valueOf(report,'Alertas operativas'),undefined);
+assert.ok(!summaryRows(report).some(row=>['ARQUEO','CONTROL','CANALES','PAGOS'].includes(row.section)));
+assert.ok(summaryRows(report).every(row=>['TURNO','VENTAS','FIRMAS'].includes(row.section)));
+
 const busyReport={...report,channels:Object.fromEntries(['MESAS','MOSTRADOR','DOMICILIOS','PARA_LLEVAR'].map(k=>[k,{tickets:10,settledValue:100}])),
   payments:{...report.payments,other:1},exceptions:Array(10000).fill({type:'PRODUCCION_PENDIENTE'}),
   complete:{pending:Array(10000).fill({}),historicalReconstruction:true,totals:{collected:100,priorInvoiceCollections:1,discount:1,vat:1,consumptionTax:1}}};
-assert.equal(valueOf(busyReport,'Alertas operativas'),'10000');
-assert.ok(summaryPdfSpec(company,busyReport).rows.length<=25,'resumen PDF cabe en una página con todas las secciones');
-assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=25);
+const pdf = summaryPdfSpec(company,busyReport);
+assert.deepEqual(pdf.headers,['Concepto','Resultado']);
+assert.equal(pdf.columns.length,2);
+assert.ok(pdf.rows.length<=15,'resumen PDF conserva únicamente turno, ventas y firmas');
+assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=15);
 
 const job = receipt.buildCashCloseJob({ company, snapshot, printer });
 assert.match(job.id, /^restaurant-cash-close:/);
@@ -153,13 +165,13 @@ assert.doesNotMatch(edgeBridge, /restaurant-cash-close-receipt-c82/, 'no se debe
 console.log('RESTAURANT CASH CLOSE RECEIPT C82 SMOKE OK', JSON.stringify({
   epson80Columns:48,
   centeredHeader:true,
+  simpleCloseSummary:true,
   paymentBreakdown:true,
-  cashReconciliation:true,
+  noCashArqueoSection:true,
+  noControlSection:true,
   boundedSummary:true,
   stablePrintJob:true,
   optionalPrintDecision:true,
   sameExistingPosOutbox:true,
   edgeUntouched:true
 }));
-
-
