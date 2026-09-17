@@ -4,6 +4,7 @@ const express = require('express');
 const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
+const thirdParty = require('../third-parties/third-party.service');
 const service = require('./restaurant-v2-cash.service');
 const customerDisplay = require('./restaurant-customer-display-name.service');
 const customerSaleLink = require('./restaurant-customer-sale-link.service');
@@ -180,6 +181,14 @@ router.get('/v2/caja/ventas/:saleId/recrear-cliente', requirePermission('RESTAUR
 router.post('/v2/caja/ventas/:saleId/recrear-cliente', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
     const input = parse(reissueCustomerSchema, req.body, 'Cliente inválido para recrear la venta');
+    const customer = await thirdParty.getById(req.tenantId, input.terceroId);
+    if (customer.sujetoRetefuente || customer.sujetoReteIca || customer.sujetoReteIva) {
+      throw new AppError(
+        409,
+        'Este cliente tiene retenciones configuradas. Requiere un ajuste comercial formal y no una recreación automática del mismo cobro.',
+        'RESTAURANT_REISSUE_CUSTOMER_RETENTIONS_REQUIRE_FORMAL_ADJUSTMENT'
+      );
+    }
     const data = await customerReissue.reissueGenericCustomerSale(req.tenantId, req.user, req.params.saleId, input.terceroId);
     res.status(201).json({ ok: true, data });
   } catch (error) { next(error); }
