@@ -9,8 +9,12 @@ on:
       - 'src/modules/restaurant/restaurant-expenses-v116.public.routes.js'
       - 'src/modules/restaurant/restaurant-close-sales-reconcile-v116.js'
       - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/web/restaurant-v2-expenses-v117.html'
+      - 'src/web/restaurant-v2-expenses-v117.js'
       - 'scripts/restaurant-expenses-daily-sales-v116-smoke.js'
       - '.github/workflows/restaurant-expenses-daily-sales-v116-ci.yml'
   push:
@@ -21,8 +25,12 @@ on:
       - 'src/modules/restaurant/restaurant-expenses-v116.public.routes.js'
       - 'src/modules/restaurant/restaurant-close-sales-reconcile-v116.js'
       - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
       - 'src/routes/core.routes.js'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/web/restaurant-v2-expenses-v117.html'
+      - 'src/web/restaurant-v2-expenses-v117.js'
       - 'scripts/restaurant-expenses-daily-sales-v116-smoke.js'
       - '.github/workflows/restaurant-expenses-daily-sales-v116-ci.yml'
 
@@ -46,20 +54,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Wait for exact commit and Restaurant V116 runtime in production
+      - name: Wait for exact commit and Restaurant V116/V117 runtime in production
         shell: bash
         run: |
           set -euo pipefail
           INFO='https://core.vantixgc.com/api/public/runtime-info'
-          ASSET='https://core.vantixgc.com/app/restaurant-control-center.js'
+          LEGACY='https://core.vantixgc.com/app/restaurant-control-center.js'
+          NAV='https://core.vantixgc.com/app/restaurant-v2-native-control-p11.js'
+          EXPENSES='https://core.vantixgc.com/app/restaurante-v2/gastos'
+          EXPENSES_JS='https://core.vantixgc.com/app/restaurant-v2-expenses-v117.js'
           for attempt in $(seq 1 60); do
             if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
               if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
-                page=$(curl -fsSL --max-time 12 "$ASSET?v=${GITHUB_SHA}" 2>/dev/null || true)
-                if echo "$page" | grep -Fq 'VANTIX_RESTAURANT_EXPENSES_DAILY_SALES_V116' \
-                  && echo "$page" | grep -Fq 'Descargar ventas del día' \
-                  && echo "$page" | grep -Fq 'Registrar gasto'; then
-                  echo RESTAURANT_EXPENSES_DAILY_SALES_V116_PRODUCTION_OK
+                legacy=$(curl -fsSL --max-time 12 "$LEGACY?v=${GITHUB_SHA}" 2>/dev/null || true)
+                nav=$(curl -fsSL --max-time 12 "$NAV?v=${GITHUB_SHA}" 2>/dev/null || true)
+                expenses=$(curl -fsSL --max-time 12 "$EXPENSES?v=${GITHUB_SHA}" 2>/dev/null || true)
+                expenses_js=$(curl -fsSL --max-time 12 "$EXPENSES_JS?v=${GITHUB_SHA}" 2>/dev/null || true)
+                if echo "$legacy" | grep -Fq 'VANTIX_RESTAURANT_EXPENSES_DAILY_SALES_V116' \
+                  && echo "$nav" | grep -Fq "gastos:{ label:'Gastos'" \
+                  && echo "$nav" | grep -Fq "route:'/app/restaurante-v2/gastos'" \
+                  && echo "$expenses" | grep -Fq 'VANTIX_RESTAURANT_V2_EXPENSES_NATIVE_V117' \
+                  && echo "$expenses" | grep -Fq 'Registrar gasto' \
+                  && echo "$expenses_js" | grep -Fq 'VANTIX_RESTAURANT_V2_EXPENSES_NATIVE_V117' \
+                  && echo "$expenses_js" | grep -Fq '/api/v1/restaurante/gastos-v116'; then
+                  echo RESTAURANT_EXPENSES_DAILY_SALES_V116_V117_PRODUCTION_OK
                   exit 0
                 fi
               fi

@@ -9,6 +9,10 @@ const publicSource = fs.readFileSync('src/modules/restaurant/restaurant-expenses
 const reconcileSource = fs.readFileSync('src/modules/restaurant/restaurant-close-sales-reconcile-v116.js','utf8');
 const coreSource = fs.readFileSync('src/routes/core.routes.js','utf8');
 const publicRouterSource = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8');
+const v2CashPublicSource = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.public.routes.js','utf8');
+const v2ControlSource = fs.readFileSync('src/web/restaurant-v2-native-control-p11.js','utf8');
+const v2ExpensesHtml = fs.readFileSync('src/web/restaurant-v2-expenses-v117.html','utf8');
+const v2ExpensesJs = fs.readFileSync('src/web/restaurant-v2-expenses-v117.js','utf8');
 const summary = require('../src/modules/restaurant/restaurant-cash-close-summary.service');
 const publicModule = require('../src/modules/restaurant/restaurant-expenses-v116.public.routes');
 
@@ -35,6 +39,24 @@ assert.match(publicModule.runtime,/vantix:tenant-realtime/);
 assert.match(publicModule.runtime,/pageshow/);
 assert.match(publicModule.runtime,/data-tab=\"caja\"/,'Gastos debe seguir la autorización real de Caja y no depender solo del rol guardado en sesión');
 assert.doesNotThrow(()=>new Function(publicModule.runtime),'el runtime de Gastos V116 debe compilar');
+
+assert.match(v2ControlSource,/gastos:\{ label:'Gastos', hint:'Egresos de caja y banco', route:'\/app\/restaurante-v2\/gastos', roles:\['ADMIN','SUPER_ADMIN','CAJERO'\] \}/,'Gastos debe existir como módulo nativo V2');
+const cajaIndex = v2ControlSource.indexOf("caja:{ label:'Caja'");
+const gastosIndex = v2ControlSource.indexOf("gastos:{ label:'Gastos'");
+const cierresIndex = v2ControlSource.indexOf("cierres:{ label:'Historial de cierres'");
+assert.ok(cajaIndex >= 0 && gastosIndex > cajaIndex && cierresIndex > gastosIndex,'Gastos debe quedar entre Caja e Historial de cierres');
+assert.match(v2CashPublicSource,/\/app\/restaurante-v2\/gastos/,'la ruta pública V2 de Gastos debe estar montada');
+assert.match(v2CashPublicSource,/restaurant-v2-expenses-v117\.html/);
+assert.match(v2CashPublicSource,/restaurant-v2-expenses-v117\.js/);
+assert.match(v2ExpensesHtml,/VANTIX_RESTAURANT_V2_EXPENSES_NATIVE_V117/);
+assert.match(v2ExpensesHtml,/Registrar gasto/);
+assert.match(v2ExpensesHtml,/Descargar ventas del día/);
+assert.match(v2ExpensesJs,/VANTIX_RESTAURANT_V2_EXPENSES_NATIVE_V117/);
+assert.match(v2ExpensesJs,/\/api\/v1\/restaurante\/gastos-v116/);
+assert.match(v2ExpensesJs,/\/api\/v1\/restaurante\/reportes\/ventas-dia-v116\.xls/);
+assert.doesNotMatch(v2ExpensesJs,/\/api\/v1\/(?:tesoreria|contabilidad)\//,'la UI V2 no debe saltarse el contrato V116');
+assert.doesNotMatch(v2ExpensesJs,/MutationObserver|setInterval/,'la UI V2 de Gastos no debe introducir polling');
+assert.doesNotThrow(()=>new Function(v2ExpensesJs),'el runtime nativo V2 de Gastos debe compilar');
 
 const report = {
   shift:{
@@ -63,5 +85,7 @@ console.log('RESTAURANT EXPENSES DAILY SALES V116 SMOKE OK',JSON.stringify({
   closeExpensesSeparated:true,
   eventDrivenRuntime:true,
   visibilityFollowsCanonicalCashAccess:true,
+  nativeV2ExpensesModule:true,
+  nativeV2MenuOrder:'Caja>Gastos>Cierres',
   runtimeCompiles:true
 }));

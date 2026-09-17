@@ -26,6 +26,13 @@ function sendAsset(res, file, contentType) {
   return res.sendFile(path.join(WEB_ROOT, file));
 }
 
+function sendExpensesAsset(res, file, contentType) {
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Type', contentType);
+  res.set('X-VantixGC-Restaurant-V2-Expenses', 'native-v117');
+  return res.sendFile(path.join(WEB_ROOT, file));
+}
+
 function installClosuresDashboard(req, res, next) {
   if (req.method !== 'GET' || req.path !== '/app/dashboard') return next();
   const originalSend = res.send.bind(res);
@@ -69,6 +76,8 @@ async function sendCashHtml(_req, res, next) {
 
 router.use(installClosuresDashboard);
 router.get('/app/restaurante-v2/caja', sendCashHtml);
+router.get('/app/restaurante-v2/gastos', (req, res) => sendExpensesAsset(res, 'restaurant-v2-expenses-v117.html', 'text/html; charset=utf-8'));
+router.get('/app/restaurant-v2-expenses-v117.js', (req, res) => sendExpensesAsset(res, 'restaurant-v2-expenses-v117.js', 'application/javascript; charset=utf-8'));
 router.get('/app/cierres', (req, res) => sendAsset(res, 'restaurant-shift-closures-c86.html', 'text/html; charset=utf-8'));
 router.get('/app/restaurant-v2-cash.css', (req, res) => sendAsset(res, 'restaurant-v2-cash.css', 'text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-cash.js', (req, res) => sendAsset(res, 'restaurant-v2-cash.js', 'application/javascript; charset=utf-8'));
