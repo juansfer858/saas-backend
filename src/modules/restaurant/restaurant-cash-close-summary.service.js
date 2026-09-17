@@ -1,6 +1,6 @@
 'use strict';
 
-// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V116
+// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V121
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -65,12 +65,40 @@ function salesPayments(report) {
   return values;
 }
 
+function normalizedExpenses(report) {
+  const source = report.shift?.expenseSummary || report.expenses || {};
+  return {
+    cash:number(source.cash),
+    transfer:number(source.transfer),
+    total:number(source.total),
+    count:Math.max(0, Math.trunc(number(source.count)))
+  };
+}
+
+function closeCross(report) {
+  const payments = salesPayments(report);
+  const expenses = normalizedExpenses(report);
+  const paymentTotal = Object.values(payments).reduce((sum, value) => sum + value, 0);
+  const sales = number(report.totals?.billedValue ?? paymentTotal);
+  const bankReceipts = payments.transfer + payments.card + payments.other;
+  return {
+    sales,
+    expenses,
+    salesMinusExpenses:sales - expenses.total,
+    cashNet:payments.cash - expenses.cash,
+    bankNet:bankReceipts - expenses.transfer,
+    payments
+  };
+}
+
 function summaryRows(report) {
   const rows = [];
   const add = (section, label, value) => rows.push({ section, label, value: String(value) });
   const shift = report.shift || {};
   const totals = report.totals || {};
-  const payments = salesPayments(report);
+  const cross = closeCross(report);
+  const payments = cross.payments;
+  const expenses = cross.expenses;
   const day = report.kind === 'DAY';
 
   add('TURNO', day ? 'Día operativo' : 'Turno', day ? report.businessDate : short(shift.id, 12).toUpperCase());
@@ -90,16 +118,27 @@ function summaryRows(report) {
   if (payments.card !== 0) add('VENTAS', 'Tarjetas', amount(payments.card));
   add('VENTAS', 'Crédito', amount(payments.credit));
   if (payments.other !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
+  add('VENTAS', 'Valor total', amount(cross.sales));
 
-  const paymentTotal = Object.values(payments).reduce((sum, value) => sum + value, 0);
-  const totalValue = totals.billedValue ?? paymentTotal;
-  add('VENTAS', 'Valor total', amount(totalValue));
+  // Gastos are already posted through Tesorería. This section is report-only:
+  // never subtract them again from saldoEsperado or any accounting accumulator.
+  add('GASTOS', 'Cantidad de gastos', expenses.count);
+  add('GASTOS', 'Efectivo', amount(expenses.cash));
+  add('GASTOS', 'Banco / transferencia', amount(expenses.transfer));
+  add('GASTOS', 'Total gastos', amount(expenses.total));
 
-  const expenses = shift.expenseSummary || report.expenses || null;
-  if (expenses && number(expenses.total) > 0) {
-    add('GASTOS', 'Efectivo', amount(expenses.cash));
-    add('GASTOS', 'Transferencia', amount(expenses.transfer));
-    add('GASTOS', 'Total gastos', amount(expenses.total));
+  add('CRUCE FINAL', 'Ventas', amount(cross.sales));
+  add('CRUCE FINAL', '(-) Gastos', amount(expenses.total));
+  add('CRUCE FINAL', 'Ventas - gastos', amount(cross.salesMinusExpenses));
+  add('CRUCE FINAL', 'Flujo efectivo neto', amount(cross.cashNet));
+  add('CRUCE FINAL', 'Flujo banco neto', amount(cross.bankNet));
+
+  // Physical cash is canonical Treasury state. In particular, cash expenses are
+  // already inside egresosEfectivo, so expectedCash must never be recomputed here.
+  if (!day && report.cash) {
+    add('CAJA', 'Efectivo esperado', amount(report.cash.expectedCash));
+    add('CAJA', 'Efectivo contado', amount(report.cash.countedCash));
+    add('CAJA', 'Descuadre', amount(report.cash.difference));
   }
 
   add('FIRMAS', 'Entrega cajero', '____________________');
@@ -150,4 +189,4 @@ function summaryPdfSpec(tenant, report) {
   };
 }
 
-module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments };
+module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments, normalizedExpenses, closeCross };
