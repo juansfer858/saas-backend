@@ -143,8 +143,8 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
   const separator = '-'.repeat(width);
   const lines = [];
 
-  lines.push(...centeredWrapped(company?.nombreEmpresa || 'Restaurante', width));
   lines.push(centerLine(String(company?.receiptTitle || defaultTitle).trim(), width));
+  lines.push(...centeredWrapped(company?.nombreEmpresa || 'Restaurante', width));
   for (const companyLine of companyLines(company)) lines.push(...centeredWrapped(companyLine, width));
   lines.push(separator);
 
