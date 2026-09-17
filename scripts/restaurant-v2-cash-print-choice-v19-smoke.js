@@ -7,6 +7,7 @@ const cashHtml = fs.readFileSync('src/web/restaurant-v2-cash.html', 'utf8');
 const cashRoutes = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.routes.js', 'utf8');
 const cashService = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.service.js', 'utf8');
 const customerNameService = fs.readFileSync('src/modules/restaurant/restaurant-customer-display-name.service.js', 'utf8');
+const reissueService = fs.readFileSync('src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js', 'utf8');
 const methods = fs.readFileSync('src/modules/restaurant/restaurant-payment-methods.service.js', 'utf8');
 const hooks = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-hooks.js', 'utf8');
 const splitService = fs.readFileSync('src/modules/restaurant/restaurant-v2-split.service.js', 'utf8');
@@ -26,18 +27,37 @@ expect(overlay.includes('data?.result?.session?.id'), 'la decisión debe quedar 
 expect(overlay.includes('finishWithoutPrint'), 'No debe cerrar el flujo sin imprimir');
 expect(!overlay.includes('recibo/no-imprimir'), 'No no debe crear una operación de impresión');
 
-expect(overlay.includes('postSaleCustomerNameEdit:true'), 'falta marcador de edición postventa del nombre');
-expect(overlay.includes('data?.result?.sale?.id'), 'la edición debe quedar anclada a la venta exacta');
-expect(overlay.includes('/nombre-cliente'), 'falta llamada para actualizar el nombre del recibo');
-expect(overlay.includes('await saveCustomerName({silent:true})'), 'imprimir debe guardar primero el nombre editado');
-expect(overlay.includes('No cambia productos, total, pago, Caja ni Contabilidad.'), 'falta alcance visual de la edición');
-expect(cashRoutes.includes("router.patch('/v2/caja/ventas/:saleId/nombre-cliente'"), 'falta endpoint de edición postventa');
-expect(customerNameService.includes("scope: 'POS_DISPLAY_NAME_ONLY'"), 'la edición debe limitarse al nombre visual POS');
-expect(customerNameService.includes('RESTAURANT_RECEIPT_CUSTOMER_NAME_UPDATED'), 'falta auditoría del cambio de nombre');
-expect(!customerNameService.includes('dianDocument'), 'la edición POS no debe depender de un modelo fiscal inexistente');
+expect(overlay.includes('postSaleCustomerReissue:true'), 'falta marcador de anulación y recreación postventa');
+expect(overlay.includes('data?.result?.sale?.id'), 'la recreación debe quedar anclada a la venta exacta');
+expect(overlay.includes('IDENTIFICAR CLIENTE (ANULAR Y RECREAR)'), 'falta acción segura para identificar cliente');
+expect(overlay.includes('/recrear-cliente'), 'falta llamada al flujo V128 de recreación');
+expect(overlay.includes('/api/v1/restaurante/v2/caja/clientes'), 'falta búsqueda/creación del cliente real');
+expect(!overlay.includes('saveCustomerName'), 'V19.3 no debe editar el nombre de una venta liquidada');
+expect(!overlay.includes('/nombre-cliente`'), 'V19.3 no debe mutar el nombre postventa desde la interfaz');
+expect(cashRoutes.includes("router.get('/v2/caja/ventas/:saleId/recrear-cliente'"), 'falta contexto de recreación V128');
+expect(cashRoutes.includes("router.post('/v2/caja/ventas/:saleId/recrear-cliente'"), 'falta operación de recreación V128');
+expect(customerNameService.includes('RESTAURANT_RECEIPT_CUSTOMER_NAME_REQUIRES_REISSUE'), 'una venta liquidada debe exigir anulación y recreación');
 
-expect(cashHtml.includes('/app/restaurant-v2-cash-print-choice-v19.js?v=v19'), 'Caja no carga V19');
-expect(cashHtml.indexOf('restaurant-v2-cash-tender-v18.js?v=v18') < cashHtml.indexOf('restaurant-v2-cash-print-choice-v19.js?v=v19'), 'V19 debe cargar después de V18');
+expect(reissueService.includes('VANTIX_RESTAURANT_CUSTOMER_REISSUE_V128'), 'falta marker del servicio V128');
+expect(reissueService.includes('lockOperation(tx, tenantId, true)'), 'la recreación debe bloquear el cierre concurrente del turno');
+expect(reissueService.includes('reverseDirectDocumentSettlementInTx'), 'falta reversión de Tesorería del documento original');
+expect(reissueService.includes('reverseDocumentMovementsInTx'), 'falta reversión de inventario del documento original');
+expect(reissueService.includes('reverseJournalInTx'), 'falta reversión contable');
+expect(reissueService.includes('reverseTipJournalInTx'), 'falta reversión del asiento separado de propina');
+expect(reissueService.includes('postReplacementTipInTx'), 'falta recrear la propina cuando aplica');
+expect(reissueService.includes('sales.emitSaleInTx'), 'la nueva venta debe usar la emisión real de Restaurante');
+expect(reissueService.includes("sourceId = `REST-TABLE-REISSUE-"), 'la venta reemplazo debe conservar el contrato POS de Restaurante');
+expect(reissueService.includes('restaurantOrderItem.updateMany'), 'Producción debe remapear sus saleDetailId a la nueva venta');
+expect(reissueService.includes('data: { saleId: replacement.id }'), 'la sesión debe apuntar a la venta reemplazo');
+expect(reissueService.includes("state: 'ACEPTADO'"), 'un documento aceptado por DIAN debe quedar bloqueado');
+expect(reissueService.includes("shift.estado !== 'ABIERTA'"), 'el turno original debe seguir abierto');
+expect(reissueService.includes('shift.userId !== userId'), 'la recreación debe exigir el cajero dueño del turno');
+expect(reissueService.includes("scope: 'VOID_AND_REISSUE'"), 'falta alcance auditable VOID_AND_REISSUE');
+expect(reissueService.includes('originalPreservedAsCancelled: true'), 'la venta original debe conservarse anulada');
+expect(reissueService.includes('money(replacement.total).eq(money(original.total))'), 'el total reemplazo debe ser exactamente igual al original');
+
+expect(cashHtml.includes('/app/restaurant-v2-cash-print-choice-v19.js?v=v19.3'), 'Caja no fuerza la carga de V19.3');
+expect(cashHtml.indexOf('restaurant-v2-cash-tender-v18.js?v=v18') < cashHtml.indexOf('restaurant-v2-cash-print-choice-v19.js?v=v19.3'), 'V19.3 debe cargar después de V18');
 expect(aggregator.includes("'/app/restaurant-v2-cash-print-choice-v19.js'"), 'falta ruta pública del asset V19');
 
 expect(hooks.includes('input?.deferPosReceipt !== true'), 'el hook no respeta la impresión diferida');
@@ -60,4 +80,4 @@ expect(!splitService.includes('deferPosReceipt'), 'V19 no debe alterar División
 expect(!cashService.includes('cashReceived'), 'V19 no debe tocar el monto recibido/contable de V18');
 expect(!cashService.includes('cashChange'), 'V19 no debe tocar la devolución contable de V18');
 
-console.log('Restaurant V2 Cash Print Choice V19 + customer name V127 smoke: OK');
+console.log('Restaurant V2 Cash Print Choice V19.3 + customer reissue V128 smoke: OK');
