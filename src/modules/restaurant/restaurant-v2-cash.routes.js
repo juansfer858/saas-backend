@@ -159,7 +159,7 @@ router.get('/v2/caja/ventas/:saleId/nombre-cliente', requirePermission('RESTAURA
 router.patch('/v2/caja/ventas/:saleId/nombre-cliente', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
     const input = parse(receiptCustomerNameSchema, req.body, 'Nombre de cliente inválido');
-    const data = await customerDisplay.updateCustomerNameForSale(req.tenantId, req.userId, req.params.saleId, input.customerName);
+    const data = await customerDisplay.updateCustomerNameForSale(req.tenantId, req.user.id, req.params.saleId, input.customerName);
     res.json({ ok: true, data });
   } catch (error) { next(error); }
 });
