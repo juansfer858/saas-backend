@@ -182,12 +182,10 @@ function summaryRows(report) {
   add('VENTAS RESTAURANTE', 'TOTAL VENTAS PROPIAS', amount(own.ownSales));
   add('VENTAS RESTAURANTE', 'Diferencia Producción / Ventas', amount(own.productionDifference));
 
-  add('RECAUDO VENTAS PROPIAS', 'Efectivo total recibido', amount(own.grossPayments.cash));
   add('RECAUDO VENTAS PROPIAS', 'Efectivo restaurante', amount(own.ownPayments.cash));
   add('RECAUDO VENTAS PROPIAS', 'Transferencia / QR total recibida', amount(own.grossPayments.transfer));
   add('RECAUDO VENTAS PROPIAS', 'Transferencia / QR restaurante', amount(own.ownPayments.transfer));
-  if (own.grossPayments.card !== 0) add('RECAUDO VENTAS PROPIAS', 'Tarjeta total recibida', amount(own.grossPayments.card));
-  add('RECAUDO VENTAS PROPIAS', 'Tarjeta restaurante', amount(own.ownPayments.card));
+  add('RECAUDO VENTAS PROPIAS', 'Tarjeta', amount(own.ownPayments.card));
   add('RECAUDO VENTAS PROPIAS', 'Crédito pendiente', amount(own.ownPayments.credit));
   if (own.ownPayments.other !== 0) add('RECAUDO VENTAS PROPIAS', 'Otros medios', amount(own.ownPayments.other));
   add('RECAUDO VENTAS PROPIAS', 'TOTAL CUBIERTO', amount(own.covered));
@@ -198,12 +196,9 @@ function summaryRows(report) {
   add('GASTOS', `TOTAL GASTOS (${own.expenses.count})`, amount(own.expenses.total));
 
   if (own.thirdParty.count > 0 || own.thirdParty.billed !== 0 || own.thirdParty.collected !== 0) {
-    add('FONDOS DE TERCEROS', `Cargos de domicilio cobrados (${own.thirdParty.count})`, amount(own.thirdParty.collected));
+    add('FONDOS DE TERCEROS', `Cargos de domicilio / fondos terceros (${own.thirdParty.count})`, amount(own.thirdParty.collected));
     add('FONDOS DE TERCEROS', 'Recibidos en efectivo', amount(own.thirdParty.cash));
-    add('FONDOS DE TERCEROS', 'Recibidos por transferencia / QR', amount(own.thirdParty.transfer));
-    if (own.thirdParty.card !== 0) add('FONDOS DE TERCEROS', 'Recibidos por tarjeta', amount(own.thirdParty.card));
-    if (own.thirdParty.other !== 0) add('FONDOS DE TERCEROS', 'Otros medios de terceros', amount(own.thirdParty.other));
-    add('FONDOS DE TERCEROS', 'TOTAL FONDOS DE TERCEROS', amount(own.thirdParty.collected));
+    add('FONDOS DE TERCEROS', 'Recibidos por banco', amount(own.thirdParty.bank));
     if (own.thirdParty.pending !== 0) add('FONDOS DE TERCEROS', 'Pendiente de recaudo', amount(own.thirdParty.pending));
   }
 
