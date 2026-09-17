@@ -130,7 +130,8 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
     paymentMethodLabel: method.name,
     paymentMethodKind: method.kind,
     paymentAccountId: method.cajaBancoId || null,
-    paymentReference: reference
+    paymentReference: reference,
+    cashShiftId: openShift.id
   });
   return { ...result, paymentMethod: method };
 }
