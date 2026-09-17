@@ -1,0 +1,70 @@
+name: Restaurant V2 Menu Export V130 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-menu.html'
+      - 'src/web/restaurant-v2-menu-export-v130.js'
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-export.service.js'
+      - 'scripts/restaurant-v2-menu-export-v130-smoke.js'
+      - '.github/workflows/restaurant-v2-menu-export-v130-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-menu.html'
+      - 'src/web/restaurant-v2-menu-export-v130.js'
+      - 'src/modules/restaurant/restaurant-v2-menu.public.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-import.routes.js'
+      - 'src/modules/restaurant/restaurant-menu-export.service.js'
+      - 'scripts/restaurant-v2-menu-export-v130-smoke.js'
+      - '.github/workflows/restaurant-v2-menu-export-v130-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Carta Excel export
+        run: node scripts/restaurant-v2-menu-export-v130-smoke.js
+      - name: Validate JavaScript syntax
+        run: |
+          node --check src/web/restaurant-v2-menu-export-v130.js
+          node --check src/modules/restaurant/restaurant-menu-export.service.js
+          node --check src/modules/restaurant/restaurant-menu-import.routes.js
+          node --check src/modules/restaurant/restaurant-v2-menu.public.routes.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit and Carta export in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          INFO='https://core.vantixgc.com/api/public/runtime-info'
+          CARTA='https://core.vantixgc.com/app/restaurante-v2/carta'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
+              if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
+                page=$(curl -fsSL --max-time 12 "$CARTA?v=${GITHUB_SHA}" 2>/dev/null || true)
+                asset=$(curl -fsSL --max-time 12 "https://core.vantixgc.com/app/restaurant-v2-menu-export-v130.js?v=${GITHUB_SHA}" 2>/dev/null || true)
+                if echo "$page" | grep -Fq 'Exportar Excel' \
+                  && echo "$page" | grep -Fq 'restaurant-v2-menu-export-v130.js' \
+                  && echo "$asset" | grep -Fq 'VANTIX_RESTAURANT_V2_MENU_EXPORT_V130'; then
+                  echo RESTAURANT_V2_MENU_EXPORT_V130_PRODUCTION_OK
+                  exit 0
+                fi
+              fi
+            fi
+            sleep 10
+          done
+          exit 1
