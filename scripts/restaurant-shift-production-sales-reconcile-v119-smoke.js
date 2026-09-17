@@ -101,7 +101,8 @@ assert.match(closeSource,/restaurant-shift-production-sales-reconcile-v119\.serv
 assert.match(closeSource,/reconcileShiftProductionSales\(tx,tenantId,shift\)/);
 assert.match(closeSource,/RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH/);
 assert.match(closeSource,/productionSalesReconciliation/);
-assert.match(closeSource,/reconciliationSummary/);
+assert.match(closeSource,/productionSalesSummary/);
+assert.match(closeSource,/salesPaymentsSummary/);
 
 console.log('RESTAURANT SHIFT PRODUCTION SALES RECONCILE V119 OK', JSON.stringify({
   exactMatch:true,
