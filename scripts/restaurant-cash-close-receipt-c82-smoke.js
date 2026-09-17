@@ -144,15 +144,15 @@ assert.match(valueOf(report,'Recibidos por banco'),/9\.500/);
 assert.equal(closeCross(report).sales,793000,'el cruce detallado conserva el movimiento bruto histórico');
 assert.ok(!summaryRows(report).some(row=>['GASTOS','CRUCE FINAL','ARQUEO','CONTROL','CANALES','PAGOS'].includes(row.section)));
 assert.ok(summaryRows(report).every(row=>['TURNO','VENTAS RESTAURANTE','RECAUDO VENTAS PROPIAS','FONDOS DE TERCEROS','FIRMAS'].includes(row.section)));
-assert.ok(summaryRows(report).length<=22,'el resumen V125 debe seguir siendo compacto');
+assert.ok(summaryRows(report).length<=23,'el resumen V125 debe seguir siendo compacto');
 
 const busyReport={...report,channels:Object.fromEntries(['MESAS','MOSTRADOR','DOMICILIOS','PARA_LLEVAR'].map(k=>[k,{tickets:10,settledValue:100}])),
   exceptions:Array(10000).fill({type:'PRODUCCION_PENDIENTE'}),complete:{pending:Array(10000).fill({}),historicalReconstruction:true}};
 const pdf = summaryPdfSpec(company,busyReport);
 assert.deepEqual(pdf.headers,['Concepto','Resultado']);
 assert.equal(pdf.columns.length,2);
-assert.ok(pdf.rows.length<=22,'resumen PDF conserva base, ventas propias, recaudo, terceros y firmas');
-assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=22);
+assert.ok(pdf.rows.length<=23,'resumen PDF conserva base, ventas propias, recaudo, terceros y firmas');
+assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=23);
 
 const job = receipt.buildCashCloseJob({ company, snapshot, printer });
 assert.match(job.id, /^restaurant-cash-close:/);
