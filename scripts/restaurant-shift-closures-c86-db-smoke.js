@@ -174,14 +174,18 @@ async function main() {
   const printIntent = await prisma.trackingLink.findFirst({where:{tenantId:demo.tenantId,id:printResult.printRequestId}});
   const receiptService = require('../src/modules/restaurant/restaurant-pos-receipt-print.service');
   const printSnapshot = receiptService.cashCloseSnapshotFromIntent(printIntent);
-  assert.ok(printSnapshot.summaryRows.some(r=>r.label==='Valor total'));
-  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='GASTOS' && r.label.startsWith('Total gastos')));
-  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='CRUCE FINAL' && r.label==='Ventas - gastos'));
-  assert.ok(printSnapshot.summaryRows.every(r=>['TURNO','VENTAS','GASTOS','CRUCE FINAL','FIRMAS'].includes(r.section)));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='TURNO' && r.label==='BASE'));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='VENTAS RESTAURANTE' && r.label==='TOTAL VENTAS PROPIAS'));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='RECAUDO VENTAS PROPIAS' && r.label==='TOTAL CUBIERTO'));
+  assert.equal(printSnapshot.summaryRows.some(r=>['GASTOS','CRUCE FINAL','ARQUEO','CONTROL'].includes(r.section)),false);
+  assert.ok(printSnapshot.summaryRows.every(r=>['TURNO','VENTAS RESTAURANTE','RECAUDO VENTAS PROPIAS','FONDOS DE TERCEROS','FIRMAS'].includes(r.section)));
   assert.equal(printSnapshot.detailRows,undefined);
   assert.ok(snapshot.detailRows.some(r=>r[0]==='PEDIDO'),'el historial conserva los pedidos cancelados');
   const printLines = receiptService.cashCloseReceiptLines({company:{nombreEmpresa:'CI'},snapshot:printSnapshot});
   assert.ok(!printLines.join(' ').includes('INFORME COMPLETO'));
+  assert.ok(!printLines.join(' ').includes('ARQUEO DE CAJA'));
+  assert.ok(printLines.join(' ').includes('BASE'));
+  assert.ok(printLines.join(' ').includes('TOTAL VENTAS PROPIAS'));
   assert.ok(printLines.length<100);
   const shortPdf = await closures.exportClosure(demo.tenantId,cashier.id,openedShift.shift.id,'pdf-resumen',{tzOffsetMinutes:300});
   const dayPdf = await closures.exportDay(demo.tenantId,cashier.id,snapshot.businessDate,'pdf-resumen',{tzOffsetMinutes:300});
@@ -197,8 +201,10 @@ async function main() {
     postgresReal: true,
     immutableSnapshot: true,
     operationalReconciliation: true,
-    expenseCross:true,
-    dayExpenses:true,
+    compactOwnSalesSummary:true,
+    baseVisible:true,
+    noFinalArqueo:true,
+    dayExpensesStillAvailable:true,
     cashExpenseNotDoubleCounted:true,
     kitchenDelivered: true,
     auditPersistent: true,
