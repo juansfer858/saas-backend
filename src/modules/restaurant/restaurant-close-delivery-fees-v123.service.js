@@ -105,12 +105,30 @@ function addCorrections(rows) {
   return result;
 }
 
-function applyPaymentCorrections(payments, corrections) {
+function normalizedPaymentBuckets(payments) {
   const source = payments || {};
   const result = {};
-  for (const key of PAYMENT_KEYS) {
-    result[key] = money(Math.max(0, Number(source[key] || 0) + Number(corrections?.[key] || 0))).toString();
+  for (const key of PAYMENT_KEYS) result[key] = money(Number(source[key] || 0)).toString();
+  result.total = money(PAYMENT_KEYS.reduce((sum, key) => sum + Number(result[key] || 0), 0)).toString();
+  return result;
+}
+
+function applyPaymentCorrections(payments, corrections) {
+  const source = payments || {};
+  const projected = Object.fromEntries(PAYMENT_KEYS.map((key) => [
+    key,
+    Number(source[key] || 0) + Number(corrections?.[key] || 0)
+  ]));
+
+  // Historical snapshots are immutable evidence. If the old bucket does not contain
+  // enough value to perform the full canonical move, do not clip to zero and invent
+  // a new total: preserve the snapshot payment buckets unchanged.
+  if (PAYMENT_KEYS.some((key) => !Number.isFinite(projected[key]) || projected[key] < -0.01)) {
+    return normalizedPaymentBuckets(source);
   }
+
+  const result = {};
+  for (const key of PAYMENT_KEYS) result[key] = money(Math.max(0, projected[key])).toString();
   result.total = money(PAYMENT_KEYS.reduce((sum, key) => sum + Number(result[key] || 0), 0)).toString();
   return result;
 }
