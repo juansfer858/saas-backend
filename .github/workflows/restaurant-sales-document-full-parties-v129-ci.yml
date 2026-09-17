@@ -1,0 +1,66 @@
+name: Restaurant Sales Document Full Parties V129 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'src/modules/commercial/sales.controller.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-layout.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'scripts/restaurant-sales-document-full-parties-v129-smoke.js'
+      - '.github/workflows/restaurant-sales-document-full-parties-v129-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'src/modules/commercial/sales.controller.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-layout.service.js'
+      - 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'
+      - 'scripts/restaurant-sales-document-full-parties-v129-smoke.js'
+      - '.github/workflows/restaurant-sales-document-full-parties-v129-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Validate backend syntax
+        run: |
+          node --check src/modules/commercial/sales.controller.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-layout.service.js
+          node --check src/modules/restaurant/restaurant-pos-receipt-print.service.js
+      - name: Validate full company and customer document contracts
+        run: node scripts/restaurant-sales-document-full-parties-v129-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify exact V129 sales document in production
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          for i in $(seq 1 60); do
+            INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
+              SALES="$(curl -fsS "$BASE/app/ventas")"
+              [[ "$SALES" == *'VANTIX_SALES_FULL_PARTIES_V129'* ]]
+              [[ "$SALES" == *'Reimprimir usa los datos completos de la empresa y del cliente'* ]]
+              echo "Restaurant Sales Document Full Parties V129 live at $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
