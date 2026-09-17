@@ -9,6 +9,7 @@ const base = require('../src/modules/restaurant/restaurant.service');
 const identity = require('../src/modules/restaurant/restaurant-identity.service');
 const treasury = require('../src/modules/treasury/treasury.service');
 const cashV2 = require('../src/modules/restaurant/restaurant-v2-cash.service');
+const customerReissue = require('../src/modules/restaurant/restaurant-sale-customer-reissue-v128.service');
 const { V2_OPTIONS } = require('../src/modules/restaurant/restaurant-v2-orders.routes');
 
 async function makeReadyTable(demo, waiter, zone, suffix, menuItem, sequence) {
@@ -32,6 +33,7 @@ async function makeReadyTable(demo, waiter, zone, suffix, menuItem, sequence) {
 async function main() {
   const routeSource = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.routes.js', 'utf8');
   const serviceSource = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.service.js', 'utf8');
+  const reissueSource = fs.readFileSync('src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js', 'utf8');
   const publicSource = fs.readFileSync('src/modules/restaurant/restaurant-v2-cash.public.routes.js', 'utf8');
   const htmlSource = fs.readFileSync('src/web/restaurant-v2-cash.html', 'utf8');
   const uiSource = fs.readFileSync('src/web/restaurant-v2-cash.js', 'utf8');
@@ -40,9 +42,11 @@ async function main() {
   assert.match(routeSource, /\/v2\/caja\/mesas\/:tableId\/cobrar/);
   assert.match(routeSource, /\/v2\/caja\/turno\/abrir/);
   assert.match(routeSource, /\/v2\/caja\/turno\/cerrar/);
+  assert.match(routeSource, /\/v2\/caja\/ventas\/:saleId\/recrear-cliente/);
   assert.match(serviceSource, /installOperationalPosMode/);
   assert.match(serviceSource, /splitOwner:\s*'P5'/);
   assert.match(serviceSource, /prepareCreditClose/);
+  assert.match(reissueSource, /VANTIX_RESTAURANT_CUSTOMER_REISSUE_V128/);
   assert.match(publicSource, /p4-cash-independent/);
   assert.match(coreSource, /restaurantV2CashRouter/);
   assert.match(htmlSource, /COBRAR CUENTA COMPLETA/);
@@ -134,7 +138,10 @@ async function main() {
 
   const [cashSession, cashSale, treasuryRows, cashAsiento, simulatedFiscal] = await Promise.all([
     prisma.restaurantTableSession.findUnique({ where: { id: cashTable.sessionId } }),
-    prisma.comprobanteComercial.findUnique({ where: { id: cashTable.saleId } }),
+    prisma.comprobanteComercial.findUnique({
+      where: { id: cashTable.saleId },
+      include: { tercero: true, detalles: { orderBy: { id: 'asc' } } }
+    }),
     prisma.movimientoTesoreria.findMany({ where: { tenantId: demo.tenantId, comprobanteId: cashTable.saleId } }),
     prisma.asientoContable.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: cashTable.saleId } }),
     prisma.restaurantFiscalDocument.count({ where: { tenantId: demo.tenantId, saleId: cashTable.saleId, mode: 'SIMULATED' } })
@@ -145,6 +152,7 @@ async function main() {
   assert.equal(cashSession.paymentReference, 'P4-EFECTIVO-001');
   assert.equal(cashSession.cashShiftId, openedShift.shift.id);
   assert.notEqual(cashSale.estado, 'BORRADOR');
+  assert.equal(cashSale.tercero?.identificacion, customerReissue.GENERIC_CUSTOMER_IDENTIFICATION, 'el caso V128 parte de Cliente genérico');
   assert.equal(treasuryRows.length, 1, 'un cobro contado produce un solo movimiento de Tesorería');
   assert.ok(cashAsiento, 'el cobro real produce asiento contable');
   assert.equal(simulatedFiscal, 0, 'DIAN apagada no debe dejar documento SIMULATED');
@@ -157,6 +165,111 @@ async function main() {
   }
   assert.equal(duplicateBlocked, true, 'un segundo cobro de la misma visita debe bloquearse');
   assert.equal(await prisma.movimientoTesoreria.count({ where: { tenantId: demo.tenantId, comprobanteId: cashTable.saleId } }), 1, 'el reintento no duplica Tesorería');
+
+  const oldDetailIds = cashSale.detalles.map((detail) => detail.id);
+  const reissueCustomer = await cashV2.createCustomer(demo.tenantId, {
+    tipoDocumento: 'CC',
+    identificacion: `R128${Date.now()}`,
+    nombre: `Cliente Reissue V128 ${suffix}`,
+    razonSocial: null,
+    direccion: 'Dirección V128',
+    telefono: '3111111111',
+    email: null,
+    cupoCredito: 0,
+    diasPlazo: 0
+  });
+
+  const reissueContext = await customerReissue.reissueContextForSale(demo.tenantId, cashier.id, cashTable.saleId);
+  assert.equal(reissueContext.eligible, true, `V128 debe ser elegible: ${reissueContext.blockedReason || 'sin bloqueo'}`);
+  assert.equal(reissueContext.genericCustomer, true);
+  assert.equal(reissueContext.cashShiftId, openedShift.shift.id);
+
+  const reissued = await customerReissue.reissueGenericCustomerSale(demo.tenantId, cashier, cashTable.saleId, reissueCustomer.id);
+  assert.equal(reissued.reissued, true);
+  assert.equal(reissued.idempotent, false);
+  assert.notEqual(reissued.replacement.id, cashTable.saleId, 'la venta reemplazo debe tener otro id');
+  assert.notEqual(reissued.replacement.numero, cashSale.numero, 'la venta reemplazo debe tener otro consecutivo');
+  assert.equal(reissued.replacement.terceroId, reissueCustomer.id);
+  assert.equal(Number(reissued.replacement.total), Number(cashSale.total), 'el total debe permanecer exactamente igual');
+  assert.equal(reissued.productionLinksRemapped, oldDetailIds.length, 'Producción debe quedar vinculada a las nuevas líneas');
+
+  const replacementId = reissued.replacement.id;
+  const [
+    originalAfterReissue,
+    replacementSale,
+    sessionAfterReissue,
+    cancellationNote,
+    originalJournalAfterReissue,
+    replacementJournal,
+    replacementTreasuryRows,
+    staleOrderLinks,
+    reissueAudit,
+    replacementSimulatedFiscal
+  ] = await Promise.all([
+    prisma.comprobanteComercial.findUnique({ where: { id: cashTable.saleId } }),
+    prisma.comprobanteComercial.findUnique({
+      where: { id: replacementId },
+      include: { tercero: true, detalles: { orderBy: { id: 'asc' } } }
+    }),
+    prisma.restaurantTableSession.findUnique({ where: { id: cashTable.sessionId } }),
+    prisma.comprobanteComercial.findFirst({
+      where: { tenantId: demo.tenantId, tipo: 'NOTA_CREDITO', documentoOrigenId: cashTable.saleId },
+      orderBy: { creadoEn: 'desc' }
+    }),
+    prisma.asientoContable.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: cashTable.saleId } }),
+    prisma.asientoContable.findFirst({ where: { tenantId: demo.tenantId, comprobanteId: replacementId } }),
+    prisma.movimientoTesoreria.findMany({ where: { tenantId: demo.tenantId, comprobanteId: replacementId } }),
+    prisma.restaurantOrderItem.count({ where: { tenantId: demo.tenantId, saleDetailId: { in: oldDetailIds } } }),
+    prisma.auditoriaContable.findFirst({
+      where: {
+        tenantId: demo.tenantId,
+        entidad: 'RESTAURANT_TABLE_SESSION',
+        entidadId: cashTable.sessionId,
+        accion: 'RESTAURANT_SALE_CUSTOMER_REISSUED'
+      },
+      orderBy: { creadoEn: 'desc' }
+    }),
+    prisma.restaurantFiscalDocument.count({ where: { tenantId: demo.tenantId, saleId: replacementId, mode: 'SIMULATED' } })
+  ]);
+
+  assert.equal(originalAfterReissue.estado, 'ANULADO', 'la venta original debe conservarse anulada');
+  assert.ok(originalAfterReissue.motivoAnulacion?.includes(reissueCustomer.identificacion));
+  assert.ok(cancellationNote, 'la anulación debe conservar una nota crédito de trazabilidad');
+  assert.equal(cancellationNote.documentoOrigenId, cashTable.saleId);
+  assert.equal(replacementSale.documentoOrigenId, cashTable.saleId, 'la nueva venta debe enlazar la original');
+  assert.equal(replacementSale.terceroId, reissueCustomer.id);
+  assert.equal(replacementSale.tercero.identificacion, reissueCustomer.identificacion);
+  assert.equal(Number(replacementSale.total), Number(cashSale.total));
+  assert.equal(sessionAfterReissue.saleId, replacementId, 'la misma sesión debe apuntar a la nueva venta');
+  assert.equal(sessionAfterReissue.state, 'CERRADA');
+  assert.equal(sessionAfterReissue.cashShiftId, openedShift.shift.id);
+  assert.equal(sessionAfterReissue.paymentMethodId, cashMethodId);
+  assert.equal(sessionAfterReissue.paymentReference, 'P4-EFECTIVO-001');
+  assert.equal(originalJournalAfterReissue.estado, 'ANULADO', 'el asiento original debe quedar reversado/anulado');
+  assert.equal(replacementJournal.estado, 'CONTABILIZADO', 'la nueva venta debe tener asiento contable vigente');
+  assert.equal(replacementTreasuryRows.length, 1, 'la nueva venta debe volver a registrar exactamente un ingreso de Tesorería');
+  assert.equal(staleOrderLinks, 0, 'ningún ítem de Producción puede seguir apuntando a líneas de la venta anulada');
+  assert.equal(replacementSale.detalles.length, oldDetailIds.length, 'la nueva venta debe conservar exactamente las líneas');
+  assert.ok(reissueAudit, 'V128 debe dejar auditoría explícita');
+  assert.equal(reissueAudit.metadata?.scope, 'VOID_AND_REISSUE');
+  assert.equal(reissueAudit.metadata?.originalSaleId, cashTable.saleId);
+  assert.equal(reissueAudit.metadata?.replacementSaleId, replacementId);
+  assert.equal(replacementSimulatedFiscal, 0, 'DIAN apagada no debe crear documento fiscal SIMULATED al recrear');
+
+  const replacementDetailIds = new Set(replacementSale.detalles.map((detail) => detail.id));
+  const sessionOrderItems = await prisma.restaurantOrderItem.findMany({
+    where: { tenantId: demo.tenantId, order: { sessionId: cashTable.sessionId } },
+    select: { saleDetailId: true }
+  });
+  assert.ok(sessionOrderItems.length > 0, 'la mesa debe conservar sus ítems históricos de Producción');
+  assert.equal(sessionOrderItems.every((item) => item.saleDetailId && replacementDetailIds.has(item.saleDetailId)), true, 'todos los ítems deben apuntar a líneas del reemplazo');
+
+  const reissuedAgain = await customerReissue.reissueGenericCustomerSale(demo.tenantId, cashier, cashTable.saleId, reissueCustomer.id);
+  assert.equal(reissuedAgain.idempotent, true, 'repetir V128 sobre la venta original no debe duplicar la operación');
+  assert.equal(reissuedAgain.replacement.id, replacementId);
+  assert.equal(await prisma.comprobanteComercial.count({
+    where: { tenantId: demo.tenantId, tipo: 'FACTURA_VENTA', documentoOrigenId: cashTable.saleId, estado: { not: 'ANULADO' } }
+  }), 1, 'solo debe existir una venta reemplazo vigente');
 
   const customer = await cashV2.createCustomer(demo.tenantId, {
     tipoDocumento: 'CC',
@@ -212,6 +325,8 @@ async function main() {
   const closedShift = await cashV2.closeShift(demo.tenantId, cashier, { saldoFinal: Number(summary.systemCashExpected) });
   assert.equal(closedShift.closed.estado, 'CERRADA');
   assert.equal(Number(closedShift.closed.descuadre), 0);
+  assert.equal(closedShift.operationalClose?.productionSalesReconciliation?.balanced, true, 'Producción y la venta recreada deben cuadrar');
+  assert.equal(closedShift.operationalClose?.salesPaymentsReconciliation?.balanced, true, 'la venta recreada y sus pagos deben cuadrar');
 
   console.log(JSON.stringify({
     ok: true,
@@ -226,6 +341,11 @@ async function main() {
     treasuryReal: true,
     accountingReal: true,
     duplicateBlocked: true,
+    customerReissueV128: true,
+    originalSalePreservedCancelled: true,
+    productionRemappedToReplacement: true,
+    reissueIdempotent: true,
+    closeBalancedAfterReissue: true,
     creditCreatesReceivable: true,
     creditDoesNotCreateCashMovement: true
   }));
