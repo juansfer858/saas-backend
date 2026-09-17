@@ -457,32 +457,20 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
   const terceroId = String(input.terceroId || '').trim();
   if (!terceroId) throw new AppError(400, 'Selecciona el cliente para crédito', 'RESTAURANT_CREDIT_CUSTOMER_REQUIRED');
 
-  const previousPayment = {
-    paymentMethodId: session.paymentMethodId,
-    paymentMethodLabel: session.paymentMethodLabel,
-    paymentMethodKind: session.paymentMethodKind,
-    paymentAccountId: session.paymentAccountId,
-    paymentReference: session.paymentReference
-  };
   let prepared = null;
   try {
     prepared = await creditPayment.prepareCreditClose(tenantId, tableId, terceroId);
-    await prisma.restaurantTableSession.update({
-      where: { id: session.id },
-      data: {
-        paymentMethodId: method.id,
-        paymentMethodLabel: method.name,
-        paymentMethodKind: method.kind,
-        paymentAccountId: null,
-        paymentReference: reference
-      }
-    });
     const result = await identity.closeTableGuarded(tenantId, user, tableId, {
       formaPago: 'CREDITO',
       cajaBancoId: null,
       tipAmount: 0,
       split: { mode: 'NONE' },
-      deferPosReceipt: true
+      deferPosReceipt: true,
+      paymentMethodId: method.id,
+      paymentMethodLabel: method.name,
+      paymentMethodKind: method.kind,
+      paymentAccountId: null,
+      paymentReference: reference
     });
     return {
       marker: CASH_V2_MARKER,
@@ -497,10 +485,6 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
     };
   } catch (error) {
     if (prepared) await creditPayment.restorePreparedCredit(tenantId, prepared).catch(() => {});
-    await prisma.restaurantTableSession.updateMany({
-      where: { id: session.id, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
-      data: previousPayment
-    }).catch(() => {});
     throw error;
   }
 }
