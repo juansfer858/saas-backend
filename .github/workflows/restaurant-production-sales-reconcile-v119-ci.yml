@@ -2,16 +2,38 @@ name: Restaurant Production Sales Reconcile V119 CI
 
 on:
   pull_request:
+    branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-shift-production-sales-reconcile-v119.service.js'
       - 'src/modules/restaurant/restaurant-shift-close-v111.service.js'
       - 'scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js'
+      - 'scripts/restaurant-shift-production-sales-reconcile-v119-db-smoke.js'
       - '.github/workflows/restaurant-production-sales-reconcile-v119-ci.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   reconcile-v119:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: vantixgc.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,10 +41,17 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Prepare PostgreSQL schema
+        run: npx prisma db push
       - name: Syntax
         run: |
           node --check src/modules/restaurant/restaurant-shift-production-sales-reconcile-v119.service.js
           node --check src/modules/restaurant/restaurant-shift-close-v111.service.js
           node --check scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js
-      - name: Production vs sales reconciliation
+          node --check scripts/restaurant-shift-production-sales-reconcile-v119-db-smoke.js
+      - name: Pure reconciliation cases
         run: node scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js
+      - name: PostgreSQL close gate
+        run: node scripts/restaurant-shift-production-sales-reconcile-v119-db-smoke.js
