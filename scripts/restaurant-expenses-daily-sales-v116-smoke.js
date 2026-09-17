@@ -65,46 +65,52 @@ const report = {
   },
   businessDate:'2026-09-16',timezoneOffsetMinutes:300,
   totals:{billedValue:'100000',tips:'10000'},
+  production:{COCINA:{value:'100000'},BARRA:{value:'0'},POSTRES:{value:'0'}},
   payments:{cash:'110000',transfer:'0',card:'0',credit:'0',other:'0'},
-  cash:{openingBalance:'0',cashIncome:'110000',cashOut:'12000',expectedCash:'98000',countedCash:'98000',difference:'0'},
+  cash:{openingBalance:'50000',cashIncome:'110000',cashOut:'12000',expectedCash:'148000',countedCash:'148000',difference:'0'},
   operations:[{paymentMethod:'EFECTIVO',tips:'10000',billedValue:'100000',state:'COBRADA'}]
 };
 const corrected = summary.salesPayments(report);
 assert.equal(corrected.cash,100000,'la propina no puede inflar ventas en efectivo');
 const cross = summary.closeCross(report);
-assert.equal(cross.sales,100000,'el cruce debe partir de ventas facturadas');
-assert.equal(cross.expenses.total,20000,'el cruce debe tomar gastos canónicos');
+assert.equal(cross.sales,100000,'el cruce detallado debe partir de ventas facturadas');
+assert.equal(cross.expenses.total,20000,'el cruce detallado debe tomar gastos canónicos');
 assert.equal(cross.salesMinusExpenses,80000,'ventas menos gastos debe cuadrar sin alterar la venta');
 assert.equal(cross.cashNet,88000,'flujo efectivo neto usa venta en efectivo menos gasto en efectivo');
 assert.equal(cross.bankNet,-8000,'flujo banco neto descuenta únicamente gastos bancarios');
 
+const own = summary.ownCloseReport(report);
+assert.equal(own.base,50000,'BASE debe usar el saldo inicial del turno');
+assert.equal(own.ownSales,100000,'ventas propias deben conservar la venta sin propina');
+assert.equal(own.production.total,100000,'producción propia debe conciliar con ventas propias');
+assert.equal(own.productionDifference,0);
+assert.equal(own.covered,100000);
+assert.equal(own.collectionDifference,0);
+
 const rows = summary.summaryRows(report);
-const totalSales = rows.find(row=>row.section==='VENTAS'&&row.label==='Valor total');
-assert.ok(totalSales?.value.includes('100.000'),'Valor total debe usar ventas facturadas');
-const expenseMethods = rows.find(row=>row.section==='GASTOS'&&row.label==='Efectivo / Banco');
-assert.ok(expenseMethods?.value.includes('12.000') && expenseMethods?.value.includes('8.000'),'debe mostrar efectivo y banco en una sola línea compacta');
-assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos (2)'&&row.value.includes('20.000')),'debe mostrar cantidad y total de gastos');
-const finalCross = rows.find(row=>row.section==='CRUCE FINAL'&&row.label==='Ventas - gastos');
-assert.ok(finalCross?.value.includes('80.000'),'debe mostrar ventas menos gastos');
-assert.ok(finalCross?.value.includes('88.000'),'debe incluir flujo efectivo neto');
-assert.ok(finalCross?.value.includes('8.000'),'debe mostrar el flujo banco neto; el signo se valida por closeCross.bankNet');
-assert.equal(rows.length,15,'el resumen con gastos debe conservar el límite compacto de 15 filas');
+const baseRow = rows.find(row=>row.section==='TURNO'&&row.label==='BASE');
+assert.ok(baseRow?.value.includes('50.000'),'el resumen debe mostrar la base registrada al abrir turno');
+const totalSales = rows.find(row=>row.section==='VENTAS RESTAURANTE'&&row.label==='TOTAL VENTAS PROPIAS');
+assert.ok(totalSales?.value.includes('100.000'),'TOTAL VENTAS PROPIAS debe usar la venta propia');
+const totalCovered = rows.find(row=>row.section==='RECAUDO VENTAS PROPIAS'&&row.label==='TOTAL CUBIERTO');
+assert.ok(totalCovered?.value.includes('100.000'),'TOTAL CUBIERTO debe usar pagos propios');
+assert.equal(rows.some(row=>['GASTOS','CRUCE FINAL','ARQUEO','ARQUEO FINAL'].includes(row.section)),false,'el resumen compacto ya no debe mostrar gastos ni arqueo final');
 
-const zeroRows = summary.summaryRows({shift:{id:'zero',expenseSummary:{cash:0,transfer:0,total:0,count:0}},totals:{billedValue:0},payments:{}});
-assert.ok(zeroRows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos (0)'),'el cierre debe mostrar Gastos incluso cuando sean cero');
+const zeroRows = summary.summaryRows({shift:{id:'zero',expenseSummary:{cash:0,transfer:0,total:0,count:0}},cash:{openingBalance:0},totals:{billedValue:0},production:{COCINA:{value:0},BARRA:{value:0},POSTRES:{value:0}},payments:{}});
+assert.ok(zeroRows.some(row=>row.section==='TURNO'&&row.label==='BASE'),'BASE debe existir incluso cuando sea cero');
+assert.ok(zeroRows.some(row=>row.section==='VENTAS RESTAURANTE'&&row.label==='TOTAL VENTAS PROPIAS'),'ventas propias deben existir incluso cuando sean cero');
+assert.equal(zeroRows.some(row=>row.section==='GASTOS'),false,'Gastos queda fuera del resumen compacto, no del módulo de Gastos');
 
-console.log('RESTAURANT EXPENSES DAILY SALES V121 SMOKE OK',JSON.stringify({
+console.log('RESTAURANT EXPENSES DAILY SALES V125 SMOKE OK',JSON.stringify({
   treasuryCanonicalExpense:true,
   dailySalesExport:true,
   customerDescriptionValuePaymentMethod:true,
   tipsSeparatedFromSales:true,
-  cashCloseUsesSaleValue:true,
-  closeExpensesSeparated:true,
-  finalCross:true,
-  cashExpenseNotDoubleCounted:true,
-  bankExpenseSeparated:true,
-  zeroExpensesVisible:true,
-  compact15Rows:true,
+  detailedCrossPreserved:true,
+  baseVisible:true,
+  ownSalesVisible:true,
+  compactSummaryWithoutFinalArqueo:true,
+  expensesStillCanonical:true,
   eventDrivenRuntime:true,
   visibilityFollowsCanonicalCashAccess:true,
   nativeV2ExpensesModule:true,
