@@ -12,7 +12,7 @@ function expect(value, message) {
   if (!value) throw new Error(message);
 }
 
-expect(overlay.includes("version:'19.2.0'"), 'Caja no expone la extensión V19.2 sobre el hotfix V19.1');
+expect(overlay.includes("version:'19.3.0'"), 'Caja no expone la extensión V19.3 sobre el hotfix V19.1');
 expect(overlay.includes('visibleChargeErrors:true'), 'falta marcador de errores visibles');
 expect(overlay.includes('showChargeFailure'), 'el rechazo del cobro sigue oculto');
 expect(overlay.includes('COBRO NO REALIZADO'), 'falta estado explícito de cobro rechazado');
@@ -20,7 +20,7 @@ expect(overlay.includes('No se modificó la cuenta'), 'falta garantía visual de
 expect(overlay.includes('!response.ok'), 'el overlay no captura respuestas HTTP fallidas');
 expect(overlay.includes('error?.message'), 'el overlay no muestra el mensaje real del backend');
 expect(overlay.includes('error?.code'), 'el overlay no muestra el código real del backend');
-expect(cashHtml.includes('restaurant-v2-cash-print-choice-v19.js?v=v19.2'), 'Caja no fuerza la carga de V19.2');
+expect(cashHtml.includes('restaurant-v2-cash-print-choice-v19.js?v=v19.3'), 'Caja no fuerza la carga de V19.3');
 
 expect(operational.includes("input?.deferPosReceipt === true"), 'POS operacional no respeta deferPosReceipt');
 expect(operational.includes("reason: 'DEFERRED_BY_CASHIER_CHOICE'"), 'falta marca explícita de recibo diferido');
@@ -31,4 +31,4 @@ expect(cashService.includes('deferPosReceipt: true'), 'Caja V2 dejó de pedir im
 expect(cashService.includes('receiptDecisionRequired: true'), 'Caja V2 dejó de exigir decisión post-liquidación');
 expect(hooks.includes('input?.deferPosReceipt !== true'), 'el hook superior dejó de respetar impresión diferida');
 
-console.log('Restaurant V2 Cash Charge V19.2 smoke: OK');
+console.log('Restaurant V2 Cash Charge V19.3 smoke: OK');
