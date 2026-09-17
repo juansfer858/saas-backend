@@ -20,6 +20,7 @@ router.get('/app/restaurante-v2/carta', (_req,res)=>{
 });
 router.get('/app/restaurant-v2-menu.css', (_req,res)=>send(res,'restaurant-v2-menu.css','text/css; charset=utf-8'));
 router.get('/app/restaurant-v2-menu.js', (_req,res)=>send(res,'restaurant-v2-menu.js','application/javascript; charset=utf-8'));
+router.get('/app/restaurant-v2-menu-export-v130.js', (_req,res)=>send(res,'restaurant-v2-menu-export-v130.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-menu-delete-v2.js', (_req,res)=>send(res,'restaurant-v2-menu-delete-v2.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-menu-category-selector-v14.js', (_req,res)=>send(res,'restaurant-v2-menu-category-selector-v14.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-menu-edit-v27.js', (_req,res)=>{res.set('X-VantixGC-Restaurant-Carta-Edit','v27');return send(res,'restaurant-v2-menu-edit-v27.js','application/javascript; charset=utf-8');});
