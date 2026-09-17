@@ -67,7 +67,8 @@ async function main() {
     paymentMethodId:transferMethodId,
     tipAmount:0
   });
-  assert.equal(charged.closed.state, 'CERRADA');
+  assert.equal(charged.charged,true);
+  assert.equal(charged.paymentMethod.kind,'TRANSFERENCIA');
 
   const wholeSession = await prisma.restaurantTableSession.findUnique({ where:{ id:whole.opened.session.id } });
   assert.equal(wholeSession.state, 'CERRADA');
