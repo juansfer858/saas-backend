@@ -2,6 +2,7 @@
 /* VANTIX_RESTAURANT_SHIFT_CLOSURES_C86 */
 /* VANTIX_RESTAURANT_CLOSE_OWN_SALES_BASE_V125 */
 /* VANTIX_RESTAURANT_CASH_CLOSE_EXPENSES_V126 */
+/* VANTIX_RESTAURANT_CLOSE_PAYMENT_SPLIT_V127 */
 (()=>{'use strict';
 const RV2=window.RestaurantV2;if(!RV2)throw new Error('Restaurant V2 SDK no disponible');
 const session=RV2.requireSession();
@@ -19,45 +20,20 @@ function timeLabel(value){if(!value)return '—';const d=new Date(value);if(Numb
 function dayButton(row){return `<button class="c86-day ${row.businessDate===S.selectedDay&&!S.selectedShift?'active':''}" type="button" data-day="${esc(row.businessDate)}"><div><b>${esc(dateLabel(row.businessDate))}</b><small>${Number(row.shifts||0)} turno(s)</small></div><strong>${money(row.difference||0)}</strong><span class="status ${row.status==='REVISAR'?'review':''}">${row.status==='REVISAR'?'REQUIERE REVISIÓN':'CUADRADO'}</span></button>`}
 function renderList(){const rows=S.list?.days||[];$('#count').textContent=String(rows.length);$('#days').innerHTML=rows.map(dayButton).join('')||'<div class="c86-empty" style="min-height:180px"><strong>No hay cierres</strong><span>No se encontraron turnos cerrados en el periodo.</span></div>';document.querySelectorAll('[data-day]').forEach(button=>button.onclick=()=>loadDay(button.dataset.day))}
 function closeView(report){
-  const d=report?.deliveryFees||{};
-  const p=report?.payments||{};
-  const e=report?.shift?.expenseSummary||report?.expenses||{};
-  const cocina=num(report?.production?.COCINA?.value);
-  const barra=num(report?.production?.BARRA?.value);
-  const postres=num(report?.production?.POSTRES?.value);
-  const productionTotal=cocina+barra+postres;
-  const fee={
-    billed:num(d.billed),collected:num(d.collected),cash:num(d.cash),
-    transfer:num(d.transfer),card:num(d.card),credit:num(d.credit),other:num(d.other),
-    bank:num(d.bank),pending:num(d.pending),count:Number(d.count||0)
-  };
-  const ownPayments={
-    cash:Math.max(0,num(p.cash)-fee.cash),
-    transfer:Math.max(0,num(p.transfer)-fee.transfer),
-    card:Math.max(0,num(p.card)-fee.card),
-    credit:Math.max(0,num(p.credit)-fee.credit),
-    other:Math.max(0,num(p.other)-fee.other)
-  };
-  const ownSales=Math.max(0,num(report?.totals?.billedValue)-fee.billed);
-  const covered=Object.values(ownPayments).reduce((sum,value)=>sum+value,0);
-  return {
-    base:num(report?.cash?.openingBalance),
-    production:{cocina,barra,postres,total:productionTotal},
-    ownSales,
-    productionDifference:ownSales-productionTotal,
-    ownPayments,
-    covered,
-    collectionDifference:ownSales-covered,
-    expenses:{cash:num(e.cash),transfer:num(e.transfer),total:num(e.total),count:Number(e.count||0)},
-    thirdParty:{...fee,bank:fee.bank||fee.transfer+fee.card+fee.other}
-  };
+  const d=report?.deliveryFees||{};const p=report?.payments||{};const e=report?.shift?.expenseSummary||report?.expenses||{};
+  const cocina=num(report?.production?.COCINA?.value),barra=num(report?.production?.BARRA?.value),postres=num(report?.production?.POSTRES?.value),productionTotal=cocina+barra+postres;
+  const fee={billed:num(d.billed),collected:num(d.collected),cash:num(d.cash),transfer:num(d.transfer),card:num(d.card),credit:num(d.credit),other:num(d.other),bank:num(d.bank),pending:num(d.pending),count:Number(d.count||0)};
+  const grossPayments={cash:num(p.cash),transfer:num(p.transfer),card:num(p.card),credit:num(p.credit),other:num(p.other)};
+  const ownPayments={cash:Math.max(0,grossPayments.cash-fee.cash),transfer:Math.max(0,grossPayments.transfer-fee.transfer),card:Math.max(0,grossPayments.card-fee.card),credit:Math.max(0,grossPayments.credit-fee.credit),other:Math.max(0,grossPayments.other-fee.other)};
+  const ownSales=Math.max(0,num(report?.totals?.billedValue)-fee.billed);const covered=Object.values(ownPayments).reduce((sum,value)=>sum+value,0);
+  return {base:num(report?.cash?.openingBalance),production:{cocina,barra,postres,total:productionTotal},ownSales,productionDifference:ownSales-productionTotal,grossPayments,ownPayments,covered,collectionDifference:ownSales-covered,expenses:{cash:num(e.cash),transfer:num(e.transfer),total:num(e.total),count:Number(e.count||0)},thirdParty:{...fee,bank:fee.bank||fee.transfer+fee.card+fee.other}};
 }
 function cashLine(label,detail,value){return `<div class="c86-channel"><div><b>${esc(label)}</b><span>${esc(detail||'')}</span></div><strong>${money(value||0)}</strong></div>`}
 function summary(report){const c=closeView(report);return `<div class="c86-channels">${cashLine('BASE','Saldo registrado al abrir turno',c.base)}</div>`}
 function restaurantSales(report){const c=closeView(report);const rows=[];if(c.production.cocina!==0)rows.push(cashLine('Cocina','Producción entregada',c.production.cocina));if(c.production.barra!==0)rows.push(cashLine('Barra','Producción entregada',c.production.barra));if(c.production.postres!==0)rows.push(cashLine('Postres','Producción entregada',c.production.postres));rows.push(cashLine('TOTAL VENTAS PROPIAS','No incluye cargos de domicilio',c.ownSales));rows.push(cashLine('Diferencia Producción / Ventas','Debe quedar en $0',c.productionDifference));return `<div class="c86-channels">${rows.join('')}</div>`}
-function payments(report){const c=closeView(report);const p=c.ownPayments;return `<div class="c86-channels">${cashLine('Efectivo restaurante','Recaudo propio',p.cash)}${cashLine('Transferencia / QR restaurante','Recaudo propio',p.transfer)}${cashLine('Tarjeta','Recaudo propio',p.card)}${cashLine('Crédito pendiente','Cartera del restaurante',p.credit)}${cashLine('TOTAL CUBIERTO','Pagos + cartera de ventas propias',c.covered)}${cashLine('Diferencia Ventas / Recaudo','Debe quedar en $0',c.collectionDifference)}</div>`}
-function expenses(report){const c=closeView(report);const e=c.expenses;return `<div class="c86-channels">${cashLine('Gastos en efectivo','Egresos registrados en Caja',e.cash)}${cashLine('Gastos por banco','Egresos registrados por transferencia',e.transfer)}${cashLine('TOTAL GASTOS',`${e.count} gasto(s) registrado(s)`,e.total)}</div>`}
-function deliveryFees(report){const c=closeView(report);const d=c.thirdParty;if(!d.count&&!d.collected&&!d.pending)return '<div class="c86-ok">No hubo fondos de terceros por cargos de domicilio en este cierre.</div>';return `<div class="c86-channels">${cashLine('Cargos de domicilio cobrados',`${d.count} domicilio(s) · fondos externos`,d.collected)}${cashLine('Recibidos en efectivo','No son venta del restaurante',d.cash)}${cashLine('Recibidos por banco','Transferencia / tarjeta',d.bank)}${cashLine('TOTAL FONDOS DE TERCEROS','Separado de las ventas propias',d.collected)}${d.pending?cashLine('Pendiente de recaudo','Aún no recibido',d.pending):''}</div><p style="margin:8px 0 0;color:#64748b;font-size:11px">Estos valores no hacen parte de la producción ni de las ventas propias del restaurante.</p>`}
+function payments(report){const c=closeView(report),p=c.ownPayments,g=c.grossPayments;return `<div class="c86-channels">${cashLine('Efectivo total recibido','Antes de separar fondos de terceros',g.cash)}${cashLine('Efectivo restaurante','Recaudo propio',p.cash)}${cashLine('Transferencia / QR total recibida','Debe coincidir con la suma de cobros por transferencia',g.transfer)}${cashLine('Transferencia / QR restaurante','Total recibido menos fondos de terceros',p.transfer)}${g.card?cashLine('Tarjeta total recibida','Antes de separar fondos de terceros',g.card):''}${cashLine('Tarjeta restaurante','Recaudo propio',p.card)}${cashLine('Crédito pendiente','Cartera del restaurante',p.credit)}${cashLine('TOTAL CUBIERTO','Pagos + cartera de ventas propias',c.covered)}${cashLine('Diferencia Ventas / Recaudo','Debe quedar en $0',c.collectionDifference)}</div>`}
+function expenses(report){const c=closeView(report),e=c.expenses;return `<div class="c86-channels">${cashLine('Gastos en efectivo','Egresos registrados en Caja',e.cash)}${cashLine('Gastos por banco','Egresos registrados por transferencia',e.transfer)}${cashLine('TOTAL GASTOS',`${e.count} gasto(s) registrado(s)`,e.total)}</div>`}
+function deliveryFees(report){const c=closeView(report),d=c.thirdParty;if(!d.count&&!d.collected&&!d.pending)return '<div class="c86-ok">No hubo fondos de terceros por cargos de domicilio en este cierre.</div>';return `<div class="c86-channels">${cashLine('Cargos de domicilio cobrados',`${d.count} domicilio(s) · fondos externos`,d.collected)}${cashLine('Recibidos en efectivo','Parte externa dentro de cobros en efectivo',d.cash)}${cashLine('Recibidos por transferencia / QR','Parte externa dentro de transferencias',d.transfer)}${d.card?cashLine('Recibidos por tarjeta','Parte externa dentro de pagos con tarjeta',d.card):''}${d.other?cashLine('Otros medios de terceros','Parte externa',d.other):''}${cashLine('TOTAL FONDOS DE TERCEROS','Separado de las ventas propias',d.collected)}${d.pending?cashLine('Pendiente de recaudo','Aún no recibido',d.pending):''}</div><p style="margin:8px 0 0;color:#64748b;font-size:11px">El cargo de domicilio viaja dentro del mismo cobro de la venta, pero no hace parte de las ventas propias del restaurante.</p>`}
 function exceptions(report){const rows=Array.isArray(report?.exceptions)?report.exceptions:[];if(!rows.length)return '<div class="c86-ok">Sin excepciones operativas detectadas.</div>';return `<div class="c86-exceptions">${rows.map(row=>`<div class="c86-exception"><b>${esc(row.reference||'Operación')}</b> · ${esc(String(row.type||'REVISAR').replaceAll('_',' '))}${row.station?` · ${esc(row.station)}`:''}${row.value?` · ${money(row.value)}`:''}${row.at?` · ${esc(timeLabel(row.at))}`:''}</div>`).join('')}</div>`}
 function operations(report){const rows=Array.isArray(report?.operations)?report.operations:[];return `<div class="c86-table-wrap"><table class="c86-table"><thead><tr><th>Canal</th><th>Mesa / Ticket</th><th>Pedido</th><th>Cuenta</th><th>Cobro</th><th>Quién cobró</th><th>Movimiento</th><th>Método</th><th>Estado</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(channelLabel(row.channel))}</td><td>${esc(row.reference||'—')}</td><td>${esc(timeLabel(row.orderAt))}</td><td>${esc(timeLabel(row.accountAt))}</td><td>${esc(timeLabel(row.collectedAt))}</td><td>${esc(row.collectedBy||'—')}</td><td class="num">${money(row.collectedValue||0)}</td><td>${esc(row.paymentMethod||'—')}</td><td>${esc(row.state||'—')}</td></tr>`).join('')||'<tr><td colspan="9">Sin operaciones en este cierre.</td></tr>'}</tbody></table></div>`}
 function actionButtons(kind,id){if(kind==='SHIFT')return `<div class="c86-actions"><button class="rv2-btn" type="button" data-print-shift="${esc(id)}">Imprimir resumen POS</button><button class="rv2-btn" type="button" data-export="excel" data-kind="SHIFT" data-id="${esc(id)}">Exportar Excel completo</button><button class="rv2-btn rv2-btn-primary" type="button" data-export="pdf-resumen" data-kind="SHIFT" data-id="${esc(id)}">PDF resumen para imprimir</button><button class="rv2-btn" type="button" data-export="pdf" data-kind="SHIFT" data-id="${esc(id)}">Exportar PDF completo</button>${S.selectedDay?'<button class="rv2-btn" type="button" data-back-day="1">Volver al día</button>':''}</div>`;return `<div class="c86-actions"><button class="rv2-btn" type="button" data-export="excel" data-kind="DAY" data-id="${esc(id)}">Exportar Excel completo</button><button class="rv2-btn rv2-btn-primary" type="button" data-export="pdf-resumen" data-kind="DAY" data-id="${esc(id)}">PDF resumen para imprimir</button><button class="rv2-btn" type="button" data-export="pdf" data-kind="DAY" data-id="${esc(id)}">Exportar PDF completo</button></div>`}

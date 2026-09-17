@@ -30,6 +30,7 @@ on:
       - 'src/web/restaurant-shift-closures-c86-dashboard.js'
       - 'scripts/restaurant-shift-closures-c86-smoke.js'
       - 'scripts/restaurant-shift-closures-c86-db-smoke.js'
+      - 'scripts/restaurant-close-delivery-payment-v127-db-smoke.js'
       - '.github/workflows/restaurant-shift-closures-c86-ci.yml'
   push:
     branches: [main]
@@ -60,6 +61,7 @@ on:
       - 'src/web/restaurant-shift-closures-c86-dashboard.js'
       - 'scripts/restaurant-shift-closures-c86-smoke.js'
       - 'scripts/restaurant-shift-closures-c86-db-smoke.js'
+      - 'scripts/restaurant-close-delivery-payment-v127-db-smoke.js'
       - '.github/workflows/restaurant-shift-closures-c86-ci.yml'
 
 permissions:
@@ -109,12 +111,15 @@ jobs:
           node --check src/web/restaurant-shift-closures-c86.js
           node --check src/web/restaurant-shift-closures-c86-dashboard.js
           node --check scripts/restaurant-shift-closures-c86-db-smoke.js
+          node --check scripts/restaurant-close-delivery-payment-v127-db-smoke.js
       - name: Validate C86 close/history contract
         run: node scripts/restaurant-shift-closures-c86-smoke.js
       - name: Validate bounded receipt summary for 58 and 80 mm
         run: node scripts/restaurant-cash-close-receipt-c82-smoke.js
       - name: Validate C86 with PostgreSQL real
         run: node scripts/restaurant-shift-closures-c86-db-smoke.js
+      - name: Validate V127 delivery payment reconciliation with PostgreSQL real
+        run: node scripts/restaurant-close-delivery-payment-v127-db-smoke.js
       - name: Validate V111 atomic operational closure and concurrent sender
         run: node scripts/restaurant-shift-close-v111-db-smoke.js
       - name: Validate Caja P4 existing source graph
@@ -150,6 +155,3 @@ jobs:
           done
           echo "C86 did not become live for exact commit $GITHUB_SHA" >&2
           exit 1
-
-
-

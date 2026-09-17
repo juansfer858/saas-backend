@@ -32,30 +32,72 @@ async function expenseTotalsForDayReport(tenantId, report, client = prisma) {
   };
 }
 
-async function deliveryFeeTotalsForDayReport(tenantId, report, client = prisma) {
+function applyCanonicalMethods(report, canonicalMethods) {
+  if (!canonicalMethods || !Array.isArray(report?.operations)) return report;
+  return {
+    ...report,
+    operations: report.operations.map((row) => (
+      row.channel === 'DOMICILIOS' && canonicalMethods[row.id]
+        ? { ...row, paymentMethod:canonicalMethods[row.id] }
+        : row
+    ))
+  };
+}
+
+async function canonicalDeliveryForShift(tenantId, shift, report, client = prisma) {
+  const reconciliation = await deliveryFees.reconcileForShift(tenantId, shift, client);
+  const correctedPayments = deliveryFees.applyPaymentCorrections(report?.payments, reconciliation.corrections);
+  return applyCanonicalMethods({
+    ...report,
+    payments:correctedPayments,
+    deliveryFees:reconciliation.summary
+  }, reconciliation.canonicalMethods);
+}
+
+async function deliveryDayReconciliation(tenantId, report, client = prisma) {
   const shiftIds = [...new Set((report?.shifts || []).map((row) => row.shiftId).filter(Boolean))];
-  if (!shiftIds.length) return deliveryFees.emptySummary();
+  if (!shiftIds.length) {
+    return {
+      summary:deliveryFees.emptySummary(),
+      corrections:deliveryFees.emptyCorrections(),
+      canonicalMethods:{}
+    };
+  }
   const shifts = await client.aperturaCierreCaja.findMany({
     where:{ tenantId, id:{ in:shiftIds } },
     select:{ id:true, userId:true, abiertoEn:true, cerradoEn:true }
   });
-  const summaries = [];
-  for (const shift of shifts) summaries.push(await deliveryFees.summaryForShift(tenantId, shift, client));
-  return deliveryFees.addSummaries(summaries);
+  const rows = [];
+  for (const shift of shifts) rows.push(await deliveryFees.reconcileForShift(tenantId, shift, client));
+  return {
+    summary:deliveryFees.addSummaries(rows.map((row) => row.summary)),
+    corrections:deliveryFees.addCorrections(rows.map((row) => row.corrections)),
+    canonicalMethods:Object.assign({}, ...rows.map((row) => row.canonicalMethods))
+  };
+}
+
+async function deliveryFeeTotalsForDayReport(tenantId, report, client = prisma) {
+  return (await deliveryDayReconciliation(tenantId, report, client)).summary;
 }
 
 async function getClosure(tenantId, userId, shiftId, options = {}, client = prisma) {
   const report = await base.getClosure(tenantId, userId, shiftId, options, client);
-  return { ...report, deliveryFees:await deliveryFees.summaryForShift(tenantId, report.shift, client) };
+  return canonicalDeliveryForShift(tenantId, report.shift, report, client);
 }
 
 async function getDay(tenantId, userId, date, options = {}, client = prisma) {
   const report = await base.getDay(tenantId, userId, date, options, client);
-  const [expenseTotals, deliveryFeeTotals] = await Promise.all([
+  const [expenseTotals, deliveryReconciliation] = await Promise.all([
     expenseTotalsForDayReport(tenantId, report, client),
-    deliveryFeeTotalsForDayReport(tenantId, report, client)
+    deliveryDayReconciliation(tenantId, report, client)
   ]);
-  return { ...report, expenses:expenseTotals, deliveryFees:deliveryFeeTotals };
+  const correctedPayments = deliveryFees.applyPaymentCorrections(report.payments, deliveryReconciliation.corrections);
+  return applyCanonicalMethods({
+    ...report,
+    payments:correctedPayments,
+    expenses:expenseTotals,
+    deliveryFees:deliveryReconciliation.summary
+  }, deliveryReconciliation.canonicalMethods);
 }
 
 async function tenantIdentity(tenantId, client = prisma) {
@@ -145,5 +187,6 @@ module.exports = {
   exportDay,
   expenseTotalsForDayReport,
   deliveryFeeTotalsForDayReport,
+  deliveryDayReconciliation,
   queuePrint
 };

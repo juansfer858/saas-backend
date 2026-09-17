@@ -2,6 +2,7 @@
 
 // VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V125
 // VANTIX_RESTAURANT_CASH_CLOSE_EXPENSES_V126
+// VANTIX_RESTAURANT_CLOSE_PAYMENT_SPLIT_V127
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -118,6 +119,7 @@ function ownCloseReport(report) {
     production,
     ownSales,
     productionDifference:ownSales - production.total,
+    grossPayments:payments,
     ownPayments,
     covered,
     collectionDifference:ownSales - covered,
@@ -127,6 +129,10 @@ function ownCloseReport(report) {
       billed:delivery.billed,
       collected:delivery.collected,
       cash:delivery.cash,
+      transfer:delivery.transfer,
+      card:delivery.card,
+      credit:delivery.credit,
+      other:delivery.other,
       bank:delivery.bank,
       pending:delivery.pending
     }
@@ -174,15 +180,20 @@ function summaryRows(report) {
   if (own.production.barra !== 0) add('VENTAS RESTAURANTE', 'Barra', amount(own.production.barra));
   if (own.production.postres !== 0) add('VENTAS RESTAURANTE', 'Postres', amount(own.production.postres));
   add('VENTAS RESTAURANTE', 'TOTAL VENTAS PROPIAS', amount(own.ownSales));
-  add('VENTAS RESTAURANTE', 'Diferencia Producción / Ventas', amount(own.productionDifference));
+  if (Math.abs(own.productionDifference) >= 0.02) {
+    add('VENTAS RESTAURANTE', 'Diferencia Producción / Ventas', amount(own.productionDifference));
+  }
 
   add('RECAUDO VENTAS PROPIAS', 'Efectivo restaurante', amount(own.ownPayments.cash));
+  add('RECAUDO VENTAS PROPIAS', 'Transferencia / QR total recibida', amount(own.grossPayments.transfer));
   add('RECAUDO VENTAS PROPIAS', 'Transferencia / QR restaurante', amount(own.ownPayments.transfer));
   add('RECAUDO VENTAS PROPIAS', 'Tarjeta', amount(own.ownPayments.card));
   add('RECAUDO VENTAS PROPIAS', 'Crédito pendiente', amount(own.ownPayments.credit));
   if (own.ownPayments.other !== 0) add('RECAUDO VENTAS PROPIAS', 'Otros medios', amount(own.ownPayments.other));
   add('RECAUDO VENTAS PROPIAS', 'TOTAL CUBIERTO', amount(own.covered));
-  add('RECAUDO VENTAS PROPIAS', 'Diferencia Ventas / Recaudo', amount(own.collectionDifference));
+  if (Math.abs(own.collectionDifference) >= 0.02) {
+    add('RECAUDO VENTAS PROPIAS', 'Diferencia Ventas / Recaudo', amount(own.collectionDifference));
+  }
 
   add('GASTOS', 'Gastos en efectivo', amount(own.expenses.cash));
   add('GASTOS', 'Gastos por banco', amount(own.expenses.transfer));
@@ -192,8 +203,8 @@ function summaryRows(report) {
     add('FONDOS DE TERCEROS', `Cargos de domicilio cobrados (${own.thirdParty.count})`, amount(own.thirdParty.collected));
     add('FONDOS DE TERCEROS', 'Recibidos en efectivo', amount(own.thirdParty.cash));
     add('FONDOS DE TERCEROS', 'Recibidos por banco', amount(own.thirdParty.bank));
-    add('FONDOS DE TERCEROS', 'TOTAL FONDOS DE TERCEROS', amount(own.thirdParty.collected));
     if (own.thirdParty.pending !== 0) add('FONDOS DE TERCEROS', 'Pendiente de recaudo', amount(own.thirdParty.pending));
+    add('FONDOS DE TERCEROS', 'TOTAL FONDOS', amount(own.thirdParty.collected));
   }
 
   add('FIRMAS', 'Entrega cajero', '____________________');

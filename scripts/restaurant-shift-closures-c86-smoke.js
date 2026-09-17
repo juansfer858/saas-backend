@@ -12,7 +12,7 @@ assert.equal(service.businessDate('2026-09-12T02:30:00.000Z', 300), '2026-09-11'
 assert.equal(service.classifyTableChannel({ name: 'Mostrador' }), 'MOSTRADOR');
 assert.equal(service.classifyTableChannel({ code: 'PARA_LLEVAR' }), 'PARA_LLEVAR');
 assert.equal(service.classifyTableChannel({ name: 'Mesa 8' }), 'MESAS');
-assert.equal(deliveryFeesService.MARKER, 'VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V125');
+assert.equal(deliveryFeesService.MARKER, 'VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V127');
 
 const snapshot = {
   marker: service.MARKER,
@@ -62,6 +62,34 @@ assert.equal(Number(deliveryFees.card), 4500);
 assert.equal(Number(deliveryFees.bank), 9500);
 assert.equal(Number(deliveryFees.pending), 2500);
 
+// V127: si el domicilio histórico dice EFECTIVO pero su Pago real fue TRANSFERENCIA,
+// el cierre debe usar el Pago como fuente autoritativa para el total y para el cargo externo.
+const canonicalFee = deliveryFeesService.summarize([
+  { deliveryFee:'3500', paymentStatus:'PAGADO', paymentMethod:'EFECTIVO', canonicalPaymentMethod:'TRANSFERENCIA' }
+]);
+assert.equal(Number(canonicalFee.cash), 0);
+assert.equal(Number(canonicalFee.transfer), 3500);
+const correction = deliveryFeesService.paymentCorrections([
+  { paymentStatus:'PAGADO', paymentMethod:'EFECTIVO', canonicalPaymentMethod:'TRANSFERENCIA', canonicalPaymentAmount:'30500' }
+]);
+assert.equal(correction.cash, -30500);
+assert.equal(correction.transfer, 30500);
+const corrected = deliveryFeesService.applyPaymentCorrections(
+  { cash:'130500', transfer:'66000', card:'0', credit:'0', other:'0' },
+  correction
+);
+assert.equal(Number(corrected.cash), 100000);
+assert.equal(Number(corrected.transfer), 96500);
+assert.equal(Number(corrected.total), 196500);
+
+const guarded = deliveryFeesService.applyPaymentCorrections(
+  { cash:'10000', transfer:'66000', card:'0', credit:'0', other:'0' },
+  correction
+);
+assert.equal(Number(guarded.cash), 10000, 'un snapshot insuficiente no se corrige recortando a cero');
+assert.equal(Number(guarded.transfer), 66000, 'un snapshot insuficiente conserva los buckets históricos');
+assert.equal(Number(guarded.total), 76000);
+
 const collectedFees = deliveryFeesService.summarize([
   { deliveryFee:'3500', paymentStatus:'PAGADO', paymentMethod:'EFECTIVO' },
   { deliveryFee:'5000', paymentStatus:'PAGADO', paymentMethod:'TRANSFERENCIA' },
@@ -78,6 +106,9 @@ assert.equal(own.base, 100000);
 assert.equal(own.production.total, 75000);
 assert.equal(own.ownSales, 75000, 'los cargos externos no pueden inflar ventas propias');
 assert.equal(own.productionDifference, 0);
+assert.equal(own.grossPayments.cash, 53500);
+assert.equal(own.grossPayments.transfer, 30000);
+assert.equal(own.grossPayments.card, 4500);
 assert.equal(own.ownPayments.cash, 50000);
 assert.equal(own.ownPayments.transfer, 25000);
 assert.equal(own.ownPayments.card, 0);
@@ -89,6 +120,8 @@ assert.equal(own.expenses.total, 20000);
 assert.equal(own.expenses.count, 2);
 assert.equal(own.thirdParty.collected, 13000);
 assert.equal(own.thirdParty.cash, 3500);
+assert.equal(own.thirdParty.transfer, 5000);
+assert.equal(own.thirdParty.card, 4500);
 assert.equal(own.thirdParty.bank, 9500);
 
 const rows = closeSummary.summaryRows(grossSnapshot);
@@ -97,8 +130,11 @@ assert.ok(baseRow, 'la base debe aparecer arriba del resumen');
 assert.match(baseRow.value, /100\.000|100,000|100000/);
 assert.ok(rows.some((row) => row.section === 'VENTAS RESTAURANTE' && row.label === 'TOTAL VENTAS PROPIAS'));
 assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'TOTAL CUBIERTO'));
+assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'Transferencia / QR total recibida' && /30\.000|30,000|30000/.test(row.value)));
+assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'Transferencia / QR restaurante' && /25\.000|25,000|25000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'GASTOS' && row.label === 'TOTAL GASTOS (2)' && /20\.000|20,000|20000/.test(row.value)));
-assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'TOTAL FONDOS DE TERCEROS'));
+assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Cargos de domicilio cobrados (3)' && /13\.000|13,000|13000/.test(row.value)));
+assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Recibidos por banco' && /9\.500|9,500|9500/.test(row.value)));
 assert.equal(rows.some((row) => ['CRUCE FINAL','ARQUEO','ARQUEO FINAL'].includes(row.section)), false, 'el resumen no debe incluir arqueo final ni cruce final');
 
 // Se conserva el cross legado para reportes detallados; no se altera contabilidad ni Tesorería.
@@ -127,6 +163,7 @@ assert.match(historyHtml, /\.c86-empty\[hidden\]\{display:none!important\}/, 'el
 const historyUi = fs.readFileSync(path.join(root, 'src/web/restaurant-shift-closures-c86.js'), 'utf8');
 assert.match(historyUi, /VANTIX_RESTAURANT_CLOSE_OWN_SALES_BASE_V125/);
 assert.match(historyUi, /VANTIX_RESTAURANT_CASH_CLOSE_EXPENSES_V126/);
+assert.match(historyUi, /VANTIX_RESTAURANT_CLOSE_PAYMENT_SPLIT_V127/);
 assert.match(historyUi, /Saldo registrado al abrir turno/);
 assert.match(historyUi, /1\. Ventas del restaurante/);
 assert.match(historyUi, /2\. Recaudo de ventas propias/);
@@ -134,11 +171,14 @@ assert.match(historyUi, /3\. Gastos/);
 assert.match(historyUi, /4\. Fondos de terceros/);
 assert.match(historyUi, /TOTAL VENTAS PROPIAS/);
 assert.match(historyUi, /TOTAL GASTOS/);
-assert.match(historyUi, /No son venta del restaurante/);
+assert.match(historyUi, /Transferencia \/ QR total recibida/);
+assert.match(historyUi, /Recibidos por transferencia \/ QR/);
 assert.doesNotMatch(historyUi, /Facturado|Liquidado \(incluye crédito\)|Efectivo esperado|Efectivo contado|Descuadre Caja/);
 
 const runtimeUi = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'), 'utf8');
 assert.match(runtimeUi, /deliveryFeeTotalsForDayReport/);
-assert.match(runtimeUi, /deliveryFees:await deliveryFees\.summaryForShift/);
+assert.match(runtimeUi, /deliveryFees\.reconcileForShift/);
+assert.match(runtimeUi, /deliveryFees\.applyPaymentCorrections/);
+assert.match(runtimeUi, /canonicalMethods/);
 
-console.log('Restaurant shift closures C86 V126 smoke: OK');
+console.log('Restaurant shift closures C86 V127 smoke: OK');

@@ -1,14 +1,14 @@
 'use strict';
 
-// VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V125
-// Presentation-only reconciliation helper. It does not create, reverse or move money.
-// Scope is the same canonical close scope used by V119/V120: deliveries whose Pago
-// was registered by the shift cashier inside the shift window.
+// VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V127
+// Read-only reconciliation helper. The linked Pago is authoritative for payment method.
+// It never creates, reverses or moves money.
 const { prisma } = require('../../config/prisma');
 const { decimal, money } = require('../../utils/decimal');
 const { resolveShiftRestaurantOperations } = require('./restaurant-shift-reconcile-scope.service');
 
-const MARKER = 'VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V125';
+const MARKER = 'VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V127';
+const PAYMENT_KEYS = Object.freeze(['cash', 'transfer', 'card', 'credit', 'other']);
 
 function emptySummary() {
   return {
@@ -24,6 +24,10 @@ function emptySummary() {
     bank: '0.00',
     pending: '0.00'
   };
+}
+
+function emptyCorrections() {
+  return { cash: 0, transfer: 0, card: 0, credit: 0, other: 0 };
 }
 
 function normalizeMethod(value) {
@@ -58,7 +62,7 @@ function summarize(rows) {
     billed = billed.plus(fee);
     if (String(row.paymentStatus || '').toUpperCase() !== 'PAGADO') continue;
     collected = collected.plus(fee);
-    const bucket = methodBucket(row.paymentMethod);
+    const bucket = methodBucket(row.canonicalPaymentMethod || row.paymentMethod);
     buckets[bucket] = buckets[bucket].plus(fee);
   }
 
@@ -78,21 +82,96 @@ function summarize(rows) {
   };
 }
 
-async function summaryForShift(tenantId, shift, client = prisma) {
-  if (!shift?.id || !shift?.userId || !shift?.abiertoEn) return emptySummary();
+function paymentCorrections(rows) {
+  const result = emptyCorrections();
+  for (const row of rows || []) {
+    if (String(row.paymentStatus || '').toUpperCase() !== 'PAGADO') continue;
+    const previousBucket = methodBucket(row.paymentMethod);
+    const canonicalBucket = methodBucket(row.canonicalPaymentMethod || row.paymentMethod);
+    if (previousBucket === canonicalBucket) continue;
+    const amount = Number(row.canonicalPaymentAmount ?? row.total ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    result[previousBucket] -= amount;
+    result[canonicalBucket] += amount;
+  }
+  return result;
+}
+
+function addCorrections(rows) {
+  const result = emptyCorrections();
+  for (const row of rows || []) {
+    for (const key of PAYMENT_KEYS) result[key] += Number(row?.[key] || 0);
+  }
+  return result;
+}
+
+function normalizedPaymentBuckets(payments) {
+  const source = payments || {};
+  const result = {};
+  for (const key of PAYMENT_KEYS) result[key] = money(Number(source[key] || 0)).toString();
+  result.total = money(PAYMENT_KEYS.reduce((sum, key) => sum + Number(result[key] || 0), 0)).toString();
+  return result;
+}
+
+function applyPaymentCorrections(payments, corrections) {
+  const source = payments || {};
+  const projected = Object.fromEntries(PAYMENT_KEYS.map((key) => [
+    key,
+    Number(source[key] || 0) + Number(corrections?.[key] || 0)
+  ]));
+
+  // Historical snapshots are immutable evidence. If the old bucket does not contain
+  // enough value to perform the full canonical move, do not clip to zero and invent
+  // a new total: preserve the snapshot payment buckets unchanged.
+  if (PAYMENT_KEYS.some((key) => !Number.isFinite(projected[key]) || projected[key] < -0.01)) {
+    return normalizedPaymentBuckets(source);
+  }
+
+  const result = {};
+  for (const key of PAYMENT_KEYS) result[key] = money(Math.max(0, projected[key])).toString();
+  result.total = money(PAYMENT_KEYS.reduce((sum, key) => sum + Number(result[key] || 0), 0)).toString();
+  return result;
+}
+
+async function reconcileForShift(tenantId, shift, client = prisma) {
+  if (!shift?.id || !shift?.userId || !shift?.abiertoEn) {
+    return { summary: emptySummary(), corrections: emptyCorrections(), canonicalMethods: {} };
+  }
+
   const scope = await resolveShiftRestaurantOperations(client, tenantId, shift);
-  const ids = [...new Set((scope.deliveries || []).map((row) => row.id).filter(Boolean))];
-  if (!ids.length) return emptySummary();
-  const rows = await client.restaurantDeliveryOrder.findMany({
-    where: { tenantId, id: { in: ids }, state: { not: 'CANCELADO' } },
-    select: {
-      id: true,
-      deliveryFee: true,
-      paymentStatus: true,
-      paymentMethod: true
-    }
+  const deliveries = scope.deliveries || [];
+  if (!deliveries.length) {
+    return { summary: emptySummary(), corrections: emptyCorrections(), canonicalMethods: {} };
+  }
+
+  const paymentById = new Map((scope.paymentRows || []).map((row) => [row.id, row]));
+  const feeRows = await client.restaurantDeliveryOrder.findMany({
+    where: { tenantId, id: { in: deliveries.map((row) => row.id) }, state: { not: 'CANCELADO' } },
+    select: { id: true, deliveryFee: true }
   });
-  return summarize(rows);
+  const feeById = new Map(feeRows.map((row) => [row.id, row.deliveryFee]));
+
+  const rows = deliveries.map((row) => {
+    const payment = paymentById.get(row.treasuryPaymentId) || null;
+    return {
+      ...row,
+      deliveryFee: feeById.get(row.id) || 0,
+      canonicalPaymentMethod: payment?.metodoPago || row.paymentMethod,
+      canonicalPaymentAmount: payment?.monto ?? row.total
+    };
+  });
+
+  return {
+    summary: summarize(rows),
+    corrections: paymentCorrections(rows),
+    canonicalMethods: Object.fromEntries(
+      rows.map((row) => [row.id, row.canonicalPaymentMethod || row.paymentMethod || null])
+    )
+  };
+}
+
+async function summaryForShift(tenantId, shift, client = prisma) {
+  return (await reconcileForShift(tenantId, shift, client)).summary;
 }
 
 function addSummaries(rows) {
@@ -112,7 +191,7 @@ function addSummaries(rows) {
     billed = billed.plus(row?.billed || 0);
     collected = collected.plus(row?.collected || 0);
     pending = pending.plus(row?.pending || 0);
-    for (const key of Object.keys(buckets)) buckets[key] = buckets[key].plus(row?.[key] || 0);
+    for (const key of PAYMENT_KEYS) buckets[key] = buckets[key].plus(row?.[key] || 0);
   }
   const bank = buckets.transfer.plus(buckets.card).plus(buckets.other);
   return {
@@ -130,4 +209,16 @@ function addSummaries(rows) {
   };
 }
 
-module.exports = { MARKER, emptySummary, methodBucket, summarize, summaryForShift, addSummaries };
+module.exports = {
+  MARKER,
+  emptySummary,
+  emptyCorrections,
+  methodBucket,
+  summarize,
+  paymentCorrections,
+  addCorrections,
+  applyPaymentCorrections,
+  reconcileForShift,
+  summaryForShift,
+  addSummaries
+};
