@@ -19,10 +19,12 @@ assert.doesNotMatch(methodClose, /prisma\.restaurantTableSession\.update/);
 assert.doesNotMatch(methodClose, /previous\s*=/);
 assert.match(methodClose, /paymentMethodId:\s*method\.id/);
 assert.match(methodClose, /paymentReference:\s*reference/);
+assert.match(methodClose, /cashShiftId:\s*openShift\.id/);
 
 const creditClose = cash.slice(cash.indexOf('async function chargeWholeAccount'), cash.indexOf('async function queueReceiptPrint'));
 assert.doesNotMatch(creditClose, /prisma\.restaurantTableSession\.update/);
 assert.match(creditClose, /paymentMethodKind:\s*method\.kind/);
+assert.match(creditClose, /cashShiftId:\s*shift\.id/);
 assert.match(creditClose, /restorePreparedCredit/);
 
 function responseCapture() {
