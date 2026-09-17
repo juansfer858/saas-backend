@@ -1,4 +1,4 @@
-name: Sales Document Detail Reprint V1 CI
+name: Sales Document Detail Reprint V2 CI
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate sales document detail and safe reprint
+      - name: Validate sales document detail and safe reprint V2
         run: node scripts/sales-document-detail-reprint-v1-smoke.js
 
   verify-production:
@@ -42,10 +42,12 @@ jobs:
             if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
               if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
                 page=$(curl -fsSL --max-time 12 "$SALES?v=${GITHUB_SHA}" 2>/dev/null || true)
-                if echo "$page" | grep -Fq 'VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V1' \
+                if echo "$page" | grep -Fq 'VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V2' \
                   && echo "$page" | grep -Fq 'Detalle del documento' \
-                  && echo "$page" | grep -Fq 'COPIA / REIMPRESIÓN'; then
-                  echo SALES_DOCUMENT_DETAIL_REPRINT_V1_PRODUCTION_OK
+                  && echo "$page" | grep -Fq 'salesPrintRoot' \
+                  && echo "$page" | grep -Fq 'window.print' \
+                  && ! echo "$page" | grep -Fq 'popup.document.write'; then
+                  echo SALES_DOCUMENT_DETAIL_REPRINT_V2_PRODUCTION_OK
                   exit 0
                 fi
               fi
