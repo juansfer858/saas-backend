@@ -5,7 +5,7 @@ const fs = require('node:fs');
 
 const source = fs.readFileSync('src/web/sales.html', 'utf8');
 
-assert.match(source, /VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V2/);
+assert.match(source, /VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V(?:2|3)/);
 assert.match(source, /Detalle del documento/);
 assert.match(source, /<th>Cant\.<\/th>/);
 assert.match(source, /<th>Descripción<\/th>/);
@@ -36,7 +36,7 @@ assert.doesNotMatch(reprintSource, /\bapi\s*\(/, 'reimprimir no debe invocar API
 assert.doesNotMatch(reprintSource, /\bfetch\s*\(/, 'reimprimir no debe enviar solicitudes');
 assert.doesNotMatch(reprintSource, /emitir|anular|pagos|caja\/recibo/i, 'reimprimir no debe tocar emisión ni cobros');
 
-console.log('SALES DOCUMENT DETAIL REPRINT V2 SMOKE OK', JSON.stringify({
+console.log('SALES DOCUMENT DETAIL REPRINT V2/V3 SMOKE OK', JSON.stringify({
   fullDocumentDetail: true,
   historicalDescription: true,
   quantity: true,

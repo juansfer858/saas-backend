@@ -23,7 +23,7 @@ assert.ok(pageSource.includes("initialFilters.get('hasta')"));
 assert.ok(pageSource.includes('value="${esc(st.filters.desde)}"'));
 assert.ok(pageSource.includes('value="${esc(st.filters.hasta)}"'));
 assert.ok(pageSource.includes('st.meta=r.meta'));
-assert.match(pageSource, /VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V2/, 'la exportación no debe remover el detalle/reimpresión V2');
+assert.match(pageSource, /VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V(?:2|3)/, 'la exportación no debe remover el detalle/reimpresión V2/V3');
 assert.ok(pageSource.includes('id="reprintDocument"'), 'la exportación no debe remover Reimprimir');
 
 const scriptMatch = pageSource.match(/<script>([\s\S]*?)<\/script>/);

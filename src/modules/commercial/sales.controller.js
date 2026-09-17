@@ -5,6 +5,7 @@ const service = require('./sales.service');
 const queryService = require('./sales-query.service');
 const dashboardReport = require('./dashboard-report.service');
 const salesListExport = require('./sales-list-export.service');
+const companyService = require('../restaurant/restaurant-company-profile.service');
 const { detailSchema } = require('./commercial.schemas');
 
 function parse(schema, value) {
@@ -91,8 +92,13 @@ async function create(req, res, next) {
 }
 
 async function get(req, res, next) {
-  try { res.json({ ok: true, data: await service.get(req.tenantId, req.params.id) }); }
-  catch (error) { next(error); }
+  try {
+    const [sale, company] = await Promise.all([
+      service.get(req.tenantId, req.params.id),
+      companyService.getCompanyProfile(req.tenantId)
+    ]);
+    res.json({ ok: true, data: { ...sale, company } });
+  } catch (error) { next(error); }
 }
 
 async function update(req, res, next) {

@@ -416,7 +416,7 @@ async function buildPendingReceiptJobs(tenantId) {
   const saleIds = [...new Set(sessions.map((session) => session.saleId).filter(Boolean))];
   const sales = saleIds.length ? await prisma.comprobanteComercial.findMany({
     where: { tenantId, id: { in: saleIds }, tipo: 'FACTURA_VENTA', estado: { not: 'ANULADO' } },
-    include: { detalles: { orderBy: { id: 'asc' } } }
+    include: { tercero: true, detalles: { orderBy: { id: 'asc' } } }
   }) : [];
   const saleById = new Map(sales.map((sale) => [sale.id, sale]));
   const jobs = [];
@@ -483,4 +483,3 @@ module.exports = {
   buildPendingReceiptJobs,
   buildRecentReceiptJobs: buildPendingReceiptJobs
 };
-
