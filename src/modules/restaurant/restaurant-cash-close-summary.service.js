@@ -196,7 +196,7 @@ function summaryRows(report) {
   add('GASTOS', `TOTAL GASTOS (${own.expenses.count})`, amount(own.expenses.total));
 
   if (own.thirdParty.count > 0 || own.thirdParty.billed !== 0 || own.thirdParty.collected !== 0) {
-    add('FONDOS DE TERCEROS', `Cargos de domicilio / fondos terceros (${own.thirdParty.count})`, amount(own.thirdParty.collected));
+    add('FONDOS DE TERCEROS', `Cargos de domicilio cobrados (${own.thirdParty.count})`, amount(own.thirdParty.collected));
     add('FONDOS DE TERCEROS', 'Recibidos en efectivo', amount(own.thirdParty.cash));
     add('FONDOS DE TERCEROS', 'Recibidos por banco', amount(own.thirdParty.bank));
     if (own.thirdParty.pending !== 0) add('FONDOS DE TERCEROS', 'Pendiente de recaudo', amount(own.thirdParty.pending));
