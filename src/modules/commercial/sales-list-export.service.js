@@ -1,23 +1,9 @@
-const { prisma } = require('../../config/prisma');
+const { AppError } = require('../../utils/app-error');
 const { toExcelHtml } = require('../accounting/accounting-export.service');
-const sales = require('./sales.service');
+const queryService = require('./sales-query.service');
 
-function buildWhere(tenantId, filters = {}) {
-  const where = { tenantId, tipo: 'FACTURA_VENTA' };
-  if (filters.terceroId) where.terceroId = filters.terceroId;
-  if (filters.estado) where.estado = filters.estado;
-  if (filters.desde || filters.hasta) {
-    where.fecha = {};
-    if (filters.desde) where.fecha.gte = new Date(filters.desde.includes('T') ? filters.desde : `${filters.desde}T00:00:00.000Z`);
-    if (filters.hasta) where.fecha.lte = new Date(filters.hasta.includes('T') ? filters.hasta : `${filters.hasta}T23:59:59.999Z`);
-  }
-  if (filters.montoMin !== undefined || filters.montoMax !== undefined) {
-    where.total = {};
-    if (filters.montoMin !== undefined && filters.montoMin !== '') where.total.gte = Number(filters.montoMin);
-    if (filters.montoMax !== undefined && filters.montoMax !== '') where.total.lte = Number(filters.montoMax);
-  }
-  return where;
-}
+const PAGE_SIZE = 200;
+const MAX_EXPORT_ROWS = 50000;
 
 function paymentLabel(value) {
   const raw = String(value || '').trim().toUpperCase();
@@ -43,32 +29,38 @@ function dateStamp(value) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
-async function exportFilteredSales(tenantId, filters = {}) {
-  const where = buildWhere(tenantId, filters);
-  const docs = await prisma.comprobanteComercial.findMany({
-    where,
-    include: { tercero: true },
-    orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }]
-  });
-  const ids = docs.map((doc) => doc.id);
-  const dianDocs = ids.length
-    ? await prisma.dianDocument.findMany({ where: { tenantId, originType: 'COMPROBANTE_COMERCIAL', originId: { in: ids } } })
-    : [];
-  const dianByOrigin = new Map(dianDocs.map((row) => [row.originId, row]));
+async function loadAllFiltered(tenantId, filters = {}) {
+  const first = await queryService.list(tenantId, { ...filters, page: 1, pageSize: PAGE_SIZE });
+  const total = Number(first.meta?.total || first.items.length || 0);
+  if (total > MAX_EXPORT_ROWS) {
+    throw new AppError(413, 'El filtro devuelve demasiadas ventas. Reduzca el rango de fechas antes de exportar.', 'SALES_EXPORT_RANGE_TOO_LARGE');
+  }
+  const items = [...first.items];
+  const pages = Math.max(Number(first.meta?.pages || 1), 1);
+  for (let page = 2; page <= pages; page += 1) {
+    const next = await queryService.list(tenantId, { ...filters, page, pageSize: PAGE_SIZE });
+    items.push(...next.items);
+  }
+  return items;
+}
 
-  const dataRows = docs.map((doc) => {
-    const unpacked = sales.unpackMeta(doc.observaciones);
-    return [
-      doc.numero || '',
-      dateStamp(doc.fecha),
-      customerLabel(doc),
-      doc.estado || '',
-      dianLabel(dianByOrigin.get(doc.id)),
-      paymentLabel(unpacked.formaPago || doc.formaPago),
-      Number(doc.total || 0),
-      Number(doc.saldo || 0)
-    ];
-  });
+function safeDatePart(value, fallback) {
+  const raw = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : fallback;
+}
+
+async function exportFilteredSales(tenantId, filters = {}) {
+  const docs = await loadAllFiltered(tenantId, filters);
+  const dataRows = docs.map((doc) => [
+    doc.numero || '',
+    dateStamp(doc.fecha),
+    customerLabel(doc),
+    doc.estado || '',
+    dianLabel(doc.dianDocument),
+    paymentLabel(doc.formaPago),
+    Number(doc.total || 0),
+    Number(doc.saldo || 0)
+  ]);
 
   const total = docs.reduce((sum, doc) => sum + Number(doc.total || 0), 0);
   const balance = docs.reduce((sum, doc) => sum + Number(doc.saldo || 0), 0);
@@ -89,7 +81,7 @@ async function exportFilteredSales(tenantId, filters = {}) {
   else if (filters.hasta) titleParts.push(`hasta ${filters.hasta}`);
 
   return {
-    filename: `Ventas_${filters.desde || 'inicio'}_${filters.hasta || 'hoy'}.xls`,
+    filename: `Ventas_${safeDatePart(filters.desde, 'inicio')}_${safeDatePart(filters.hasta, 'hoy')}.xls`,
     count: docs.length,
     buffer: toExcelHtml({
       title: titleParts.join(' · '),
@@ -101,4 +93,4 @@ async function exportFilteredSales(tenantId, filters = {}) {
   };
 }
 
-module.exports = { buildWhere, paymentLabel, exportFilteredSales };
+module.exports = { paymentLabel, loadAllFiltered, exportFilteredSales };
