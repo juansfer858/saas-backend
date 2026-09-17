@@ -51,11 +51,11 @@ jobs:
         run: |
           set -euo pipefail
           INFO='https://core.vantixgc.com/api/public/runtime-info'
-          UI='https://core.vantixgc.com/app/restaurant-ui.js'
+          ASSET='https://core.vantixgc.com/app/restaurant-control-center.js'
           for attempt in $(seq 1 60); do
             if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
               if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
-                page=$(curl -fsSL --max-time 12 "$UI?v=${GITHUB_SHA}" 2>/dev/null || true)
+                page=$(curl -fsSL --max-time 12 "$ASSET?v=${GITHUB_SHA}" 2>/dev/null || true)
                 if echo "$page" | grep -Fq 'VANTIX_RESTAURANT_EXPENSES_DAILY_SALES_V116' \
                   && echo "$page" | grep -Fq 'Descargar ventas del día' \
                   && echo "$page" | grep -Fq 'Registrar gasto'; then
