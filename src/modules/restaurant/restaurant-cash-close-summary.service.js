@@ -1,6 +1,7 @@
 'use strict';
 
 // VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V121
+// VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V123
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -75,6 +76,18 @@ function normalizedExpenses(report) {
   };
 }
 
+function normalizedDeliveryFees(report) {
+  const source = report.deliveryFees || {};
+  return {
+    count:Math.max(0, Math.trunc(number(source.count))),
+    billed:number(source.billed),
+    collected:number(source.collected),
+    cash:number(source.cash),
+    bank:number(source.bank),
+    pending:number(source.pending)
+  };
+}
+
 function closeCross(report) {
   const payments = salesPayments(report);
   const expenses = normalizedExpenses(report);
@@ -98,6 +111,7 @@ function summaryRows(report) {
   const cross = closeCross(report);
   const payments = cross.payments;
   const expenses = cross.expenses;
+  const delivery = normalizedDeliveryFees(report);
   const day = report.kind === 'DAY';
 
   add('TURNO', day ? 'Día operativo' : 'Turno', day ? report.businessDate : short(shift.id, 12).toUpperCase());
@@ -119,6 +133,14 @@ function summaryRows(report) {
   if (payments.other !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
   add('VENTAS', 'Valor total', amount(cross.sales));
 
+  // Delivery fees are already part of the sale and payment totals above. This line is
+  // informational only so the cashier can identify money that may later leave the box
+  // when it is handed to the courier. Never subtract it here a second time.
+  if (delivery.count > 0 || delivery.collected !== 0 || delivery.pending !== 0) {
+    add('DOMICILIOS', `Cargo domicilio (${delivery.count})`, `${amount(delivery.collected)} · Efe ${amount(delivery.cash)} · Bco ${amount(delivery.bank)}`);
+    if (delivery.pending !== 0) add('DOMICILIOS', 'Pendiente de recaudo', amount(delivery.pending));
+  }
+
   // Expenses are already posted through Treasury. Keep the thermal summary bounded:
   // detail stays in Gastos/Historial; the close prints only the values needed to cross.
   add('GASTOS', 'Efectivo / Banco', `${amount(expenses.cash)} / ${amount(expenses.transfer)}`);
@@ -135,6 +157,7 @@ function legacyReport(snapshot) {
   const p = snapshot.paymentBreakdown || {};
   return {
     shift: s,
+    deliveryFees:snapshot.deliveryFees || null,
     totals: {
       accountsCharged: snapshot.tables?.length,
       settledValue: snapshot.restaurantClosedTablesTotal,
@@ -173,4 +196,4 @@ function summaryPdfSpec(tenant, report) {
   };
 }
 
-module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments, normalizedExpenses, closeCross };
+module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments, normalizedExpenses, normalizedDeliveryFees, closeCross };
