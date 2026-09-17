@@ -33,6 +33,7 @@ assert.match(publicSource,/Registrar gasto/);
 assert.doesNotMatch(publicModule.runtime,/MutationObserver|setInterval/,'V116 debe respetar el contrato realtime/event-driven de restaurant-ui');
 assert.match(publicModule.runtime,/vantix:tenant-realtime/);
 assert.match(publicModule.runtime,/pageshow/);
+assert.match(publicModule.runtime,/data-tab=\"caja\"/,'Gastos debe seguir la autorización real de Caja y no depender solo del rol guardado en sesión');
 assert.doesNotThrow(()=>new Function(publicModule.runtime),'el runtime de Gastos V116 debe compilar');
 
 const report = {
@@ -61,5 +62,6 @@ console.log('RESTAURANT EXPENSES DAILY SALES V116 SMOKE OK',JSON.stringify({
   cashCloseUsesSaleValue:true,
   closeExpensesSeparated:true,
   eventDrivenRuntime:true,
+  visibilityFollowsCanonicalCashAccess:true,
   runtimeCompiles:true
 }));
