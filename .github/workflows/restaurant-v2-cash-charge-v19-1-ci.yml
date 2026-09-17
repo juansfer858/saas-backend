@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate V19.1 syntax
+      - name: Validate V19.1 compatibility syntax
         run: |
           node --check src/web/restaurant-v2-cash-print-choice-v19.js
           node --check src/modules/restaurant/restaurant-pos-operational-mode.js
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Verify exact Cash Charge V19.1 in production
+      - name: Verify V19.1 charge guarantees on current V19.3 production asset
         run: |
           set -euo pipefail
           BASE='https://core.vantixgc.com'
@@ -56,11 +56,14 @@ jobs:
             if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
               CASH="$(curl -fsS "$BASE/app/restaurante-v2/caja")"
               ASSET="$(curl -fsS "$BASE/app/restaurant-v2-cash-print-choice-v19.js")"
-              [[ "$CASH" == *'restaurant-v2-cash-print-choice-v19.js?v=v19.1'* ]]
-              [[ "$ASSET" == *"version:'19.1.0'"* ]]
+              [[ "$CASH" == *'restaurant-v2-cash-print-choice-v19.js?v=v19.3'* ]]
+              [[ "$ASSET" == *"version:'19.3.0'"* ]]
+              [[ "$ASSET" == *'visibleChargeErrors:true'* ]]
               [[ "$ASSET" == *'COBRO NO REALIZADO'* ]]
-              [[ "$ASSET" == *'¿Imprimir recibo?'* ]]
-              echo "Restaurant V2 Cash Charge V19.1 live at $GITHUB_SHA"
+              [[ "$ASSET" == *'No se modificó la cuenta'* ]]
+              [[ "$ASSET" == *'SÍ, IMPRIMIR'* ]]
+              [[ "$ASSET" == *'/api/v1/restaurante/v2/caja/recibo/imprimir'* ]]
+              echo "Restaurant V2 Cash Charge V19.1 guarantees live on V19.3 at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
