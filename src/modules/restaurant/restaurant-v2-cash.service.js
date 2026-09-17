@@ -470,7 +470,8 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
       paymentMethodLabel: method.name,
       paymentMethodKind: method.kind,
       paymentAccountId: null,
-      paymentReference: reference
+      paymentReference: reference,
+      cashShiftId: shift.id
     });
     return {
       marker: CASH_V2_MARKER,
