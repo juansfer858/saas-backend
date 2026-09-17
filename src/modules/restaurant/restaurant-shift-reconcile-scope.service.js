@@ -3,6 +3,7 @@
 // Alcance canónico del cierre: operaciones del restaurante cerradas por este
 // turno/cajero, más domicilios cobrados por el cajero dentro de la ventana.
 // No usa la fecha de creación de la venta como sustituto del momento de cobro.
+// El scope no filtra recibos anulados: V120 debe verlos y bloquearlos.
 async function resolveShiftRestaurantOperations(tx, tenantId, shift) {
   const start = new Date(shift.abiertoEn);
   const end = shift?.cerradoEn ? new Date(shift.cerradoEn) : new Date();
@@ -46,8 +47,7 @@ async function resolveShiftRestaurantOperations(tx, tenantId, shift) {
         tenantId,
         userId:shift.userId,
         creadoEn:window,
-        documento:{ tipo:'FACTURA_VENTA' },
-        comprobanteTesoreria:{ estado:{ not:'ANULADO' } }
+        documento:{ tipo:'FACTURA_VENTA' }
       },
       select:{
         id:true,
