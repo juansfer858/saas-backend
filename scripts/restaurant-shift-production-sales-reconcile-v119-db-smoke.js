@@ -85,7 +85,7 @@ async function main() {
     'ABIERTA',
     'el turno debe permanecer abierto cuando Producción y Venta no coinciden'
   );
-  assert.equal(mismatch.details?.reconciliation?.difference, '12500.00');
+  assert.equal(Number(mismatch.details?.reconciliation?.difference), 12500);
   assert.ok(
     (mismatch.details?.failures || []).some((entry) => entry.reference === 'Mesa reconcile V119'),
     'el error debe identificar la mesa responsable'
@@ -96,7 +96,7 @@ async function main() {
   const closed = await cash.closeShift(tenantId, cashier, { saldoFinal:Number(summaryAfterRepair.systemCashExpected) });
   assert.equal(closed.closed.estado, 'CERRADA');
   assert.equal(closed.operationalClose.productionSalesReconciliation.balanced, true);
-  assert.equal(closed.operationalClose.productionSalesReconciliation.difference, '0.00');
+  assert.equal(Number(closed.operationalClose.productionSalesReconciliation.difference), 0);
   assert.ok(closed.operationalClose.productionSalesReconciliation.checkedOperations >= 1);
 
   const audit = await prisma.auditoriaContable.findFirst({
@@ -104,7 +104,7 @@ async function main() {
     orderBy:{ creadoEn:'desc' }
   });
   assert.equal(audit?.metadata?.productionSalesReconciliation?.balanced, true);
-  assert.equal(audit?.metadata?.productionSalesReconciliation?.difference, '0.00');
+  assert.equal(Number(audit?.metadata?.productionSalesReconciliation?.difference), 0);
 
   console.log('V119 DB OK: $12.500 blocked, shift preserved, repair closes at difference 0');
 }
