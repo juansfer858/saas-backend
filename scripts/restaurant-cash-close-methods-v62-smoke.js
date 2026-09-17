@@ -59,10 +59,12 @@ assert.match(layer, /balanced: settlementDifference\.eq\(0\)/);
 assert.match(layer, /version:'62\.1\.0'/);
 assert.match(layer, /incluye mesas y domicilios cobrados/);
 
-// El cargo de domicilio/empaque debe seguir formando parte de la venta y del pago,
-// pero no convertirse en una comanda adicional de producción.
-assert.match(delivery, /descripcion: 'Servicio de domicilio'/);
-assert.match(delivery, /deliveryTotal = orderTotal\.plus\(deliveryFee\)/);
+// El cargo de domicilio/empaque ya forma parte del total de la venta y del pago,
+// pero no se convierte en una comanda adicional de producción.
+assert.match(delivery, /nombre: 'Servicio de domicilio'/);
+assert.match(delivery, /const itemsSubtotal = prepared\.reduce/);
+assert.match(delivery, /const deliveryFee = money\(input\.deliveryFee \|\| 0\)/);
+assert.match(delivery, /const total = money\(decimal\(itemsSubtotal\)\.plus\(deliveryFee\)\)/);
 assert.match(delivery, /monto: delivery\.total/);
 
 assert.match(methods, /KINDS = Object\.freeze\(\['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'CREDITO'\]\)/);
