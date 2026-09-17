@@ -79,6 +79,34 @@ function deliveryAddressLines(value, width) {
   return deliveryDetailLines('Dirección', value, width);
 }
 
+function customerName(sale) {
+  return cleanText(sale?.tercero?.razonSocial)
+    || cleanText(sale?.tercero?.nombre)
+    || customerDisplay.customerNameFromObservations(sale?.observaciones);
+}
+
+function customerDocumentLabel(tercero) {
+  const type = cleanText(tercero?.tipoDocumento).toUpperCase();
+  if (type === 'NIT') return 'NIT';
+  return type || 'Documento';
+}
+
+function customerDetailLines(sale, width) {
+  const tercero = sale?.tercero || null;
+  const lines = [];
+  lines.push(...labelValueLines('Cliente', customerName(sale), width));
+  if (!tercero) return lines;
+  if (tercero.identificacion) lines.push(...labelValueLines(customerDocumentLabel(tercero), tercero.identificacion, width));
+  if (tercero.direccion) lines.push(...deliveryDetailLines('Dirección', tercero.direccion, width));
+  if (tercero.telefono) lines.push(...labelValueLines('Teléfono', tercero.telefono, width));
+  if (tercero.email) lines.push(...deliveryDetailLines('Correo', tercero.email, width));
+  return lines;
+}
+
+function sameText(left, right) {
+  return cleanText(left).toLocaleLowerCase('es-CO') === cleanText(right).toLocaleLowerCase('es-CO');
+}
+
 function formatDeliveryDateTime(value, timeZone, fallbackFormatter) {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return '';
@@ -115,9 +143,10 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
   const separator = '-'.repeat(width);
   const lines = [];
 
+  lines.push(...centeredWrapped(company?.nombreEmpresa || 'Restaurante', width));
   lines.push(centerLine(String(company?.receiptTitle || defaultTitle).trim(), width));
   for (const companyLine of companyLines(company)) lines.push(...centeredWrapped(companyLine, width));
-  if (lines.length > 1) lines.push(separator);
+  lines.push(separator);
 
   const saleLabel = `Venta: ${sale?.numero || String(sale?.id || '').slice(0, 8).toUpperCase()}`;
   const tableLabel = `Mesa: ${table?.name || table?.code || 'Mesa'}`;
@@ -127,9 +156,9 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
     ? formatDeliveryDateTime(rawWhen, session.deliveryTimeZone, dateTime)
     : dateTime(rawWhen);
   if (when) lines.push(centerLine(`Fecha: ${when}`, width));
-  lines.push(...labelValueLines('Cliente', customerDisplay.customerNameFromObservations(sale?.observaciones), width));
-  if (session?.deliveryPhone) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
-  if (session?.deliveryAddress) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
+  lines.push(...customerDetailLines(sale, width));
+  if (session?.deliveryPhone && !sameText(session.deliveryPhone, sale?.tercero?.telefono)) lines.push(...labelValueLines('Teléfono entrega', session.deliveryPhone, width));
+  if (session?.deliveryAddress && !sameText(session.deliveryAddress, sale?.tercero?.direccion)) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
   if (session?.deliveryNeighborhood) lines.push(...deliveryDetailLines('Barrio/Zona', session.deliveryNeighborhood, width));
   if (session?.deliveryReference) lines.push(...deliveryDetailLines('Referencia', session.deliveryReference, width));
   lines.push(separator);
@@ -167,6 +196,10 @@ module.exports = {
   labelValueLines,
   deliveryDetailLines,
   deliveryAddressLines,
+  customerName,
+  customerDocumentLabel,
+  customerDetailLines,
+  sameText,
   formatDeliveryDateTime,
   productLines,
   receiptLinesFullWidth
