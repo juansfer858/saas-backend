@@ -48,11 +48,6 @@ async function restoreCustomerNameIfDraft(stage) {
   return true;
 }
 
-function fiscalDocumentLocksCustomerName(document) {
-  if (!document) return false;
-  return !['RECHAZADO', 'CANCELADO'].includes(String(document.state || '').trim().toUpperCase());
-}
-
 async function customerNameContextForSale(tenantId, saleId, client = prisma) {
   const session = await client.restaurantTableSession.findFirst({
     where: { tenantId, saleId },
@@ -67,18 +62,7 @@ async function customerNameContextForSale(tenantId, saleId, client = prisma) {
   });
   if (!sale) return null;
 
-  const fiscalDocument = await client.dianDocument.findFirst({
-    where: {
-      tenantId,
-      originType: 'COMPROBANTE_COMERCIAL',
-      originId: sale.id,
-      state: { notIn: ['RECHAZADO', 'CANCELADO'] }
-    },
-    select: { id: true, state: true, acceptedAt: true }
-  });
-  const fiscalLocked = fiscalDocumentLocksCustomerName(fiscalDocument);
   const cancelled = sale.estado === 'ANULADO';
-
   return {
     saleId: sale.id,
     saleNumber: sale.numero || null,
@@ -88,13 +72,8 @@ async function customerNameContextForSale(tenantId, saleId, client = prisma) {
     sessionState: session.state,
     customerName: displayName.customerNameFromObservations(sale.observaciones),
     terceroId: sale.terceroId || null,
-    editable: !cancelled && !fiscalLocked,
-    blockedReason: cancelled ? 'SALE_CANCELLED' : (fiscalLocked ? 'FISCAL_DOCUMENT_LOCKED' : null),
-    fiscalDocument: fiscalDocument ? {
-      id: fiscalDocument.id,
-      state: fiscalDocument.state,
-      acceptedAt: fiscalDocument.acceptedAt || null
-    } : null
+    editable: !cancelled,
+    blockedReason: cancelled ? 'SALE_CANCELLED' : null
   };
 }
 
@@ -106,9 +85,6 @@ async function updateCustomerNameForSale(tenantId, userId, saleId, customerName)
     }
     if (context.blockedReason === 'SALE_CANCELLED') {
       throw new AppError(409, 'Una venta anulada no admite cambios de nombre', 'RESTAURANT_RECEIPT_CUSTOMER_NAME_CANCELLED');
-    }
-    if (context.blockedReason === 'FISCAL_DOCUMENT_LOCKED') {
-      throw new AppError(409, 'El documento ya tiene proceso fiscal electrónico. El nombre no puede reescribirse; debe usarse el ajuste fiscal correspondiente.', 'RESTAURANT_RECEIPT_CUSTOMER_NAME_FISCAL_LOCKED');
     }
 
     const sale = await tx.comprobanteComercial.findFirst({
@@ -138,9 +114,11 @@ async function updateCustomerNameForSale(tenantId, userId, saleId, customerName)
           accion: 'RESTAURANT_RECEIPT_CUSTOMER_NAME_UPDATED',
           metadata: {
             marker: 'VANTIX_RESTAURANT_RECEIPT_CUSTOMER_NAME_V127',
+            scope: 'POS_DISPLAY_NAME_ONLY',
             sessionId: context.sessionId,
             tableId: context.tableId,
             saleNumber: context.saleNumber,
+            terceroId: context.terceroId,
             before: previousCustomerName,
             after: normalizedCustomerName
           }
@@ -161,7 +139,6 @@ module.exports = {
   ...displayName,
   stageCustomerNameForTable,
   restoreCustomerNameIfDraft,
-  fiscalDocumentLocksCustomerName,
   customerNameContextForSale,
   updateCustomerNameForSale
 };
