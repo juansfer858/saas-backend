@@ -81,18 +81,17 @@ assert.equal(cross.bankNet,-8000,'flujo banco neto descuenta únicamente gastos 
 const rows = summary.summaryRows(report);
 const totalSales = rows.find(row=>row.section==='VENTAS'&&row.label==='Valor total');
 assert.ok(totalSales?.value.includes('100.000'),'Valor total debe usar ventas facturadas');
-assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Cantidad de gastos'&&row.value==='2'),'debe indicar cantidad de gastos');
-assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Efectivo'&&row.value.includes('12.000')),'debe mostrar gastos en efectivo');
-assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Banco / transferencia'&&row.value.includes('8.000')),'debe mostrar gastos por transferencia');
-assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos'&&row.value.includes('20.000')),'debe mostrar total de gastos');
-assert.ok(rows.some(row=>row.section==='CRUCE FINAL'&&row.label==='Ventas - gastos'&&row.value.includes('80.000')),'debe mostrar ventas menos gastos');
-assert.ok(rows.some(row=>row.section==='CRUCE FINAL'&&row.label==='Flujo efectivo neto'&&row.value.includes('88.000')),'debe cruzar efectivo operativo');
-assert.ok(rows.some(row=>row.section==='CRUCE FINAL'&&row.label==='Flujo banco neto'&&row.value.includes('-8.000')),'debe cruzar banco operativo');
-assert.ok(rows.some(row=>row.section==='CAJA'&&row.label==='Efectivo esperado'&&row.value.includes('98.000')),'debe conservar el efectivo esperado canónico de Tesorería');
-assert.ok(rows.some(row=>row.section==='CAJA'&&row.label==='Descuadre'&&row.value.includes('$ 0')),'el reporte debe mostrar el descuadre físico sin recomputarlo');
+const expenseMethods = rows.find(row=>row.section==='GASTOS'&&row.label==='Efectivo / Banco');
+assert.ok(expenseMethods?.value.includes('12.000') && expenseMethods?.value.includes('8.000'),'debe mostrar efectivo y banco en una sola línea compacta');
+assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos (2)'&&row.value.includes('20.000')),'debe mostrar cantidad y total de gastos');
+const finalCross = rows.find(row=>row.section==='CRUCE FINAL'&&row.label==='Ventas - gastos');
+assert.ok(finalCross?.value.includes('80.000'),'debe mostrar ventas menos gastos');
+assert.ok(finalCross?.value.includes('88.000'),'debe incluir flujo efectivo neto');
+assert.ok(finalCross?.value.includes('-8.000'),'debe incluir flujo banco neto');
+assert.equal(rows.length,15,'el resumen con gastos debe conservar el límite compacto de 15 filas');
 
 const zeroRows = summary.summaryRows({shift:{id:'zero',expenseSummary:{cash:0,transfer:0,total:0,count:0}},totals:{billedValue:0},payments:{}});
-assert.ok(zeroRows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos'),'el cierre debe mostrar Gastos incluso cuando sean cero');
+assert.ok(zeroRows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos (0)'),'el cierre debe mostrar Gastos incluso cuando sean cero');
 
 console.log('RESTAURANT EXPENSES DAILY SALES V121 SMOKE OK',JSON.stringify({
   treasuryCanonicalExpense:true,
@@ -105,6 +104,7 @@ console.log('RESTAURANT EXPENSES DAILY SALES V121 SMOKE OK',JSON.stringify({
   cashExpenseNotDoubleCounted:true,
   bankExpenseSeparated:true,
   zeroExpensesVisible:true,
+  compact15Rows:true,
   eventDrivenRuntime:true,
   visibilityFollowsCanonicalCashAccess:true,
   nativeV2ExpensesModule:true,
