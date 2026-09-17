@@ -95,7 +95,6 @@ function summaryRows(report) {
   const rows = [];
   const add = (section, label, value) => rows.push({ section, label, value: String(value) });
   const shift = report.shift || {};
-  const totals = report.totals || {};
   const cross = closeCross(report);
   const payments = cross.payments;
   const expenses = cross.expenses;
@@ -120,26 +119,11 @@ function summaryRows(report) {
   if (payments.other !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
   add('VENTAS', 'Valor total', amount(cross.sales));
 
-  // Gastos are already posted through Tesorería. This section is report-only:
-  // never subtract them again from saldoEsperado or any accounting accumulator.
-  add('GASTOS', 'Cantidad de gastos', expenses.count);
-  add('GASTOS', 'Efectivo', amount(expenses.cash));
-  add('GASTOS', 'Banco / transferencia', amount(expenses.transfer));
-  add('GASTOS', 'Total gastos', amount(expenses.total));
-
-  add('CRUCE FINAL', 'Ventas', amount(cross.sales));
-  add('CRUCE FINAL', '(-) Gastos', amount(expenses.total));
-  add('CRUCE FINAL', 'Ventas - gastos', amount(cross.salesMinusExpenses));
-  add('CRUCE FINAL', 'Flujo efectivo neto', amount(cross.cashNet));
-  add('CRUCE FINAL', 'Flujo banco neto', amount(cross.bankNet));
-
-  // Physical cash is canonical Treasury state. In particular, cash expenses are
-  // already inside egresosEfectivo, so expectedCash must never be recomputed here.
-  if (!day && report.cash) {
-    add('CAJA', 'Efectivo esperado', amount(report.cash.expectedCash));
-    add('CAJA', 'Efectivo contado', amount(report.cash.countedCash));
-    add('CAJA', 'Descuadre', amount(report.cash.difference));
-  }
+  // Expenses are already posted through Treasury. Keep the thermal summary bounded:
+  // detail stays in Gastos/Historial; the close prints only the values needed to cross.
+  add('GASTOS', 'Efectivo / Banco', `${amount(expenses.cash)} / ${amount(expenses.transfer)}`);
+  add('GASTOS', `Total gastos (${expenses.count})`, amount(expenses.total));
+  add('CRUCE FINAL', 'Ventas - gastos', `${amount(cross.salesMinusExpenses)} · Efe ${amount(cross.cashNet)} · Bco ${amount(cross.bankNet)}`);
 
   add('FIRMAS', 'Entrega cajero', '____________________');
   add('FIRMAS', 'Recibe / revisa', '____________________');
