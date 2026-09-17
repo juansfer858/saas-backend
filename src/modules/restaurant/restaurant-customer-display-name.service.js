@@ -1,6 +1,7 @@
 'use strict';
 
 const { prisma } = require('../../config/prisma');
+const { AppError } = require('../../utils/app-error');
 const displayName = require('./restaurant-customer-display-name');
 
 async function stageCustomerNameForTable(tenantId, tableId, customerName) {
@@ -47,8 +48,97 @@ async function restoreCustomerNameIfDraft(stage) {
   return true;
 }
 
+async function customerNameContextForSale(tenantId, saleId, client = prisma) {
+  const session = await client.restaurantTableSession.findFirst({
+    where: { tenantId, saleId },
+    select: { id: true, tableId: true, state: true, closedAt: true },
+    orderBy: { openedAt: 'desc' }
+  });
+  if (!session) return null;
+
+  const sale = await client.comprobanteComercial.findFirst({
+    where: { id: saleId, tenantId, tipo: 'FACTURA_VENTA' },
+    select: { id: true, numero: true, estado: true, observaciones: true, terceroId: true }
+  });
+  if (!sale) return null;
+
+  const cancelled = sale.estado === 'ANULADO';
+  return {
+    saleId: sale.id,
+    saleNumber: sale.numero || null,
+    saleState: sale.estado,
+    sessionId: session.id,
+    tableId: session.tableId,
+    sessionState: session.state,
+    customerName: displayName.customerNameFromObservations(sale.observaciones),
+    terceroId: sale.terceroId || null,
+    editable: !cancelled,
+    blockedReason: cancelled ? 'SALE_CANCELLED' : null
+  };
+}
+
+async function updateCustomerNameForSale(tenantId, userId, saleId, customerName) {
+  return prisma.$transaction(async (tx) => {
+    const context = await customerNameContextForSale(tenantId, saleId, tx);
+    if (!context) {
+      throw new AppError(404, 'La venta del restaurante no está disponible', 'RESTAURANT_RECEIPT_SALE_NOT_FOUND');
+    }
+    if (context.blockedReason === 'SALE_CANCELLED') {
+      throw new AppError(409, 'Una venta anulada no admite cambios de nombre', 'RESTAURANT_RECEIPT_CUSTOMER_NAME_CANCELLED');
+    }
+
+    const sale = await tx.comprobanteComercial.findFirst({
+      where: { id: saleId, tenantId, tipo: 'FACTURA_VENTA' },
+      select: { id: true, observaciones: true }
+    });
+    if (!sale) {
+      throw new AppError(404, 'La venta del restaurante no está disponible', 'RESTAURANT_RECEIPT_SALE_NOT_FOUND');
+    }
+
+    const previousCustomerName = displayName.customerNameFromObservations(sale.observaciones);
+    const normalizedCustomerName = displayName.normalizeCustomerName(customerName);
+    const nextObservations = displayName.mergeCustomerNameObservation(sale.observaciones, normalizedCustomerName);
+    const changed = nextObservations !== sale.observaciones;
+
+    if (changed) {
+      await tx.comprobanteComercial.update({
+        where: { id: sale.id },
+        data: { observaciones: nextObservations }
+      });
+      await tx.auditoriaContable.create({
+        data: {
+          tenantId,
+          userId,
+          entidad: 'COMPROBANTE_COMERCIAL',
+          entidadId: sale.id,
+          accion: 'RESTAURANT_RECEIPT_CUSTOMER_NAME_UPDATED',
+          metadata: {
+            marker: 'VANTIX_RESTAURANT_RECEIPT_CUSTOMER_NAME_V127',
+            scope: 'POS_DISPLAY_NAME_ONLY',
+            sessionId: context.sessionId,
+            tableId: context.tableId,
+            saleNumber: context.saleNumber,
+            terceroId: context.terceroId,
+            before: previousCustomerName,
+            after: normalizedCustomerName
+          }
+        }
+      });
+    }
+
+    return {
+      ...context,
+      customerName: normalizedCustomerName,
+      changed,
+      marker: 'VANTIX_RESTAURANT_RECEIPT_CUSTOMER_NAME_V127'
+    };
+  });
+}
+
 module.exports = {
   ...displayName,
   stageCustomerNameForTable,
-  restoreCustomerNameIfDraft
+  restoreCustomerNameIfDraft,
+  customerNameContextForSale,
+  updateCustomerNameForSale
 };
