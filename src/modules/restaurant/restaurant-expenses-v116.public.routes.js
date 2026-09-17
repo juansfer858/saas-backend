@@ -39,7 +39,20 @@ const runtime = String.raw`
 `;
 
 function installRestaurantExpensesV116(req, res, next) {
-  if (req.method !== 'GET' || req.path !== '/app/restaurant-ui.js') return next();
+  if (req.method !== 'GET') return next();
+  if (req.path === '/app/restaurant-control-center.js') {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const file = path.join(__dirname, '..', '..', 'web', 'restaurant-control-center.js');
+    fs.promises.readFile(file, 'utf8').then((source) => {
+      const body = source.includes(MARKER) ? source : `${source}\n;${runtime}\n`;
+      res.set('Cache-Control', 'no-store');
+      res.set('X-VantixGC-Restaurant-Expenses', 'v116-control-center');
+      res.type('application/javascript').send(body);
+    }).catch(next);
+    return;
+  }
+  if (req.path !== '/app/restaurant-ui.js') return next();
   const originalSend = res.send.bind(res);
   res.send = (body) => {
     const isBuffer = Buffer.isBuffer(body);
