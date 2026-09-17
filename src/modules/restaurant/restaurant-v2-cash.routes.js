@@ -42,6 +42,10 @@ const receiptPrintSchema = z.object({
   sessionId: z.string().uuid()
 });
 
+const receiptCustomerNameSchema = z.object({
+  customerName: z.string().trim().max(160).optional().default(customerDisplay.DEFAULT_CUSTOMER_NAME)
+});
+
 const linePriceSchema = z.object({
   unitPrice: z.coerce.number().min(0).max(1000000000000)
 });
@@ -144,6 +148,22 @@ router.patch('/v2/caja/mesas/:tableId/items/:detailId/precio', requirePermission
   } catch (error) { next(error); }
 });
 
+router.get('/v2/caja/ventas/:saleId/nombre-cliente', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    const data = await customerDisplay.customerNameContextForSale(req.tenantId, req.params.saleId);
+    if (!data) throw new AppError(404, 'La venta del restaurante no está disponible', 'RESTAURANT_RECEIPT_SALE_NOT_FOUND');
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+});
+
+router.patch('/v2/caja/ventas/:saleId/nombre-cliente', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    const input = parse(receiptCustomerNameSchema, req.body, 'Nombre de cliente inválido');
+    const data = await customerDisplay.updateCustomerNameForSale(req.tenantId, req.userId, req.params.saleId, input.customerName);
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+});
+
 router.post('/v2/caja/recibo/imprimir', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
     const input = parse(receiptPrintSchema, req.body, 'Datos de impresión inválidos');
@@ -172,5 +192,6 @@ module.exports = {
   chargeSchema,
   linePriceSchema,
   receiptPrintSchema,
+  receiptCustomerNameSchema,
   customerSchema
 };
