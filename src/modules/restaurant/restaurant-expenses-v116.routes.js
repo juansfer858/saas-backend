@@ -5,6 +5,7 @@ const { z } = require('zod');
 const { AppError } = require('../../utils/app-error');
 const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-expenses-v116.service');
+require('./restaurant-close-sales-reconcile-v116');
 
 const router = express.Router();
 
