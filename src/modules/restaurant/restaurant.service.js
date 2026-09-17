@@ -14,6 +14,14 @@ const MENU_CATEGORIES = ['ENTRADAS', 'FUERTES', 'BEBIDAS', 'POSTRES'];
 const STATIONS = ['COCINA', 'BARRA', 'POSTRES'];
 const COMMAND_STATES = ['PENDIENTE', 'EN_PREPARACION', 'LISTA', 'ENTREGADA', 'CANCELADA'];
 
+// El cierre reúne inventario, Tesorería, Contabilidad y documento fiscal. El
+// límite predeterminado de Prisma (5 s) es demasiado corto para esta operación
+// en producción, especialmente cuando existe contención por tenant.
+const RESTAURANT_CLOSE_TRANSACTION_OPTIONS = Object.freeze({
+  maxWait: 10_000,
+  timeout: 30_000
+});
+
 function productionStatus(config) {
   const fiscalGate = Boolean(config.dianRealEnabled || config.simulatedFiscalOperationExplicitlyAccepted);
   const productionReady = Boolean(
@@ -771,6 +779,12 @@ async function closeTable(tenantId, user, tableId, input) {
         if (!cashShift) throw new AppError(409, 'Abra el turno de caja antes de cerrar mesas en efectivo', 'RESTAURANT_CASH_SHIFT_REQUIRED');
       }
     }
+    if (!cashShift && input.cashShiftId) {
+      cashShift = await tx.aperturaCierreCaja.findFirst({
+        where: { id: input.cashShiftId, tenantId, userId: user.id, estado: 'ABIERTA' }
+      });
+      if (!cashShift) throw new AppError(409, 'El turno de Caja ya no está disponible para registrar el cobro', 'RESTAURANT_CASH_SHIFT_REQUIRED');
+    }
 
     const tipAmount = money(input.tipAmount || 0);
     if (tipAmount.lt(0)) throw new AppError(400, 'La propina no puede ser negativa', 'RESTAURANT_TIP_INVALID');
@@ -813,6 +827,13 @@ async function closeTable(tenantId, user, tableId, input) {
       }
     });
 
+    const paymentMetadata = {};
+    if (Object.prototype.hasOwnProperty.call(input, 'paymentMethodId')) paymentMetadata.paymentMethodId = input.paymentMethodId || null;
+    if (Object.prototype.hasOwnProperty.call(input, 'paymentMethodLabel')) paymentMetadata.paymentMethodLabel = input.paymentMethodLabel || null;
+    if (Object.prototype.hasOwnProperty.call(input, 'paymentMethodKind')) paymentMetadata.paymentMethodKind = input.paymentMethodKind || null;
+    if (Object.prototype.hasOwnProperty.call(input, 'paymentAccountId')) paymentMetadata.paymentAccountId = input.paymentAccountId || null;
+    if (Object.prototype.hasOwnProperty.call(input, 'paymentReference')) paymentMetadata.paymentReference = input.paymentReference || null;
+
     const closed = await tx.restaurantTableSession.update({
       where: { id: session.id },
       data: {
@@ -822,12 +843,13 @@ async function closeTable(tenantId, user, tableId, input) {
         tipAmount,
         splitMode: split.mode,
         splitMetadata: split,
-        closedAt: new Date()
+        closedAt: new Date(),
+        ...paymentMetadata
       }
     });
     await tx.restaurantTable.update({ where: { id: session.tableId }, data: { state: 'LIBRE' } });
     return { session: closed, sale: emitted, fiscalDocument: fiscal, tipPosting, split, status: productionStatus(config) };
-  });
+  }, RESTAURANT_CLOSE_TRANSACTION_OPTIONS);
 }
 
 async function getSession(tenantId, sessionId) {
@@ -897,6 +919,6 @@ module.exports = {
   cashShiftSummary,
   closeCashShift,
   productionStatus,
-  computeSplit
+  computeSplit,
+  RESTAURANT_CLOSE_TRANSACTION_OPTIONS
 };
-

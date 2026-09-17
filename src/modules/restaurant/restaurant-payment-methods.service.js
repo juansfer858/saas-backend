@@ -120,52 +120,20 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
   if (!openShift) throw new AppError(409, 'Abra el turno de Caja antes de registrar cobros', 'RESTAURANT_CASH_SHIFT_REQUIRED');
 
   const reference = String(input.reference || '').trim().slice(0, 160) || null;
-  const previous = {
-    paymentMethodId: session.paymentMethodId,
-    paymentMethodLabel: session.paymentMethodLabel,
-    paymentMethodKind: session.paymentMethodKind,
-    paymentAccountId: session.paymentAccountId,
-    paymentReference: session.paymentReference
-  };
-
-  await prisma.restaurantTableSession.update({
-    where: { id: session.id },
-    data: {
-      paymentMethodId: method.id,
-      paymentMethodLabel: method.name,
-      paymentMethodKind: method.kind,
-      paymentAccountId: method.cajaBancoId || null,
-      paymentReference: reference
-    }
+  const result = await identity.closeTableGuarded(tenantId, user, tableId, {
+    formaPago: formaPagoForKind(method.kind),
+    cajaBancoId: method.cajaBancoId || null,
+    tipAmount: Number(input.tipAmount || 0),
+    split: input.split || { mode: 'NONE' },
+    deferPosReceipt: input.deferPosReceipt === true,
+    paymentMethodId: method.id,
+    paymentMethodLabel: method.name,
+    paymentMethodKind: method.kind,
+    paymentAccountId: method.cajaBancoId || null,
+    paymentReference: reference,
+    cashShiftId: openShift.id
   });
-
-  try {
-    const result = await identity.closeTableGuarded(tenantId, user, tableId, {
-      formaPago: formaPagoForKind(method.kind),
-      cajaBancoId: method.cajaBancoId || null,
-      tipAmount: Number(input.tipAmount || 0),
-      split: input.split || { mode: 'NONE' },
-      deferPosReceipt: input.deferPosReceipt === true
-    });
-    const refreshed = await prisma.restaurantTableSession.update({
-      where: { id: result.session.id },
-      data: {
-        cashShiftId: result.session.cashShiftId || openShift.id,
-        paymentMethodId: method.id,
-        paymentMethodLabel: method.name,
-        paymentMethodKind: method.kind,
-        paymentAccountId: method.cajaBancoId || null,
-        paymentReference: reference
-      }
-    });
-    return { ...result, session: refreshed, paymentMethod: method };
-  } catch (error) {
-    await prisma.restaurantTableSession.updateMany({
-      where: { id: session.id, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
-      data: previous
-    }).catch(() => {});
-    throw error;
-  }
+  return { ...result, paymentMethod: method };
 }
 
 module.exports = {

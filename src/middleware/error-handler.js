@@ -40,6 +40,28 @@ function errorHandler(error, _req, res, _next) {
     });
   }
 
+  if (error?.code === 'P2028') {
+    console.error('DATABASE_TRANSACTION_TIMEOUT:', error);
+    return res.status(503).json({
+      ok: false,
+      error: {
+        code: 'OPERATION_TIMEOUT',
+        message: 'No fue posible completar la operación dentro del tiempo esperado. Actualice el estado antes de intentarlo nuevamente.'
+      }
+    });
+  }
+
+  if (error?.code === 'P2024' || error?.code === 'P2034') {
+    console.error('DATABASE_BUSY_RETRY:', error);
+    return res.status(503).json({
+      ok: false,
+      error: {
+        code: 'OPERATION_RETRY_REQUIRED',
+        message: 'El sistema está procesando otra operación relacionada. Intente nuevamente.'
+      }
+    });
+  }
+
   console.error('UNHANDLED_ERROR:', error);
 
   return res.status(500).json({

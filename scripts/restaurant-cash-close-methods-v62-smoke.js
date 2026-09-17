@@ -11,6 +11,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const layerPath = 'src/modules/restaurant/restaurant-cash-close-methods-v62.public.routes.js';
 const compositionPath = 'src/modules/restaurant/restaurant.public.routes.js';
 const methodsPath = 'src/modules/restaurant/restaurant-payment-methods.service.js';
+const restaurantPath = 'src/modules/restaurant/restaurant.service.js';
 const oldBreakdownPath = 'src/modules/restaurant/restaurant-cash-close-breakdown-v45.public.routes.js';
 
 for (const file of [layerPath, compositionPath]) {
@@ -21,6 +22,7 @@ for (const file of [layerPath, compositionPath]) {
 const layer = read(layerPath);
 const composition = read(compositionPath);
 const methods = read(methodsPath);
+const restaurant = read(restaurantPath);
 const oldBreakdown = read(oldBreakdownPath);
 
 assert.match(layer, /VANTIX_RESTAURANT_CASH_CLOSE_METHODS_V62/);
@@ -37,7 +39,10 @@ assert.match(layer, /identity\.cashShiftSummary = cashShiftSummaryV62/);
 
 assert.match(methods, /KINDS = Object\.freeze\(\['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'CREDITO'\]\)/);
 assert.match(methods, /paymentMethodKind: method\.kind/);
-assert.match(methods, /cashShiftId: result\.session\.cashShiftId \|\| openShift\.id/);
+assert.match(methods, /paymentReference: reference/);
+assert.doesNotMatch(methods, /cashShiftId: result\.session\.cashShiftId \|\| openShift\.id/);
+assert.match(restaurant, /cashShiftId: cashShift\?\.id \|\| null/);
+assert.match(restaurant, /\.\.\.paymentMetadata/);
 
 assert.match(composition, /installRestaurantCashCloseMethodsV62/);
 assert.ok(
