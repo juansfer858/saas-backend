@@ -4,6 +4,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { money } = require('../../utils/decimal');
 const productionSalesReconcile = require('./restaurant-shift-production-sales-reconcile-v119.service');
+const salesPaymentsReconcile = require('./restaurant-shift-sales-payments-reconcile-v120.service');
 
 const MARKER = 'VANTIX_RESTAURANT_SHIFT_CLOSE_ALL_TABLES_V111';
 const ACTIVE = ['ABIERTA', 'CUENTA_PEDIDA'];
@@ -51,13 +52,27 @@ async function inspect(tx, tenantId) {
   return { blockers, plans };
 }
 
-function reconciliationSummary(result) {
+function productionSalesSummary(result) {
   return {
     marker:result.marker,
     productionTotal:result.productionTotal,
     nonProductionCharges:result.nonProductionCharges,
     operationalTotal:result.operationalTotal,
     saleTotal:result.saleTotal,
+    difference:result.difference,
+    balanced:result.balanced,
+    checkedOperations:result.checkedOperations,
+    failedOperations:result.failedOperations
+  };
+}
+
+function salesPaymentsSummary(result) {
+  return {
+    marker:result.marker,
+    saleTotal:result.saleTotal,
+    paidTotal:result.paidTotal,
+    receivableBalance:result.receivableBalance,
+    financialCoverage:result.financialCoverage,
     difference:result.difference,
     balanced:result.balanced,
     checkedOperations:result.checkedOperations,
@@ -87,8 +102,24 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
         `No se puede cerrar el turno. Producción y Ventas no coinciden:\n${detail}${productionSalesReconciliation.failedOperations>8?'\nHay más diferencias; revisa el informe de cierre.':''}`,
         'RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH',
         {
-          reconciliation:reconciliationSummary(productionSalesReconciliation),
+          reconciliation:productionSalesSummary(productionSalesReconciliation),
           failures:productionSalesReconciliation.failures.slice(0,20)
+        }
+      );
+    }
+
+    const salesPaymentsReconciliation = await salesPaymentsReconcile.reconcileShiftSalesPayments(tx,tenantId,shift);
+    if (!salesPaymentsReconciliation.balanced) {
+      const detail = salesPaymentsReconciliation.failures.slice(0,8).map((entry) =>
+        `${entry.reference}: Venta ${entry.saleTotal} / Pagado ${entry.paidTotal} / Cartera ${entry.receivableBalance} / diferencia ${entry.difference}`
+      ).join('\n');
+      throw new AppError(
+        409,
+        `No se puede cerrar el turno. Ventas y Pagos no coinciden:\n${detail}${salesPaymentsReconciliation.failedOperations>8?'\nHay más diferencias; revisa el informe de cierre.':''}`,
+        'RESTAURANT_SHIFT_CLOSE_SALES_PAYMENTS_MISMATCH',
+        {
+          reconciliation:salesPaymentsSummary(salesPaymentsReconciliation),
+          failures:salesPaymentsReconciliation.failures.slice(0,20)
         }
       );
     }
@@ -114,11 +145,14 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
     // Repair occupied/reserved table flags with no active visit. No rows are deleted.
     await tx.restaurantTable.updateMany({where:{tenantId,state:{not:'LIBRE'},sessions:{none:{state:{in:ACTIVE}}}},data:{state:'LIBRE'}});
     const result = await finish(tx);
-    const productionSalesSummary = reconciliationSummary(productionSalesReconciliation);
+    const productionSummary = productionSalesSummary(productionSalesReconciliation);
+    const paymentSummary = salesPaymentsSummary(salesPaymentsReconciliation);
     await tx.auditoriaContable.create({data:{tenantId,userId,entidad:'APERTURA_CIERRE_CAJA',entidadId:shiftId,
-      accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED',metadata:{marker:MARKER,reason:REASON,closedVisits:plans.length,cancelledDrafts,productionSalesReconciliation:productionSalesSummary}}});
-    return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree:true,productionSalesReconciliation:productionSalesSummary}};
+      accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED',metadata:{marker:MARKER,reason:REASON,closedVisits:plans.length,cancelledDrafts,
+        productionSalesReconciliation:productionSummary,salesPaymentsReconciliation:paymentSummary}}});
+    return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree:true,
+      productionSalesReconciliation:productionSummary,salesPaymentsReconciliation:paymentSummary}};
   },{maxWait:10000,timeout:30000});
 }
 
-module.exports = {MARKER,lockOperation,inspect,reconciliationSummary,closeRestaurantShift};
+module.exports = {MARKER,lockOperation,inspect,productionSalesSummary,salesPaymentsSummary,closeRestaurantShift};
