@@ -14,7 +14,8 @@ const publicModule = require('../src/modules/restaurant/restaurant-expenses-v116
 
 assert.match(serviceSource,/VANTIX_RESTAURANT_EXPENSES_DAILY_SALES_V116/);
 assert.match(serviceSource,/treasuryIntegration\.directExpense/,'los gastos deben usar Tesorería canónica');
-assert.doesNotMatch(serviceSource,/saldoActual\s*:/,'el módulo Restaurante no debe modificar saldos bancarios directamente');
+assert.doesNotMatch(serviceSource,/(?:prisma|client)\.cajaBanco\.update\s*\(/,'el módulo Restaurante no debe modificar Caja/Banco directamente');
+assert.doesNotMatch(serviceSource,/recordSessionFlow\s*\(/,'el módulo Restaurante no debe alterar el turno directamente');
 assert.match(serviceSource,/expenseSummary/,'el cierre debe capturar gastos');
 assert.match(serviceSource,/toExcelHtml/,'el informe diario debe producir Excel');
 assert.match(serviceSource,/Cliente/);
