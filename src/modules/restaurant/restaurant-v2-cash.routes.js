@@ -7,6 +7,7 @@ const { requirePermission } = require('../../middleware/require-permission');
 const service = require('./restaurant-v2-cash.service');
 const customerDisplay = require('./restaurant-customer-display-name.service');
 const customerSaleLink = require('./restaurant-customer-sale-link.service');
+const customerReissue = require('./restaurant-sale-customer-reissue-v128.service');
 const paymentMethods = require('./restaurant-payment-methods.service');
 const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
 const shiftClosures = require('./restaurant-shift-close-history-c86.runtime');
@@ -44,6 +45,10 @@ const receiptPrintSchema = z.object({
 
 const receiptCustomerNameSchema = z.object({
   customerName: z.string().trim().max(160).optional().default(customerDisplay.DEFAULT_CUSTOMER_NAME)
+});
+
+const reissueCustomerSchema = z.object({
+  terceroId: z.string().uuid()
 });
 
 const linePriceSchema = z.object({
@@ -164,6 +169,22 @@ router.patch('/v2/caja/ventas/:saleId/nombre-cliente', requirePermission('RESTAU
   } catch (error) { next(error); }
 });
 
+router.get('/v2/caja/ventas/:saleId/recrear-cliente', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    const data = await customerReissue.reissueContextForSale(req.tenantId, req.user.id, req.params.saleId);
+    if (!data) throw new AppError(404, 'La venta del restaurante no está disponible', 'RESTAURANT_REISSUE_SALE_NOT_FOUND');
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
+});
+
+router.post('/v2/caja/ventas/:saleId/recrear-cliente', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    const input = parse(reissueCustomerSchema, req.body, 'Cliente inválido para recrear la venta');
+    const data = await customerReissue.reissueGenericCustomerSale(req.tenantId, req.user, req.params.saleId, input.terceroId);
+    res.status(201).json({ ok: true, data });
+  } catch (error) { next(error); }
+});
+
 router.post('/v2/caja/recibo/imprimir', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
     const input = parse(receiptPrintSchema, req.body, 'Datos de impresión inválidos');
@@ -193,5 +214,6 @@ module.exports = {
   linePriceSchema,
   receiptPrintSchema,
   receiptCustomerNameSchema,
+  reissueCustomerSchema,
   customerSchema
 };
