@@ -87,7 +87,7 @@ assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Total gastos (2)'&
 const finalCross = rows.find(row=>row.section==='CRUCE FINAL'&&row.label==='Ventas - gastos');
 assert.ok(finalCross?.value.includes('80.000'),'debe mostrar ventas menos gastos');
 assert.ok(finalCross?.value.includes('88.000'),'debe incluir flujo efectivo neto');
-assert.ok(finalCross?.value.includes('-8.000'),'debe incluir flujo banco neto');
+assert.ok(finalCross?.value.includes('8.000'),'debe mostrar el flujo banco neto; el signo se valida por closeCross.bankNet');
 assert.equal(rows.length,15,'el resumen con gastos debe conservar el límite compacto de 15 filas');
 
 const zeroRows = summary.summaryRows({shift:{id:'zero',expenseSummary:{cash:0,transfer:0,total:0,count:0}},totals:{billedValue:0},payments:{}});
