@@ -8,6 +8,8 @@ on:
       - 'src/web/restaurant-v2-cash.html'
       - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
       - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js'
+      - 'src/modules/restaurant/restaurant-customer-display-name.service.js'
       - 'src/modules/restaurant/restaurant-payment-methods.service.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-hooks.js'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
@@ -20,6 +22,8 @@ on:
       - 'src/web/restaurant-v2-cash.html'
       - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
       - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js'
+      - 'src/modules/restaurant/restaurant-customer-display-name.service.js'
       - 'src/modules/restaurant/restaurant-payment-methods.service.js'
       - 'src/modules/restaurant/restaurant-pos-receipt-hooks.js'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
@@ -43,6 +47,8 @@ jobs:
           node --check src/web/restaurant-v2-cash-print-choice-v19.js
           node --check src/modules/restaurant/restaurant-v2-cash.routes.js
           node --check src/modules/restaurant/restaurant-v2-cash.service.js
+          node --check src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js
+          node --check src/modules/restaurant/restaurant-customer-display-name.service.js
           node --check src/modules/restaurant/restaurant-payment-methods.service.js
           node --check src/modules/restaurant/restaurant-pos-receipt-hooks.js
       - name: Validate post-settlement print choice contracts
@@ -63,12 +69,14 @@ jobs:
             if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
               CASH="$(curl -fsS "$BASE/app/restaurante-v2/caja")"
               ASSET="$(curl -fsS "$BASE/app/restaurant-v2-cash-print-choice-v19.js")"
-              [[ "$CASH" == *'restaurant-v2-cash-print-choice-v19.js?v=v19'* ]]
+              [[ "$CASH" == *'restaurant-v2-cash-print-choice-v19.js?v=v19.3'* ]]
               [[ "$ASSET" == *'VANTIX_RESTAURANT_V2_CASH_PRINT_CHOICE_V19'* ]]
-              [[ "$ASSET" == *'¿Imprimir recibo?'* ]]
+              [[ "$ASSET" == *"version:'19.3.0'"* ]]
               [[ "$ASSET" == *'SÍ, IMPRIMIR'* ]]
+              [[ "$ASSET" == *'IDENTIFICAR CLIENTE (ANULAR Y RECREAR)'* ]]
+              [[ "$ASSET" == *'/recrear-cliente'* ]]
               [[ "$ASSET" == *'/api/v1/restaurante/v2/caja/recibo/imprimir'* ]]
-              echo "Restaurant V2 Cash Print Choice V19 live at $GITHUB_SHA"
+              echo "Restaurant V2 Cash Print Choice V19.3 + customer reissue V128 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10

@@ -62,7 +62,10 @@ async function customerNameContextForSale(tenantId, saleId, client = prisma) {
   });
   if (!sale) return null;
 
-  const cancelled = sale.estado === 'ANULADO';
+  const editable = sale.estado === 'BORRADOR';
+  const blockedReason = sale.estado === 'ANULADO'
+    ? 'SALE_CANCELLED'
+    : editable ? null : 'SALE_SETTLED_REQUIRES_REISSUE';
   return {
     saleId: sale.id,
     saleNumber: sale.numero || null,
@@ -72,8 +75,8 @@ async function customerNameContextForSale(tenantId, saleId, client = prisma) {
     sessionState: session.state,
     customerName: displayName.customerNameFromObservations(sale.observaciones),
     terceroId: sale.terceroId || null,
-    editable: !cancelled,
-    blockedReason: cancelled ? 'SALE_CANCELLED' : null
+    editable,
+    blockedReason
   };
 }
 
@@ -86,13 +89,20 @@ async function updateCustomerNameForSale(tenantId, userId, saleId, customerName)
     if (context.blockedReason === 'SALE_CANCELLED') {
       throw new AppError(409, 'Una venta anulada no admite cambios de nombre', 'RESTAURANT_RECEIPT_CUSTOMER_NAME_CANCELLED');
     }
+    if (!context.editable) {
+      throw new AppError(
+        409,
+        'Una venta liquidada no se edita. Para identificar el cliente debe anularse y recrearse de forma controlada.',
+        'RESTAURANT_RECEIPT_CUSTOMER_NAME_REQUIRES_REISSUE'
+      );
+    }
 
     const sale = await tx.comprobanteComercial.findFirst({
-      where: { id: saleId, tenantId, tipo: 'FACTURA_VENTA' },
+      where: { id: saleId, tenantId, tipo: 'FACTURA_VENTA', estado: 'BORRADOR' },
       select: { id: true, observaciones: true }
     });
     if (!sale) {
-      throw new AppError(404, 'La venta del restaurante no está disponible', 'RESTAURANT_RECEIPT_SALE_NOT_FOUND');
+      throw new AppError(409, 'La venta dejó de estar en borrador', 'RESTAURANT_RECEIPT_CUSTOMER_NAME_REQUIRES_REISSUE');
     }
 
     const previousCustomerName = displayName.customerNameFromObservations(sale.observaciones);
@@ -114,7 +124,7 @@ async function updateCustomerNameForSale(tenantId, userId, saleId, customerName)
           accion: 'RESTAURANT_RECEIPT_CUSTOMER_NAME_UPDATED',
           metadata: {
             marker: 'VANTIX_RESTAURANT_RECEIPT_CUSTOMER_NAME_V127',
-            scope: 'POS_DISPLAY_NAME_ONLY',
+            scope: 'DRAFT_ONLY',
             sessionId: context.sessionId,
             tableId: context.tableId,
             saleNumber: context.saleNumber,
