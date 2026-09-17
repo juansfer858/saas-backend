@@ -68,7 +68,12 @@ async function customerNameContextForSale(tenantId, saleId, client = prisma) {
   if (!sale) return null;
 
   const fiscalDocument = await client.dianDocument.findFirst({
-    where: { tenantId, originType: 'COMPROBANTE_COMERCIAL', originId: sale.id },
+    where: {
+      tenantId,
+      originType: 'COMPROBANTE_COMERCIAL',
+      originId: sale.id,
+      state: { notIn: ['RECHAZADO', 'CANCELADO'] }
+    },
     select: { id: true, state: true, acceptedAt: true }
   });
   const fiscalLocked = fiscalDocumentLocksCustomerName(fiscalDocument);
