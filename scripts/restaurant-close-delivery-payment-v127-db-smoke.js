@@ -11,6 +11,7 @@ const treasury = require('../src/modules/treasury/treasury.service');
 const cashV2 = require('../src/modules/restaurant/restaurant-v2-cash.service');
 
 let cleanupShift = null;
+let cleanupDelivery = null;
 
 async function main() {
   const demo = await ensureRestaurantDemoTenant();
@@ -44,6 +45,8 @@ async function main() {
     deliveryFee:3500,
     items:[{ menuItemId:item.id, quantity:1 }]
   });
+  cleanupDelivery = { tenantId:demo.tenantId, user:cashier, id:created.id };
+
   const paid = await deliveryService.registerDeliveryPayment(demo.tenantId, cashier, created.id, {
     cajaBancoId:bankAccount.id,
     metodoPago:'TRANSFERENCIA',
@@ -88,7 +91,33 @@ async function main() {
   }));
 }
 
-async function cleanup() {
+async function completeTemporaryDelivery() {
+  if (!cleanupDelivery) return;
+  let current = await deliveryService.loadDelivery(cleanupDelivery.tenantId, cleanupDelivery.id);
+  if (current.state === 'ENTREGADO' || current.state === 'CANCELADO') return;
+
+  if (current.state === 'NUEVO') {
+    await deliveryService.acceptDelivery(cleanupDelivery.tenantId, cleanupDelivery.user, cleanupDelivery.id);
+    current = await deliveryService.loadDelivery(cleanupDelivery.tenantId, cleanupDelivery.id);
+  }
+
+  for (const command of current.commands || []) {
+    if (['ENTREGADA','CANCELADA'].includes(command.state)) continue;
+    await deliveryService.updateDeliveryCommandState(
+      cleanupDelivery.tenantId,
+      cleanupDelivery.user,
+      command.id,
+      'ENTREGADA'
+    );
+  }
+
+  current = await deliveryService.loadDelivery(cleanupDelivery.tenantId, cleanupDelivery.id);
+  if (!['ENTREGADO','CANCELADO'].includes(current.state)) {
+    await deliveryService.markDelivered(cleanupDelivery.tenantId, cleanupDelivery.user, cleanupDelivery.id);
+  }
+}
+
+async function closeTemporaryShift() {
   if (!cleanupShift) return;
   const current = await prisma.aperturaCierreCaja.findFirst({
     where:{ id:cleanupShift.shiftId, tenantId:cleanupShift.tenantId, estado:'ABIERTA' }
@@ -100,6 +129,11 @@ async function cleanup() {
     cleanupShift.shiftId,
     { saldoFinal:0 }
   );
+}
+
+async function cleanup() {
+  await completeTemporaryDelivery();
+  await closeTemporaryShift();
 }
 
 main().catch((error) => {
