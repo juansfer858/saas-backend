@@ -96,9 +96,13 @@ assert.match(historyUi, /MOSTRADOR/);
 assert.match(historyUi, /Cargos de domicilio/);
 assert.match(historyUi, /ya incluido en Ventas/);
 
+const historyCss = fs.readFileSync(path.join(root, 'src/web/restaurant-shift-closures-c86.css'), 'utf8');
+assert.match(historyCss, /VANTIX_RESTAURANT_CLOSE_SUMMARY_SIMPLIFIED_V124/);
+assert.match(historyCss, /nth-child\(1\).*nth-child\(2\).*display:none/, 'Facturado y Liquidado deben ocultarse solo en el resumen visual');
+assert.match(historyCss, /nth-child\(6\)\{order:1\}/, 'Efectivo esperado debe quedar primero');
+
 const runtimeUi = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'), 'utf8');
 assert.match(runtimeUi, /deliveryFeeTotalsForDayReport/);
 assert.match(runtimeUi, /deliveryFees:await deliveryFees\.summaryForShift/);
 
 console.log('Restaurant shift closures C86 smoke: OK');
-
