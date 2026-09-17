@@ -1,0 +1,69 @@
+name: Sales Filtered Export V118 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'src/modules/commercial/sales.controller.js'
+      - 'src/modules/commercial/commercial.routes.js'
+      - 'src/modules/commercial/sales-list-export.service.js'
+      - 'scripts/sales-filtered-export-v118-smoke.js'
+      - '.github/workflows/sales-filtered-export-v118-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'src/modules/commercial/sales.controller.js'
+      - 'src/modules/commercial/commercial.routes.js'
+      - 'src/modules/commercial/sales-list-export.service.js'
+      - 'scripts/sales-filtered-export-v118-smoke.js'
+      - '.github/workflows/sales-filtered-export-v118-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Validate filtered sales export V118
+        run: node scripts/sales-filtered-export-v118-smoke.js
+      - name: Validate touched backend syntax
+        run: |
+          node --check src/modules/commercial/sales.controller.js
+          node --check src/modules/commercial/commercial.routes.js
+          node --check src/modules/commercial/sales-list-export.service.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit and filtered export UI in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          INFO='https://core.vantixgc.com/api/public/runtime-info'
+          SALES='https://core.vantixgc.com/app/ventas'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
+              if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
+                page=$(curl -fsSL --max-time 12 "$SALES?v=${GITHUB_SHA}" 2>/dev/null || true)
+                if echo "$page" | grep -Fq 'VANTIX_SALES_FILTERED_EXPORT_V118' \
+                  && echo "$page" | grep -Fq 'Exportar Excel' \
+                  && echo "$page" | grep -Fq '/api/v1/comercial/ventas/exportar?' \
+                  && echo "$page" | grep -Fq 'VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V2'; then
+                  echo SALES_FILTERED_EXPORT_V118_PRODUCTION_OK
+                  exit 0
+                fi
+              fi
+            fi
+            sleep 10
+          done
+          exit 1

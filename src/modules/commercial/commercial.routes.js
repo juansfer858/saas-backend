@@ -66,6 +66,7 @@ router.post('/comprobantes/:id/anular', controller.cancelDocument);
 router.post('/comprobantes/:id/reemplazar', controller.replaceDocument);
 
 router.get('/ventas', salesController.list);
+router.get('/ventas/exportar', salesController.exportList);
 router.get('/ventas/dashboard', salesController.dashboard);
 router.get('/ventas/dashboard/exportar', salesController.exportDashboard);
 router.post('/ventas', salesController.create);
