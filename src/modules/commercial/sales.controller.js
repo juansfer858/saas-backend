@@ -4,6 +4,7 @@ const { prisma } = require('../../config/prisma');
 const service = require('./sales.service');
 const queryService = require('./sales-query.service');
 const dashboardReport = require('./dashboard-report.service');
+const salesListExport = require('./sales-list-export.service');
 const { detailSchema } = require('./commercial.schemas');
 
 function parse(schema, value) {
@@ -43,6 +44,17 @@ async function list(req, res, next) {
   try {
     const result = await queryService.list(req.tenantId, req.query);
     res.json({ ok: true, data: result.items, meta: result.meta });
+  } catch (error) { next(error); }
+}
+
+async function exportList(req, res, next) {
+  try {
+    const result = await salesListExport.exportFilteredSales(req.tenantId, req.query);
+    res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-VantixGC-Sales-Filtered-Export', 'v118');
+    res.send(result.buffer);
   } catch (error) { next(error); }
 }
 
@@ -105,4 +117,4 @@ async function cancel(req, res, next) {
   catch (error) { next(error); }
 }
 
-module.exports = { list, dashboard, exportDashboard, create, get, update, emit, cancel };
+module.exports = { list, exportList, dashboard, exportDashboard, create, get, update, emit, cancel };
