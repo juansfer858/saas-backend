@@ -117,7 +117,7 @@ assert.equal(valueOf(report,'Estado efectivo'),undefined);
 assert.equal(valueOf(report,'Alertas operativas'),undefined);
 assert.ok(!summaryRows(report).some(row=>['ARQUEO','CONTROL','CANALES','PAGOS'].includes(row.section)));
 assert.ok(summaryRows(report).every(row=>['TURNO','VENTAS','GASTOS','CRUCE FINAL','FIRMAS'].includes(row.section)));
-assert.equal(summaryRows(report).length,15,'el resumen de cierre conserva máximo 15 filas');
+assert.equal(summaryRows(report).length,16,'el resumen de cierre conserva el formato compacto V121');
 
 const busyReport={...report,channels:Object.fromEntries(['MESAS','MOSTRADOR','DOMICILIOS','PARA_LLEVAR'].map(k=>[k,{tickets:10,settledValue:100}])),
   payments:{...report.payments,other:1},exceptions:Array(10000).fill({type:'PRODUCCION_PENDIENTE'}),
@@ -125,8 +125,8 @@ const busyReport={...report,channels:Object.fromEntries(['MESAS','MOSTRADOR','DO
 const pdf = summaryPdfSpec(company,busyReport);
 assert.deepEqual(pdf.headers,['Concepto','Resultado']);
 assert.equal(pdf.columns.length,2);
-assert.ok(pdf.rows.length<=16,'resumen PDF conserva turno, ventas, gastos, cruce y firmas');
-assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=16);
+assert.ok(pdf.rows.length<=17,'resumen PDF conserva turno, ventas, gastos, cruce y firmas');
+assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=17);
 
 const job = receipt.buildCashCloseJob({ company, snapshot, printer });
 assert.match(job.id, /^restaurant-cash-close:/);
@@ -162,6 +162,7 @@ assert.doesNotMatch(routes, /queueShiftCloseIntent\(req\.tenantId, shiftId\)/, '
 const c86Runtime = fs.readFileSync('src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js', 'utf8');
 assert.match(c86Runtime, /posReceiptPrint\.queueShiftCloseIntent\(tenantId, shiftId, client, saved\)/, 'la impresión explícita debe reutilizar el outbox C82');
 assert.match(c86Runtime, /PRINT_ACTION/);
+assert.match(c86Runtime, /expenseTotalsForDayReport/,'el consolidado diario debe incluir gastos de todos los turnos');
 
 const printService = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
 assert.match(printService, /originType: \{ in: \[ORIGIN_TYPE, CASH_SHIFT_ORIGIN_TYPE\] \}/);
@@ -178,6 +179,7 @@ console.log('RESTAURANT CASH CLOSE RECEIPT C82 V121 SMOKE OK', JSON.stringify({
   centeredHeader:true,
   compactExpenseSummary:true,
   finalExpenseCross:true,
+  dayExpenseConsolidation:true,
   paymentBreakdown:true,
   noCashArqueoSection:true,
   noControlSection:true,
