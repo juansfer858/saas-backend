@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const serviceSource = fs.readFileSync('src/modules/restaurant/restaurant-expenses-v116.service.js','utf8');
 const routeSource = fs.readFileSync('src/modules/restaurant/restaurant-expenses-v116.routes.js','utf8');
 const publicSource = fs.readFileSync('src/modules/restaurant/restaurant-expenses-v116.public.routes.js','utf8');
+const reconcileSource = fs.readFileSync('src/modules/restaurant/restaurant-close-sales-reconcile-v116.js','utf8');
 const coreSource = fs.readFileSync('src/routes/core.routes.js','utf8');
 const publicRouterSource = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js','utf8');
 const summary = require('../src/modules/restaurant/restaurant-cash-close-summary.service');
@@ -21,8 +22,13 @@ assert.match(serviceSource,/Descripción/);
 assert.match(serviceSource,/Medio de pago/);
 assert.match(routeSource,/gastos-v116/);
 assert.match(routeSource,/ventas-dia-v116\.xls/);
+assert.match(routeSource,/restaurant-close-sales-reconcile-v116/);
+assert.match(reconcileSource,/saleTotal/,'la reconciliación debe usar valor de venta sin propina');
+assert.match(reconcileSource,/salesExcludeTips:true/);
 assert.match(coreSource,/restaurantExpensesV116Router/);
 assert.match(publicRouterSource,/installRestaurantExpensesV116/);
+assert.match(publicSource,/Descargar ventas del día/);
+assert.match(publicSource,/Registrar gasto/);
 assert.doesNotThrow(()=>new Function(publicModule.runtime),'el runtime de Gastos V116 debe compilar');
 
 const report = {
@@ -45,10 +51,10 @@ assert.ok(rows.some(row=>row.section==='GASTOS'&&row.label==='Transferencia'&&ro
 
 console.log('RESTAURANT EXPENSES DAILY SALES V116 SMOKE OK',JSON.stringify({
   treasuryCanonicalExpense:true,
-  cashExpenseAffectsCanonicalTreasury:true,
   dailySalesExport:true,
   customerDescriptionValuePaymentMethod:true,
   tipsSeparatedFromSales:true,
+  cashCloseUsesSaleValue:true,
   closeExpensesSeparated:true,
   runtimeCompiles:true
 }));
