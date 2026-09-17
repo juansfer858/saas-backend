@@ -82,6 +82,14 @@ assert.equal(Number(corrected.cash), 100000);
 assert.equal(Number(corrected.transfer), 96500);
 assert.equal(Number(corrected.total), 196500);
 
+const guarded = deliveryFeesService.applyPaymentCorrections(
+  { cash:'10000', transfer:'66000', card:'0', credit:'0', other:'0' },
+  correction
+);
+assert.equal(Number(guarded.cash), 10000, 'un snapshot insuficiente no se corrige recortando a cero');
+assert.equal(Number(guarded.transfer), 66000, 'un snapshot insuficiente conserva los buckets históricos');
+assert.equal(Number(guarded.total), 76000);
+
 const collectedFees = deliveryFeesService.summarize([
   { deliveryFee:'3500', paymentStatus:'PAGADO', paymentMethod:'EFECTIVO' },
   { deliveryFee:'5000', paymentStatus:'PAGADO', paymentMethod:'TRANSFERENCIA' },
@@ -125,7 +133,7 @@ assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.lab
 assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'Transferencia / QR total recibida' && /30\.000|30,000|30000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'Transferencia / QR restaurante' && /25\.000|25,000|25000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'GASTOS' && row.label === 'TOTAL GASTOS (2)' && /20\.000|20,000|20000/.test(row.value)));
-assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Cargos de domicilio / fondos terceros (3)' && /13\.000|13,000|13000/.test(row.value)));
+assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Cargos de domicilio cobrados (3)' && /13\.000|13,000|13000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'Recibidos por banco' && /9\.500|9,500|9500/.test(row.value)));
 assert.equal(rows.some((row) => ['CRUCE FINAL','ARQUEO','ARQUEO FINAL'].includes(row.section)), false, 'el resumen no debe incluir arqueo final ni cruce final');
 
