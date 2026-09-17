@@ -1,0 +1,28 @@
+name: Restaurant Production Sales Reconcile V119 CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/restaurant-shift-production-sales-reconcile-v119.service.js'
+      - 'src/modules/restaurant/restaurant-shift-close-v111.service.js'
+      - 'scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js'
+      - '.github/workflows/restaurant-production-sales-reconcile-v119-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  reconcile-v119:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-shift-production-sales-reconcile-v119.service.js
+          node --check src/modules/restaurant/restaurant-shift-close-v111.service.js
+          node --check scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js
+      - name: Production vs sales reconciliation
+        run: node scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js
