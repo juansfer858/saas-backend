@@ -28,7 +28,13 @@ const runtime = String.raw`
   function ensureRail(){if(!allowed())return;const rail=$('#rail');if(!rail||$('#expenseV116Rail'))return;const b=document.createElement('button');b.type='button';b.id='expenseV116Rail';b.className='rail-ticket expense-v116-button';b.textContent='Gastos';b.onclick=()=>openExpenses().catch(showError);rail.appendChild(b)}
   function ensureCloseDownload(){if(!allowed())return;const panel=$('.cash-close-panel');if(!panel||$('#dailySalesV116',panel))return;const anchor=$('#closeShift',panel)||panel.querySelector('button');const b=document.createElement('button');b.type='button';b.id='dailySalesV116';b.className='ri-btn small daily-sales-v116';b.textContent='Descargar ventas del día';b.onclick=()=>downloadSales(businessDate());if(anchor?.parentElement)anchor.parentElement.appendChild(b);else panel.appendChild(b)}
   function enhance(){ensureStyle();ensureDialog();ensureRail();ensureCloseDownload()}
-  const observer=new MutationObserver(()=>enhance());observer.observe(document.documentElement,{childList:true,subtree:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',enhance,{once:true});else enhance();
+  let burst=0;
+  function schedule(){const token=++burst;[0,40,120,300,700,1400].forEach(delay=>setTimeout(()=>{if(token===burst)enhance()},delay))}
+  document.addEventListener('click',(event)=>{if(event.target?.closest?.('[data-tab],#closeShift,[data-cc-tab="caja"],[data-cash-table],[data-cash-metric],[data-cash-metric-back]'))schedule()},true);
+  window.addEventListener('vantix:tenant-realtime',schedule);
+  window.addEventListener('vantix:tenant-realtime-ready',schedule);
+  window.addEventListener('pageshow',schedule);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
 })();
 `;
 
