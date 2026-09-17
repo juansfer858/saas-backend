@@ -180,7 +180,9 @@ function summaryRows(report) {
   if (own.production.barra !== 0) add('VENTAS RESTAURANTE', 'Barra', amount(own.production.barra));
   if (own.production.postres !== 0) add('VENTAS RESTAURANTE', 'Postres', amount(own.production.postres));
   add('VENTAS RESTAURANTE', 'TOTAL VENTAS PROPIAS', amount(own.ownSales));
-  add('VENTAS RESTAURANTE', 'Diferencia Producción / Ventas', amount(own.productionDifference));
+  if (Math.abs(own.productionDifference) >= 0.02) {
+    add('VENTAS RESTAURANTE', 'Diferencia Producción / Ventas', amount(own.productionDifference));
+  }
 
   add('RECAUDO VENTAS PROPIAS', 'Efectivo restaurante', amount(own.ownPayments.cash));
   add('RECAUDO VENTAS PROPIAS', 'Transferencia / QR total recibida', amount(own.grossPayments.transfer));
@@ -189,7 +191,9 @@ function summaryRows(report) {
   add('RECAUDO VENTAS PROPIAS', 'Crédito pendiente', amount(own.ownPayments.credit));
   if (own.ownPayments.other !== 0) add('RECAUDO VENTAS PROPIAS', 'Otros medios', amount(own.ownPayments.other));
   add('RECAUDO VENTAS PROPIAS', 'TOTAL CUBIERTO', amount(own.covered));
-  add('RECAUDO VENTAS PROPIAS', 'Diferencia Ventas / Recaudo', amount(own.collectionDifference));
+  if (Math.abs(own.collectionDifference) >= 0.02) {
+    add('RECAUDO VENTAS PROPIAS', 'Diferencia Ventas / Recaudo', amount(own.collectionDifference));
+  }
 
   add('GASTOS', 'Gastos en efectivo', amount(own.expenses.cash));
   add('GASTOS', 'Gastos por banco', amount(own.expenses.transfer));
@@ -200,6 +204,7 @@ function summaryRows(report) {
     add('FONDOS DE TERCEROS', 'Recibidos en efectivo', amount(own.thirdParty.cash));
     add('FONDOS DE TERCEROS', 'Recibidos por banco', amount(own.thirdParty.bank));
     if (own.thirdParty.pending !== 0) add('FONDOS DE TERCEROS', 'Pendiente de recaudo', amount(own.thirdParty.pending));
+    add('FONDOS DE TERCEROS', 'TOTAL FONDOS', amount(own.thirdParty.collected));
   }
 
   add('FIRMAS', 'Entrega cajero', '____________________');
