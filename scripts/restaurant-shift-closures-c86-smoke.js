@@ -60,6 +60,9 @@ assert.match(cashUi, /¿Imprimir resumen del cierre en la impresora POS\?/);
 assert.match(cashUi, /SÍ, IMPRIMIR/);
 assert.match(cashUi, />NO</);
 
+const historyHtml = fs.readFileSync(path.join(root, 'src/web/restaurant-shift-closures-c86.html'), 'utf8');
+assert.match(historyHtml, /\.c86-empty\[hidden\]\{display:none!important\}/, 'el placeholder no puede ocupar 420px cuando ya hay un cierre cargado');
+
 const historyUi = fs.readFileSync(path.join(root, 'src/web/restaurant-shift-closures-c86.js'), 'utf8');
 assert.match(historyUi, /Exportar Excel/);
 assert.match(historyUi, /Exportar PDF/);
