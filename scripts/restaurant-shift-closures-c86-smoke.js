@@ -18,7 +18,7 @@ const snapshot = {
   marker: service.MARKER,
   businessDate: '2026-09-11',
   status: 'CUADRADO',
-  shift: { id: 'shift-1', cajaNombre: 'Caja principal', cajero: 'Caja', saldoInicial:'100000', abiertoEn: '2026-09-11T13:00:00.000Z', cerradoEn: '2026-09-12T02:30:00.000Z' },
+  shift: { id: 'shift-1', cajaNombre: 'Caja principal', cajero: 'Caja', saldoInicial:'100000', expenseSummary:{cash:'12000',transfer:'8000',total:'20000',count:2}, abiertoEn: '2026-09-11T13:00:00.000Z', cerradoEn: '2026-09-12T02:30:00.000Z' },
   channels: {
     MESAS: { tickets: 2, deliveredItems: '4', kitchenItems: '3', productionValue: '60000', billedValue: '60000', tips: '0', expectedSettlement: '60000', settledValue: '60000' },
     MOSTRADOR: { tickets: 1, deliveredItems: '1', kitchenItems: '1', productionValue: '15000', billedValue: '15000', tips: '0', expectedSettlement: '15000', settledValue: '15000' },
@@ -83,6 +83,10 @@ assert.equal(own.ownPayments.transfer, 25000);
 assert.equal(own.ownPayments.card, 0);
 assert.equal(own.covered, 75000);
 assert.equal(own.collectionDifference, 0);
+assert.equal(own.expenses.cash, 12000);
+assert.equal(own.expenses.transfer, 8000);
+assert.equal(own.expenses.total, 20000);
+assert.equal(own.expenses.count, 2);
 assert.equal(own.thirdParty.collected, 13000);
 assert.equal(own.thirdParty.cash, 3500);
 assert.equal(own.thirdParty.bank, 9500);
@@ -93,8 +97,9 @@ assert.ok(baseRow, 'la base debe aparecer arriba del resumen');
 assert.match(baseRow.value, /100\.000|100,000|100000/);
 assert.ok(rows.some((row) => row.section === 'VENTAS RESTAURANTE' && row.label === 'TOTAL VENTAS PROPIAS'));
 assert.ok(rows.some((row) => row.section === 'RECAUDO VENTAS PROPIAS' && row.label === 'TOTAL CUBIERTO'));
+assert.ok(rows.some((row) => row.section === 'GASTOS' && row.label === 'TOTAL GASTOS (2)' && /20\.000|20,000|20000/.test(row.value)));
 assert.ok(rows.some((row) => row.section === 'FONDOS DE TERCEROS' && row.label === 'TOTAL FONDOS DE TERCEROS'));
-assert.equal(rows.some((row) => ['GASTOS','CRUCE FINAL','ARQUEO','ARQUEO FINAL'].includes(row.section)), false, 'el resumen no debe incluir arqueo final ni cruce de gastos');
+assert.equal(rows.some((row) => ['CRUCE FINAL','ARQUEO','ARQUEO FINAL'].includes(row.section)), false, 'el resumen no debe incluir arqueo final ni cruce final');
 
 // Se conserva el cross legado para reportes detallados; no se altera contabilidad ni Tesorería.
 assert.equal(closeSummary.closeCross(grossSnapshot).sales, 88000);
@@ -121,11 +126,14 @@ assert.match(historyHtml, /\.c86-empty\[hidden\]\{display:none!important\}/, 'el
 
 const historyUi = fs.readFileSync(path.join(root, 'src/web/restaurant-shift-closures-c86.js'), 'utf8');
 assert.match(historyUi, /VANTIX_RESTAURANT_CLOSE_OWN_SALES_BASE_V125/);
+assert.match(historyUi, /VANTIX_RESTAURANT_CASH_CLOSE_EXPENSES_V126/);
 assert.match(historyUi, /Saldo registrado al abrir turno/);
 assert.match(historyUi, /1\. Ventas del restaurante/);
 assert.match(historyUi, /2\. Recaudo de ventas propias/);
-assert.match(historyUi, /3\. Fondos de terceros/);
+assert.match(historyUi, /3\. Gastos/);
+assert.match(historyUi, /4\. Fondos de terceros/);
 assert.match(historyUi, /TOTAL VENTAS PROPIAS/);
+assert.match(historyUi, /TOTAL GASTOS/);
 assert.match(historyUi, /No son venta del restaurante/);
 assert.doesNotMatch(historyUi, /Facturado|Liquidado \(incluye crédito\)|Efectivo esperado|Efectivo contado|Descuadre Caja/);
 
@@ -133,4 +141,4 @@ const runtimeUi = fs.readFileSync(path.join(root, 'src/modules/restaurant/restau
 assert.match(runtimeUi, /deliveryFeeTotalsForDayReport/);
 assert.match(runtimeUi, /deliveryFees:await deliveryFees\.summaryForShift/);
 
-console.log('Restaurant shift closures C86 V125 smoke: OK');
+console.log('Restaurant shift closures C86 V126 smoke: OK');

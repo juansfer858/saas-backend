@@ -1,6 +1,7 @@
 'use strict';
 
 // VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V125
+// VANTIX_RESTAURANT_CASH_CLOSE_EXPENSES_V126
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -100,6 +101,7 @@ function productionBreakdown(report) {
 
 function ownCloseReport(report) {
   const delivery = normalizedDeliveryFees(report);
+  const expenses = normalizedExpenses(report);
   const payments = salesPayments(report);
   const production = productionBreakdown(report);
   const ownPayments = {
@@ -119,6 +121,7 @@ function ownCloseReport(report) {
     ownPayments,
     covered,
     collectionDifference:ownSales - covered,
+    expenses,
     thirdParty:{
       count:delivery.count,
       billed:delivery.billed,
@@ -180,6 +183,10 @@ function summaryRows(report) {
   if (own.ownPayments.other !== 0) add('RECAUDO VENTAS PROPIAS', 'Otros medios', amount(own.ownPayments.other));
   add('RECAUDO VENTAS PROPIAS', 'TOTAL CUBIERTO', amount(own.covered));
   add('RECAUDO VENTAS PROPIAS', 'Diferencia Ventas / Recaudo', amount(own.collectionDifference));
+
+  add('GASTOS', 'Gastos en efectivo', amount(own.expenses.cash));
+  add('GASTOS', 'Gastos por banco', amount(own.expenses.transfer));
+  add('GASTOS', `TOTAL GASTOS (${own.expenses.count})`, amount(own.expenses.total));
 
   if (own.thirdParty.count > 0 || own.thirdParty.billed !== 0 || own.thirdParty.collected !== 0) {
     add('FONDOS DE TERCEROS', `Cargos de domicilio cobrados (${own.thirdParty.count})`, amount(own.thirdParty.collected));
