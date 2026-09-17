@@ -87,26 +87,33 @@ assert.equal(own.ownPayments.card,120000);
 assert.equal(own.ownPayments.credit,30000);
 assert.equal(own.covered,780000);
 assert.equal(own.collectionDifference,0);
+assert.equal(own.expenses.cash,30000);
+assert.equal(own.expenses.transfer,20000);
+assert.equal(own.expenses.total,50000);
+assert.equal(own.expenses.count,3);
 assert.equal(own.thirdParty.collected,13000);
 assert.equal(own.thirdParty.cash,3500);
 assert.equal(own.thirdParty.bank,9500);
 
 const lines = receipt.cashCloseReceiptLines({ company, snapshot, paperFormat:'TERMICA_80' });
-assert.ok(lines.length > 15, 'el cierre debe conservar base, ventas propias, recaudo, terceros y firmas');
+assert.ok(lines.length > 15, 'el cierre debe conservar base, ventas propias, recaudo, gastos, terceros y firmas');
 assert.ok(lines.every((line) => String(line).length <= 48), 'ninguna línea puede desbordar la Epson de 80 mm');
 assert.ok(lines.some((line) => line.includes('CIERRE DE TURNO / CAJA')));
 assert.ok(lines.some((line) => line.trim() === 'VENTAS RESTAURANTE'));
 assert.ok(lines.some((line) => line.trim() === 'RECAUDO VENTAS PROPIAS'));
+assert.ok(lines.some((line) => line.trim() === 'GASTOS'));
 assert.ok(lines.some((line) => line.trim() === 'FONDOS DE TERCEROS'));
 assert.ok(lines.some((line) => line.includes('BASE')));
 assert.ok(lines.some((line) => line.includes('TOTAL VENTAS PROPIAS')));
 assert.ok(lines.some((line) => line.includes('Efectivo restaurante')));
 assert.ok(lines.some((line) => line.includes('Transferencia / QR')));
 assert.ok(lines.some((line) => line.includes('TOTAL CUBIERTO')));
+assert.ok(lines.some((line) => line.includes('Gastos en efectivo')));
+assert.ok(lines.some((line) => line.includes('Gastos por banco')));
+assert.ok(lines.some((line) => line.includes('TOTAL GASTOS')));
 assert.ok(lines.some((line) => line.includes('Cargos de domicilio')));
 assert.ok(lines.some((line) => line.includes('TOTAL FONDOS')));
 assert.ok(lines.some((line) => line.trim() === 'FIRMAS'));
-assert.ok(!lines.some((line) => line.trim() === 'GASTOS'));
 assert.ok(!lines.some((line) => line.trim() === 'CRUCE FINAL'));
 assert.ok(!lines.some((line) => line.includes('ARQUEO DE CAJA')));
 assert.ok(!lines.some((line) => line.includes('Efectivo esperado')));
@@ -138,21 +145,24 @@ assert.match(valueOf(report,'Transferencia \/ QR restaurante'),/180\.000/);
 assert.match(valueOf(report,'Tarjeta'),/120\.000/);
 assert.match(valueOf(report,'Crédito pendiente'),/30\.000/);
 assert.match(valueOf(report,'TOTAL CUBIERTO'),/780\.000/);
+assert.match(valueOf(report,'Gastos en efectivo'),/30\.000/);
+assert.match(valueOf(report,'Gastos por banco'),/20\.000/);
+assert.match(valueOf(report,'TOTAL GASTOS \(3\)'),/50\.000/);
 assert.match(valueOf(report,'Cargos de domicilio cobrados \(3\)'),/13\.000/);
 assert.match(valueOf(report,'Recibidos en efectivo'),/3\.500/);
 assert.match(valueOf(report,'Recibidos por banco'),/9\.500/);
 assert.equal(closeCross(report).sales,793000,'el cruce detallado conserva el movimiento bruto histórico');
-assert.ok(!summaryRows(report).some(row=>['GASTOS','CRUCE FINAL','ARQUEO','CONTROL','CANALES','PAGOS'].includes(row.section)));
-assert.ok(summaryRows(report).every(row=>['TURNO','VENTAS RESTAURANTE','RECAUDO VENTAS PROPIAS','FONDOS DE TERCEROS','FIRMAS'].includes(row.section)));
-assert.ok(summaryRows(report).length<=23,'el resumen V125 debe seguir siendo compacto');
+assert.ok(!summaryRows(report).some(row=>['CRUCE FINAL','ARQUEO','CONTROL','CANALES','PAGOS'].includes(row.section)));
+assert.ok(summaryRows(report).every(row=>['TURNO','VENTAS RESTAURANTE','RECAUDO VENTAS PROPIAS','GASTOS','FONDOS DE TERCEROS','FIRMAS'].includes(row.section)));
+assert.ok(summaryRows(report).length<=26,'el resumen V126 debe seguir siendo compacto');
 
 const busyReport={...report,channels:Object.fromEntries(['MESAS','MOSTRADOR','DOMICILIOS','PARA_LLEVAR'].map(k=>[k,{tickets:10,settledValue:100}])),
   exceptions:Array(10000).fill({type:'PRODUCCION_PENDIENTE'}),complete:{pending:Array(10000).fill({}),historicalReconstruction:true}};
 const pdf = summaryPdfSpec(company,busyReport);
 assert.deepEqual(pdf.headers,['Concepto','Resultado']);
 assert.equal(pdf.columns.length,2);
-assert.ok(pdf.rows.length<=23,'resumen PDF conserva base, ventas propias, recaudo, terceros y firmas');
-assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=23);
+assert.ok(pdf.rows.length<=26,'resumen PDF conserva base, ventas propias, recaudo, gastos, terceros y firmas');
+assert.ok(summaryPdfSpec(company,{...busyReport,kind:'DAY',shiftCount:200}).rows.length<=26);
 
 const job = receipt.buildCashCloseJob({ company, snapshot, printer });
 assert.match(job.id, /^restaurant-cash-close:/);
@@ -178,7 +188,7 @@ assert.doesNotMatch(routes, /queueShiftCloseIntent\(req\.tenantId, shiftId\)/, '
 const c86Runtime = fs.readFileSync('src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js', 'utf8');
 assert.match(c86Runtime, /posReceiptPrint\.queueShiftCloseIntent\(tenantId, shiftId, client, saved\)/, 'la impresión explícita debe reutilizar el outbox C82');
 assert.match(c86Runtime, /PRINT_ACTION/);
-assert.match(c86Runtime, /expenseTotalsForDayReport/,'el consolidado diario completo mantiene gastos aunque el resumen compacto no los imprima');
+assert.match(c86Runtime, /expenseTotalsForDayReport/,'el consolidado diario debe incluir gastos de todos los turnos');
 
 const printService = fs.readFileSync('src/modules/restaurant/restaurant-pos-receipt-print.service.js', 'utf8');
 assert.match(printService, /originType: \{ in: \[ORIGIN_TYPE, CASH_SHIFT_ORIGIN_TYPE\] \}/);
@@ -190,10 +200,11 @@ const edgeBridge = fs.readFileSync('src/modules/edge/edge-restaurant-print-bridg
 assert.match(edgeBridge, /posReceipt\.buildRecentReceiptJobs/);
 assert.doesNotMatch(edgeBridge, /restaurant-cash-close-receipt-c82/, 'no se debe crear un circuito paralelo en Edge');
 
-console.log('RESTAURANT CASH CLOSE RECEIPT C82 V125 SMOKE OK', JSON.stringify({
+console.log('RESTAURANT CASH CLOSE RECEIPT C82 V126 SMOKE OK', JSON.stringify({
   epson80Columns:48,
   baseVisible:true,
   ownSalesSeparated:true,
+  expensesVisible:true,
   thirdPartyFundsSeparated:true,
   noFinalArqueo:true,
   boundedSummary:true,
