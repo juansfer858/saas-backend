@@ -4,6 +4,7 @@ const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { summaryRows, summaryPdfSpec } = require('./restaurant-cash-close-summary.service');
 const expenses = require('./restaurant-expenses-v116.service');
+const deliveryFees = require('./restaurant-close-delivery-fees-v123.service');
 const base = require('./restaurant-shift-close-history-c86.service');
 const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
 const { toExcelHtml, toSimplePdf } = require('../accounting/accounting-export.service');
@@ -31,9 +32,30 @@ async function expenseTotalsForDayReport(tenantId, report, client = prisma) {
   };
 }
 
+async function deliveryFeeTotalsForDayReport(tenantId, report, client = prisma) {
+  const shiftIds = [...new Set((report?.shifts || []).map((row) => row.shiftId).filter(Boolean))];
+  if (!shiftIds.length) return deliveryFees.emptySummary();
+  const shifts = await client.aperturaCierreCaja.findMany({
+    where:{ tenantId, id:{ in:shiftIds } },
+    select:{ id:true, userId:true, abiertoEn:true, cerradoEn:true }
+  });
+  const summaries = [];
+  for (const shift of shifts) summaries.push(await deliveryFees.summaryForShift(tenantId, shift, client));
+  return deliveryFees.addSummaries(summaries);
+}
+
+async function getClosure(tenantId, userId, shiftId, options = {}, client = prisma) {
+  const report = await base.getClosure(tenantId, userId, shiftId, options, client);
+  return { ...report, deliveryFees:await deliveryFees.summaryForShift(tenantId, report.shift, client) };
+}
+
 async function getDay(tenantId, userId, date, options = {}, client = prisma) {
   const report = await base.getDay(tenantId, userId, date, options, client);
-  return { ...report, expenses:await expenseTotalsForDayReport(tenantId, report, client) };
+  const [expenseTotals, deliveryFeeTotals] = await Promise.all([
+    expenseTotalsForDayReport(tenantId, report, client),
+    deliveryFeeTotalsForDayReport(tenantId, report, client)
+  ]);
+  return { ...report, expenses:expenseTotals, deliveryFees:deliveryFeeTotals };
 }
 
 async function tenantIdentity(tenantId, client = prisma) {
@@ -45,8 +67,7 @@ async function tenantIdentity(tenantId, client = prisma) {
   return tenant;
 }
 
-async function exportDay(tenantId, userId, date, format, options = {}, client = prisma) {
-  const report = await getDay(tenantId, userId, date, options, client);
+async function exportReport(tenantId, report, format, client = prisma) {
   const tenant = await tenantIdentity(tenantId, client);
   const normalized = String(format || '').toLowerCase();
   if (['xls','excel'].includes(normalized)) {
@@ -64,14 +85,23 @@ async function exportDay(tenantId, userId, date, format, options = {}, client = 
   throw new AppError(400, 'Formato de cierre no soportado', 'RESTAURANT_SHIFT_CLOSE_EXPORT_FORMAT_INVALID');
 }
 
+async function exportClosure(tenantId, userId, shiftId, format, options = {}, client = prisma) {
+  return exportReport(tenantId, await getClosure(tenantId, userId, shiftId, options, client), format, client);
+}
+
+async function exportDay(tenantId, userId, date, format, options = {}, client = prisma) {
+  return exportReport(tenantId, await getDay(tenantId, userId, date, options, client), format, client);
+}
+
 async function queuePrint(tenantId, userId, shiftId, options = {}, client = prisma) {
-  const snapshot = await base.ensureSnapshot(tenantId, userId, shiftId, options, client);
+  const snapshot = await getClosure(tenantId, userId, shiftId, options, client);
   const saved = {
     shift:snapshot.shift,
     systemCashExpected:snapshot.cash.expectedCash,
     restaurantClosedTablesTotal:snapshot.totals.expectedSettlement,
     paymentBreakdown:{ cashSales:snapshot.payments.cash, transferSales:snapshot.payments.transfer,
       cardSales:snapshot.payments.card, creditSales:snapshot.payments.credit, bankOtherSales:snapshot.payments.other },
+    deliveryFees:snapshot.deliveryFees,
     tables:snapshot.operations.map(o => ({ table:o.reference, saleNumber:o.saleNumber,
       total:o.collectedValue, paymentMethodLabel:o.paymentMethod })),
     summaryRows:summaryRows(snapshot)
@@ -107,4 +137,13 @@ async function queuePrint(tenantId, userId, shiftId, options = {}, client = pris
   };
 }
 
-module.exports = { ...base, getDay, exportDay, expenseTotalsForDayReport, queuePrint };
+module.exports = {
+  ...base,
+  getClosure,
+  getDay,
+  exportClosure,
+  exportDay,
+  expenseTotalsForDayReport,
+  deliveryFeeTotalsForDayReport,
+  queuePrint
+};
