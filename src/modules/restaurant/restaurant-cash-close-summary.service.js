@@ -1,7 +1,6 @@
 'use strict';
 
-// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V121
-// VANTIX_RESTAURANT_CLOSE_DELIVERY_FEES_V123
+// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V125
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -83,11 +82,55 @@ function normalizedDeliveryFees(report) {
     billed:number(source.billed),
     collected:number(source.collected),
     cash:number(source.cash),
+    transfer:number(source.transfer),
+    card:number(source.card),
+    credit:number(source.credit),
+    other:number(source.other),
     bank:number(source.bank),
     pending:number(source.pending)
   };
 }
 
+function productionBreakdown(report) {
+  const cocina = number(report.production?.COCINA?.value);
+  const barra = number(report.production?.BARRA?.value);
+  const postres = number(report.production?.POSTRES?.value);
+  return { cocina, barra, postres, total:cocina + barra + postres };
+}
+
+function ownCloseReport(report) {
+  const delivery = normalizedDeliveryFees(report);
+  const payments = salesPayments(report);
+  const production = productionBreakdown(report);
+  const ownPayments = {
+    cash:Math.max(0, payments.cash - delivery.cash),
+    transfer:Math.max(0, payments.transfer - delivery.transfer),
+    card:Math.max(0, payments.card - delivery.card),
+    credit:Math.max(0, payments.credit - delivery.credit),
+    other:Math.max(0, payments.other - delivery.other)
+  };
+  const ownSales = Math.max(0, number(report.totals?.billedValue) - delivery.billed);
+  const covered = Object.values(ownPayments).reduce((sum, value) => sum + value, 0);
+  return {
+    base:number(report.cash?.openingBalance ?? report.shift?.saldoInicial),
+    production,
+    ownSales,
+    productionDifference:ownSales - production.total,
+    ownPayments,
+    covered,
+    collectionDifference:ownSales - covered,
+    thirdParty:{
+      count:delivery.count,
+      billed:delivery.billed,
+      collected:delivery.collected,
+      cash:delivery.cash,
+      bank:delivery.bank,
+      pending:delivery.pending
+    }
+  };
+}
+
+// Legacy cross retained for compatibility with existing expense/report tests.
 function closeCross(report) {
   const payments = salesPayments(report);
   const expenses = normalizedExpenses(report);
@@ -108,10 +151,7 @@ function summaryRows(report) {
   const rows = [];
   const add = (section, label, value) => rows.push({ section, label, value: String(value) });
   const shift = report.shift || {};
-  const cross = closeCross(report);
-  const payments = cross.payments;
-  const expenses = cross.expenses;
-  const delivery = normalizedDeliveryFees(report);
+  const own = ownCloseReport(report);
   const day = report.kind === 'DAY';
 
   add('TURNO', day ? 'Día operativo' : 'Turno', day ? report.businessDate : short(shift.id, 12).toUpperCase());
@@ -125,27 +165,29 @@ function summaryRows(report) {
     add('TURNO', 'Apertura', localTime(shift.abiertoEn, report.timezoneOffsetMinutes));
     add('TURNO', 'Cierre', localTime(shift.cerradoEn, report.timezoneOffsetMinutes));
   }
+  add('TURNO', 'BASE', amount(own.base));
 
-  add('VENTAS', 'Efectivo', amount(payments.cash));
-  add('VENTAS', 'Transferencias / QR', amount(payments.transfer));
-  if (payments.card !== 0) add('VENTAS', 'Tarjetas', amount(payments.card));
-  add('VENTAS', 'Crédito', amount(payments.credit));
-  if (payments.other !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
-  add('VENTAS', 'Valor total', amount(cross.sales));
+  if (own.production.cocina !== 0) add('VENTAS RESTAURANTE', 'Cocina', amount(own.production.cocina));
+  if (own.production.barra !== 0) add('VENTAS RESTAURANTE', 'Barra', amount(own.production.barra));
+  if (own.production.postres !== 0) add('VENTAS RESTAURANTE', 'Postres', amount(own.production.postres));
+  add('VENTAS RESTAURANTE', 'TOTAL VENTAS PROPIAS', amount(own.ownSales));
+  add('VENTAS RESTAURANTE', 'Diferencia Producción / Ventas', amount(own.productionDifference));
 
-  // Delivery fees are already part of the sale and payment totals above. This line is
-  // informational only so the cashier can identify money that may later leave the box
-  // when it is handed to the courier. Never subtract it here a second time.
-  if (delivery.count > 0 || delivery.collected !== 0 || delivery.pending !== 0) {
-    add('DOMICILIOS', `Cargo domicilio (${delivery.count})`, `${amount(delivery.collected)} · Efe ${amount(delivery.cash)} · Bco ${amount(delivery.bank)}`);
-    if (delivery.pending !== 0) add('DOMICILIOS', 'Pendiente de recaudo', amount(delivery.pending));
+  add('RECAUDO VENTAS PROPIAS', 'Efectivo restaurante', amount(own.ownPayments.cash));
+  add('RECAUDO VENTAS PROPIAS', 'Transferencia / QR restaurante', amount(own.ownPayments.transfer));
+  add('RECAUDO VENTAS PROPIAS', 'Tarjeta', amount(own.ownPayments.card));
+  add('RECAUDO VENTAS PROPIAS', 'Crédito pendiente', amount(own.ownPayments.credit));
+  if (own.ownPayments.other !== 0) add('RECAUDO VENTAS PROPIAS', 'Otros medios', amount(own.ownPayments.other));
+  add('RECAUDO VENTAS PROPIAS', 'TOTAL CUBIERTO', amount(own.covered));
+  add('RECAUDO VENTAS PROPIAS', 'Diferencia Ventas / Recaudo', amount(own.collectionDifference));
+
+  if (own.thirdParty.count > 0 || own.thirdParty.billed !== 0 || own.thirdParty.collected !== 0) {
+    add('FONDOS DE TERCEROS', `Cargos de domicilio cobrados (${own.thirdParty.count})`, amount(own.thirdParty.collected));
+    add('FONDOS DE TERCEROS', 'Recibidos en efectivo', amount(own.thirdParty.cash));
+    add('FONDOS DE TERCEROS', 'Recibidos por banco', amount(own.thirdParty.bank));
+    add('FONDOS DE TERCEROS', 'TOTAL FONDOS DE TERCEROS', amount(own.thirdParty.collected));
+    if (own.thirdParty.pending !== 0) add('FONDOS DE TERCEROS', 'Pendiente de recaudo', amount(own.thirdParty.pending));
   }
-
-  // Expenses are already posted through Treasury. Keep the thermal summary bounded:
-  // detail stays in Gastos/Historial; the close prints only the values needed to cross.
-  add('GASTOS', 'Efectivo / Banco', `${amount(expenses.cash)} / ${amount(expenses.transfer)}`);
-  add('GASTOS', `Total gastos (${expenses.count})`, amount(expenses.total));
-  add('CRUCE FINAL', 'Ventas - gastos', `${amount(cross.salesMinusExpenses)} · Efe ${amount(cross.cashNet)} · Bco ${amount(cross.bankNet)}`);
 
   add('FIRMAS', 'Entrega cajero', '____________________');
   add('FIRMAS', 'Recibe / revisa', '____________________');
@@ -177,7 +219,8 @@ function legacyReport(snapshot) {
       expectedCash: snapshot.systemCashExpected,
       countedCash: s.saldoFinal,
       difference: s.descuadre
-    }
+    },
+    production:snapshot.production || null
   };
 }
 
@@ -196,4 +239,14 @@ function summaryPdfSpec(tenant, report) {
   };
 }
 
-module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments, normalizedExpenses, normalizedDeliveryFees, closeCross };
+module.exports = {
+  summaryRows,
+  legacyReport,
+  summaryPdfSpec,
+  salesPayments,
+  normalizedExpenses,
+  normalizedDeliveryFees,
+  productionBreakdown,
+  ownCloseReport,
+  closeCross
+};
