@@ -779,6 +779,12 @@ async function closeTable(tenantId, user, tableId, input) {
         if (!cashShift) throw new AppError(409, 'Abra el turno de caja antes de cerrar mesas en efectivo', 'RESTAURANT_CASH_SHIFT_REQUIRED');
       }
     }
+    if (!cashShift && input.cashShiftId) {
+      cashShift = await tx.aperturaCierreCaja.findFirst({
+        where: { id: input.cashShiftId, tenantId, userId: user.id, estado: 'ABIERTA' }
+      });
+      if (!cashShift) throw new AppError(409, 'El turno de Caja ya no está disponible para registrar el cobro', 'RESTAURANT_CASH_SHIFT_REQUIRED');
+    }
 
     const tipAmount = money(input.tipAmount || 0);
     if (tipAmount.lt(0)) throw new AppError(400, 'La propina no puede ser negativa', 'RESTAURANT_TIP_INVALID');
