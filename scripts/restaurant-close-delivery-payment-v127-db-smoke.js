@@ -10,6 +10,8 @@ const deliveryFees = require('../src/modules/restaurant/restaurant-close-deliver
 const treasury = require('../src/modules/treasury/treasury.service');
 const cashV2 = require('../src/modules/restaurant/restaurant-v2-cash.service');
 
+let cleanupShift = null;
+
 async function main() {
   const demo = await ensureRestaurantDemoTenant();
   const cashier = await prisma.user.findUnique({ where:{ id:demo.users.CAJERO } });
@@ -28,6 +30,7 @@ async function main() {
     cajaBancoId:cashAccount.id,
     saldoInicial:0
   });
+  cleanupShift = { tenantId:demo.tenantId, userId:cashier.id, shiftId:opened.shift.id };
 
   const menu = (await restaurant.listMenu(demo.tenantId)).filter((row) => !row.warning && row.product);
   assert.ok(menu.length, 'demo debe tener carta operativa');
@@ -85,7 +88,30 @@ async function main() {
   }));
 }
 
+async function cleanup() {
+  if (!cleanupShift) return;
+  const current = await prisma.aperturaCierreCaja.findFirst({
+    where:{ id:cleanupShift.shiftId, tenantId:cleanupShift.tenantId, estado:'ABIERTA' }
+  });
+  if (!current) return;
+  await treasury.closeCashSession(
+    cleanupShift.tenantId,
+    cleanupShift.userId,
+    cleanupShift.shiftId,
+    { saldoFinal:0 }
+  );
+}
+
 main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
-}).finally(() => prisma.$disconnect());
+}).finally(async () => {
+  try {
+    await cleanup();
+  } catch (error) {
+    console.error('V127 smoke cleanup failed', error);
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+  }
+});
