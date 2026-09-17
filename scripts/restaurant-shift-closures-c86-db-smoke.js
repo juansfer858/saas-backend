@@ -8,6 +8,7 @@ const base = require('../src/modules/restaurant/restaurant.service');
 const identity = require('../src/modules/restaurant/restaurant-identity.service');
 const treasury = require('../src/modules/treasury/treasury.service');
 const cashV2 = require('../src/modules/restaurant/restaurant-v2-cash.service');
+const expenseService = require('../src/modules/restaurant/restaurant-expenses-v116.service');
 const closures = require('../src/modules/restaurant/restaurant-shift-close-history-c86.runtime');
 const { V2_OPTIONS } = require('../src/modules/restaurant/restaurant-v2-orders.routes');
 
@@ -79,6 +80,13 @@ async function main() {
     reference: 'C86-DB-CASH'
   });
   assert.equal(charge.charged, true);
+
+  const expense = await expenseService.createExpense(demo.tenantId, cashier.id, {
+    concepto:'Insumo cierre C86', monto:2000, medio:'EFECTIVO'
+  });
+  assert.equal(expense.shiftId, openedShift.shift.id);
+  assert.equal(Number(expense.expense.valor), 2000);
+
   const pendingTable = await prisma.restaurantTable.create({ data:{tenantId:demo.tenantId, zoneId:zone.id,
     code:`PEND-${suffix}`, name:'Pendiente informe completo', assignedWaiterId:waiter.id} });
   const pendingSession = await base.openTable(demo.tenantId, waiter, pendingTable.id, {guestCount:1}, V2_OPTIONS);
@@ -106,6 +114,9 @@ async function main() {
   assert.equal(Number(snapshot.cash.difference), 0);
   assert.equal(snapshot.status, 'CUADRADO');
   assert.equal(snapshot.operations.length, 1);
+  assert.equal(Number(snapshot.shift.expenseSummary?.cash), 2000);
+  assert.equal(Number(snapshot.shift.expenseSummary?.total), 2000);
+  assert.equal(Number(snapshot.shift.expenseSummary?.count), 1);
   assert.equal(snapshot.complete.version, 1);
   assert.ok(!snapshot.complete.pending.some(p => p.id === pendingSession.session.id));
   assert.equal((await prisma.restaurantTableSession.findUnique({where:{id:pendingSession.session.id}})).state,'CANCELADA');
@@ -150,6 +161,8 @@ async function main() {
   const day = await closures.getDay(demo.tenantId, cashier.id, snapshot.businessDate, { tzOffsetMinutes: 300 });
   assert.equal(day.shifts.some((row) => row.shiftId === openedShift.shift.id), true);
   assert.equal(Number(day.totals.billedValue) >= Number(snapshot.totals.billedValue), true);
+  assert.equal(Number(day.expenses?.total) >= 2000, true, 'consolidado diario debe sumar gastos reales de sus turnos');
+  assert.equal(Number(day.expenses?.cash) >= 2000, true);
 
   const excel = await closures.exportClosure(demo.tenantId, cashier.id, openedShift.shift.id, 'excel', { tzOffsetMinutes: 300 });
   const pdf = await closures.exportClosure(demo.tenantId, cashier.id, openedShift.shift.id, 'pdf', { tzOffsetMinutes: 300 });
@@ -162,7 +175,9 @@ async function main() {
   const receiptService = require('../src/modules/restaurant/restaurant-pos-receipt-print.service');
   const printSnapshot = receiptService.cashCloseSnapshotFromIntent(printIntent);
   assert.ok(printSnapshot.summaryRows.some(r=>r.label==='Valor total'));
-  assert.ok(printSnapshot.summaryRows.every(r=>['TURNO','VENTAS','FIRMAS'].includes(r.section)));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='GASTOS' && r.label.startsWith('Total gastos')));
+  assert.ok(printSnapshot.summaryRows.some(r=>r.section==='CRUCE FINAL' && r.label==='Ventas - gastos'));
+  assert.ok(printSnapshot.summaryRows.every(r=>['TURNO','VENTAS','GASTOS','CRUCE FINAL','FIRMAS'].includes(r.section)));
   assert.equal(printSnapshot.detailRows,undefined);
   assert.ok(snapshot.detailRows.some(r=>r[0]==='PEDIDO'),'el historial conserva los pedidos cancelados');
   const printLines = receiptService.cashCloseReceiptLines({company:{nombreEmpresa:'CI'},snapshot:printSnapshot});
@@ -182,6 +197,9 @@ async function main() {
     postgresReal: true,
     immutableSnapshot: true,
     operationalReconciliation: true,
+    expenseCross:true,
+    dayExpenses:true,
+    cashExpenseNotDoubleCounted:true,
     kitchenDelivered: true,
     auditPersistent: true,
     excel: true,
@@ -195,5 +213,3 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 }).finally(() => prisma.$disconnect());
-
-

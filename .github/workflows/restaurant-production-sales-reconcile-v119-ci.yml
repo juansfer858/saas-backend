@@ -1,0 +1,103 @@
+name: Restaurant Close Reconcile V119 V120 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-shift-reconcile-scope.service.js'
+      - 'src/modules/restaurant/restaurant-shift-production-sales-reconcile-v119.service.js'
+      - 'src/modules/restaurant/restaurant-shift-sales-payments-reconcile-v120.service.js'
+      - 'src/modules/restaurant/restaurant-shift-close-v111.service.js'
+      - 'scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js'
+      - 'scripts/restaurant-shift-production-sales-reconcile-v119-db-smoke.js'
+      - 'scripts/restaurant-shift-sales-payments-reconcile-v120-smoke.js'
+      - 'scripts/restaurant-shift-sales-payments-reconcile-v120-db-smoke.js'
+      - '.github/workflows/restaurant-production-sales-reconcile-v119-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+  JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  TENANT_BASE_DOMAIN: vantixgc.com
+
+jobs:
+  reconcile-v119-v120:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Generate Prisma client
+        run: npm run build
+      - name: Prepare PostgreSQL schema
+        run: npx prisma db push
+      - name: Syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-shift-reconcile-scope.service.js
+          node --check src/modules/restaurant/restaurant-shift-production-sales-reconcile-v119.service.js
+          node --check src/modules/restaurant/restaurant-shift-sales-payments-reconcile-v120.service.js
+          node --check src/modules/restaurant/restaurant-shift-close-v111.service.js
+          node --check scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js
+          node --check scripts/restaurant-shift-production-sales-reconcile-v119-db-smoke.js
+          node --check scripts/restaurant-shift-sales-payments-reconcile-v120-smoke.js
+          node --check scripts/restaurant-shift-sales-payments-reconcile-v120-db-smoke.js
+      - name: Pure Produccion vs Ventas cases
+        run: node scripts/restaurant-shift-production-sales-reconcile-v119-smoke.js
+      - name: Pure Ventas vs Pagos cases
+        run: node scripts/restaurant-shift-sales-payments-reconcile-v120-smoke.js
+      - name: PostgreSQL Produccion vs Ventas gate
+        run: node scripts/restaurant-shift-production-sales-reconcile-v119-db-smoke.js
+      - name: PostgreSQL Ventas vs Pagos gate
+        run: node scripts/restaurant-shift-sales-payments-reconcile-v120-db-smoke.js
+
+  regression:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        script:
+          - scripts/restaurant-shift-close-v111-db-smoke.js
+          - scripts/restaurant-v2-cash-p4-db-smoke.js
+          - scripts/restaurant-v2-split-p5-db-smoke.js
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - '5432:5432'
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Regression
+        run: node ${{ matrix.script }}

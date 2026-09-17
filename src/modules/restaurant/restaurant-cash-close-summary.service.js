@@ -1,6 +1,6 @@
 'use strict';
 
-// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V116
+// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V121
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -65,12 +65,39 @@ function salesPayments(report) {
   return values;
 }
 
+function normalizedExpenses(report) {
+  const source = report.shift?.expenseSummary || report.expenses || {};
+  return {
+    cash:number(source.cash),
+    transfer:number(source.transfer),
+    total:number(source.total),
+    count:Math.max(0, Math.trunc(number(source.count)))
+  };
+}
+
+function closeCross(report) {
+  const payments = salesPayments(report);
+  const expenses = normalizedExpenses(report);
+  const paymentTotal = Object.values(payments).reduce((sum, value) => sum + value, 0);
+  const sales = number(report.totals?.billedValue ?? paymentTotal);
+  const bankReceipts = payments.transfer + payments.card + payments.other;
+  return {
+    sales,
+    expenses,
+    salesMinusExpenses:sales - expenses.total,
+    cashNet:payments.cash - expenses.cash,
+    bankNet:bankReceipts - expenses.transfer,
+    payments
+  };
+}
+
 function summaryRows(report) {
   const rows = [];
   const add = (section, label, value) => rows.push({ section, label, value: String(value) });
   const shift = report.shift || {};
-  const totals = report.totals || {};
-  const payments = salesPayments(report);
+  const cross = closeCross(report);
+  const payments = cross.payments;
+  const expenses = cross.expenses;
   const day = report.kind === 'DAY';
 
   add('TURNO', day ? 'Día operativo' : 'Turno', day ? report.businessDate : short(shift.id, 12).toUpperCase());
@@ -90,17 +117,13 @@ function summaryRows(report) {
   if (payments.card !== 0) add('VENTAS', 'Tarjetas', amount(payments.card));
   add('VENTAS', 'Crédito', amount(payments.credit));
   if (payments.other !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
+  add('VENTAS', 'Valor total', amount(cross.sales));
 
-  const paymentTotal = Object.values(payments).reduce((sum, value) => sum + value, 0);
-  const totalValue = totals.billedValue ?? paymentTotal;
-  add('VENTAS', 'Valor total', amount(totalValue));
-
-  const expenses = shift.expenseSummary || report.expenses || null;
-  if (expenses && number(expenses.total) > 0) {
-    add('GASTOS', 'Efectivo', amount(expenses.cash));
-    add('GASTOS', 'Transferencia', amount(expenses.transfer));
-    add('GASTOS', 'Total gastos', amount(expenses.total));
-  }
+  // Expenses are already posted through Treasury. Keep the thermal summary bounded:
+  // detail stays in Gastos/Historial; the close prints only the values needed to cross.
+  add('GASTOS', 'Efectivo / Banco', `${amount(expenses.cash)} / ${amount(expenses.transfer)}`);
+  add('GASTOS', `Total gastos (${expenses.count})`, amount(expenses.total));
+  add('CRUCE FINAL', 'Ventas - gastos', `${amount(cross.salesMinusExpenses)} · Efe ${amount(cross.cashNet)} · Bco ${amount(cross.bankNet)}`);
 
   add('FIRMAS', 'Entrega cajero', '____________________');
   add('FIRMAS', 'Recibe / revisa', '____________________');
@@ -150,4 +173,4 @@ function summaryPdfSpec(tenant, report) {
   };
 }
 
-module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments };
+module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments, normalizedExpenses, closeCross };
