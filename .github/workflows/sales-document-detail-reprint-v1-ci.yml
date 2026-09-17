@@ -1,0 +1,55 @@
+name: Sales Document Detail Reprint V1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'scripts/sales-document-detail-reprint-v1-smoke.js'
+      - '.github/workflows/sales-document-detail-reprint-v1-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'scripts/sales-document-detail-reprint-v1-smoke.js'
+      - '.github/workflows/sales-document-detail-reprint-v1-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate sales document detail and safe reprint
+        run: node scripts/sales-document-detail-reprint-v1-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit and sales document view in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          INFO='https://core.vantixgc.com/api/public/runtime-info'
+          SALES='https://core.vantixgc.com/app/ventas'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
+              if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
+                page=$(curl -fsSL --max-time 12 "$SALES?v=${GITHUB_SHA}" 2>/dev/null || true)
+                if echo "$page" | grep -Fq 'VANTIX_SALES_DOCUMENT_DETAIL_REPRINT_V1' \
+                  && echo "$page" | grep -Fq 'Detalle del documento' \
+                  && echo "$page" | grep -Fq 'COPIA / REIMPRESIÓN'; then
+                  echo SALES_DOCUMENT_DETAIL_REPRINT_V1_PRODUCTION_OK
+                  exit 0
+                fi
+              fi
+            fi
+            sleep 10
+          done
+          exit 1
