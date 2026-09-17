@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-v2-cash.*'
+      - 'src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js'
+      - 'src/modules/restaurant/restaurant-customer-display-name.service.js'
       - 'src/modules/restaurant/restaurant-payment-methods.service.js'
       - 'src/modules/restaurant/restaurant-credit-payment.service.js'
       - 'src/modules/restaurant/restaurant-credit-customer.service.js'
@@ -17,6 +19,8 @@ on:
     branches: [main]
     paths:
       - 'src/modules/restaurant/restaurant-v2-cash.*'
+      - 'src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js'
+      - 'src/modules/restaurant/restaurant-customer-display-name.service.js'
       - 'src/modules/restaurant/restaurant-payment-methods.service.js'
       - 'src/modules/restaurant/restaurant-credit-payment.service.js'
       - 'src/modules/restaurant/restaurant-credit-customer.service.js'
@@ -55,6 +59,8 @@ jobs:
       - run: node --check src/modules/restaurant/restaurant-v2-cash.service.js
       - run: node --check src/modules/restaurant/restaurant-v2-cash.routes.js
       - run: node --check src/modules/restaurant/restaurant-v2-cash.public.routes.js
+      - run: node --check src/modules/restaurant/restaurant-sale-customer-reissue-v128.service.js
+      - run: node --check src/modules/restaurant/restaurant-customer-display-name.service.js
       - run: node --check src/web/restaurant-v2-cash.js
   verify-production:
     if: github.event_name == 'push'
@@ -78,7 +84,7 @@ jobs:
               grep -Fq 'VANTIX_RESTAURANT_V2_CASH_P4' "$J"
               grep -Fq '/v2/caja/mesas/' "$J"
               if grep -Eq 'MutationObserver|setInterval' "$J"; then exit 1; fi
-              echo "Caja V2 P4 live at $GITHUB_SHA"
+              echo "Caja V2 P4 + Customer Reissue V128 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
