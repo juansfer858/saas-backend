@@ -2,7 +2,7 @@
 (()=>{'use strict';
 const MARKER='VANTIX_RESTAURANT_V2_CASH_PRINT_CHOICE_V19';
 if(window[MARKER])return;
-window[MARKER]=Object.freeze({version:'19.1.0',postSettlement:true,yesNo:true,defaultNoPrint:true,paymentFirst:true,visibleChargeErrors:true});
+window[MARKER]=Object.freeze({version:'19.2.0',postSettlement:true,yesNo:true,defaultNoPrint:true,paymentFirst:true,visibleChargeErrors:true,postSaleCustomerNameEdit:true});
 if(location.pathname!=='/app/restaurante-v2/caja')return;
 const RV2=window.RestaurantV2;if(!RV2)return;
 
@@ -18,6 +18,10 @@ function ensureStyle(){
     .v19-print-choice{margin:16px 0 4px;padding:15px;border:1px solid #dbe3eb;border-radius:14px;background:#f8fafc;text-align:left}
     .v19-print-choice>small{display:block;color:#64748b;font-size:10px;font-weight:850;letter-spacing:.05em;text-transform:uppercase}
     .v19-print-choice>strong{display:block;margin-top:5px;color:#111827;font-size:18px}.v19-print-choice>p{margin:5px 0 0;color:#64748b;font-size:12px}
+    .v19-name-editor{margin-top:13px;padding:12px;border:1px solid #dbe3eb;border-radius:12px;background:#fff}
+    .v19-name-editor label{display:block;color:#334155;font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.04em}
+    .v19-name-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:7px}.v19-name-row .rv2-input{min-width:0}
+    .v19-name-status{margin:7px 0 0!important;color:#475569!important;font-size:11px!important}.v19-name-status.error{color:#b42318!important}
     .v19-print-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:13px}.v19-print-actions .rv2-btn{min-height:45px}
     .v19-print-status{margin-top:10px!important;color:#334155!important;font-weight:750}.v19-print-status.error{color:#b42318!important}
     .v19-charge-error{max-width:min(520px,calc(100vw - 30px));border:0;border-radius:16px;padding:0;box-shadow:0 22px 70px rgba(15,23,42,.28)}
@@ -26,9 +30,14 @@ function ensureStyle(){
     .v19-charge-error-card small{font-size:10px;font-weight:850;letter-spacing:.06em;color:#b42318;text-transform:uppercase}
     .v19-charge-error-card strong{font-size:20px}.v19-charge-error-card p{margin:0;color:#475569;line-height:1.45}
     .v19-charge-error-card code{font-size:11px;color:#64748b;white-space:normal;word-break:break-word}
-    @media(max-width:520px){.v19-print-actions{grid-template-columns:1fr}}
+    @media(max-width:520px){.v19-print-actions,.v19-name-row{grid-template-columns:1fr}}
   `;
   document.head.appendChild(style);
+}
+
+function normalizeCustomerName(value){
+  const clean=String(value??'').replace(/\s+/g,' ').trim().slice(0,160);
+  return clean||'Cliente genérico';
 }
 
 function cleanResultText(){
@@ -69,12 +78,47 @@ function finishWithoutPrint(){
   $('#resultDialog')?.close();
 }
 
+async function saveCustomerName({silent=false}={}){
+  if(!pending?.saleId)return true;
+  const root=$('#v19PrintChoice');
+  const input=$('[data-v19-customer-name]',root);
+  const save=$('[data-v19-name-save]',root);
+  const status=$('[data-v19-name-status]',root);
+  if(!input)return true;
+  const next=normalizeCustomerName(input.value);
+  input.value=next;
+  if(next===normalizeCustomerName(pending.customerName)){
+    if(!silent&&status){status.textContent='El nombre ya está actualizado.';status.classList.remove('error')}
+    return true;
+  }
+  if(pending.nameBusy)return false;
+  pending.nameBusy=true;
+  if(save)save.disabled=true;
+  if(status){status.textContent='Guardando nombre…';status.classList.remove('error')}
+  try{
+    const data=await RV2.api(`/api/v1/restaurante/v2/caja/ventas/${encodeURIComponent(pending.saleId)}/nombre-cliente`,{method:'PATCH',body:JSON.stringify({customerName:next})});
+    pending.customerName=normalizeCustomerName(data?.customerName||next);
+    input.value=pending.customerName;
+    if(status)status.textContent='Nombre actualizado. La impresión usará este nombre.';
+    return true;
+  }catch(error){
+    if(status){status.textContent=error.message||'No fue posible cambiar el nombre.';status.classList.add('error')}
+    return false;
+  }finally{
+    pending.nameBusy=false;
+    if(save)save.disabled=false;
+  }
+}
+
 async function requestPrint(){
   if(!pending?.sessionId||pending.busy)return;
+  const nameSaved=await saveCustomerName({silent:true});
+  if(!nameSaved)return;
   pending.busy=true;
   const root=$('#v19PrintChoice');
   const yes=$('[data-v19-print-yes]',root);const no=$('[data-v19-print-no]',root);const status=$('[data-v19-print-status]',root);
-  if(yes)yes.disabled=true;if(no)no.disabled=true;
+  const nameInput=$('[data-v19-customer-name]',root);const nameSave=$('[data-v19-name-save]',root);
+  if(yes)yes.disabled=true;if(no)no.disabled=true;if(nameInput)nameInput.disabled=true;if(nameSave)nameSave.disabled=true;
   if(status){status.textContent='Enviando recibo a impresión…';status.classList.remove('error')}
   try{
     const data=await RV2.api('/api/v1/restaurante/v2/caja/recibo/imprimir',{method:'POST',body:JSON.stringify({sessionId:pending.sessionId})});
@@ -88,6 +132,7 @@ async function requestPrint(){
     if(status){status.textContent=`La venta está liquidada, pero no se pudo enviar el recibo: ${error.message||'error de impresión'}.`;status.classList.add('error')}
     if(yes){yes.disabled=false;yes.textContent='REINTENTAR IMPRESIÓN'}
     if(no){no.disabled=false;no.textContent='NO IMPRIMIR'}
+    if(nameInput)nameInput.disabled=false;if(nameSave)nameSave.disabled=false;
   }
 }
 
@@ -103,8 +148,12 @@ function renderChoice(){
     const root=document.createElement('section');
     root.id='v19PrintChoice';
     root.className='v19-print-choice';
-    root.innerHTML='<small>VENTA LIQUIDADA</small><strong>¿Imprimir recibo?</strong><p>La venta ya quedó registrada. Esta decisión sólo controla la tirilla POS.</p><div class="v19-print-actions"><button type="button" class="rv2-btn rv2-btn-primary" data-v19-print-yes>SÍ, IMPRIMIR</button><button type="button" class="rv2-btn" data-v19-print-no>NO</button></div><p class="v19-print-status" data-v19-print-status></p>';
+    root.innerHTML='<small>VENTA LIQUIDADA</small><strong>Factura / recibo creado</strong><p>Antes de imprimir puedes corregir únicamente el nombre. No cambia productos, total, pago, Caja ni Contabilidad.</p><div class="v19-name-editor" data-v19-name-editor><label>Nombre que saldrá en el recibo</label><div class="v19-name-row"><input type="text" maxlength="160" class="rv2-input" data-v19-customer-name><button type="button" class="rv2-btn" data-v19-name-save>GUARDAR NOMBRE</button></div><p class="v19-name-status" data-v19-name-status></p></div><div class="v19-print-actions"><button type="button" class="rv2-btn rv2-btn-primary" data-v19-print-yes>SÍ, IMPRIMIR</button><button type="button" class="rv2-btn" data-v19-print-no>NO</button></div><p class="v19-print-status" data-v19-print-status></p>';
     close?.insertAdjacentElement('beforebegin',root);
+    const nameInput=$('[data-v19-customer-name]',root);
+    if(nameInput)nameInput.value=normalizeCustomerName(pending.customerName);
+    if(!pending.saleId){const editor=$('[data-v19-name-editor]',root);if(editor)editor.hidden=true}
+    $('[data-v19-name-save]',root).onclick=()=>saveCustomerName();
     $('[data-v19-print-yes]',root).onclick=requestPrint;
     $('[data-v19-print-no]',root).onclick=finishWithoutPrint;
   }finally{rendering=false}
@@ -121,8 +170,9 @@ window.fetch=async function(input,init={}){
       if(response.ok){
         const data=body?.data;
         const sessionId=data?.result?.session?.id;
+        const saleId=data?.result?.sale?.id||data?.result?.saleId||null;
         if(data?.charged&&data?.receiptDecisionRequired&&sessionId){
-          pending={sessionId:String(sessionId),saleNumber:data?.result?.sale?.numero||null,busy:false,printed:false};
+          pending={sessionId:String(sessionId),saleId:saleId?String(saleId):null,saleNumber:data?.result?.sale?.numero||null,customerName:normalizeCustomerName(data?.customerName),busy:false,nameBusy:false,printed:false};
           setTimeout(renderChoice,0);
         }
       }else{
