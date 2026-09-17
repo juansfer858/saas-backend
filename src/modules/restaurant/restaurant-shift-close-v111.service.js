@@ -3,6 +3,7 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { money } = require('../../utils/decimal');
+const productionSalesReconcile = require('./restaurant-shift-production-sales-reconcile-v119.service');
 
 const MARKER = 'VANTIX_RESTAURANT_SHIFT_CLOSE_ALL_TABLES_V111';
 const ACTIVE = ['ABIERTA', 'CUENTA_PEDIDA'];
@@ -50,6 +51,20 @@ async function inspect(tx, tenantId) {
   return { blockers, plans };
 }
 
+function reconciliationSummary(result) {
+  return {
+    marker:result.marker,
+    productionTotal:result.productionTotal,
+    nonProductionCharges:result.nonProductionCharges,
+    operationalTotal:result.operationalTotal,
+    saleTotal:result.saleTotal,
+    difference:result.difference,
+    balanced:result.balanced,
+    checkedOperations:result.checkedOperations,
+    failedOperations:result.failedOperations
+  };
+}
+
 async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, client = prisma) {
   return client.$transaction(async tx => {
     await lockOperation(tx,tenantId,true);
@@ -61,6 +76,23 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
       throw new AppError(409,`No se puede cerrar el turno. Resuelve los pendientes:\n${detail}${blockers.length>12?'\nHay más pendientes; revisa Mesas y Producción.':''}`,
         'RESTAURANT_SHIFT_CLOSE_PENDING',{blockers,total:blockers.length});
     }
+
+    const productionSalesReconciliation = await productionSalesReconcile.reconcileShiftProductionSales(tx,tenantId,shift);
+    if (!productionSalesReconciliation.balanced) {
+      const detail = productionSalesReconciliation.failures.slice(0,8).map((entry) =>
+        `${entry.reference}: Producción ${entry.productionTotal} + cargos ${entry.nonProductionCharges} / Venta ${entry.saleTotal} / diferencia ${entry.difference}`
+      ).join('\n');
+      throw new AppError(
+        409,
+        `No se puede cerrar el turno. Producción y Ventas no coinciden:\n${detail}${productionSalesReconciliation.failedOperations>8?'\nHay más diferencias; revisa el informe de cierre.':''}`,
+        'RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH',
+        {
+          reconciliation:reconciliationSummary(productionSalesReconciliation),
+          failures:productionSalesReconciliation.failures.slice(0,20)
+        }
+      );
+    }
+
     const now = new Date();
     let cancelledDrafts = 0;
     for (const {session,sale,drafts} of plans) {
@@ -82,10 +114,11 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
     // Repair occupied/reserved table flags with no active visit. No rows are deleted.
     await tx.restaurantTable.updateMany({where:{tenantId,state:{not:'LIBRE'},sessions:{none:{state:{in:ACTIVE}}}},data:{state:'LIBRE'}});
     const result = await finish(tx);
+    const productionSalesSummary = reconciliationSummary(productionSalesReconciliation);
     await tx.auditoriaContable.create({data:{tenantId,userId,entidad:'APERTURA_CIERRE_CAJA',entidadId:shiftId,
-      accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED',metadata:{marker:MARKER,reason:REASON,closedVisits:plans.length,cancelledDrafts}}});
-    return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree:true}};
+      accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED',metadata:{marker:MARKER,reason:REASON,closedVisits:plans.length,cancelledDrafts,productionSalesReconciliation:productionSalesSummary}}});
+    return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree:true,productionSalesReconciliation:productionSalesSummary}};
   },{maxWait:10000,timeout:30000});
 }
 
-module.exports = {MARKER,lockOperation,inspect,closeRestaurantShift};
+module.exports = {MARKER,lockOperation,inspect,reconciliationSummary,closeRestaurantShift};
