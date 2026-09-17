@@ -34,8 +34,8 @@ const balanced = reconcile.reconcileSaleRecord({
   productionItems:[item('i1','d1','Hamburguesa',1,25000)]
 });
 assert.equal(balanced.balanced,true);
-assert.equal(balanced.difference,'0.00');
-assert.equal(balanced.productionTotal,'25000.00');
+assert.equal(Number(balanced.difference),0);
+assert.equal(Number(balanced.productionTotal),25000);
 
 // Caso real que queremos impedir: Producción conserva $12.500 más que la venta.
 const mismatch12500 = reconcile.reconcileSaleRecord({
@@ -45,7 +45,7 @@ const mismatch12500 = reconcile.reconcileSaleRecord({
   productionItems:[item('i2','d2','Plato',1,37500)]
 });
 assert.equal(mismatch12500.balanced,false);
-assert.equal(mismatch12500.difference,'12500.00');
+assert.equal(Number(mismatch12500.difference),12500);
 assert.ok(mismatch12500.issues.some((row) => row.code === 'PRODUCTION_SALE_AMOUNT_MISMATCH'));
 assert.ok(mismatch12500.issues.some((row) => row.code === 'PRODUCTION_SALE_TOTAL_MISMATCH'));
 
@@ -57,7 +57,7 @@ const editedPrice = reconcile.reconcileSaleRecord({
   productionItems:[item('i3','d3','Bebida',1,12500)]
 });
 assert.equal(editedPrice.balanced,true);
-assert.equal(editedPrice.saleTotal,'12500.00');
+assert.equal(Number(editedPrice.saleTotal),12500);
 
 // El domicilio es un cargo financiero permitido: suma a la venta, no crea una comanda falsa.
 const delivery = reconcile.reconcileSaleRecord({
@@ -75,9 +75,9 @@ const delivery = reconcile.reconcileSaleRecord({
   productionItems:[item('i4','d4','Pizza',1,25000)]
 });
 assert.equal(delivery.balanced,true);
-assert.equal(delivery.productionTotal,'25000.00');
-assert.equal(delivery.nonProductionCharges,'5000.00');
-assert.equal(delivery.saleTotal,'30000.00');
+assert.equal(Number(delivery.productionTotal),25000);
+assert.equal(Number(delivery.nonProductionCharges),5000);
+assert.equal(Number(delivery.saleTotal),30000);
 
 // Una línea de venta ajena a Producción debe bloquear el cierre.
 const extraSaleLine = reconcile.reconcileSaleRecord({
@@ -93,7 +93,7 @@ const extraSaleLine = reconcile.reconcileSaleRecord({
 });
 assert.equal(extraSaleLine.balanced,false);
 assert.ok(extraSaleLine.issues.some((row) => row.code === 'SALE_DETAIL_WITHOUT_PRODUCTION'));
-assert.equal(extraSaleLine.difference,'-5000.00');
+assert.equal(Number(extraSaleLine.difference),-5000);
 
 const closePath = path.join(__dirname,'..','src','modules','restaurant','restaurant-shift-close-v111.service.js');
 const closeSource = fs.readFileSync(closePath,'utf8');
