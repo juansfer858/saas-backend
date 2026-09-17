@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const service = require('../src/modules/restaurant/restaurant-shift-close-history-c86.runtime');
+const deliveryFeesService = require('../src/modules/restaurant/restaurant-close-delivery-fees-v123.service');
+const closeSummary = require('../src/modules/restaurant/restaurant-cash-close-summary.service');
 
 assert.equal(service.MARKER, 'VANTIX_RESTAURANT_SHIFT_CLOSE_HISTORY_C86');
 assert.equal(service.businessDate('2026-09-12T02:30:00.000Z', 300), '2026-09-11');
@@ -43,6 +45,28 @@ assert.equal(Number(day.totals.settledValue), 75000);
 assert.equal(day.totals.accountsCharged, 3);
 assert.equal(day.status, 'CUADRADO');
 
+const deliveryFees = deliveryFeesService.summarize([
+  { deliveryFee:'3500', paymentStatus:'PAGADO', paymentMethod:'EFECTIVO' },
+  { deliveryFee:'5000', paymentStatus:'PAGADO', paymentMethod:'TRANSFERENCIA' },
+  { deliveryFee:'4500', paymentStatus:'PAGADO', paymentMethod:'TARJETA' },
+  { deliveryFee:'2500', paymentStatus:'PENDIENTE', paymentMethod:null },
+  { deliveryFee:'0', paymentStatus:'PAGADO', paymentMethod:'EFECTIVO' }
+]);
+assert.equal(deliveryFees.count, 4);
+assert.equal(Number(deliveryFees.billed), 15500);
+assert.equal(Number(deliveryFees.collected), 13000);
+assert.equal(Number(deliveryFees.cash), 3500);
+assert.equal(Number(deliveryFees.bank), 9500);
+assert.equal(Number(deliveryFees.pending), 2500);
+
+const summaryWithDelivery = { ...snapshot, deliveryFees, expenses:{ cash:'0', transfer:'0', total:'0', count:0 } };
+const deliveryRows = closeSummary.summaryRows(summaryWithDelivery).filter((row) => row.section === 'DOMICILIOS');
+assert.equal(deliveryRows.length, 2);
+assert.match(deliveryRows[0].label, /Cargo domicilio/);
+assert.match(deliveryRows[0].value, /3\.500|3,500|3500/);
+assert.equal(closeSummary.closeCross(summaryWithDelivery).sales, 75000, 'el cargo de domicilio ya está dentro de ventas y no se resta de nuevo');
+assert.equal(closeSummary.closeCross(summaryWithDelivery).salesMinusExpenses, 75000, 'sin gasto registrado no debe fabricarse una salida');
+
 const root = path.resolve(__dirname, '..');
 const cashRoutes = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-v2-cash.routes.js'), 'utf8');
 assert.match(cashRoutes, /USER_DECISION_REQUIRED/);
@@ -69,6 +93,12 @@ assert.match(historyUi, /Exportar PDF/);
 assert.match(historyUi, /Imprimir resumen POS/);
 assert.match(historyUi, /Platos cocina entregados/);
 assert.match(historyUi, /MOSTRADOR/);
+assert.match(historyUi, /Cargos de domicilio/);
+assert.match(historyUi, /ya incluido en Ventas/);
+
+const runtimeUi = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-shift-close-history-c86.runtime.js'), 'utf8');
+assert.match(runtimeUi, /deliveryFeeTotalsForDayReport/);
+assert.match(runtimeUi, /deliveryFees:await deliveryFees\.summaryForShift/);
 
 console.log('Restaurant shift closures C86 smoke: OK');
 
