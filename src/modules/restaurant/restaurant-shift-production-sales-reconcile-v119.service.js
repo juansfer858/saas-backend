@@ -1,6 +1,7 @@
 'use strict';
 
 const { decimal, money, qty } = require('../../utils/decimal');
+const { resolveShiftRestaurantOperations } = require('./restaurant-shift-reconcile-scope.service');
 
 const MARKER = 'VANTIX_RESTAURANT_SHIFT_PRODUCTION_SALES_RECONCILE_V119';
 const DELIVERY_FEE_SKU = 'REST-DELIVERY-FEE';
@@ -43,11 +44,11 @@ function reconcileSaleRecord(record = {}) {
       reference,
       saleId: record.saleId || null,
       saleNumber: null,
-      productionTotal: '0.00',
-      nonProductionCharges: '0.00',
-      saleDetailTotal: '0.00',
-      saleTotal: '0.00',
-      difference: '0.00',
+      productionTotal: '0',
+      nonProductionCharges: '0',
+      saleDetailTotal: '0',
+      saleTotal: '0',
+      difference: '0',
       balanced: false,
       issues: [issue('SALE_NOT_FOUND', 'No existe la venta asociada a la operación.')]
     };
@@ -180,11 +181,13 @@ function reconcileSaleRecord(record = {}) {
 }
 
 async function reconcileShiftProductionSales(tx, tenantId, shift) {
-  const end = shift?.cerradoEn ? new Date(shift.cerradoEn) : new Date();
-  const start = new Date(shift.abiertoEn);
-  const [sessions, paymentRows] = await Promise.all([
-    tx.restaurantTableSession.findMany({
-      where:{ tenantId, cashShiftId:shift.id },
+  const scope = await resolveShiftRestaurantOperations(tx, tenantId, shift);
+  const sessionIds = scope.sessions.map((row) => row.id);
+  const deliveryIds = scope.deliveries.map((row) => row.id);
+
+  const [sessions, deliveries] = await Promise.all([
+    sessionIds.length ? tx.restaurantTableSession.findMany({
+      where:{ tenantId, id:{ in:sessionIds } },
       include:{
         table:{ select:{ id:true, name:true } },
         orders:{
@@ -192,39 +195,17 @@ async function reconcileShiftProductionSales(tx, tenantId, shift) {
           include:{ items:true, commands:true }
         }
       },
-      orderBy:{ openedAt:'asc' }
-    }),
-    tx.pago.findMany({
-      where:{
-        tenantId,
-        userId:shift.userId,
-        creadoEn:{ gte:start, lte:end },
-        documento:{ tipo:'FACTURA_VENTA' },
-        comprobanteTesoreria:{ estado:{ not:'ANULADO' } }
-      },
-      select:{ id:true, documentoId:true }
-    })
+      orderBy:{ closedAt:'asc' }
+    }) : [],
+    deliveryIds.length ? tx.restaurantDeliveryOrder.findMany({
+      where:{ tenantId, id:{ in:deliveryIds } },
+      include:{ items:true },
+      orderBy:{ actualizadoEn:'asc' }
+    }) : []
   ]);
 
-  const paymentIds = paymentRows.map((row) => row.id);
-  const deliveries = paymentIds.length ? await tx.restaurantDeliveryOrder.findMany({
-    where:{
-      tenantId,
-      treasuryPaymentId:{ in:paymentIds },
-      paymentStatus:'PAGADO',
-      state:{ not:'CANCELADO' }
-    },
-    include:{ items:true },
-    orderBy:{ creadoEn:'asc' }
-  }) : [];
-
-  const saleIds = [...new Set([
-    ...sessions.map((session) => session.saleId),
-    ...deliveries.map((delivery) => delivery.saleId)
-  ].filter(Boolean))];
-
-  const sales = saleIds.length ? await tx.comprobanteComercial.findMany({
-    where:{ tenantId, id:{ in:saleIds }, tipo:'FACTURA_VENTA', estado:{ not:'ANULADO' } },
+  const sales = scope.saleIds.length ? await tx.comprobanteComercial.findMany({
+    where:{ tenantId, id:{ in:scope.saleIds }, tipo:'FACTURA_VENTA', estado:{ not:'ANULADO' } },
     include:{
       detalles:{
         include:{ producto:{ select:{ sku:true } } },
