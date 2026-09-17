@@ -157,7 +157,7 @@ function receiptLinesFullWidth({ company, sale, session, table, paperFormat, com
     : dateTime(rawWhen);
   if (when) lines.push(centerLine(`Fecha: ${when}`, width));
   lines.push(...customerDetailLines(sale, width));
-  if (session?.deliveryPhone && !sameText(session.deliveryPhone, sale?.tercero?.telefono)) lines.push(...labelValueLines('Teléfono entrega', session.deliveryPhone, width));
+  if (session?.deliveryPhone && !sameText(session.deliveryPhone, sale?.tercero?.telefono)) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
   if (session?.deliveryAddress && !sameText(session.deliveryAddress, sale?.tercero?.direccion)) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
   if (session?.deliveryNeighborhood) lines.push(...deliveryDetailLines('Barrio/Zona', session.deliveryNeighborhood, width));
   if (session?.deliveryReference) lines.push(...deliveryDetailLines('Referencia', session.deliveryReference, width));
