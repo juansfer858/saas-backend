@@ -1,0 +1,69 @@
+name: Restaurant Expenses Daily Sales V116 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-expenses-v116.service.js'
+      - 'src/modules/restaurant/restaurant-expenses-v116.routes.js'
+      - 'src/modules/restaurant/restaurant-expenses-v116.public.routes.js'
+      - 'src/modules/restaurant/restaurant-close-sales-reconcile-v116.js'
+      - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'scripts/restaurant-expenses-daily-sales-v116-smoke.js'
+      - '.github/workflows/restaurant-expenses-daily-sales-v116-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/restaurant/restaurant-expenses-v116.service.js'
+      - 'src/modules/restaurant/restaurant-expenses-v116.routes.js'
+      - 'src/modules/restaurant/restaurant-expenses-v116.public.routes.js'
+      - 'src/modules/restaurant/restaurant-close-sales-reconcile-v116.js'
+      - 'src/modules/restaurant/restaurant-cash-close-summary.service.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/routes/core.routes.js'
+      - 'scripts/restaurant-expenses-daily-sales-v116-smoke.js'
+      - '.github/workflows/restaurant-expenses-daily-sales-v116-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Validate expenses, close reconciliation and daily sales report
+        run: node scripts/restaurant-expenses-daily-sales-v116-smoke.js
+
+  verify-production:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact commit and Restaurant V116 runtime in production
+        shell: bash
+        run: |
+          set -euo pipefail
+          INFO='https://core.vantixgc.com/api/public/runtime-info'
+          UI='https://core.vantixgc.com/app/restaurant-ui.js'
+          for attempt in $(seq 1 60); do
+            if body=$(curl -fsSL --max-time 12 "$INFO" 2>/dev/null); then
+              if echo "$body" | grep -Fq "\"commit\":\"${GITHUB_SHA}\""; then
+                page=$(curl -fsSL --max-time 12 "$UI?v=${GITHUB_SHA}" 2>/dev/null || true)
+                if echo "$page" | grep -Fq 'VANTIX_RESTAURANT_EXPENSES_DAILY_SALES_V116' \
+                  && echo "$page" | grep -Fq 'Descargar ventas del día' \
+                  && echo "$page" | grep -Fq 'Registrar gasto'; then
+                  echo RESTAURANT_EXPENSES_DAILY_SALES_V116_PRODUCTION_OK
+                  exit 0
+                fi
+              fi
+            fi
+            sleep 10
+          done
+          exit 1

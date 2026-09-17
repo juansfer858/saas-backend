@@ -59,6 +59,7 @@ const { installPrintTemplateEditorRuntime } = require('./restaurant-print-templa
 const { installRestaurantPosPrintChoiceV75 } = require('./restaurant-pos-print-choice-v75.public.routes');
 const { installPosReceiptImmediateRuntime } = require('./restaurant-pos-receipt-immediate.public.routes');
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
+const { installRestaurantExpensesV116 } = require('./restaurant-expenses-v116.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
 const router = express.Router();
@@ -138,6 +139,7 @@ router.use(installRestaurantTableEnableV55);
 router.use(installPrintTemplateEditorRuntime);
 router.use(installRestaurantPosPrintChoiceV75);
 router.use(installPosReceiptImmediateRuntime);
+router.use(installRestaurantExpensesV116);
 router.use(restaurantTenantRealtimePublicRouter);
 router.use(restaurantElectronicPaymentPublicRouter);
 router.use(restaurantWaiterCallRefreshPublicRouter);

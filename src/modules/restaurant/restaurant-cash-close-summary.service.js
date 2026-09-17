@@ -1,6 +1,6 @@
 'use strict';
 
-// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V115
+// VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V116
 // Presentation only: reads the immutable closure, never changes accounting totals.
 function amount(value) {
   if (value == null) return 'Sin registro';
@@ -25,12 +25,52 @@ function localTime(value, offset = 300) {
     .replace('T', ' ');
 }
 
+function number(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function methodBucket(value) {
+  const method = String(value || '').trim().toUpperCase();
+  if (method.includes('EFECTIVO')) return 'cash';
+  if (method.includes('TRANSFER') || method.includes('QR')) return 'transfer';
+  if (method.includes('TARJETA')) return 'card';
+  if (method.includes('CREDITO') || method.includes('CRÉDITO')) return 'credit';
+  return 'other';
+}
+
+function salesPayments(report) {
+  const source = report.payments || {};
+  const values = {
+    cash:number(source.cash),
+    transfer:number(source.transfer),
+    card:number(source.card),
+    credit:number(source.credit),
+    other:number(source.other)
+  };
+  const rawTotal = Object.values(values).reduce((sum, value) => sum + value, 0);
+  const billed = number(report.totals?.billedValue);
+  const tips = number(report.totals?.tips);
+
+  // Historical C86 snapshots could classify sale + tip inside the same payment bucket.
+  // Only normalize when the excess over billed sales is exactly the recorded tips.
+  if (tips > 0 && billed > 0 && Math.abs((rawTotal - billed) - tips) < 0.02) {
+    for (const operation of report.operations || []) {
+      const tip = number(operation.tips);
+      if (!(tip > 0)) continue;
+      const key = methodBucket(operation.paymentMethod);
+      values[key] = Math.max(0, values[key] - tip);
+    }
+  }
+  return values;
+}
+
 function summaryRows(report) {
   const rows = [];
   const add = (section, label, value) => rows.push({ section, label, value: String(value) });
   const shift = report.shift || {};
   const totals = report.totals || {};
-  const payments = report.payments || {};
+  const payments = salesPayments(report);
   const day = report.kind === 'DAY';
 
   add('TURNO', day ? 'Día operativo' : 'Turno', day ? report.businessDate : short(shift.id, 12).toUpperCase());
@@ -47,14 +87,20 @@ function summaryRows(report) {
 
   add('VENTAS', 'Efectivo', amount(payments.cash));
   add('VENTAS', 'Transferencias / QR', amount(payments.transfer));
-  if (Number(payments.card || 0) !== 0) add('VENTAS', 'Tarjetas', amount(payments.card));
+  if (payments.card !== 0) add('VENTAS', 'Tarjetas', amount(payments.card));
   add('VENTAS', 'Crédito', amount(payments.credit));
-  if (Number(payments.other || 0) !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
+  if (payments.other !== 0) add('VENTAS', 'Otros medios', amount(payments.other));
 
-  const paymentTotal = ['cash', 'transfer', 'card', 'credit', 'other']
-    .reduce((sum, key) => sum + (Number(payments[key]) || 0), 0);
-  const totalValue = totals.settledValue ?? totals.billedValue ?? paymentTotal;
+  const paymentTotal = Object.values(payments).reduce((sum, value) => sum + value, 0);
+  const totalValue = totals.billedValue ?? paymentTotal;
   add('VENTAS', 'Valor total', amount(totalValue));
+
+  const expenses = shift.expenseSummary || report.expenses || null;
+  if (expenses && number(expenses.total) > 0) {
+    add('GASTOS', 'Efectivo', amount(expenses.cash));
+    add('GASTOS', 'Transferencia', amount(expenses.transfer));
+    add('GASTOS', 'Total gastos', amount(expenses.total));
+  }
 
   add('FIRMAS', 'Entrega cajero', '____________________');
   add('FIRMAS', 'Recibe / revisa', '____________________');
@@ -68,7 +114,8 @@ function legacyReport(snapshot) {
     shift: s,
     totals: {
       accountsCharged: snapshot.tables?.length,
-      settledValue: snapshot.restaurantClosedTablesTotal
+      settledValue: snapshot.restaurantClosedTablesTotal,
+      billedValue: snapshot.restaurantClosedTablesTotal
     },
     payments: {
       cash: p.cashSales,
@@ -103,4 +150,4 @@ function summaryPdfSpec(tenant, report) {
   };
 }
 
-module.exports = { summaryRows, legacyReport, summaryPdfSpec };
+module.exports = { summaryRows, legacyReport, summaryPdfSpec, salesPayments };
