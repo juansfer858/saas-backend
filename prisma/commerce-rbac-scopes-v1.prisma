@@ -1,0 +1,19 @@
+model RbacScopeGrant {
+  id              String   @id @default(uuid())
+  tenantId        String
+  subjectType     String
+  subjectId       String
+  permissionCode  String
+  scopeType       String
+  resourceId      String?
+  resourceKey     String   @default("*")
+  grantedByUserId String
+  reason          String?
+  active          Boolean  @default(true)
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  @@unique([tenantId, subjectType, subjectId, permissionCode, scopeType, resourceKey])
+  @@index([tenantId, subjectType, subjectId, permissionCode, active])
+  @@index([tenantId, permissionCode, scopeType, active])
+}
