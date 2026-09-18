@@ -149,6 +149,9 @@ function classifyMutation(method, pathname) {
   const module = moduleForPath(path);
   if (!module) return null;
   const subject = subjectForPath(path);
+  if (verb === 'POST' && /^\/comercial\/ventas\/[^/]+\/anular\/?$/.test(path)) {
+    return {module,subject,action:'ANULAR_VENTA',label:'Anular venta'};
+  }
   const actionVerb = verb === 'POST' ? 'CREATE' : verb === 'DELETE' ? 'DELETE' : 'UPDATE';
   return {
     module,
@@ -176,6 +179,7 @@ function entityIdFrom({ req, responseBody }) {
     || req?.params?.terceroId
     || req?.params?.ventaId
     || body?.data?.id
+    || body?.data?.documento?.id
     || body?.id
     || req?.tenantId
     || 'unknown'
@@ -192,6 +196,8 @@ async function recordMutation({ req, responseBody, statusCode, classification },
     module: classification.module,
     subject: classification.subject,
     label: classification.label,
+    ...(classification.action === 'ANULAR_VENTA'
+      ? {reason:sanitize(req.body?.motivo || null)} : {}),
     method: String(req.method || '').toUpperCase(),
     path: String(req.originalUrl || req.url || req.path || '').split('?')[0],
     statusCode: Number(statusCode || 0),

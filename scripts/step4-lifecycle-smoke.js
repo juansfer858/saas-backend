@@ -17,6 +17,7 @@ async function main() {
   const suffix = Date.now();
   const subdomain = `lifecycle-${suffix}`;
   const password = 'Lifecycle2026!';
+  const restaurantAudit = process.env.LIFECYCLE_TEST_NICHE === 'RESTAURANTE';
   const jsonHeaders = { 'Content-Type': 'application/json' };
 
   try {
@@ -25,7 +26,7 @@ async function main() {
       headers: jsonHeaders,
       body: JSON.stringify({
         nombreEmpresa: 'QA Lifecycle',
-        nicho: 'ERP',
+        nicho: restaurantAudit ? 'RESTAURANTE' : 'ERP',
         subdomain,
         pais: 'CO',
         moneda: 'COP',
@@ -151,6 +152,12 @@ async function main() {
     let cashAfter = await request('/api/v1/tesoreria/cajas-bancos', { headers: auth });
     assert.equal(Number(cashAfter.body.data.find((row) => row.id === cash.id).saldoActual), 1000);
 
+    const invalidReason = await request(`/api/v1/comercial/ventas/${draft.body.data.id}/anular`, {
+      method:'POST',headers:auth,body:JSON.stringify({motivo:'   '})
+    });
+    assert.equal(invalidReason.status,400);
+    assert.equal((await prisma.comprobanteComercial.findUnique({where:{id:draft.body.data.id}})).estado,'PAGADO_TOTAL');
+
     const cancelledPaid = await request(`/api/v1/comercial/ventas/${draft.body.data.id}/anular`, {
       method: 'POST', headers: auth,
       body: JSON.stringify({ motivo: 'Anulación integral de QA' })
@@ -159,6 +166,27 @@ async function main() {
     assert.equal(cancelledPaid.body.data.documento.estado, 'ANULADO');
     assert.equal(cancelledPaid.body.data.ajuste.tipo, 'NOTA_CREDITO');
     assert.ok(cancelledPaid.body.data.ajuste.asiento);
+    assert.equal(cancelledPaid.body.data.documento.motivoAnulacion,'Anulación integral de QA');
+    if (restaurantAudit) {
+      let auditRow;
+      for(let attempt=0;attempt<20&&!auditRow;attempt++) {
+        auditRow=await prisma.auditoriaContable.findFirst({where:{
+          tenantId:cancelledPaid.body.data.documento.tenantId,
+          entidadId:draft.body.data.id,accion:'ANULAR_VENTA'
+        }});
+        if(!auditRow)await new Promise(resolve=>setTimeout(resolve,50));
+      }
+      assert.ok(auditRow,'la anulación pagada debe llegar a Auditoría');
+      assert.ok(auditRow.userId);
+      assert.ok(auditRow.creadoEn);
+      assert.equal(auditRow.metadata.reason,'Anulación integral de QA');
+      assert.equal(auditRow.metadata.label,'Anular venta');
+      assert.equal(auditRow.metadata.recordId,draft.body.data.id);
+      const auditView=await request(`/api/v1/restaurante/auditoria/v84/${auditRow.id}`,{headers:auth});
+      assert.equal(auditView.status,200,JSON.stringify(auditView.body));
+      assert.equal(auditView.body.data.reason,'Anulación integral de QA');
+      assert.equal(auditView.body.data.label,'Anular venta');
+    }
 
     stock = await request(`/api/v1/inventario/productos/${productId}`, { headers: auth });
     assert.equal(Number(stock.body.data.stockActual), 20);
