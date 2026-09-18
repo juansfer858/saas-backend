@@ -107,50 +107,32 @@ async function main() {
   });
 
   const summaryBefore = await cash.shiftSummary(tenantId, cashier);
-  let mismatch = null;
-  try {
-    await cash.closeShift(tenantId, cashier, { saldoFinal:Number(summaryBefore.systemCashExpected) });
-  } catch (error) {
-    mismatch = error;
-  }
-  assert.ok(mismatch, 'el cierre debe bloquear la diferencia financiera');
-  assert.equal(mismatch.code,'RESTAURANT_SHIFT_CLOSE_SALES_PAYMENTS_MISMATCH');
-  assert.equal(Number(mismatch.details?.reconciliation?.difference),12500);
-  assert.equal(
-    (await prisma.aperturaCierreCaja.findUnique({ where:{ id:openedShift.shift.id } })).estado,
-    'ABIERTA',
-    'un descuadre financiero no puede cerrar el turno'
-  );
-  assert.ok(
-    (mismatch.details?.failures || []).some((entry) => entry.reference === 'Mesa transferencia V120'),
-    'debe identificar la mesa de la diferencia'
-  );
-
-  // Reparar exactamente la evidencia y comprobar ambos gates.
-  await prisma.movimientoTesoreria.update({ where:{ id:wholeMovement.id }, data:{ monto:originalMovementAmount } });
-  const summaryAfter = await cash.shiftSummary(tenantId, cashier);
-  const closed = await cash.closeShift(tenantId, cashier, { saldoFinal:Number(summaryAfter.systemCashExpected) });
+  const closed = await cash.closeShift(tenantId, cashier, {saldoFinal:Number(summaryBefore.systemCashExpected)});
   assert.equal(closed.closed.estado,'CERRADA');
+  assert.equal((await prisma.aperturaCierreCaja.findUnique({where:{id:openedShift.shift.id}})).estado,'CERRADA');
   assert.equal(closed.operationalClose.productionSalesReconciliation.balanced,true);
   assert.equal(Number(closed.operationalClose.productionSalesReconciliation.difference),0);
   assert.ok(closed.operationalClose.productionSalesReconciliation.checkedOperations >= 2,
     'V119 debe incluir la división 100% bancaria');
-  assert.equal(closed.operationalClose.salesPaymentsReconciliation.balanced,true);
-  assert.equal(Number(closed.operationalClose.salesPaymentsReconciliation.difference),0);
-  assert.ok(closed.operationalClose.salesPaymentsReconciliation.checkedOperations >= 2,
-    'V120 debe incluir cuenta completa y división bancaria');
-  assert.equal(Number(closed.operationalClose.salesPaymentsReconciliation.receivableBalance),0,
-    'las operaciones pagadas no deben dejar cartera');
+  assert.equal(closed.operationalClose.salesPaymentsReconciliation.balanced,false);
+  assert.equal(Number(closed.operationalClose.salesPaymentsReconciliation.difference),12500);
+  assert.ok(closed.operationalClose.salesPaymentsReconciliation.checkedOperations >= 2);
+  const warning = closed.operationalClose.warnings.find(row => row.reference === 'Mesa transferencia V120');
+  assert.equal(warning.type,'RESTAURANT_SHIFT_CLOSE_SALES_PAYMENTS_MISMATCH');
+  assert.equal(Number(warning.value),12500);
+  assert.equal(Number((await prisma.movimientoTesoreria.findUnique({where:{id:wholeMovement.id}})).monto),
+    Number(originalMovementAmount)+12500,'cerrar no altera Tesorería');
 
   const audit = await prisma.auditoriaContable.findFirst({
     where:{ tenantId, entidadId:openedShift.shift.id, accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED' },
     orderBy:{ creadoEn:'desc' }
   });
-  assert.equal(audit?.metadata?.productionSalesReconciliation?.balanced,true);
-  assert.equal(audit?.metadata?.salesPaymentsReconciliation?.balanced,true);
-  assert.equal(Number(audit?.metadata?.salesPaymentsReconciliation?.difference),0);
+  assert.equal(audit.metadata.productionSalesReconciliation.balanced,true);
+  assert.equal(audit.metadata.salesPaymentsReconciliation.balanced,false);
+  assert.deepEqual(audit.metadata.warnings,closed.operationalClose.warnings);
 
-  console.log('V120 DB OK: transfer $12.500 blocked, bank-only split included, repair closes at difference 0');
+  console.log('V131 DB OK: transfer $12.500 closes with audit warning, bank-only split included, treasury unchanged');
+
 }
 
 main()

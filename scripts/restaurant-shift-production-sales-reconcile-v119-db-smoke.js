@@ -70,43 +70,50 @@ async function main() {
   const corrupted = Number(originalLineTotal) + 12500;
   await prisma.restaurantOrderItem.update({ where:{ id:orderItem.id }, data:{ lineTotal:corrupted } });
 
-  const summaryBefore = await cash.shiftSummary(tenantId, cashier);
-  const closeInput = { saldoFinal:Number(summaryBefore.systemCashExpected) };
-  let mismatch = null;
-  try {
-    await cash.closeShift(tenantId, cashier, closeInput);
-  } catch (error) {
-    mismatch = error;
-  }
-  assert.ok(mismatch, 'el cierre debe rechazar el descuadre');
-  assert.equal(mismatch.code, 'RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH');
-  assert.equal(
-    (await prisma.aperturaCierreCaja.findUnique({ where:{ id:opened.shift.id } })).estado,
-    'ABIERTA',
-    'el turno debe permanecer abierto cuando Producción y Venta no coinciden'
-  );
-  assert.equal(Number(mismatch.details?.reconciliation?.difference), 12500);
-  assert.ok(
-    (mismatch.details?.failures || []).some((entry) => entry.reference === 'Mesa reconcile V119'),
-    'el error debe identificar la mesa responsable'
-  );
+  // Legacy empty visit: a closed session whose sale was annulled produces the
+  // screenshot's $0 structural finding. It must remain visible without blocking.
+  const emptyTable = await restaurant.createTable(tenantId, {
+    code:`V131-EMPTY-${suffix}`, name:'Mesa vacía V131', seats:2
+  });
+  const empty = await restaurant.openTable(tenantId, waiter, emptyTable.id, {guestCount:1}, options);
+  await prisma.comprobanteComercial.update({where:{id:empty.sale.id},data:{estado:'ANULADO'}});
+  await prisma.restaurantTableSession.update({where:{id:empty.session.id},data:{
+    state:'CERRADA',cashShiftId:opened.shift.id,closedByUserId:cashier.id,closedAt:new Date()
+  }});
 
-  await prisma.restaurantOrderItem.update({ where:{ id:orderItem.id }, data:{ lineTotal:originalLineTotal } });
-  const summaryAfterRepair = await cash.shiftSummary(tenantId, cashier);
-  const closed = await cash.closeShift(tenantId, cashier, { saldoFinal:Number(summaryAfterRepair.systemCashExpected) });
+  const summaryBefore = await cash.shiftSummary(tenantId, cashier);
+  const closed = await cash.closeShift(tenantId, cashier, {saldoFinal:Number(summaryBefore.systemCashExpected)});
   assert.equal(closed.closed.estado, 'CERRADA');
-  assert.equal(closed.operationalClose.productionSalesReconciliation.balanced, true);
-  assert.equal(Number(closed.operationalClose.productionSalesReconciliation.difference), 0);
-  assert.ok(closed.operationalClose.productionSalesReconciliation.checkedOperations >= 1);
+  assert.equal((await prisma.aperturaCierreCaja.findUnique({where:{id:opened.shift.id}})).estado,'CERRADA');
+  assert.equal(closed.operationalClose.reconciliationPolicy,'WARN_ONLY');
+  assert.equal(closed.operationalClose.productionSalesReconciliation.balanced, false);
+  assert.equal(Number(closed.operationalClose.productionSalesReconciliation.difference), 12500);
+  const warnings = closed.operationalClose.warnings;
+  const productionWarning = warnings.find(row => row.reference === 'Mesa reconcile V119');
+  assert.equal(Number(productionWarning.value),12500);
+  const emptyWarning = warnings.find(row => row.reference === 'Mesa vacía V131' &&
+    row.type === 'RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH');
+  assert.equal(Number(emptyWarning.value),0);
+  assert.ok(emptyWarning.reconciliation.issues.some(row => row.code === 'SALE_NOT_FOUND'));
+  assert.ok(emptyWarning.reason);
+  assert.equal(Number((await prisma.restaurantOrderItem.findUnique({where:{id:orderItem.id}})).lineTotal),corrupted,
+    'cerrar conserva la diferencia original; no corrige importes para aparentar cuadre');
 
   const audit = await prisma.auditoriaContable.findFirst({
     where:{ tenantId, entidadId:opened.shift.id, accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED' },
     orderBy:{ creadoEn:'desc' }
   });
-  assert.equal(audit?.metadata?.productionSalesReconciliation?.balanced, true);
-  assert.equal(Number(audit?.metadata?.productionSalesReconciliation?.difference), 0);
+  assert.equal(audit.metadata.productionSalesReconciliation.balanced,false);
+  assert.deepEqual(audit.metadata.warnings,warnings);
+  const history = require('../src/modules/restaurant/restaurant-shift-close-history-c86.service');
+  const snapshot = await history.ensureSnapshot(tenantId,cashier.id,opened.shift.id);
+  assert.equal(snapshot.status,'REVISAR');
+  assert.ok(snapshot.exceptions.some(row => row.reference === 'Mesa vacía V131' && row.reason === emptyWarning.reason));
+  const persisted = await history.ensureSnapshot(tenantId,cashier.id,opened.shift.id);
+  assert.deepEqual(persisted.exceptions,snapshot.exceptions,'las alertas permanecen al consultar el cierre guardado');
 
-  console.log('V119 DB OK: $12.500 blocked, shift preserved, repair closes at difference 0');
+  console.log('V131 DB OK: production $12.500 and structural $0 close with persisted warnings and unchanged amounts');
+
 }
 
 main()

@@ -411,6 +411,14 @@ async function buildSnapshot(tenantId, shiftId, options = {}, client = prisma) {
     }];
   }));
 
+  // Keep the exact findings recorded at close, including structural issues at $0.
+  const closeAudit = await client.auditoriaContable.findFirst({
+    where:{tenantId,entidad:'APERTURA_CIERRE_CAJA',entidadId:shiftId,accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED'},
+    orderBy:{creadoEn:'desc'}
+  });
+  const closeWarnings = closeAudit?.metadata?.warnings;
+  if (Array.isArray(closeWarnings)) exceptions.push(...closeWarnings);
+
   const cashDifference = decimal(base.shift.descuadre || 0);
   const operationDifference = decimal(totals.difference || 0);
   const status = exceptions.some((row) => row.severity === 'HIGH') || !cashDifference.eq(0) || !operationDifference.eq(0)
@@ -863,4 +871,3 @@ module.exports = {
   exportClosure,
   exportDay
 };
-

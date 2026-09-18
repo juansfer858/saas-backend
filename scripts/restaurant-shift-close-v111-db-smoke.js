@@ -32,17 +32,18 @@ async function main(){
   await kds.cancelOrder(tenantId,cashier,cancelledOrder.id,{reason:'No se preparó'});
   const pending=await visit('Consumo pendiente');
   const sent=await identity.sendWaiterDraft(tenantId,waiter,pending.session.id,options);
-  async function blocked(){
-    await assert.rejects(cash.closeShift(tenantId,cashier,{saldoFinal:5000}),e=>e.code==='RESTAURANT_SHIFT_CLOSE_PENDING');
+  async function pendingDetected(){
+    const inspected = await guard.inspect(prisma,tenantId);
+    assert.ok(inspected.blockers.some(row=>row.reference==='Consumo pendiente'));
     assert.equal((await prisma.aperturaCierreCaja.findUnique({where:{id:opened.shift.id}})).estado,'ABIERTA');
     assert.equal((await prisma.restaurantTableSession.findUnique({where:{id:draft.session.id}})).state,'ABIERTA');
     assert.equal((await prisma.comprobanteComercial.findUnique({where:{id:draft.sale.id}})).estado,'BORRADOR');
   }
-  await blocked();
+  await pendingDetected();
   const commands=await prisma.restaurantCommand.findMany({where:{tenantId,orderId:sent.id}});
   for(const state of ['EN_PREPARACION','LISTA','ENTREGADA']){
     for(const command of commands)await base.updateCommandState(tenantId,cashier,command.id,state);
-    await blocked(); // Even fully delivered consumption must be settled first.
+    await pendingDetected(); // Delivered but unpaid consumption must still be reported.
   }
   await base.requestAccount(tenantId,waiter,pending.table.id,options);
   await cash.chargeWholeAccount(tenantId,cashier,pending.table.id,{paymentMethodId:method,tipAmount:0});
@@ -95,6 +96,36 @@ async function main(){
   const fresh=await base.openTable(tenantId,waiter,draft.table.id,{guestCount:1},options);
   assert.notEqual(fresh.session.id,draft.session.id);
   assert.equal(await prisma.restaurantOrder.count({where:{tenantId,sessionId:fresh.session.id}}),0);
-  console.log('V111 OK: blockers, audit, draft disposal, all tables free, rollback, concurrent send, tenant isolation');
+  // V131: a new shift closes even with active production and an unpaid account.
+  const nextShift = await cash.openShift(tenantId,cashier,{cajaBancoId:account.id,saldoInicial:0});
+  await identity.setWaiterDraftItem(tenantId,waiter,fresh.session.id,menu.id,1,null,options);
+  const pendingOrder = await identity.sendWaiterDraft(tenantId,waiter,fresh.session.id,options);
+  const beforePending = await prisma.restaurantOrder.findUnique({where:{id:pendingOrder.id},include:{items:true,commands:true}});
+  const pendingSale = await prisma.comprobanteComercial.findUnique({where:{id:fresh.sale.id}});
+  const pendingMovements = await prisma.movimientoTesoreria.count({where:{tenantId}});
+  const warningClose = await cash.closeShift(tenantId,cashier,{saldoFinal:0});
+  assert.equal(warningClose.closed.estado,'CERRADA');
+  assert.equal(warningClose.operationalClose.allTablesFree,false);
+  assert.ok(warningClose.operationalClose.warnings.some(row=>row.type==='PRODUCCION_PENDIENTE_AL_CIERRE'));
+  assert.ok(warningClose.operationalClose.warnings.some(row=>row.type==='CUENTA_PENDIENTE_AL_CIERRE'));
+  assert.equal((await prisma.restaurantTableSession.findUnique({where:{id:fresh.session.id}})).state,'ABIERTA');
+  assert.notEqual((await prisma.restaurantTable.findUnique({where:{id:draft.table.id}})).state,'LIBRE');
+  assert.deepEqual(await prisma.restaurantOrder.findUnique({where:{id:pendingOrder.id},include:{items:true,commands:true}}),beforePending);
+  assert.deepEqual(await prisma.comprobanteComercial.findUnique({where:{id:fresh.sale.id}}),pendingSale);
+  assert.equal(await prisma.movimientoTesoreria.count({where:{tenantId}}),pendingMovements);
+  const warningAudit = await prisma.auditoriaContable.findFirst({where:{tenantId,entidadId:nextShift.shift.id,accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED'}});
+  assert.deepEqual(warningAudit.metadata.warnings,warningClose.operationalClose.warnings);
+  // Pending consumption remains usable in the following shift, without duplicate charges.
+  const thirdShift = await cash.openShift(tenantId,cashier,{cajaBancoId:account.id,saldoInicial:0});
+  assert.equal(thirdShift.shift.estado,'ABIERTA');
+  for(const state of ['EN_PREPARACION','LISTA','ENTREGADA']) {
+    for(const command of beforePending.commands) await base.updateCommandState(tenantId,cashier,command.id,state);
+  }
+  await base.requestAccount(tenantId,waiter,draft.table.id,options);
+  await cash.chargeWholeAccount(tenantId,cashier,draft.table.id,{paymentMethodId:method,tipAmount:0});
+  const paidLater = await prisma.restaurantTableSession.findUnique({where:{id:fresh.session.id}});
+  assert.equal(paidLater.state,'CERRADA');
+  assert.equal(paidLater.cashShiftId,thirdShift.shift.id);
+  console.log('V131 OK: closes with preserved pending work, collects next shift, audit, draft disposal, rollback, concurrency, tenant isolation');
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>prisma.$disconnect());

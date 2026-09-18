@@ -104,11 +104,21 @@ assert.match(closeSource,/productionSalesReconciliation/);
 assert.match(closeSource,/productionSalesSummary/);
 assert.match(closeSource,/salesPaymentsSummary/);
 
+const { reconciliationWarnings } = require('../src/modules/restaurant/restaurant-shift-close-v111.service');
+const missing = reconcile.reconcileSaleRecord({reference:'Mesa 5',sale:null});
+const findings = {balanced:false,failures:[missing],difference:'0'};
+const warnings = reconciliationWarnings(findings,{balanced:true,failures:[]});
+assert.equal(warnings.length,1);
+assert.equal(warnings[0].reference,'Mesa 5');
+assert.equal(warnings[0].value,'0');
+assert.equal(warnings[0].reconciliation.issues[0].code,'SALE_NOT_FOUND');
+assert.equal(reconciliationWarnings({balanced:true},{balanced:true}).length,0);
+
 console.log('RESTAURANT SHIFT PRODUCTION SALES RECONCILE V119 OK', JSON.stringify({
   exactMatch:true,
-  mismatch12500Blocked:true,
+  mismatch12500Detected:true,
   cashPriceEditCompatible:true,
   deliveryFeeSeparated:true,
-  orphanSaleLineBlocked:true,
-  closeGateInstalled:true
+  orphanSaleLineDetected:true,
+  closeWarningsInstalled:true
 }));
