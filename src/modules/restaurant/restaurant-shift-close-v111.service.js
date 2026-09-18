@@ -103,15 +103,15 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
     const shift = await tx.aperturaCierreCaja.findFirst({where:{tenantId,id:shiftId,userId,estado:'ABIERTA'}});
     if (!shift) throw new AppError(409,'El turno ya no está abierto. Actualiza Caja.','RESTAURANT_SHIFT_CLOSE_NOT_OPEN');
     const {blockers,plans} = await inspect(tx,tenantId);
-    if (blockers.length) {
-      const detail = blockers.slice(0,12).map(b=>`${b.reference}: ${b.reason}`).join('\n');
-      throw new AppError(409,`No se puede cerrar el turno. Resuelve los pendientes:\n${detail}${blockers.length>12?'\nHay más pendientes; revisa Mesas y Producción.':''}`,
-        'RESTAURANT_SHIFT_CLOSE_PENDING',{blockers,total:blockers.length});
-    }
 
     const productionSalesReconciliation = await productionSalesReconcile.reconcileShiftProductionSales(tx,tenantId,shift);
     const salesPaymentsReconciliation = await salesPaymentsReconcile.reconcileShiftSalesPayments(tx,tenantId,shift);
-    const warnings = reconciliationWarnings(productionSalesReconciliation,salesPaymentsReconciliation);
+    // Pending consumption stays open and collectible; closing never marks it paid,
+    // delivered or cancelled. Only the safe draft/empty plans above are discarded.
+    const warnings = [
+      ...blockers.map(row => ({...row,type:`${row.kind}_PENDIENTE_AL_CIERRE`,severity:'HIGH'})),
+      ...reconciliationWarnings(productionSalesReconciliation,salesPaymentsReconciliation)
+    ];
 
     const now = new Date();
     let cancelledDrafts = 0;
@@ -133,14 +133,15 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
     }
     // Repair occupied/reserved table flags with no active visit. No rows are deleted.
     await tx.restaurantTable.updateMany({where:{tenantId,state:{not:'LIBRE'},sessions:{none:{state:{in:ACTIVE}}}},data:{state:'LIBRE'}});
+    const allTablesFree = await tx.restaurantTable.count({where:{tenantId,state:{not:'LIBRE'}}}) === 0;
     const result = await finish(tx);
     const productionSummary = productionSalesSummary(productionSalesReconciliation);
     const paymentSummary = salesPaymentsSummary(salesPaymentsReconciliation);
     await tx.auditoriaContable.create({data:{tenantId,userId,entidad:'APERTURA_CIERRE_CAJA',entidadId:shiftId,
       accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED',metadata:{marker:MARKER,reason:REASON,closedVisits:plans.length,cancelledDrafts,
-        reconciliationPolicy:'WARN_ONLY',warnings,
+        reconciliationPolicy:'WARN_ONLY',warnings,allTablesFree,
         productionSalesReconciliation:productionSummary,salesPaymentsReconciliation:paymentSummary}}});
-    return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree:true,
+    return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree,
       reconciliationPolicy:'WARN_ONLY',warnings,
       productionSalesReconciliation:productionSummary,salesPaymentsReconciliation:paymentSummary}};
   },{maxWait:10000,timeout:30000});
