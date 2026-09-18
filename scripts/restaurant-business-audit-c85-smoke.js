@@ -22,6 +22,10 @@ assert.equal(audit.classifyMutation('PATCH', '/restaurante/carta-importacion/cat
 assert.equal(audit.classifyMutation('POST', '/restaurante/carta-importacion/confirmar')?.module, 'CARTA');
 assert.equal(audit.classifyMutation('POST', '/restaurante/carta-importacion/analizar'), null);
 assert.equal(audit.classifyMutation('POST', '/comercial/facturas')?.module, 'VENTAS');
+assert.deepEqual(audit.classifyMutation('POST', '/comercial/ventas/paid-sale/anular'), {
+  module:'VENTAS',subject:'VENTA',action:'ANULAR_VENTA',label:'Anular venta'
+});
+assert.equal(audit.entityIdFrom({req:{params:{},tenantId:'tenant'},responseBody:{data:{documento:{id:'paid-sale'}}}}),'paid-sale');
 assert.equal(audit.classifyMutation('DELETE', '/comercial/facturas/abc')?.action, 'DELETE_VENTA');
 assert.equal(audit.classifyMutation('PATCH', '/terceros/abc')?.module, 'CLIENTES');
 assert.equal(audit.classifyMutation('PATCH', '/inventario/productos/abc')?.module, 'INVENTARIO');

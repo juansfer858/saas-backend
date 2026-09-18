@@ -1,0 +1,53 @@
+name: Sales Paid Cancellation V132 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/sales.html'
+      - 'src/modules/commercial/sales.service.js'
+      - 'src/modules/commercial/commercial.service.js'
+      - 'src/modules/restaurant/restaurant-business-audit-c85.service.js'
+      - 'scripts/sales-operational-ui-smoke.js'
+      - 'scripts/step4-lifecycle-smoke.js'
+      - '.github/workflows/sales-paid-cancel-v132-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  paid-cancellation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TENANT_BASE_DOMAIN: example.com
+      TENANT_PLATFORM_SUBDOMAINS: core
+      # Isolated CI tenant fixture, matching the existing Super Core lifecycle job.
+      PUBLIC_TENANT_REGISTRATION_ENABLED: 'true'
+      LIFECYCLE_TEST_NICHE: RESTAURANTE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Paid sales button and mandatory cancellation reason
+        run: node scripts/sales-operational-ui-smoke.js
+      - name: HTTP cancellation, payment reversals and visible restaurant audit
+        run: node scripts/step4-lifecycle-smoke.js
