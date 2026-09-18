@@ -80,6 +80,23 @@ function salesPaymentsSummary(result) {
   };
 }
 
+// V131: reconciliation findings are retained for review, never a cash-close veto.
+function reconciliationWarnings(production, payments) {
+  return [
+    ['RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH', production],
+    ['RESTAURANT_SHIFT_CLOSE_SALES_PAYMENTS_MISMATCH', payments]
+  ].flatMap(([type, result]) => result.balanced ? [] : (
+    result.failures.length ? result.failures : [result]
+  ).map(entry => ({
+    type,
+    severity:'HIGH',
+    reference:entry.reference || 'Turno',
+    value:entry.difference,
+    reason:(entry.issues || []).map(issue => issue.message).join(' ') || 'Revisar conciliación del turno.',
+    reconciliation:entry
+  })));
+}
+
 async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, client = prisma) {
   return client.$transaction(async tx => {
     await lockOperation(tx,tenantId,true);
@@ -93,36 +110,8 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
     }
 
     const productionSalesReconciliation = await productionSalesReconcile.reconcileShiftProductionSales(tx,tenantId,shift);
-    if (!productionSalesReconciliation.balanced) {
-      const detail = productionSalesReconciliation.failures.slice(0,8).map((entry) =>
-        `${entry.reference}: Producción ${entry.productionTotal} + cargos ${entry.nonProductionCharges} / Venta ${entry.saleTotal} / diferencia ${entry.difference}`
-      ).join('\n');
-      throw new AppError(
-        409,
-        `No se puede cerrar el turno. Producción y Ventas no coinciden:\n${detail}${productionSalesReconciliation.failedOperations>8?'\nHay más diferencias; revisa el informe de cierre.':''}`,
-        'RESTAURANT_SHIFT_CLOSE_PRODUCTION_SALES_MISMATCH',
-        {
-          reconciliation:productionSalesSummary(productionSalesReconciliation),
-          failures:productionSalesReconciliation.failures.slice(0,20)
-        }
-      );
-    }
-
     const salesPaymentsReconciliation = await salesPaymentsReconcile.reconcileShiftSalesPayments(tx,tenantId,shift);
-    if (!salesPaymentsReconciliation.balanced) {
-      const detail = salesPaymentsReconciliation.failures.slice(0,8).map((entry) =>
-        `${entry.reference}: Venta ${entry.saleTotal} / Pagado ${entry.paidTotal} / Cartera ${entry.receivableBalance} / diferencia ${entry.difference}`
-      ).join('\n');
-      throw new AppError(
-        409,
-        `No se puede cerrar el turno. Ventas y Pagos no coinciden:\n${detail}${salesPaymentsReconciliation.failedOperations>8?'\nHay más diferencias; revisa el informe de cierre.':''}`,
-        'RESTAURANT_SHIFT_CLOSE_SALES_PAYMENTS_MISMATCH',
-        {
-          reconciliation:salesPaymentsSummary(salesPaymentsReconciliation),
-          failures:salesPaymentsReconciliation.failures.slice(0,20)
-        }
-      );
-    }
+    const warnings = reconciliationWarnings(productionSalesReconciliation,salesPaymentsReconciliation);
 
     const now = new Date();
     let cancelledDrafts = 0;
@@ -149,10 +138,12 @@ async function closeRestaurantShift(tenantId, userId, shiftId, input, finish, cl
     const paymentSummary = salesPaymentsSummary(salesPaymentsReconciliation);
     await tx.auditoriaContable.create({data:{tenantId,userId,entidad:'APERTURA_CIERRE_CAJA',entidadId:shiftId,
       accion:'RESTAURANT_SHIFT_ALL_TABLES_CLOSED',metadata:{marker:MARKER,reason:REASON,closedVisits:plans.length,cancelledDrafts,
+        reconciliationPolicy:'WARN_ONLY',warnings,
         productionSalesReconciliation:productionSummary,salesPaymentsReconciliation:paymentSummary}}});
     return {...result,operationalClose:{marker:MARKER,closedVisits:plans.length,cancelledDrafts,allTablesFree:true,
+      reconciliationPolicy:'WARN_ONLY',warnings,
       productionSalesReconciliation:productionSummary,salesPaymentsReconciliation:paymentSummary}};
   },{maxWait:10000,timeout:30000});
 }
 
-module.exports = {MARKER,lockOperation,inspect,productionSalesSummary,salesPaymentsSummary,closeRestaurantShift};
+module.exports = {MARKER,lockOperation,inspect,productionSalesSummary,salesPaymentsSummary,reconciliationWarnings,closeRestaurantShift};

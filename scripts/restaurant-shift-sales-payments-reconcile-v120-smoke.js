@@ -116,9 +116,9 @@ assert.match(closeSource,/RESTAURANT_SHIFT_CLOSE_SALES_PAYMENTS_MISMATCH/);
 
 console.log('RESTAURANT SHIFT SALES PAYMENTS RECONCILE V120 OK', JSON.stringify({
   directTransfer:true,
-  mismatch12500Blocked:true,
+  mismatch12500Detected:true,
   openCreditCoveredByReceivable:true,
   splitPayments:true,
-  treasuryReceiptMismatchBlocked:true,
+  treasuryReceiptMismatchDetected:true,
   deliveryPayment:true
 }));
