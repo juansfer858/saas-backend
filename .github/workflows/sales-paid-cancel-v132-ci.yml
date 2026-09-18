@@ -35,6 +35,8 @@ jobs:
       JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       TENANT_BASE_DOMAIN: example.com
       TENANT_PLATFORM_SUBDOMAINS: core
+      # Isolated CI tenant fixture, matching the existing Super Core lifecycle job.
+      PUBLIC_TENANT_REGISTRATION_ENABLED: 'true'
       LIFECYCLE_TEST_NICHE: RESTAURANTE
     steps:
       - uses: actions/checkout@v4
