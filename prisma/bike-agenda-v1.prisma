@@ -1,0 +1,58 @@
+model BikeScheduleRule {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String?
+  userId      String
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+  timeZone    String   @default("America/Bogota")
+  validFrom   DateTime?
+  validUntil  DateTime?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, userId, dayOfWeek, active])
+  @@index([tenantId, branchId, dayOfWeek, active])
+}
+
+model BikeScheduleBlock {
+  id          String   @id @default(uuid())
+  tenantId    String
+  branchId    String?
+  userId      String
+  startsAt    DateTime
+  endsAt      DateTime
+  reason      String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, userId, startsAt, endsAt])
+  @@index([tenantId, branchId, startsAt])
+}
+
+model BikeAppointmentEvent {
+  id            String   @id @default(uuid())
+  tenantId      String
+  appointmentId String
+  type          String
+  actorUserId   String?
+  source        String?
+  data          Json?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, appointmentId, createdAt])
+}
+
+model BikeAppointmentWorkOrderLink {
+  id            String   @id @default(uuid())
+  tenantId      String
+  appointmentId String   @unique
+  workOrderId   String   @unique
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, appointmentId])
+  @@index([tenantId, workOrderId])
+}
