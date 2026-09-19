@@ -76,6 +76,21 @@ assert.match(productCreator, /stockActual:0/);
 assert.match(productCreator, /costoPromedio:0/);
 assert.match(productCreator, /Compras o Ajuste de inventario/);
 
+const coreRuntime = fs.readFileSync('src/web/panel-integration-extras-core.js', 'utf8');
+new Function(coreRuntime);
+assert.match(coreRuntime, /openInventoryPurchase/);
+assert.match(coreRuntime, /\+ Agregar pedido/);
+assert.match(coreRuntime, /comercial\/compras\/proveedores/);
+assert.match(coreRuntime, /referenciaExterna/);
+assert.match(coreRuntime, /costoUnitario/);
+assert.match(coreRuntime, /Guardar borrador/);
+assert.match(coreRuntime, /Confirmar entrada/);
+assert.match(coreRuntime, /openInventoryProductHistory/);
+assert.match(coreRuntime, /tipo=COMPRA&limit=20/);
+assert.match(coreRuntime, /rows\.slice\(0, 3\)/);
+assert.match(coreRuntime, /Proveedor/);
+assert.match(coreRuntime, /Variación/);
+
 const commercialRoutes = fs.readFileSync('src/modules/commercial/commercial.routes.js', 'utf8');
 assert.match(commercialRoutes, /inventory-product-create-v70\.js/);
 assert.match(commercialRoutes, /X-VantixGC-Inventory-Product-Creator/);
@@ -93,5 +108,8 @@ console.log(JSON.stringify({
   inventoryAddProductButton:true,
   inventoryCreatorBaseIndependent:true,
   inventoryProductCreateEndpoint:'/api/v1/inventario/productos',
+  inventoryPurchaseFromInventory:true,
+  inventoryPurchaseDraftAndReceive:true,
+  inventoryLastThreePurchaseCosts:true,
   initialStockAccountingSafe:true
 }, null, 2));

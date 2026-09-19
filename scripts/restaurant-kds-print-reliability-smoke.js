@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const { buildCommandPrintJobs } = require('../src/modules/edge/edge-restaurant-print-bridge');
-const { enqueueSnapshotPrintJobs } = require('../edge/agent/restaurant-print-bridge');
+const { enqueueSnapshotPrintJobs, printScopeFromRelayRequests } = require('../edge/agent/restaurant-print-bridge');
 const { MARKER, patchKdsRuntime } = require('../src/modules/restaurant/restaurant-kds-reliability.public.routes');
 
 const command = {
@@ -83,6 +83,36 @@ assert.deepEqual(secondQueue, { queued:0, existing:1, received:1 });
 assert.equal(enqueued.length, 1, 'same command must never be printed twice from repeated bootstrap');
 assert.equal(events.length, 1);
 
+const oldCommandJob = { ...windowsJobs[0], id:'restaurant-command:old-command:printer:test', commandId:'old-command' };
+const currentCommandJob = { ...windowsJobs[0], id:'restaurant-command:current-command:printer:test', commandId:'current-command' };
+const receiptJob = {
+  id:'restaurant-pos:sale-1:printer:test', station:'CAJA', printer:{ transport:'WINDOWS', host:'POS-80 Caja' },
+  payload:{ receiptType:'RESTAURANT_POS_V1', lines:['FACTURA'], copies:1, cut:true }
+};
+const commandScope = printScopeFromRelayRequests([{ action:'PRINT_QUEUE', requestBody:{ reason:'RESTAURANT_WAITER_SEND_TO_KITCHEN', commandIds:['current-command'] } }]);
+assert.deepEqual(commandScope, { receiptJobs:false, commandIds:['current-command'] });
+const commandScopedStore = {
+  db:{ prepare(){ return { get(){ return undefined; } }; } },
+  queued:[],
+  enqueuePrintJob(job){ this.queued.push(job); return job.id; }
+};
+const commandScoped = enqueueSnapshotPrintJobs(commandScopedStore, { printJobs:[oldCommandJob,currentCommandJob,receiptJob] }, commandScope);
+assert.equal(commandScoped.queued, 1, 'new waiter order must enqueue only its own command');
+assert.equal(commandScoped.eligible, 1);
+assert.equal(commandScopedStore.queued[0].id, currentCommandJob.id);
+
+const receiptScope = printScopeFromRelayRequests([{ action:'PRINT_QUEUE', requestBody:{ operation:'POS_RECEIPT_SYNC' } }]);
+assert.deepEqual(receiptScope, { receiptJobs:true, commandIds:[] });
+const receiptScopedStore = {
+  db:{ prepare(){ return { get(){ return undefined; } }; } },
+  queued:[],
+  enqueuePrintJob(job){ this.queued.push(job); return job.id; }
+};
+const receiptScoped = enqueueSnapshotPrintJobs(receiptScopedStore, { printJobs:[oldCommandJob,currentCommandJob,receiptJob] }, receiptScope);
+assert.equal(receiptScoped.queued, 1, 'printing the sale receipt must not re-enqueue kitchen commands');
+assert.equal(receiptScoped.eligible, 1);
+assert.equal(receiptScopedStore.queued[0].id, receiptJob.id);
+
 const baseUi = fs.readFileSync('src/web/restaurant-ui.js', 'utf8');
 const patchedUi = patchKdsRuntime(baseUi);
 assert.equal(MARKER, 'VANTIX_RESTAURANT_KDS_RELIABILITY_V2');
@@ -126,6 +156,8 @@ console.log('RESTAURANT KDS PRINT RELIABILITY V2 SMOKE OK', JSON.stringify({
   commercialCategoryNotPrinted:true,
   kitchenNotesSeparated:true,
   idempotentBootstrapPrint:true,
+  scopedWaiterCommandPrint:true,
+  posReceiptNeverReprintsCommands:true,
   pendingNeverHidden:true,
   inlineImportantHideRescued:true,
   finiteDoubleAnimationFrameRescue:true,
