@@ -1,0 +1,27 @@
+name: Restaurant P14 Simple Production Offline UI CI
+
+on:
+  push:
+    branches:
+      - pilot/restaurant-production-simple-offline-v1
+  pull_request:
+    branches:
+      - pilot/restaurant-local-first-p14
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simple-production-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify isolated offline production UX
+        run: node scripts/restaurant-p14-production-simple-ui-smoke.js

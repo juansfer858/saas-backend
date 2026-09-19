@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D6B43">
+<title>Producción rápida · P14 offline</title>
+<link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+<style>
+:root{--green:#0d6b43;--green-soft:#e8f5ee;--ink:#17211c;--muted:#64716b;--line:#dfe5e1;--warn:#d97706;--danger:#b42318;--bg:#f4f6f5}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(10px)}
+.top-inner{max-width:1500px;margin:auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.eyebrow{font-size:10px;font-weight:950;letter-spacing:.1em;color:var(--muted)}h1{margin:2px 0 0;font-size:25px}.sub{margin:3px 0 0;color:var(--muted);font-size:12px}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:10px 13px;font:inherit;font-weight:850;cursor:pointer}.btn:hover{border-color:#b8c4be}.btn-primary{background:var(--green);border-color:var(--green);color:#fff}.btn-ghost{background:transparent}
+.main{max-width:1500px;margin:auto;padding:14px 18px 28px}.lab{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;margin-bottom:10px;border:1px solid #b9dfcc;border-radius:12px;background:#effaf4;color:#155f3f;font-size:12px;font-weight:800}
+.station-tabs{display:flex;gap:8px;overflow:auto;padding:2px 0 10px}.station{min-width:145px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:11px 13px;text-align:left;cursor:pointer}.station strong,.station small{display:block}.station small{margin-top:3px;color:var(--muted);font-size:10px}.station.active{border-color:var(--green);background:var(--green-soft)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(110px,1fr));gap:8px;margin-bottom:10px}.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px}.stat small{font-size:10px;font-weight:900;letter-spacing:.08em;color:var(--muted)}.stat strong{display:block;font-size:23px;margin-top:3px}
+.board{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:10px;align-items:start}.lane{background:#fff;border:1px solid var(--line);border-radius:15px;overflow:hidden;min-height:520px}.lane-head{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-bottom:1px solid var(--line);background:#f8faf9}.lane-head small{display:block;font-size:10px;font-weight:950;letter-spacing:.08em;color:var(--muted)}.lane-head h2{margin:2px 0 0;font-size:18px}.badge{min-width:32px;height:32px;padding:0 9px;border-radius:999px;background:#e7ece9;display:grid;place-items:center;font-size:12px;font-weight:900}
+.tickets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:9px}.ready .tickets{grid-template-columns:1fr}.ticket{border:1px solid var(--line);border-left:6px solid #94a3b8;border-radius:12px;padding:13px;background:#fff}.ticket.normal{border-left-color:var(--green)}.ticket.warn{border-left-color:var(--warn);background:linear-gradient(90deg,#fff8ed,#fff 24%)}.ticket.critical{border-left-color:var(--danger);background:linear-gradient(90deg,#fff1f0,#fff 24%)}
+.ticket.ready-card{border-left-color:var(--green);background:linear-gradient(90deg,#eefaf3,#fff 26%)}.ticket-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.ticket h3{margin:0;font-size:20px}.meta{margin-top:3px;color:var(--muted);font-size:11px;font-weight:750}.timer{font-size:12px;font-weight:950;border-radius:999px;background:#f1f5f3;padding:5px 8px;white-space:nowrap}.timer.warn{background:#fff4dd;color:#995800}.timer.critical{background:#fde7e5;color:#9f271f}.items{margin-top:9px}.item{padding:8px 0;border-bottom:1px dashed #e5e9e7;font-size:15px}.item:last-child{border-bottom:0}.qty{font-size:18px;font-weight:950;margin-right:4px}.person{display:inline-block;margin-left:6px;color:var(--muted);font-size:10px;font-weight:850}.note{display:block;margin-top:5px;padding:7px 8px;border-radius:8px;background:#fff6e8;color:#995800;font-size:12px;font-weight:850}.done{margin-top:11px;width:100%;border:0;border-radius:11px;padding:13px 14px;background:var(--green);color:#fff;font:inherit;font-size:16px;font-weight:950;cursor:pointer}.undo{margin-top:9px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;font-weight:800;cursor:pointer;text-decoration:underline}.empty{min-height:180px;display:grid;place-content:center;text-align:center;padding:20px;color:var(--muted);font-size:12px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;transition:.18s;background:#17211c;color:#fff;border-radius:999px;padding:10px 14px;font-size:12px;font-weight:850;z-index:50}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:1000px){.tickets{grid-template-columns:1fr}.lane{min-height:320px}}@media(max-width:760px){.top-inner{align-items:flex-start}.actions{justify-content:flex-end}.main{padding:10px}.stats{grid-template-columns:repeat(3,1fr)}.board{grid-template-columns:1fr}.lane{min-height:240px}.top-inner{padding:12px}.sub{display:none}}@media(max-width:520px){.top-inner{display:block}.actions{margin-top:10px;justify-content:flex-start}.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}}
+</style>
+</head>
+<body data-p14-production-simple="P14_PRODUCTION_SIMPLE_OFFLINE_V1">
+<header class="top"><div class="top-inner">
+<div><div class="eyebrow">RESTAURANTE · LABORATORIO OFFLINE P14</div><h1>Producción rápida</h1><p class="sub">Misma identidad visual · menos movimientos · sin tocar producción real</p></div>
+<div class="actions"><button class="btn btn-ghost" id="resetDemo" type="button">Reponer demo</button><button class="btn" id="fullscreen" type="button">Pantalla completa</button></div>
+</div></header>
+<main class="main">
+<section class="lab"><span>Modo prueba local: las acciones se guardan solo en este navegador.</span><span id="clock">—</span></section>
+<section class="station-tabs" id="stations"></section>
+<section class="stats"><article class="stat"><small>POR PREPARAR</small><strong id="pendingCount">0</strong></article><article class="stat"><small>LISTOS</small><strong id="readyCount">0</strong></article><article class="stat"><small>MAYOR ESPERA</small><strong id="oldest">0 min</strong></article></section>
+<section class="board">
+<article class="lane"><header class="lane-head"><div><small>01</small><h2>Por preparar</h2></div><b class="badge" id="pendingBadge">0</b></header><div class="tickets" id="pendingLane"></div></article>
+<article class="lane ready"><header class="lane-head"><div><small>02</small><h2>Listos para recoger</h2></div><b class="badge" id="readyBadge">0</b></header><div class="tickets" id="readyLane"></div></article>
+</section>
+</main>
+<div class="toast" id="toast">Listo</div>
+<script>
+(()=>{'use strict';
+const MARKER='P14_PRODUCTION_SIMPLE_OFFLINE_V1';
+const KEY='vantix_p14_production_simple_v1';
+const STATIONS=[{id:'COCINA',label:'Cocina',desc:'Platos y preparaciones'},{id:'BARRA',label:'Barra',desc:'Bebidas y bar'}];
+const seed=[
+{id:'c1',station:'COCINA',table:'Mesa 8',person:'Persona 2',age:4,items:[['2','Hamburguesa especial'],['1','Papas grandes']],note:'SIN CEBOLLA',state:'PENDING'},
+{id:'c2',station:'COCINA',table:'Mesa 3',person:'Todos',age:11,items:[['1','Churrasco'],['1','Ensalada de la casa']],note:'TÉRMINO MEDIO',state:'PENDING'},
+{id:'c3',station:'COCINA',table:'Mesa 12',person:'Persona 1',age:18,items:[['2','Sopa del día']],note:'UNA SIN CILANTRO',state:'PENDING'},
+{id:'b1',station:'BARRA',table:'Mesa 5',person:'Todos',age:3,items:[['3','Limonada natural'],['1','Cerveza sin alcohol']],note:'',state:'PENDING'},
+{id:'b2',station:'BARRA',table:'Mesa 2',person:'Persona 3',age:9,items:[['1','Jugo de mango']],note:'SIN AZÚCAR',state:'PENDING'}
+];
+const S=loadState();let station=S.station||'COCINA';
+const $=id=>document.getElementById(id);
+function loadState(){try{const raw=JSON.parse(localStorage.getItem(KEY)||'null');if(raw?.marker===MARKER&&Array.isArray(raw.jobs))return raw}catch{}return{marker:MARKER,station:'COCINA',jobs:seed.map(x=>({...x,readyAt:null}))}}
+function save(){S.station=station;localStorage.setItem(KEY,JSON.stringify(S))}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function elapsed(job){if(job.state==='READY'&&job.readyAt)return Math.max(job.age,Math.floor((job.readyAt-job.startedAt)/60000)+job.age);return job.age+Math.floor((Date.now()-job.startedAt)/60000)}
+function tone(minutes){return minutes>=15?'critical':minutes>=8?'warn':'normal'}
+function ensureStarts(){const now=Date.now();for(const job of S.jobs){if(!job.startedAt)job.startedAt=now}}
+function stations(){ $('stations').innerHTML=STATIONS.map(s=>`<button class="station ${s.id===station?'active':''}" data-station="${s.id}" type="button"><strong>${s.label}</strong><small>${s.desc}</small></button>`).join('');document.querySelectorAll('[data-station]').forEach(b=>b.onclick=()=>{station=b.dataset.station;save();render()})}
+function ticket(job){const mins=elapsed(job),t=tone(mins);const items=job.items.map(i=>`<div class="item"><span class="qty">${esc(i[0])}×</span>${esc(i[1])}</div>`).join('');if(job.state==='READY')return `<article class="ticket ready-card"><div class="ticket-top"><div><h3>${esc(job.table)}</h3><div class="meta">${esc(job.person)} · ${esc(job.station)}</div></div><span class="timer">LISTO</span></div><div class="items">${items}</div>${job.note?`<span class="note">NOTA: ${esc(job.note)}</span>`:''}<button class="undo" data-undo="${esc(job.id)}" type="button">Deshacer y devolver a preparación</button></article>`;return `<article class="ticket ${t}"><div class="ticket-top"><div><h3>${esc(job.table)}</h3><div class="meta">${esc(job.person)} · ${esc(job.station)}</div></div><span class="timer ${t}">${mins} min</span></div><div class="items">${items}</div>${job.note?`<span class="note">NOTA: ${esc(job.note)}</span>`:''}<button class="done" data-ready="${esc(job.id)}" type="button">✓ LISTO</button></article>`}
+function render(){ensureStarts();stations();const rows=S.jobs.filter(j=>j.station===station);const pending=rows.filter(j=>j.state==='PENDING'),ready=rows.filter(j=>j.state==='READY');$('pendingLane').innerHTML=pending.length?pending.map(ticket).join(''):'<div class="empty">Sin pedidos por preparar.</div>';$('readyLane').innerHTML=ready.length?ready.map(ticket).join(''):'<div class="empty">Todavía no hay pedidos listos.</div>';$('pendingCount').textContent=$('pendingBadge').textContent=pending.length;$('readyCount').textContent=$('readyBadge').textContent=ready.length;$('oldest').textContent=(pending.length?Math.max(...pending.map(elapsed)):0)+' min';document.querySelectorAll('[data-ready]').forEach(b=>b.onclick=()=>markReady(b.dataset.ready));document.querySelectorAll('[data-undo]').forEach(b=>b.onclick=()=>undo(b.dataset.undo));save()}
+function toast(text){const t=$('toast');t.textContent=text;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1300)}
+function markReady(id){const job=S.jobs.find(j=>j.id===id);if(!job)return;job.state='READY';job.readyAt=Date.now();save();render();toast(job.table+' quedó listo')}
+function undo(id){const job=S.jobs.find(j=>j.id===id);if(!job)return;job.state='PENDING';job.readyAt=null;save();render();toast('Devuelto a preparación')}
+$('resetDemo').onclick=()=>{localStorage.removeItem(KEY);location.reload()};
+$('fullscreen').onclick=()=>document.documentElement.requestFullscreen?.();
+setInterval(()=>{$('clock').textContent=new Intl.DateTimeFormat('es-CO',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());render()},30000);
+$('clock').textContent=new Intl.DateTimeFormat('es-CO',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());
+render();
+})();
+</script>
+</body>
+</html>
