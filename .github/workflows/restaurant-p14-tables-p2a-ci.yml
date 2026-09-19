@@ -1,0 +1,87 @@
+name: Restaurant P14 Tables P2A CI
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p14/runtime.js'
+      - 'lab/restaurant-p14/runtime-config.js'
+      - 'lab/restaurant-p14/bootstrap-demo.js'
+      - 'scripts/restaurant-local-first-p14-runtime-shell-smoke.js'
+      - 'scripts/restaurant-local-first-p14-tables-p2a-db-smoke.js'
+      - 'src/modules/restaurant/**'
+      - 'src/web/restaurant-v2-tables.js'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'prisma.config.ts'
+      - '.github/workflows/restaurant-p14-tables-p2a-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p14-tables-p2a-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  table-open-and-empty-cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vantix_p14
+          POSTGRES_PASSWORD: p14-p2a-ci-db-password
+          POSTGRES_DB: vantix_p14_home_pilot
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd="pg_isready -U vantix_p14 -d vantix_p14_home_pilot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      NODE_ENV: test
+      RESTAURANT_LOCAL_FIRST_P14_ENABLED: 'true'
+      P14_RUNTIME_ENABLED: 'true'
+      P14_TENANT_SUBDOMAIN: demo-restaurante
+      P14_INSTALLATION_ID: HOME-PILOT-01
+      P14_RELEASE_CHANNEL: PILOT
+      P14_OPERATIONAL_MODE: LOCAL_FIRST
+      P14_HTTP_PORT: '8791'
+      P14_POSTGRES_PORT: '55433'
+      P14_LAN_ENABLED: 'false'
+      P14_BIND_HOST: 127.0.0.1
+      P14_ADVERTISE_HOST: 127.0.0.1
+      P14_LAN_CIDR: ''
+      P14_CORE_URL: https://core.vantixgc.com
+      P14_SYNC_ENABLED: 'false'
+      P14_JWT_SECRET: p14-p2a-ci-jwt-secret-longer-than-thirty-two-characters
+      P14_ADMIN_PASSWORD: P14-P2A-CI-Admin-Password
+      DATABASE_URL: postgresql://vantix_p14:p14-p2a-ci-db-password@127.0.0.1:55433/vantix_p14_home_pilot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Prepare isolated P14 database
+        run: npx prisma db push
+
+      - name: Bootstrap demo-restaurante only
+        run: node lab/restaurant-p14/bootstrap-demo.js
+
+      - name: Validate exact mutation allowlist
+        run: node scripts/restaurant-local-first-p14-runtime-shell-smoke.js
+
+      - name: Open table, read detail, block cash, and release empty table
+        run: node scripts/restaurant-local-first-p14-tables-p2a-db-smoke.js

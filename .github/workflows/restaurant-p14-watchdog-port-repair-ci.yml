@@ -1,0 +1,160 @@
+name: Restaurant P14 Watchdog Port Repair CI
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p14/windows/watchdog-p14-windows.ps1'
+      - 'lab/restaurant-p14/windows/repair-p14-watchdog-port-windows.ps1'
+      - '.github/workflows/restaurant-p14-watchdog-port-repair-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p14-watchdog-port-repair-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reproduce-wrong-port-and-prove-repair:
+    runs-on: windows-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare exact fake P14 installation with broken 8790 watchdog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'C:\P14-Watchdog-Port-CI'
+          $runtimeTask = 'VantixGC P14 Runtime Port Repair CI'
+          $watchdogTask = 'VantixGC P14 Watchdog Port Repair CI'
+
+          function Cleanup-Test {
+            foreach ($name in @($watchdogTask,$runtimeTask)) {
+              try { Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue } catch {}
+              try { Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            }
+            try {
+              Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+                $_.CommandLine -and ([string]$_.CommandLine).IndexOf($root,[System.StringComparison]::OrdinalIgnoreCase) -ge 0
+              } | Where-Object { $_.ProcessId -ne $PID } | ForEach-Object {
+                Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+              }
+            } catch {}
+          }
+
+          Cleanup-Test
+          Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          $runtimeDir = Join-Path $root 'app\lab\restaurant-p14'
+          $windowsDir = Join-Path $runtimeDir 'windows'
+          New-Item -ItemType Directory -Force -Path $root,(Join-Path $root 'ops'),(Join-Path $root 'logs'),(Join-Path $root 'runtime'),$runtimeDir,$windowsDir,(Join-Path $root 'data\postgres'),(Join-Path $root 'backups') | Out-Null
+
+          @(
+            'P14_TENANT_SUBDOMAIN=demo-restaurante',
+            'P14_INSTALLATION_ID=HOME-PILOT-01',
+            'P14_HTTP_PORT=8791',
+            'P14_POSTGRES_PORT=55433'
+          ) | Set-Content -LiteralPath (Join-Path $root '.env') -Encoding UTF8
+
+          $nodeSource = (Get-Command node.exe -ErrorAction Stop).Source
+          Copy-Item -LiteralPath $nodeSource -Destination (Join-Path $root 'runtime\node.exe') -Force
+
+          $runtimeJs = @'
+          'use strict';
+          const http = require('node:http');
+          const marker = 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT';
+          const server = http.createServer((req, res) => {
+            res.setHeader('content-type', 'application/json');
+            if (req.url === '/__p14/status') return res.end(JSON.stringify({ ok: true, marker }));
+            res.statusCode = 404;
+            res.end(JSON.stringify({ ok: false }));
+          });
+          server.listen(8791, '127.0.0.1');
+          '@
+          $runtimeJs = ($runtimeJs -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`r`n"
+          [System.IO.File]::WriteAllText((Join-Path $runtimeDir 'runtime.js'),$runtimeJs,(New-Object System.Text.UTF8Encoding($false)))
+
+          $startPs1 = @'
+          param([string]$InstallDir = 'C:\P14-Watchdog-Port-CI')
+          $ErrorActionPreference = 'Stop'
+          $node = Join-Path $InstallDir 'runtime\node.exe'
+          $runtime = Join-Path $InstallDir 'app\lab\restaurant-p14\runtime.js'
+          & $node $runtime >> (Join-Path $InstallDir 'logs\runtime.log') 2>&1
+          exit $LASTEXITCODE
+          '@
+          $startPs1 = ($startPs1 -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`r`n"
+          [System.IO.File]::WriteAllText((Join-Path $root 'ops\start-p14-windows.ps1'),$startPs1,(New-Object System.Text.UTF8Encoding($false)))
+
+          $watchdog = Get-Content -Raw 'lab/restaurant-p14/windows/watchdog-p14-windows.ps1'
+          $watchdog = $watchdog.Replace('http://127.0.0.1:8791/__p14/status','http://127.0.0.1:8790/__p14/status')
+          [System.IO.File]::WriteAllText((Join-Path $root 'ops\watchdog-p14-windows.ps1'),$watchdog,(New-Object System.Text.UTF8Encoding($false)))
+          [System.IO.File]::WriteAllText((Join-Path $windowsDir 'watchdog-p14-windows.ps1'),$watchdog,(New-Object System.Text.UTF8Encoding($false)))
+
+          # Stable stand-in PID for the PostgreSQL preservation assertion.
+          Set-Content -LiteralPath (Join-Path $root 'data\postgres\postmaster.pid') -Value ([string]$PID) -Encoding ASCII
+
+          $runtimeAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + (Join-Path $root 'ops\start-p14-windows.ps1') + '" -InstallDir "' + $root + '"') -WorkingDirectory $root
+          $runtimeTrigger = New-ScheduledTaskTrigger -AtStartup
+          $runtimeSettings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+          Register-ScheduledTask -TaskName $runtimeTask -Action $runtimeAction -Trigger $runtimeTrigger -Settings $runtimeSettings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+          Enable-ScheduledTask -TaskName $runtimeTask | Out-Null
+
+          "P14_CI_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "P14_CI_RUNTIME_TASK=$runtimeTask" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "P14_CI_WATCHDOG_TASK=$watchdogTask" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Apply field repair and cross two watchdog recurrences
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & 'lab/restaurant-p14/windows/repair-p14-watchdog-port-windows.ps1' `
+            -InstallDir $env:P14_CI_ROOT `
+            -RuntimeTaskName $env:P14_CI_RUNTIME_TASK `
+            -WatchdogTaskName $env:P14_CI_WATCHDOG_TASK `
+            -StabilitySeconds 125 `
+            -NoOpenBrowser
+          if ($LASTEXITCODE -ne 0) { throw "Reparación devolvió exit=$LASTEXITCODE" }
+
+      - name: Verify exact repair evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ops = Get-Content -Raw (Join-Path $env:P14_CI_ROOT 'ops\watchdog-p14-windows.ps1')
+          $app = Get-Content -Raw (Join-Path $env:P14_CI_ROOT 'app\lab\restaurant-p14\windows\watchdog-p14-windows.ps1')
+          foreach ($content in @($ops,$app)) {
+            if ($content -match '127\.0\.0\.1:8790/__p14/status') { throw 'Persistió el puerto P13 8790.' }
+            if ($content -notmatch '127\.0\.0\.1:8791/__p14/status') { throw 'No quedó el puerto P14 8791.' }
+          }
+
+          $report = Get-Content -Raw (Join-Path $env:P14_CI_ROOT 'logs\P14_WATCHDOG_PORT_REPAIR_RESULT.txt')
+          foreach ($required in @('RESULT=STABLE','HealthFailures=0','NodeChanges=0','PostgresChanges=0','DestructiveWatchdogChecks=0')) {
+            if ($report -notlike "*$required*") { throw "Evidencia faltante: $required`n$report" }
+          }
+
+          $watchdogLog = Get-Content -Raw (Join-Path $env:P14_CI_ROOT 'logs\watchdog.log')
+          if ($watchdogLog -notmatch 'Runtime P14 saludable') { throw 'El watchdog corregido no verificó P14.' }
+          if ($watchdogLog -match 'Deteniendo únicamente runtime Node P14') { throw 'El watchdog corregido terminó Node.' }
+
+          $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8791/__p14/status' -TimeoutSec 3
+          if (-not $status.ok) { throw 'P14 no quedó saludable.' }
+          Write-Host 'P14_WATCHDOG_PORT_REPAIR_OK'
+
+      - name: Cleanup
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($name in @($env:P14_CI_WATCHDOG_TASK,$env:P14_CI_RUNTIME_TASK)) {
+            if (-not $name) { continue }
+            try { Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue } catch {}
+            try { Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+          }
+          if ($env:P14_CI_ROOT) {
+            try {
+              Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+                $_.CommandLine -and ([string]$_.CommandLine).IndexOf($env:P14_CI_ROOT,[System.StringComparison]::OrdinalIgnoreCase) -ge 0
+              } | Where-Object { $_.ProcessId -ne $PID } | ForEach-Object {
+                Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+              }
+            } catch {}
+            Remove-Item $env:P14_CI_ROOT -Recurse -Force -ErrorAction SilentlyContinue
+          }

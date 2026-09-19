@@ -1,0 +1,182 @@
+name: Restaurant P14 Windows Supervisor CI
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p14/windows/supervisor-p14-windows.ps1'
+      - 'lab/restaurant-p14/windows/repair-p14-supervisor-windows.ps1'
+      - '.github/workflows/restaurant-p14-supervisor-windows-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p14-supervisor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scheduled-task-supervisor-over-two-minutes:
+    runs-on: windows-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate PowerShell contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'lab/restaurant-p14/windows/supervisor-p14-windows.ps1',
+            'lab/restaurant-p14/windows/repair-p14-supervisor-windows.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw "PowerShell inválido: $file :: $($errors[0].Message)" }
+          }
+
+          $supervisor = Get-Content -Raw 'lab/restaurant-p14/windows/supervisor-p14-windows.ps1'
+          foreach ($required in @(
+            'Supervisor P14 iniciado',
+            'Stop-P14ManagedRuntime',
+            'PostgreSQL queda fuera de su ciclo de reinicio',
+            'Get-P14RuntimeProcesses',
+            'Wait-P14Health'
+          )) {
+            if ($supervisor -notlike "*$required*") { throw "Contrato de supervisor faltante: $required" }
+          }
+          if ($supervisor -match 'pg_ctl.+stop|Stop-Process.+postgres') {
+            throw 'El supervisor no puede reiniciar PostgreSQL.'
+          }
+
+          $repair = Get-Content -Raw 'lab/restaurant-p14/windows/repair-p14-supervisor-windows.ps1'
+          foreach ($required in @(
+            'VantixGC Restaurant P14 Watchdog',
+            'Unregister-ScheduledTask',
+            'ExecutionTimeLimit (New-TimeSpan -Days 3650)',
+            'RESULT=STABLE'
+          )) {
+            if ($repair -notlike "*$required*") { throw "Contrato de reparación faltante: $required" }
+          }
+          Write-Host 'P14_SUPERVISOR_STATIC_CONTRACT_OK'
+
+      - name: Run supervisor as a real Windows scheduled task for more than two minutes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'C:\P14-Supervisor-CI'
+          $taskName = 'VantixGC P14 Supervisor CI'
+          $port = 18991
+          $marker = 'P14_SUPERVISOR_CI_MARKER'
+          $supervisorSource = Resolve-Path 'lab/restaurant-p14/windows/supervisor-p14-windows.ps1'
+
+          function Stop-FakeProcesses {
+            try {
+              Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+                $_.CommandLine -and (
+                  ([string]$_.CommandLine).IndexOf((Join-Path $root 'fake-server.js'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                  ([string]$_.CommandLine).IndexOf((Join-Path $root 'ops\start-p14-windows.ps1'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                  ([string]$_.CommandLine).IndexOf((Join-Path $root 'ops\supervisor-p14-windows.ps1'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+                )
+              } | Where-Object { $_.ProcessId -ne $PID } | ForEach-Object {
+                Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+              }
+            } catch {}
+          }
+
+          try {
+            try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch {}
+            try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Stop-FakeProcesses
+            Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force -Path $root,(Join-Path $root 'ops'),(Join-Path $root 'logs'),(Join-Path $root 'runtime'),(Join-Path $root 'app\lab\restaurant-p14') | Out-Null
+            Copy-Item -LiteralPath $supervisorSource -Destination (Join-Path $root 'ops\supervisor-p14-windows.ps1') -Force
+
+            @"
+          'use strict';
+          const fs = require('node:fs');
+          const http = require('node:http');
+          const counterFile = String.raw`"C:\P14-Supervisor-CI\starts.txt`";
+          let count = 0;
+          try { count = Number(fs.readFileSync(counterFile, 'utf8').trim()) || 0; } catch {}
+          fs.writeFileSync(counterFile, String(count + 1));
+          const server = http.createServer((req, res) => {
+            res.setHeader('content-type', 'application/json');
+            if (req.url === '/__p14/status') return res.end(JSON.stringify({ ok: true, marker: '$marker' }));
+            res.statusCode = 404;
+            res.end(JSON.stringify({ ok: false }));
+          });
+          server.listen($port, '127.0.0.1', () => console.log('FAKE_P14_READY'));
+          setTimeout(() => process.exit(17), 22000);
+          "@ | Set-Content -LiteralPath (Join-Path $root 'fake-server.js') -Encoding UTF8
+
+            @"
+          param([string]`$InstallDir = '$root')
+          `$ErrorActionPreference = 'Stop'
+          & node.exe (Join-Path `$InstallDir 'fake-server.js') >> (Join-Path `$InstallDir 'logs\runtime.log') 2>&1
+          exit `$LASTEXITCODE
+          "@ | Set-Content -LiteralPath (Join-Path $root 'ops\start-p14-windows.ps1') -Encoding UTF8
+
+            $supervisor = Join-Path $root 'ops\supervisor-p14-windows.ps1'
+            $arguments = @(
+              '-NoProfile',
+              '-NonInteractive',
+              '-ExecutionPolicy', 'Bypass',
+              '-File', ('"{0}"' -f $supervisor),
+              '-InstallDir', ('"{0}"' -f $root),
+              '-HealthUrl', ('"http://127.0.0.1:{0}/__p14/status"' -f $port),
+              '-ExpectedMarker', ('"{0}"' -f $marker),
+              '-StartupGraceSeconds', '30',
+              '-HealthIntervalSeconds', '3',
+              '-UnhealthyThreshold', '3',
+              '-RestartDelaySeconds', '1'
+            ) -join ' '
+            $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory $root
+            $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(10)
+            $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+            Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+            Start-ScheduledTask -TaskName $taskName
+
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:$port/__p14/status" -TimeoutSec 2
+                if ($status.ok -and $status.marker -eq $marker) { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Seconds 1
+            }
+            if (-not $ready) { throw 'El supervisor programado no inició el runtime simulado.' }
+
+            # El runtime simulado muere cada 22 segundos. El supervisor debe reiniciarlo
+            # repetidamente y seguir vivo más allá del umbral de dos minutos observado en casa.
+            Start-Sleep -Seconds 135
+
+            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+            if ([string]$task.State -ne 'Running') { throw "El supervisor dejó de ejecutarse: $($task.State)" }
+
+            $starts = [int]((Get-Content -LiteralPath (Join-Path $root 'starts.txt') -Raw).Trim())
+            if ($starts -lt 5) { throw "El supervisor no recuperó suficientes caídas simuladas. starts=$starts" }
+
+            $finalReady = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:$port/__p14/status" -TimeoutSec 2
+                if ($status.ok -and $status.marker -eq $marker) { $finalReady = $true; break }
+              } catch {}
+              Start-Sleep -Seconds 1
+            }
+            if (-not $finalReady) { throw 'El runtime simulado no quedó saludable al final.' }
+
+            $log = Get-Content -LiteralPath (Join-Path $root 'logs\supervisor.log') -Raw
+            if ($log -notmatch 'Wrapper P14 terminó' -or $log -notmatch 'P14 saludable') {
+              throw 'El supervisor no dejó evidencia de recuperación y salud.'
+            }
+
+            Write-Host "P14_SUPERVISOR_OVER_TWO_MINUTES_OK starts=$starts state=$($task.State)"
+          } finally {
+            try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch {}
+            try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Stop-FakeProcesses
+            Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          }
