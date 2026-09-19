@@ -148,14 +148,14 @@
     const selected = preset.productoId || '';
     const product = products.find((row) => row.id === selected);
     const iva = Number(preset.ivaPct ?? product?.ivaPct ?? 0);
-    return \`<div class="inventory-purchase-line" data-purchase-line="\${index}" style="display:grid;grid-template-columns:minmax(220px,2fr) 100px 140px 100px 120px 42px;gap:8px;align-items:end;margin-bottom:8px">
-      <div class="field"><label>Producto</label><select class="select" data-purchase-product required><option value="">Seleccione…</option>\${optionRows(products,selected,p=>\`\${p.sku} · \${p.nombre}\`)}</select></div>
-      <div class="field"><label>Cantidad</label><input class="input" data-purchase-qty type="number" min="0.0001" step="0.0001" value="\${Number(preset.cantidad||1)}" required></div>
-      <div class="field"><label>Costo unitario</label><input class="input" data-purchase-cost type="number" min="0.01" step="0.01" value="\${Number(preset.costoUnitario||0)||''}" required></div>
-      <div class="field"><label>IVA %</label><input class="input" data-purchase-vat type="number" min="0" max="100" step="0.01" value="\${iva}"></div>
-      <div class="field"><label>Total</label><div class="money" data-purchase-line-total style="padding:10px 0">\${money(0)}</div></div>
+    return `<div class="inventory-purchase-line" data-purchase-line="${index}" style="display:grid;grid-template-columns:minmax(220px,2fr) 100px 140px 100px 120px 42px;gap:8px;align-items:end;margin-bottom:8px">
+      <div class="field"><label>Producto</label><select class="select" data-purchase-product required><option value="">Seleccione…</option>${optionRows(products,selected,p=>`${p.sku} · ${p.nombre}`)}</select></div>
+      <div class="field"><label>Cantidad</label><input class="input" data-purchase-qty type="number" min="0.0001" step="0.0001" value="${Number(preset.cantidad||1)}" required></div>
+      <div class="field"><label>Costo unitario</label><input class="input" data-purchase-cost type="number" min="0.01" step="0.01" value="${Number(preset.costoUnitario||0)||''}" required></div>
+      <div class="field"><label>IVA %</label><input class="input" data-purchase-vat type="number" min="0" max="100" step="0.01" value="${iva}"></div>
+      <div class="field"><label>Total</label><div class="money" data-purchase-line-total style="padding:10px 0">${money(0)}</div></div>
       <button class="btn small" type="button" data-purchase-remove title="Quitar">×</button>
-    </div>\`;
+    </div>`;
   }
 
   window.openInventoryPurchase = async function openInventoryPurchase() {
@@ -169,8 +169,8 @@
       if (!suppliers.length) throw new Error('No hay proveedores activos. Créalo primero en Compras / Proveedores.');
       if (!products.length) throw new Error('No hay productos con control de inventario para recibir.');
       $('#inventoryPurchaseModal')?.remove();
-      const supplierOptions = optionRows(suppliers,'',s=>\`\${s.identificacion||''} · \${s.razonSocial||s.nombre}\`);
-      document.body.insertAdjacentHTML('beforeend', \`<div class="modal-back" id="inventoryPurchaseModal"><div class="modal" style="width:min(1080px,100%);max-height:94vh;overflow:auto"><h2>Agregar pedido de inventario</h2><p class="muted">Registra el costo real de compra. Al confirmar la entrada se actualizan Kardex y costo promedio.</p><div id="inventoryPurchaseError"></div><div class="grid2"><div class="field"><label>Proveedor *</label><select class="select" id="invPurSupplier" required><option value="">Seleccione…</option>\${supplierOptions}</select></div><div class="field"><label>Fecha *</label><input class="input" id="invPurDate" type="date" value="\${new Date().toLocaleDateString('en-CA')}" required></div><div class="field"><label>Factura / referencia proveedor *</label><input class="input" id="invPurReference" maxlength="120" required></div><div class="field"><label>Condición de pago</label><select class="select" id="invPurTerms"><option value="0">Contado</option><option value="30">Crédito 30 días</option><option value="60">Crédito 60 días</option><option value="90">Crédito 90 días</option></select></div></div><div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Productos</h2><button class="btn small" type="button" id="invPurAddLine">+ Agregar producto</button></div><div class="audit-body" id="invPurLines"></div></div><div class="field"><label>Observaciones</label><textarea class="input" id="invPurNotes" rows="2" style="width:100%"></textarea></div><div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px"><div class="card"><small>Subtotal</small><strong id="invPurSubtotal">\${money(0)}</strong></div><div class="card"><small>IVA</small><strong id="invPurTax">\${money(0)}</strong></div><div class="card"><small>Total</small><strong id="invPurTotal">\${money(0)}</strong></div></div><div class="actions" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="button" id="invPurCancel">Cancelar</button><button class="btn" type="button" id="invPurDraft">Guardar borrador</button><button class="btn primary" type="button" id="invPurReceive">Confirmar entrada</button></div></div></div>\`);
+      const supplierOptions = optionRows(suppliers,'',s=>`${s.identificacion||''} · ${s.razonSocial||s.nombre}`);
+      document.body.insertAdjacentHTML('beforeend', `<div class="modal-back" id="inventoryPurchaseModal"><div class="modal" style="width:min(1080px,100%);max-height:94vh;overflow:auto"><h2>Agregar pedido de inventario</h2><p class="muted">Registra el costo real de compra. Al confirmar la entrada se actualizan Kardex y costo promedio.</p><div id="inventoryPurchaseError"></div><div class="grid2"><div class="field"><label>Proveedor *</label><select class="select" id="invPurSupplier" required><option value="">Seleccione…</option>${supplierOptions}</select></div><div class="field"><label>Fecha *</label><input class="input" id="invPurDate" type="date" value="${new Date().toLocaleDateString('en-CA')}" required></div><div class="field"><label>Factura / referencia proveedor *</label><input class="input" id="invPurReference" maxlength="120" required></div><div class="field"><label>Condición de pago</label><select class="select" id="invPurTerms"><option value="0">Contado</option><option value="30">Crédito 30 días</option><option value="60">Crédito 60 días</option><option value="90">Crédito 90 días</option></select></div></div><div class="panel" style="margin-top:14px"><div class="panel-head"><h2>Productos</h2><button class="btn small" type="button" id="invPurAddLine">+ Agregar producto</button></div><div class="audit-body" id="invPurLines"></div></div><div class="field"><label>Observaciones</label><textarea class="input" id="invPurNotes" rows="2" style="width:100%"></textarea></div><div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px"><div class="card"><small>Subtotal</small><strong id="invPurSubtotal">${money(0)}</strong></div><div class="card"><small>IVA</small><strong id="invPurTax">${money(0)}</strong></div><div class="card"><small>Total</small><strong id="invPurTotal">${money(0)}</strong></div></div><div class="actions" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="button" id="invPurCancel">Cancelar</button><button class="btn" type="button" id="invPurDraft">Guardar borrador</button><button class="btn primary" type="button" id="invPurReceive">Confirmar entrada</button></div></div></div>`);
       const modal = $('#inventoryPurchaseModal');
       const lines = $('#invPurLines');
       let lineIndex = 0;
@@ -218,18 +218,18 @@
           if (!data.fecha) throw new Error('Seleccione la fecha.');
           if (!data.referenciaExterna) throw new Error('La factura o referencia del proveedor es obligatoria.');
           if (!data.detalles.length || data.detalles.some((row) => !row.productoId || row.cantidad <= 0 || row.costoUnitario <= 0)) throw new Error('Cada producto debe tener cantidad y costo mayores que cero.');
-          if (purchaseId) await api(\`/api/v1/comercial/compras/\${purchaseId}\`, { method:'PATCH', body:JSON.stringify(data) });
+          if (purchaseId) await api(`/api/v1/comercial/compras/${purchaseId}`, { method:'PATCH', body:JSON.stringify(data) });
           else {
             const created = await api('/api/v1/comercial/compras', { method:'POST', body:JSON.stringify(data) });
             purchaseId = created.data?.id;
           }
           if (!purchaseId) throw new Error('No fue posible crear la compra.');
-          if (emitNow) await api(\`/api/v1/comercial/compras/\${purchaseId}/emitir\`, { method:'POST' });
+          if (emitNow) await api(`/api/v1/comercial/compras/${purchaseId}/emitir`, { method:'POST' });
           modal.remove();
           alert(emitNow ? 'Pedido recibido. Kardex y costos actualizados.' : 'Pedido guardado como borrador. El inventario todavía no cambió.');
           render();
         } catch (error) {
-          if (errorBox) errorBox.innerHTML = \`<div class="error">\${esc(error.message)}</div>\`;
+          if (errorBox) errorBox.innerHTML = `<div class="error">${esc(error.message)}</div>`;
           buttons.forEach((button) => { button.disabled = false; });
         }
       };
@@ -261,34 +261,34 @@
 
   window.openInventoryProductHistory = async function openInventoryProductHistory(productId) {
     try {
-      const productResponse = await api(\`/api/v1/inventario/productos/\${encodeURIComponent(productId)}\`);
+      const productResponse = await api(`/api/v1/inventario/productos/${encodeURIComponent(productId)}`);
       const product = productResponse.data;
-      const movementResponse = await api(\`/api/v1/inventario/kardex?productoId=\${encodeURIComponent(productId)}&tipo=COMPRA&limit=20\`);
+      const movementResponse = await api(`/api/v1/inventario/kardex?productoId=${encodeURIComponent(productId)}&tipo=COMPRA&limit=20`);
       const rows = movementResponse.data || [];
       const recent = rows.slice(0, 3);
       const purchaseIds = [...new Set(recent.map((row) => row.comprobanteId).filter(Boolean))];
       const purchases = new Map();
       await Promise.all(purchaseIds.map(async (id) => {
-        try { const response = await api(\`/api/v1/comercial/compras/\${encodeURIComponent(id)}\`); purchases.set(id, response.data); } catch {}
+        try { const response = await api(`/api/v1/comercial/compras/${encodeURIComponent(id)}`); purchases.set(id, response.data); } catch {}
       }));
       $('#inventoryHistoryModal')?.remove();
       const current = Number(recent[0]?.costoUnitario || 0);
       const previous = Number(rows[1]?.costoUnitario || 0);
       const delta = current - previous;
       const pct = previous ? delta / previous * 100 : 0;
-      const trend = rows[1] ? (delta > 0 ? \`↑ Subió \${money(Math.abs(delta))} (\${Math.abs(pct).toFixed(2)}%)\` : delta < 0 ? \`↓ Bajó \${money(Math.abs(delta))} (\${Math.abs(pct).toFixed(2)}%)\` : '→ Sin cambio') : 'Primera compra';
+      const trend = rows[1] ? (delta > 0 ? `↑ Subió ${money(Math.abs(delta))} (${Math.abs(pct).toFixed(2)}%)` : delta < 0 ? `↓ Bajó ${money(Math.abs(delta))} (${Math.abs(pct).toFixed(2)}%)` : '→ Sin cambio') : 'Primera compra';
       const historyRows = recent.map((row, index) => {
         const older = rows[index + 1];
         const cost = Number(row.costoUnitario || 0), olderCost = Number(older?.costoUnitario || 0);
         const change = older ? cost - olderCost : 0;
         const percent = olderCost ? change / olderCost * 100 : 0;
-        const label = older ? (change > 0 ? \`↑ +\${money(change)} (+\${percent.toFixed(2)}%)\` : change < 0 ? \`↓ -\${money(Math.abs(change))} (-\${Math.abs(percent).toFixed(2)}%)\` : '→ Sin cambio') : '—';
+        const label = older ? (change > 0 ? `↑ +${money(change)} (+${percent.toFixed(2)}%)` : change < 0 ? `↓ -${money(Math.abs(change))} (-${Math.abs(percent).toFixed(2)}%)` : '→ Sin cambio') : '—';
         const purchase = purchases.get(row.comprobanteId);
         const supplier = purchase?.tercero?.razonSocial || purchase?.tercero?.nombre || '—';
         const reference = purchase?.referenciaExterna || row.referencia || '—';
-        return \`<tr><td>\${date(row.creadoEn)}</td><td>\${esc(supplier)}</td><td class="money">\${Number(row.cantidad||0).toFixed(4)}</td><td class="money"><strong>\${money(cost)}</strong></td><td>\${esc(label)}</td><td>\${esc(reference)}</td></tr>\`;
+        return `<tr><td>${date(row.creadoEn)}</td><td>${esc(supplier)}</td><td class="money">${Number(row.cantidad||0).toFixed(4)}</td><td class="money"><strong>${money(cost)}</strong></td><td>${esc(label)}</td><td>${esc(reference)}</td></tr>`;
       }).join('');
-      document.body.insertAdjacentHTML('beforeend', \`<div class="modal-back" id="inventoryHistoryModal"><div class="modal" style="width:min(900px,100%);max-height:92vh;overflow:auto"><h2>Historial · \${esc(product?.nombre||'Producto')}</h2>\${recent.length ? \`<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="card"><small>Último costo</small><strong>\${money(current)}</strong></div><div class="card"><small>Costo anterior</small><strong>\${rows[1]?money(previous):'—'}</strong></div><div class="card"><small>Variación</small><strong>\${esc(trend)}</strong></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Proveedor</th><th class="money">Cantidad</th><th class="money">Costo unit.</th><th>Variación</th><th>Factura / referencia</th></tr></thead><tbody>\${historyRows}</tbody></table></div><p class="muted" style="margin-top:12px">Costo promedio actual: <strong>\${money(product?.costoPromedio||0)}</strong>.</p>\` : '<div class="empty">Este producto todavía no tiene compras confirmadas en el Kardex.</div>'}<div class="actions" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="button" onclick="$('#inventoryHistoryModal').remove()">Cerrar</button></div></div></div>\`);
+      document.body.insertAdjacentHTML('beforeend', `<div class="modal-back" id="inventoryHistoryModal"><div class="modal" style="width:min(900px,100%);max-height:92vh;overflow:auto"><h2>Historial · ${esc(product?.nombre||'Producto')}</h2>${recent.length ? `<div class="cards" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="card"><small>Último costo</small><strong>${money(current)}</strong></div><div class="card"><small>Costo anterior</small><strong>${rows[1]?money(previous):'—'}</strong></div><div class="card"><small>Variación</small><strong>${esc(trend)}</strong></div></div><div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Proveedor</th><th class="money">Cantidad</th><th class="money">Costo unit.</th><th>Variación</th><th>Factura / referencia</th></tr></thead><tbody>${historyRows}</tbody></table></div><p class="muted" style="margin-top:12px">Costo promedio actual: <strong>${money(product?.costoPromedio||0)}</strong>.</p>` : '<div class="empty">Este producto todavía no tiene compras confirmadas en el Kardex.</div>'}<div class="actions" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="button" onclick="$('#inventoryHistoryModal').remove()">Cerrar</button></div></div></div>`);
     } catch (error) { alert(error.message); }
   };
 
