@@ -6,6 +6,7 @@ const { listWindowsPrinters, printJob } = require('../print-spooler/escpos');
 
 const INSTALL_FLAG = Symbol.for('vantixgc.edge.agent.restaurant.print.bridge.v1');
 const FETCH_FLAG = Symbol.for('vantixgc.edge.agent.restaurant.immediate.print.fetch.v1');
+const PRINT_SCOPE_FLAG = Symbol.for('vantixgc.edge.agent.restaurant.print.scope.v1');
 const RELAY_POLL_FRAGMENT = '/edge/api/v1/relay/pull';
 const WINDOWS_PRINTERS_OPERATION = 'WINDOWS_PRINTERS';
 const WINDOWS_TEST_OPERATION = 'WINDOWS_TEST';
@@ -43,12 +44,20 @@ function localEquivalentJobId(store, payload, job) {
   return stableJobId(`local:${operation.id}:${station}`, job.printer);
 }
 
-function enqueueSnapshotPrintJobs(store, payload) {
+function jobMatchesPrintScope(job, scope) {
+  if (!scope) return true;
+  const commandId = String(job?.commandId || '').trim();
+  if (commandId) return Array.isArray(scope.commandIds) && scope.commandIds.includes(commandId);
+  return scope.receiptJobs === true;
+}
+
+function enqueueSnapshotPrintJobs(store, payload, scope = null) {
   const jobs = Array.isArray(payload?.printJobs) ? payload.printJobs : [];
+  const eligibleJobs = scope ? jobs.filter((job) => jobMatchesPrintScope(job, scope)) : jobs;
   let queued = 0;
   let existing = 0;
   let reconciled = 0;
-  for (const job of jobs) {
+  for (const job of eligibleJobs) {
     if (!job?.id || !job?.printer?.host || !job?.payload) continue;
     const localEquivalent = localEquivalentJobId(store, payload, job);
     if (localEquivalent && printJobExists(store, localEquivalent)) {
@@ -68,9 +77,10 @@ function enqueueSnapshotPrintJobs(store, payload) {
     queued += 1;
   }
   if ((queued || reconciled) && typeof store.recordEvent === 'function') {
-    store.recordEvent('RESTAURANT_COMMAND_PRINT_QUEUED', { queued, existing, reconciled, received: jobs.length });
+    store.recordEvent('RESTAURANT_COMMAND_PRINT_QUEUED', { queued, existing, reconciled, received: jobs.length, eligible: eligibleJobs.length });
   }
   const result = { queued, existing, received: jobs.length };
+  if (scope) result.eligible = eligibleJobs.length;
   if (reconciled > 0) result.reconciled = reconciled;
   return result;
 }
@@ -172,6 +182,29 @@ function relayOperation(request) {
   return String(request?.requestBody?.operation || '').trim().toUpperCase();
 }
 
+function printScopeFromRelayRequests(requests) {
+  const rows = (Array.isArray(requests) ? requests : []).filter((request) => String(request?.action || '').toUpperCase() === 'PRINT_QUEUE');
+  if (!rows.length) return null;
+  const commandIds = new Set();
+  let receiptJobs = false;
+  for (const request of rows) {
+    const operation = relayOperation(request);
+    const ids = (Array.isArray(request?.requestBody?.commandIds) ? request.requestBody.commandIds : [])
+      .map((id) => String(id || '').trim()).filter(Boolean);
+    if (operation === 'POS_RECEIPT_SYNC') {
+      receiptJobs = true;
+      continue;
+    }
+    if (ids.length) {
+      ids.forEach((id) => commandIds.add(id));
+      continue;
+    }
+    // Unknown/legacy PRINT_QUEUE request: preserve the previous full-sync behavior.
+    return null;
+  }
+  return { receiptJobs, commandIds: [...commandIds] };
+}
+
 function relayCompleteUrl(pullUrl, id) {
   const source = new URL(pullUrl);
   return `${source.origin}/edge/api/v1/relay/${encodeURIComponent(id)}/complete`;
@@ -239,13 +272,21 @@ function installImmediateRelayTrigger(target = globalThis) {
         if (action === 'PRINT_QUEUE' && await handleWindowsRelay(baseFetch, url, request)) continue;
         remaining.push(request);
       }
-      const immediatePrint = remaining.some((request) => String(request?.action || '').toUpperCase() === 'PRINT_QUEUE');
-      if (immediatePrint) {
+      const printRequests = remaining.filter((request) => String(request?.action || '').toUpperCase() === 'PRINT_QUEUE');
+      if (printRequests.length) {
         const port = Math.max(1, Number(process.env.EDGE_PORT || 8788));
-        await baseFetch(`http://127.0.0.1:${port}/api/sync-now`, {
-          method: 'POST',
-          signal: AbortSignal.timeout(12000)
-        });
+        const previousScope = target[PRINT_SCOPE_FLAG];
+        const scope = printScopeFromRelayRequests(printRequests);
+        try {
+          target[PRINT_SCOPE_FLAG] = scope;
+          await baseFetch(`http://127.0.0.1:${port}/api/sync-now`, {
+            method: 'POST',
+            signal: AbortSignal.timeout(12000)
+          });
+        } finally {
+          if (previousScope === undefined) delete target[PRINT_SCOPE_FLAG];
+          else target[PRINT_SCOPE_FLAG] = previousScope;
+        }
       }
       if (remaining.length !== requests.length && typeof Response === 'function') {
         return new Response(JSON.stringify({ ...body, data: remaining }), { status: response.status, headers: response.headers });
@@ -264,8 +305,11 @@ function install() {
     EdgeStore.prototype.putSnapshot = function putSnapshotWithRestaurantPrint(kind, version, payload) {
       const result = originalPutSnapshot.call(this, kind, version, payload);
       if (kind === 'restaurant') {
-        enqueueSnapshotPrintJobs(this, payload);
-        enqueueLocalCommandPrintJobs(this, payload);
+        const scope = globalThis[PRINT_SCOPE_FLAG] || null;
+        enqueueSnapshotPrintJobs(this, payload, scope);
+        // A scoped immediate sync must never wake unrelated offline commands.
+        // Periodic/full syncs still keep the proven local-command fallback.
+        if (!scope) enqueueLocalCommandPrintJobs(this, payload);
       }
       return result;
     };
@@ -280,6 +324,7 @@ install();
 module.exports = {
   INSTALL_FLAG,
   FETCH_FLAG,
+  PRINT_SCOPE_FLAG,
   RELAY_POLL_FRAGMENT,
   WINDOWS_PRINTERS_OPERATION,
   WINDOWS_TEST_OPERATION,
@@ -289,6 +334,7 @@ module.exports = {
   printJobExists,
   localOperationForCentralOrder,
   localEquivalentJobId,
+  jobMatchesPrintScope,
   enqueueSnapshotPrintJobs,
   pendingRestaurantOperation,
   tableLabelForLocalCommand,
@@ -296,6 +342,7 @@ module.exports = {
   buildLocalCommandPrintJobs,
   enqueueLocalCommandPrintJobs,
   relayOperation,
+  printScopeFromRelayRequests,
   relayCompleteUrl,
   handleWindowsRelay,
   installImmediateRelayTrigger,
