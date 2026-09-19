@@ -10,6 +10,7 @@ const {
 
 const LOCAL_RESTAURANT_ENTRY = '/app/centro-de-control-v2';
 const LOCAL_LOGIN_ENTRY = '/app';
+const SIMPLE_PRODUCTION_ENTRY = '/__p14/produccion-simple';
 const LOCAL_LOGIN_MARKER = 'VANTIX_RESTAURANT_P14_LOCAL_LOGIN_V1';
 const RUNTIME_PHASE = 'P14-1A';
 const CENTRAL_SUPER_CORE_UI_PREFIXES = Object.freeze([
@@ -248,6 +249,11 @@ async function start(env = process.env) {
   local.get(LOCAL_LOGIN_ENTRY, sendLocalLogin);
   local.get('/app/login', sendLocalLogin);
   local.get('/app/centro-de-control', (_req, res) => res.redirect(302, LOCAL_RESTAURANT_ENTRY));
+  local.get(SIMPLE_PRODUCTION_ENTRY, (_req, res) => {
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.set('X-VantixGC-P14-Production-Lab', 'P14_PRODUCTION_SIMPLE_OFFLINE_V1');
+    return res.sendFile(path.join(__dirname, 'production-simple-offline-v1.html'));
+  });
 
   local.get('/__p14/status', (_req, res) => {
     res.set('Cache-Control', 'no-store, max-age=0');
@@ -263,6 +269,7 @@ async function start(env = process.env) {
       localSurface: 'RESTAURANT_V2_CANONICAL_READ_ONLY',
       localEntry: LOCAL_RESTAURANT_ENTRY,
       localLogin: LOCAL_LOGIN_ENTRY,
+      simpleProductionLab: SIMPLE_PRODUCTION_ENTRY,
       http: config.http,
       database: config.database,
       core: config.core,
@@ -309,6 +316,7 @@ module.exports = {
   LOCAL_RESTAURANT_ENTRY,
   LOCAL_LOGIN_ENTRY,
   LOCAL_LOGIN_MARKER,
+  SIMPLE_PRODUCTION_ENTRY,
   RUNTIME_PHASE,
   CENTRAL_SUPER_CORE_UI_PREFIXES,
   tenantHeader,
