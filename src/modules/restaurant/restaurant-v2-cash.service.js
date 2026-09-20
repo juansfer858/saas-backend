@@ -79,6 +79,15 @@ async function activeSessionForTable(tenantId, tableId) {
   return session;
 }
 
+async function activeSessionById(tenantId, sessionId) {
+  const session = await prisma.restaurantTableSession.findFirst({
+    where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+    include: { table: true }
+  });
+  if (!session) throw new AppError(404, 'La cuenta seleccionada ya no está abierta', 'RESTAURANT_V2_CASH_SESSION_NOT_FOUND');
+  return session;
+}
+
 function assertWholeAccountBoundary(session) {
   const splitMode = String(session?.splitMode || '').toUpperCase();
   const billingMode = String(session?.billingMode || '').toUpperCase();
@@ -153,11 +162,11 @@ function calculateAppliedLine(detail, unitPrice) {
   };
 }
 
-async function updateLinePrice(tenantId, user, tableId, detailId, input) {
+async function updateLinePrice(tenantId, user, tableId, detailId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
     await lockOperation(tx, tenantId);
     const session = await tx.restaurantTableSession.findFirst({
-      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] }, ...(options.sessionId ? { id: options.sessionId } : {}) },
       include: { table: true },
       orderBy: { openedAt: 'desc' }
     });
@@ -367,6 +376,44 @@ async function tableDetail(tenantId, user, tableId) {
   };
 }
 
+
+async function tableDetailBySession(tenantId, user, sessionId) {
+  const [session, methods, config, shifts] = await Promise.all([
+    activeSessionById(tenantId, sessionId),
+    paymentMethods.listMethods(tenantId),
+    currentRestaurantConfig(tenantId),
+    cashShiftRecovery.cashShiftState(tenantId, user.id)
+  ]);
+  const sale = await saleForSession(tenantId, session, true);
+  const splitMode = String(session.splitMode || '').toUpperCase();
+  const requiresP5 = Boolean(session.splitMetadata && splitMode !== 'NONE') || ['BY_ITEM', 'BY_SEAT'].includes(splitMode) || String(session.billingMode || '').toUpperCase() === 'INDIVIDUAL';
+  return {
+    marker: CASH_V2_MARKER,
+    table: { id: session.table.id, code: session.table.code, name: session.table.name },
+    session: {
+      id: session.id,
+      state: session.state,
+      guestCount: Number(session.guestCount || 1),
+      billingMode: session.billingMode || 'CONJUNTA',
+      accountRequestedAt: session.accountRequestedAt || null,
+      accountPreparedAt: session.accountPreparedAt || null,
+      cashierRequestedAt: session.cashierRequestedAt || null,
+      splitMode: session.splitMode || null,
+      requiresP5
+    },
+    sale: publicSale(sale, true),
+    shift: { own: publicShift(shifts.ownShift) },
+    paymentMethods: methods.filter((row) => row.active && row.kind !== 'CREDITO').map(publicMethod),
+    operation: {
+      mode: 'POS_INTERNO',
+      electronicInvoiceRequired: false,
+      dianRequired: false,
+      dianEnabled: Boolean(config.dianRealEnabled),
+      splitOwner: 'P5'
+    }
+  };
+}
+
 async function requireOwnShift(tenantId, userId) {
   const shifts = await cashShiftRecovery.cashShiftState(tenantId, userId);
   if (!shifts.ownShift) throw new AppError(409, 'Abra su turno de Caja antes de cobrar', 'RESTAURANT_V2_CASH_SHIFT_REQUIRED');
@@ -490,6 +537,43 @@ async function chargeWholeAccount(tenantId, user, tableId, input) {
   }
 }
 
+
+async function chargeWholeAccountBySession(tenantId, user, sessionId, input) {
+  const shift = await requireOwnShift(tenantId, user.id);
+  const session = await activeSessionById(tenantId, sessionId);
+  assertWholeAccountBoundary(session);
+  const sale = await saleForSession(tenantId, session, false);
+  if (sale.estado !== 'BORRADOR') throw new AppError(409, 'La cuenta ya fue procesada', 'RESTAURANT_V2_CASH_SALE_ALREADY_PROCESSED');
+  if (!money(sale.total).gt(0)) throw new AppError(409, 'La cuenta no tiene saldo para cobrar', 'RESTAURANT_V2_CASH_ZERO_TOTAL');
+
+  const methods = await paymentMethods.listMethods(tenantId);
+  const method = methods.find((row) => row.id === input.paymentMethodId && row.active);
+  if (!method) throw new AppError(400, 'Seleccione un método de pago activo', 'RESTAURANT_V2_CASH_PAYMENT_METHOD_REQUIRED');
+  if (method.kind === 'CREDITO') throw new AppError(409, 'Crédito no está habilitado en el piloto tipo VANTIX BAR', 'DEMO_BAR_CREDIT_NOT_ENABLED');
+
+  const reference = String(input.reference || '').trim().slice(0, 160) || null;
+  const tipAmount = Number(input.tipAmount || 0);
+  if (!Number.isFinite(tipAmount) || tipAmount < 0) throw new AppError(400, 'Propina inválida', 'RESTAURANT_V2_CASH_TIP_INVALID');
+
+  const result = await paymentMethods.closeSessionWithMethod(tenantId, user, session.id, {
+    paymentMethodId: method.id,
+    reference,
+    tipAmount,
+    split: { mode: 'NONE' },
+    deferPosReceipt: true
+  });
+  return {
+    marker: CASH_V2_MARKER,
+    charged: true,
+    paymentMethod: publicMethod(method),
+    reference,
+    credit: null,
+    shiftId: shift.id,
+    receiptDecisionRequired: true,
+    result
+  };
+}
+
 async function queueReceiptPrint(tenantId, user, sessionId) {
   const session = await prisma.restaurantTableSession.findFirst({
     where: { id: sessionId, tenantId, state: 'CERRADA' },
@@ -533,14 +617,17 @@ module.exports = {
   CASH_V2_MARKER,
   workspace,
   tableDetail,
+  tableDetailBySession,
   openShift,
   shiftSummary,
   closeShift,
   chargeWholeAccount,
+  chargeWholeAccountBySession,
   updateLinePrice,
   queueReceiptPrint,
   listCustomers,
   createCustomer,
   assertWholeAccountBoundary,
-  calculateAppliedLine
+  calculateAppliedLine,
+  activeSessionById
 };

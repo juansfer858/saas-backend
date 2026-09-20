@@ -530,13 +530,13 @@ async function sendAccountToCash(tenantId, user, tableId) {
   });
 }
 
-async function closeTableGuarded(tenantId, user, tableId, input) {
-  const session = await prisma.restaurantTableSession.findFirst({ where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } } });
+async function closeTableGuarded(tenantId, user, tableId, input, options = {}) {
+  const session = await prisma.restaurantTableSession.findFirst({ where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] }, ...(options.sessionId ? { id: options.sessionId } : {}) }, orderBy: { openedAt: 'desc' } });
   if (session) {
     const pending = await prisma.restaurantOrder.findFirst({ where: { tenantId, sessionId: session.id, state: 'BORRADOR' }, include: { _count: { select: { items: true } } } });
     if (pending?._count?.items) throw new AppError(409, 'Hay un pedido del mesero sin enviar. Envíelo o retire sus líneas antes de cerrar la mesa.', 'RESTAURANT_UNSENT_DRAFT_ORDER');
   }
-  return base.closeTable(tenantId, user, tableId, input);
+  return base.closeTable(tenantId, user, tableId, input, options);
 }
 
 async function cashShiftSummary(tenantId, userId, shiftId) {

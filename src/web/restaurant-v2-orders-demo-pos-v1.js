@@ -1,382 +1,496 @@
-/* VANTIX_DEMO_RESTAURANTE_ORDERS_POS_V1 */
+/* VANTIX_DEMO_RESTAURANTE_BAR_ORDERS_V1 */
 (()=>{'use strict';
-const MARKER='VANTIX_DEMO_RESTAURANTE_ORDERS_POS_V1';
+const MARKER='VANTIX_DEMO_RESTAURANTE_BAR_ORDERS_V1';
 const TENANT='demo-restaurante';
 const RV2=window.RestaurantV2;
 if(!RV2)return;
 const session=RV2.readSession?.()||RV2.requireSession?.();
 if(String(session?.subdomain||'').trim().toLowerCase()!==TENANT)return;
 
-document.body.dataset.demoOrdersPos='1';
-document.documentElement.dataset.demoOrdersPos=MARKER;
+document.body.dataset.demoBarOrders='1';
+document.documentElement.dataset.demoBarOrders=MARKER;
 
-const cash={
-  workspace:null,detail:null,methodId:null,customerId:null,customers:[],busy:false,tableId:null
+const S={
+  workspace:null,menu:[],tableId:null,accountId:null,draft:null,
+  category:'',search:'',filtered:[],focus:0,selected:new Set(),
+  loading:false,busy:false,cash:null
 };
-let applying=false;
-let scheduled=false;
 const $=(q,root=document)=>root.querySelector(q);
 const $$=(q,root=document)=>[...root.querySelectorAll(q)];
+const esc=RV2.esc;
+const money=v=>RV2.money(v||0);
+const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const CAN_EDIT_PRICE=new Set(['ADMIN','SUPER_ADMIN','CAJERO']).has(String(session?.user?.rol||'').toUpperCase());
 
-function selectedTableButton(){return $('.table-chip.active')}
-function selectedTableId(){return selectedTableButton()?.dataset?.table||null}
-function selectedTableIsOpen(){return Boolean(selectedTableButton()?.classList.contains('occupied'))}
-function selectedTableName(){return selectedTableButton()?.childNodes?.[0]?.textContent?.trim()||$('#draftTitle')?.textContent||'Mesa'}
-function money(value){return RV2.money(value||0)}
-function showNotice(text,error=false){
-  const n=$('#notice');
-  if(n){n.textContent=text;n.classList.toggle('error',Boolean(error))}
-}
-
-function schedule(){
-  if(scheduled)return;
-  scheduled=true;
-  requestAnimationFrame(()=>{scheduled=false;apply()});
-}
-
-function ensurePanelTitles(){
-  const tablesPanel=$('.tables-panel');
-  if(tablesPanel&&!tablesPanel.querySelector('[data-demo-panel-title]')){
-    const title=document.createElement('div');
-    title.className='demo-panel-title';
-    title.dataset.demoPanelTitle='locations';
-    title.innerHTML='<small>UBICACIONES</small><b>Mesas</b>';
-    tablesPanel.prepend(title);
-  }
-}
-
-function ensureMenuLayout(){
-  const menuPanel=$('.menu-panel');
-  const categories=$('#categories');
-  const menuHead=$('.menu-head');
-  if(!menuPanel||!categories||!menuHead)return;
-  if(categories.previousElementSibling!==null&&categories.parentElement===menuPanel){
-    menuPanel.prepend(categories);
-  }else if(categories.parentElement!==menuPanel){
-    menuPanel.prepend(categories);
-  }
-  const h2=menuHead.querySelector('h2');
-  if(h2)h2.textContent='Agregar productos';
-  const search=$('#search');
-  if(search)search.placeholder='Buscar producto por nombre o código…';
-}
-
-function ensureDraftLayout(){
-  const panel=$('.draft-panel');
-  const service=$('#serviceControls');
-  const head=$('.draft-head');
-  const review=$('#review');
-  if(!panel||!head||!review)return;
-
-  let summary=panel.querySelector('[data-demo-table-summary]');
-  if(!summary){
-    summary=document.createElement('section');
-    summary.className='demo-table-summary';
-    summary.dataset.demoTableSummary='1';
-    summary.innerHTML='<small>MESA SELECCIONADA</small><strong data-demo-table-name>Sin mesa</strong><span data-demo-table-state>Selecciona una mesa para comenzar.</span>';
-    panel.prepend(summary);
-  }
-
-  let serviceSlot=panel.querySelector('[data-demo-service-slot]');
-  if(!serviceSlot){
-    serviceSlot=document.createElement('div');
-    serviceSlot.className='demo-service-slot';
-    serviceSlot.dataset.demoServiceSlot='1';
-    head.insertAdjacentElement('afterend',serviceSlot);
-  }
-  if(service&&service.parentElement!==serviceSlot)serviceSlot.appendChild(service);
-
-  let actions=panel.querySelector('[data-demo-order-actions]');
-  if(!actions){
-    actions=document.createElement('div');
-    actions.className='demo-order-actions';
-    actions.dataset.demoOrderActions='1';
-    actions.innerHTML='<button type="button" class="rv2-btn" data-demo-split>Separar cuenta</button><button type="button" class="rv2-btn" data-demo-prebill>Precuenta</button><button type="button" class="rv2-btn rv2-btn-primary" data-demo-send>Enviar pedido</button><button type="button" class="rv2-btn" data-demo-cash>Cobrar</button>';
-    panel.appendChild(actions);
-    actions.querySelector('[data-demo-send]').onclick=sendCurrentOrderDirect;
-    actions.querySelector('[data-demo-prebill]').onclick=requestAccount;
-    actions.querySelector('[data-demo-split]').onclick=openSplit;
-    actions.querySelector('[data-demo-cash]').onclick=openCash;
-  }
-  const tableName=summary.querySelector('[data-demo-table-name]');
-  const tableState=summary.querySelector('[data-demo-table-state]');
-  if(tableName)tableName.textContent=selectedTableName();
-  const button=selectedTableButton();
-  if(tableState)tableState.textContent=button?button.querySelector('small')?.textContent||'Mesa seleccionada':'Selecciona una mesa para comenzar.';
-
-  const send=actions.querySelector('[data-demo-send]');
-  const prebill=actions.querySelector('[data-demo-prebill]');
-  const split=actions.querySelector('[data-demo-split]');
-  const charge=actions.querySelector('[data-demo-cash]');
-  if(send)send.disabled=Boolean(review.disabled);
-  const open=selectedTableIsOpen();
-  if(prebill)prebill.disabled=!open;
-  if(split)split.disabled=!open;
-  if(charge)charge.disabled=!open;
-}
-
-function enhanceMenuClick(){
-  if(document.body.dataset.demoMenuDelegated==='1')return;
-  document.body.dataset.demoMenuDelegated='1';
-  document.addEventListener('click',(event)=>{
-    const card=event.target.closest?.('.menu-item');
-    if(!card||event.target.closest('button,input,textarea,select,a'))return;
-    const button=card.querySelector('[data-add]:not(:disabled)');
-    if(button)button.click();
-  });
-}
-
-function apply(){
-  if(applying)return;
-  applying=true;
-  try{
-    ensurePanelTitles();
-    ensureMenuLayout();
-    ensureDraftLayout();
-    enhanceMenuClick();
-    const headerTitle=$('.rv2-order-top h1');
-    if(headerTitle)headerTitle.textContent='Pedidos';
-    const tenantLine=$('#tenantLine');
-    if(tenantLine&&session?.tenant?.nombreEmpresa)tenantLine.textContent=session.tenant.nombreEmpresa+' · Pedidos + Caja';
-  }finally{applying=false}
-}
-
-async function sendCurrentOrderDirect(){
-  const tableId=selectedTableId();
-  const review=$('#review');
-  if(!tableId||!selectedTableIsOpen()||!review||review.disabled)return;
-  const button=$('[data-demo-send]');
-  if(button){button.disabled=true;button.textContent='Enviando…'}
-  try{
-    const tables=await RV2.api('/api/v1/restaurante/v2/mesas');
-    const table=(tables||[]).find(row=>String(row.id)===String(tableId));
-    const sessionId=table?.activeSession?.id;
-    if(!sessionId)throw new Error('La mesa ya no tiene una sesión activa.');
-    await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(sessionId)+'/pedido/enviar',{method:'POST',body:'{}'});
-    showNotice('Pedido enviado a producción.');
-    $('#refresh')?.click();
-  }catch(error){
-    showNotice(error.message||'No fue posible enviar el pedido.',true);
-  }finally{
-    if(button){button.disabled=false;button.textContent='Enviar pedido'}
-  }
-}
-
-async function requestAccount(){
-  const tableId=selectedTableId();
-  if(!tableId||!selectedTableIsOpen())return;
-  const review=$('#review');
-  if(review&&!review.disabled){
-    showNotice('Hay productos sin enviar. Envía el pedido antes de pedir la cuenta.',true);
-    return;
-  }
-  try{
-    await RV2.api('/api/v1/restaurante/v2/mesas/'+encodeURIComponent(tableId)+'/pedir-cuenta',{method:'POST',body:'{}'});
-    showNotice('Precuenta solicitada. La mesa quedó lista para Caja.');
-    $('#refresh')?.click();
-  }catch(error){showNotice(error.message||'No fue posible preparar la cuenta.',true)}
-}
-
-function openSplit(){
-  const tableId=selectedTableId();
-  if(!tableId||!selectedTableIsOpen())return;
-  location.assign('/app/restaurante-v2/division?tableId='+encodeURIComponent(tableId));
-}
-
-function ensureCashDialog(){
-  let dialog=$('#demoOrdersCashDialog');
-  if(dialog)return dialog;
-  dialog=document.createElement('dialog');
-  dialog.id='demoOrdersCashDialog';
-  dialog.className='demo-pos-cash-dialog';
-  dialog.innerHTML='<div class="demo-pos-cash-shell"><div class="demo-pos-cash-head"><div><small>PEDIDOS · CAJA INTEGRADA</small><h2 data-demo-cash-title>Cobrar mesa</h2></div><div><div class="demo-pos-cash-total" data-demo-cash-total>$0</div><button type="button" class="rv2-btn" data-demo-cash-close>Cerrar</button></div></div><div class="demo-pos-cash-body" data-demo-cash-body></div></div>';
-  document.body.appendChild(dialog);
-  dialog.querySelector('[data-demo-cash-close]').onclick=()=>dialog.close();
-  dialog.addEventListener('close',()=>resetCashState());
-  return dialog;
-}
-
-function resetCashState(){
-  cash.workspace=null;cash.detail=null;cash.methodId=null;cash.customerId=null;cash.customers=[];cash.busy=false;cash.tableId=null;
-}
-
-function methodLabel(kind){
-  return kind==='EFECTIVO'?'Efectivo':kind==='TRANSFERENCIA'?'Transferencia / QR':kind==='TARJETA'?'Tarjeta':kind==='CREDITO'?'Crédito':kind||'Método';
-}
-
-function selectedMethod(){return cash.detail?.paymentMethods?.find(x=>String(x.id)===String(cash.methodId))||null}
-function selectedCustomer(){return cash.customers.find(x=>String(x.id)===String(cash.customerId))||null}
-
-function cashStatus(text,error=false){
-  const node=$('[data-demo-cash-status]',$('#demoOrdersCashDialog'));
+function root(){return $('#demoBarOrdersRoot')}
+function currentTable(){return S.workspace?.tables?.find(row=>String(row.id)===String(S.tableId))||null}
+function accounts(){return currentTable()?.accounts||[]}
+function currentAccount(){return accounts().find(row=>String(row.id)===String(S.accountId))||null}
+function draftItems(){return (S.draft?.items||[]).filter(item=>item.editableDraft)}
+function allItems(){return S.draft?.items||[]}
+function pendingItems(){return draftItems()}
+function sentItems(){return allItems().filter(item=>!item.editableDraft)}
+function total(){return Number(S.draft?.sale?.total||currentAccount()?.sale?.total||0)}
+function setStatus(text,error=false){
+  const node=$('[data-demo-status]',root());
   if(node){node.textContent=text||'';node.classList.toggle('error',Boolean(error))}
 }
+function selectedCount(){return S.selected.size}
 
-async function openCash(){
-  const tableId=selectedTableId();
-  if(!tableId||!selectedTableIsOpen())return;
-  const review=$('#review');
-  if(review&&!review.disabled){
-    showNotice('Hay productos sin enviar. Envía el pedido antes de cobrar.',true);
-    return;
-  }
-  const dialog=ensureCashDialog();
-  cash.tableId=tableId;
-  dialog.showModal();
-  const body=$('[data-demo-cash-body]',dialog);
-  body.innerHTML='<div class="rv2-muted">Cargando Caja…</div>';
-  try{
-    const [workspace,detail]=await Promise.all([
-      RV2.api('/api/v1/restaurante/v2/caja'),
-      RV2.api('/api/v1/restaurante/v2/caja/mesas/'+encodeURIComponent(tableId))
-    ]);
-    cash.workspace=workspace;
-    cash.detail=detail;
-    cash.methodId=detail.paymentMethods?.[0]?.id||null;
-    renderCash();
-  }catch(error){
-    body.innerHTML='<div class="notice error">'+RV2.esc(error.message||'No fue posible abrir Caja desde Pedidos.')+'</div>';
-  }
+function mount(){
+  if(root())return;
+  const canonicalMain=document.querySelector('body>main');
+  const main=document.createElement('main');
+  main.id='demoBarOrdersRoot';
+  main.className='demo-bar-orders-main';
+  main.innerHTML='<div class="demo-bar-status" data-demo-status>Inicializando Pedidos…</div><div class="demo-bar-layout"><aside class="demo-bar-pane demo-bar-locations"><span class="demo-bar-cap">UBICACIONES</span><div class="demo-bar-location-scroll" data-demo-locations></div></aside><section class="demo-bar-pane demo-bar-catalog"><div class="demo-bar-categories" data-demo-categories></div><div class="demo-bar-catalog-head"><b>Agregar productos</b><label>Cantidad + nombre o código<input class="demo-bar-search" data-demo-search autocomplete="off" placeholder="Ej.: 5+cerv"></label><div class="demo-bar-hint">↑ ↓ Seleccionar · Enter Agregar</div></div><div class="demo-bar-catalog-summary" data-demo-catalog-summary></div><div class="demo-bar-products" data-demo-products></div></section><section class="demo-bar-pane demo-bar-account-pane"><div class="demo-bar-account-list"><div class="demo-bar-account-head"><strong data-demo-location>Selecciona una ubicación</strong><div class="demo-bar-account-head-actions"><button class="rv2-btn demo-bar-small-btn" data-demo-close-account>Cerrar cuenta</button><button class="rv2-btn demo-bar-small-btn" data-demo-new-account>+ Nueva cuenta</button></div></div><div class="demo-bar-account-table-wrap"><table class="demo-bar-account-table"><thead><tr><th>Pedido</th><th>Cuenta</th><th class="demo-bar-num">Total</th></tr></thead><tbody data-demo-accounts></tbody></table></div></div><section class="demo-bar-order"><div class="demo-bar-order-head"><b data-demo-order-name>Nueva venta</b><small>CONSUMOS</small></div><div class="demo-bar-lines-wrap" data-demo-lines-wrap><div class="demo-bar-empty">Selecciona una cuenta o agrega un producto para comenzar.</div></div></section><section class="demo-bar-checkout"><div class="demo-bar-total"><span data-demo-item-count>0 unidades</span><strong data-demo-total>$0</strong></div><div class="demo-bar-actions"><button class="rv2-btn" data-demo-rename>Nombre</button><button class="rv2-btn" data-demo-split>Separar</button><button class="rv2-btn" data-demo-merge>Unir</button><button class="rv2-btn" data-demo-send>Enviar pedido</button><button class="rv2-btn" data-demo-prebill>Precuenta</button><button class="rv2-btn pay" data-demo-pay>Cobrar</button></div></section></section></div>';
+  canonicalMain?.insertAdjacentElement('afterend',main);
+  bindStatic();
 }
 
-function renderCash(){
-  const dialog=$('#demoOrdersCashDialog');
-  if(!dialog||!cash.detail)return;
-  const detail=cash.detail;
-  $('[data-demo-cash-title]',dialog).textContent=(detail.table?.name||'Mesa')+' · '+(detail.sale?.numero||'Cuenta');
-  $('[data-demo-cash-total]',dialog).textContent=money(detail.sale?.total||0);
-  const body=$('[data-demo-cash-body]',dialog);
+function bindStatic(){
+  const r=root();
+  $('[data-demo-search]',r).addEventListener('input',event=>{S.search=event.target.value;S.focus=0;renderCatalog()});
+  $('[data-demo-search]',r).addEventListener('keydown',event=>{
+    if(['ArrowDown','ArrowUp'].includes(event.key)){
+      event.preventDefault();
+      S.focus=Math.max(0,Math.min(S.filtered.length-1,S.focus+(event.key==='ArrowDown'?1:-1)));
+      renderProducts();
+      $('[data-demo-products] .focused',r)?.scrollIntoView({block:'nearest'});
+    }
+    if(event.key==='Enter'){
+      event.preventDefault();
+      const item=S.filtered[S.focus];
+      if(item)addProduct(item.id,parseSearchQuantity());
+    }
+  });
+  $('[data-demo-new-account]',r).onclick=newAccount;
+  $('[data-demo-close-account]',r).onclick=closeAccount;
+  $('[data-demo-rename]',r).onclick=renameAccount;
+  $('[data-demo-send]',r).onclick=sendPending;
+  $('[data-demo-prebill]',r).onclick=requestPrebill;
+  $('[data-demo-pay]',r).onclick=openCash;
+  $('[data-demo-split]',r).onclick=openSplitDialog;
+  $('[data-demo-merge]',r).onclick=openMergeDialog;
+}
 
-  if(detail.session?.requiresP5){
-    body.innerHTML='<div class="demo-pos-shift-warning"><b>Esta cuenta requiere División.</b><p>Usa el módulo de División para cobrar las partes sin alterar la cuenta.</p><button type="button" class="rv2-btn rv2-btn-primary" data-demo-open-split>ABRIR DIVISIÓN</button></div>';
-    body.querySelector('[data-demo-open-split]').onclick=openSplit;
-    return;
+function parseSearchQuantity(){
+  const raw=String(S.search||'').trim();
+  const match=raw.match(/^(\d+)\s*\+\s*(.*)$/);
+  if(!match)return 1;
+  const n=Number(match[1]);
+  return Number.isInteger(n)&&n>=1&&n<=999?n:1;
+}
+function searchTerm(){
+  const raw=String(S.search||'').trim();
+  const match=raw.match(/^(\d+)\s*\+\s*(.*)$/);
+  return normalize(match?match[2]:raw);
+}
+function categories(){
+  return [...new Set(S.menu.map(item=>item.displayCategory||item.category||'MENÚ'))].sort((a,b)=>String(a).localeCompare(String(b),'es'));
+}
+
+function renderLocations(){
+  const box=$('[data-demo-locations]',root());
+  const tables=S.workspace?.tables||[];
+  let html='',lastZone=null;
+  for(const table of tables){
+    if(table.zoneName!==lastZone){lastZone=table.zoneName;html+='<div class="demo-bar-zone">'+esc(lastZone)+'</div>'}
+    const count=table.accounts?.length||0;
+    html+='<button class="demo-bar-place '+(count?'occupied ':'')+(String(table.id)===String(S.tableId)?'active':'')+'" data-demo-table="'+esc(table.id)+'"><span>'+esc(table.name||table.code)+'</span><small>'+(count?count+' cta.':'Libre')+'</small></button>';
   }
+  box.innerHTML=html||'<div class="demo-bar-empty">No hay ubicaciones activas.</div>';
+  $$('[data-demo-table]',box).forEach(btn=>btn.onclick=()=>selectTable(btn.dataset.demoTable));
+}
 
+function renderAccounts(){
+  const table=currentTable();
+  $('[data-demo-location]',root()).textContent=table?.name||'Selecciona una ubicación';
+  const tbody=$('[data-demo-accounts]',root());
+  const rows=accounts();
+  tbody.innerHTML=rows.map(acc=>'<tr class="demo-bar-account-row '+(String(acc.id)===String(S.accountId)?'active':'')+'" data-demo-account="'+esc(acc.id)+'"><td>#'+esc(acc.number||'—')+'</td><td><button>'+esc(acc.name||'Cuenta')+'</button>'+(acc.accountRequestedAt?'<small style="display:block;color:var(--rv2-danger);margin-top:2px">Cuenta solicitada</small>':'')+'</td><td class="demo-bar-num">'+money(acc.sale?.total||0)+'</td></tr>').join('')||'<tr><td colspan="3">Sin cuentas abiertas</td></tr>';
+  $$('[data-demo-account]',tbody).forEach(row=>row.onclick=()=>selectAccount(row.dataset.demoAccount));
+  $('[data-demo-new-account]',root()).disabled=!table;
+  $('[data-demo-close-account]',root()).disabled=!currentAccount();
+}
+
+function renderCatalog(){
+  renderCategories();
+  const term=searchTerm();
+  S.filtered=S.menu.filter(item=>{
+    const cat=item.displayCategory||item.category||'MENÚ';
+    if(S.category&&cat!==S.category)return false;
+    if(!term)return true;
+    return normalize((item.product?.sku||'')+' '+(item.product?.nombre||'')+' '+cat).includes(term);
+  });
+  S.focus=Math.max(0,Math.min(S.focus,S.filtered.length-1));
+  $('[data-demo-catalog-summary]',root()).textContent=(S.category||'Todos')+' · '+S.filtered.length+' productos';
+  renderProducts();
+}
+function renderCategories(){
+  const box=$('[data-demo-categories]',root());
+  const cats=categories();
+  const rows=[['','Todos',S.menu.length],...cats.map(cat=>[cat,cat,S.menu.filter(item=>(item.displayCategory||item.category||'MENÚ')===cat).length])];
+  box.innerHTML=rows.map(([id,label,count])=>'<button class="demo-bar-category '+(S.category===id?'active':'')+'" data-demo-cat="'+esc(id)+'">'+esc(label)+' <small>'+count+'</small></button>').join('');
+  $$('[data-demo-cat]',box).forEach(btn=>btn.onclick=()=>{S.category=btn.dataset.demoCat;S.search='';$('[data-demo-search]',root()).value='';S.focus=0;renderCatalog()});
+}
+function renderProducts(){
+  const box=$('[data-demo-products]',root());
+  box.innerHTML=S.filtered.map((item,index)=>'<button class="demo-bar-product '+(index===S.focus?'focused':'')+'" data-demo-product="'+esc(item.id)+'"><span><b>'+esc(item.product?.nombre||'Producto')+'</b><small>'+esc(item.product?.sku||'')+' · '+esc(item.displayCategory||item.category||'')+'</small></span><strong>'+money(item.product?.precio1||0)+'</strong></button>').join('')||'<div class="demo-bar-empty">No hay productos disponibles con estos filtros.</div>';
+  $$('[data-demo-product]',box).forEach(btn=>btn.onclick=()=>addProduct(btn.dataset.demoProduct,1));
+}
+
+function renderOrder(){
+  const acc=currentAccount();
+  $('[data-demo-order-name]',root()).textContent=acc?'Pedido #'+(acc.number||'—')+' · '+acc.name:'Nueva venta';
+  $('[data-demo-total]',root()).textContent=money(total());
+  const items=allItems();
+  const count=items.reduce((sum,item)=>sum+Number(item.quantity||0),0);
+  $('[data-demo-item-count]',root()).textContent=count+' unidades';
+  const wrap=$('[data-demo-lines-wrap]',root());
+  if(!acc){wrap.innerHTML='<div class="demo-bar-empty">Busca un producto para comenzar una cuenta.</div>';renderActions();return}
+  if(!items.length){wrap.innerHTML='<div class="demo-bar-empty">Busca un producto para comenzar esta cuenta.</div>';renderActions();return}
+  wrap.innerHTML='<table class="demo-bar-lines"><thead><tr><th class="select-col"></th><th>Producto</th><th class="qty-col">Cant.</th><th class="price-col demo-bar-num">Precio</th><th class="subtotal-col demo-bar-num">Subtotal</th><th class="remove-col"></th></tr></thead><tbody>'+items.map(item=>{
+    const draft=Boolean(item.editableDraft);
+    const key=String(item.saleDetailId||item.id);
+    const checked=S.selected.has(key);
+    const status=String(item.operationalState||item.orderState||'Cuenta').replaceAll('_',' ');
+    const origin=item.originTable?.name&&item.originTable.id!==S.tableId?' · origen '+item.originTable.name:'';
+    return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
+  }).join('')+'</tbody></table>';
+  $('[data-demo-select]',wrap).forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
+  $('[data-demo-qty]',wrap).forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
+  $('[data-demo-remove]',wrap).forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
+  $$('[data-demo-price]',wrap).forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
+  renderActions();
+}
+function renderActions(){
+  const acc=currentAccount();
+  const hasPending=pendingItems().length>0;
+  const hasItems=allItems().length>0;
+  $('[data-demo-rename]',root()).disabled=!acc;
+  $('[data-demo-split]',root()).disabled=!acc||!selectedCount();
+  $('[data-demo-merge]',root()).disabled=!acc||(S.workspace?.tables||[]).flatMap(t=>t.accounts||[]).filter(a=>a.id!==acc.id).length===0;
+  $('[data-demo-send]',root()).disabled=!acc||!hasPending;
+  $('[data-demo-prebill]',root()).disabled=!acc||!hasItems;
+  $('[data-demo-pay]',root()).disabled=!acc||!hasItems||hasPending;
+  const pay=$('[data-demo-pay]',root());
+  if(pay)pay.title=hasPending?'Envía los consumos nuevos antes de cobrar.':'';
+}
+
+function render(){
+  renderLocations();
+  renderAccounts();
+  renderCatalog();
+  renderOrder();
+}
+
+async function loadBase(preserve=true){
+  if(S.loading)return;
+  S.loading=true;
+  try{
+    setStatus('Actualizando ubicaciones, cuentas y carta…');
+    const [workspace,menu]=await Promise.all([
+      RV2.api('/api/v1/restaurante/v2/demo-bar/workspace'),
+      RV2.api('/api/v1/restaurante/menu')
+    ]);
+    S.workspace=workspace;
+    S.menu=(menu||[]).filter(item=>item.active!==false&&item.product);
+    const tables=workspace.tables||[];
+    if(!preserve||!tables.some(t=>String(t.id)===String(S.tableId)))S.tableId=tables[0]?.id||null;
+    const accs=currentTable()?.accounts||[];
+    if(!accs.some(a=>String(a.id)===String(S.accountId)))S.accountId=accs[0]?.id||null;
+    render();
+    if(S.accountId)await loadAccount(S.accountId);else{S.draft=null;renderOrder()}
+    setStatus('Pedidos tipo VANTIX BAR activo solo en demo-restaurante.');
+  }catch(error){setStatus(error.message||'No fue posible cargar el piloto.',true)}
+  finally{S.loading=false}
+}
+async function selectTable(tableId){
+  S.tableId=tableId;
+  S.selected.clear();
+  const accs=currentTable()?.accounts||[];
+  S.accountId=accs[0]?.id||null;
+  renderLocations();renderAccounts();
+  if(S.accountId)await loadAccount(S.accountId);else{S.draft=null;renderOrder()}
+  $('[data-demo-search]',root())?.focus({preventScroll:true});
+}
+async function selectAccount(accountId){
+  S.accountId=accountId;S.selected.clear();renderAccounts();await loadAccount(accountId);$('[data-demo-search]',root())?.focus({preventScroll:true});
+}
+async function loadAccount(accountId){
+  if(!accountId){S.draft=null;renderOrder();return}
+  try{
+    S.draft=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(accountId)+'/detalle');
+    const visible=new Set(allItems().map(item=>String(item.saleDetailId||item.id)));
+    for(const id of [...S.selected])if(!visible.has(id))S.selected.delete(id);
+    renderOrder();
+  }catch(error){setStatus(error.message||'No fue posible cargar la cuenta.',true)}
+}
+
+async function ensureAccount(){
+  if(S.accountId)return S.accountId;
+  if(!S.tableId)throw new Error('Selecciona una ubicación.');
+  const data=await RV2.api('/api/v1/restaurante/v2/demo-bar/mesas/'+encodeURIComponent(S.tableId)+'/cuentas',{method:'POST',body:JSON.stringify({name:'Cuenta'})});
+  await loadBase(true);
+  S.accountId=data.account.id;
+  await loadAccount(S.accountId);
+  return S.accountId;
+}
+async function newAccount(){
+  if(!S.tableId)return;
+  const name=prompt('Nombre de la nueva cuenta','Cuenta');
+  if(name===null)return;
+  try{
+    const data=await RV2.api('/api/v1/restaurante/v2/demo-bar/mesas/'+encodeURIComponent(S.tableId)+'/cuentas',{method:'POST',body:JSON.stringify({name:name.trim()||'Cuenta'})});
+    await loadBase(true);S.accountId=data.account.id;await loadAccount(S.accountId);setStatus('Nueva cuenta creada.');
+  }catch(error){setStatus(error.message||'No fue posible crear la cuenta.',true)}
+}
+async function renameAccount(){
+  const acc=currentAccount();if(!acc)return;
+  const name=prompt('Nombre de la cuenta',acc.name||'Cuenta');if(name===null)return;
+  try{
+    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(acc.id),{method:'PATCH',body:JSON.stringify({name:name.trim()||'Cuenta'})});
+    await loadBase(true);setStatus('Nombre actualizado.');
+  }catch(error){setStatus(error.message||'No fue posible cambiar el nombre.',true)}
+}
+async function closeAccount(){
+  const acc=currentAccount();if(!acc)return;
+  if(allItems().length||total()>0){openCash();return}
+  if(!confirm('Cerrar '+acc.name+' vacía?'))return;
+  try{
+    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(acc.id)+'/vacia',{method:'DELETE'});
+    S.accountId=null;await loadBase(true);setStatus('Cuenta vacía cerrada.');
+  }catch(error){setStatus(error.message||'No fue posible cerrar la cuenta.',true)}
+}
+
+async function addProduct(menuItemId,qty){
+  if(S.busy)return;
+  const item=S.menu.find(row=>String(row.id)===String(menuItemId));if(!item)return;
+  qty=Math.max(1,Math.min(999,Number(qty)||1));
+  S.busy=true;
+  try{
+    const accountId=await ensureAccount();
+    const existing=draftItems().find(row=>String(row.menuItemId)===String(menuItemId)&&!row.seatNumber);
+    const next=Number(existing?.quantity||0)+qty;
+    await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(accountId)+'/pedido/items/'+encodeURIComponent(menuItemId),{method:'PUT',body:JSON.stringify({quantity:next,seatNumber:null})});
+    await reopenAfterMutation(accountId);
+    S.search='';$('[data-demo-search]',root()).value='';S.focus=0;
+    await loadAccount(accountId);await refreshWorkspaceOnly();renderCatalog();
+    setStatus('Producto agregado. Pulsa Enviar pedido para pasarlo a producción.');
+  }catch(error){setStatus(error.message||'No fue posible agregar el producto.',true)}
+  finally{S.busy=false}
+}
+async function reopenAfterMutation(accountId){
+  try{await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(accountId)+'/reabrir',{method:'POST',body:'{}'})}catch{}
+}
+async function changeDraftQty(itemId,quantity){
+  const item=draftItems().find(row=>String(row.orderItemId||row.id)===String(itemId));if(!item||!S.accountId)return;
+  const q=Math.max(0,Math.min(999,Number(quantity)||0));
+  try{
+    await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(S.accountId)+'/pedido/items/'+encodeURIComponent(item.menuItemId),{method:'PUT',body:JSON.stringify({quantity:q,seatNumber:item.seatNumber??null})});
+    await reopenAfterMutation(S.accountId);
+    S.selected.delete(String(item.saleDetailId||item.id));await loadAccount(S.accountId);await refreshWorkspaceOnly();
+  }catch(error){setStatus(error.message||'No fue posible cambiar la cantidad.',true)}
+}
+async function changePrice(detailId,unitPrice){
+  if(!S.accountId||!detailId||!Number.isFinite(unitPrice)||unitPrice<0)return;
+  try{
+    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/items/'+encodeURIComponent(detailId)+'/precio',{method:'PATCH',body:JSON.stringify({unitPrice})});
+    await reopenAfterMutation(S.accountId);
+    await loadAccount(S.accountId);await refreshWorkspaceOnly();setStatus('Precio actualizado.');
+  }catch(error){setStatus(error.message||'No fue posible cambiar el precio.',true);await loadAccount(S.accountId)}
+}
+
+async function sendPending(){
+  if(!S.accountId||!pendingItems().length)return;
+  try{
+    await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(S.accountId)+'/pedido/enviar',{method:'POST',body:'{}'});
+    await loadAccount(S.accountId);await refreshWorkspaceOnly();setStatus('Pedido enviado a producción.');
+  }catch(error){setStatus(error.message||'No fue posible enviar el pedido.',true)}
+}
+async function requestPrebill(){
+  if(!S.accountId||!allItems().length)return;
+  try{
+    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/pedir-cuenta',{method:'POST',body:'{}'});
+    await refreshWorkspaceOnly();
+    openPrebill();
+    setStatus('Precuenta solicitada para '+currentAccount()?.name+'.');
+  }catch(error){setStatus(error.message||'No fue posible solicitar la precuenta.',true)}
+}
+function prebillHtml(){
+  const table=currentTable(),acc=currentAccount(),items=allItems();
+  return '<article class="demo-bar-prebill" id="demoBarPrebillPrint"><header><h2>PRECUENTA</h2><b>'+esc(session.tenant?.nombreEmpresa||'Vantix Restaurantes')+'</b><span>'+esc(table?.name||'')+' · '+esc(acc?.name||'Cuenta')+'</span></header><table><thead><tr><th>Cant.</th><th>Descripción</th><th>Valor</th></tr></thead><tbody>'+items.map(item=>'<tr><td>'+Number(item.quantity||0)+'</td><td>'+esc(item.description)+'</td><td>'+money(item.lineTotal||0)+'</td></tr>').join('')+'</tbody></table><footer><span>Total</span><strong>'+money(total())+'</strong><small>Pendiente de pago</small></footer></article>';
+}
+function openPrebill(){
+  const dialog=ensureDialog();
+  $('[data-dialog-eyebrow]',dialog).textContent='PRECUENTA';
+  $('[data-dialog-title]',dialog).textContent=(currentTable()?.name||'Mesa')+' · '+(currentAccount()?.name||'Cuenta');
+  const body=$('[data-dialog-body]',dialog);
+  body.innerHTML=prebillHtml()+'<div class="demo-bar-dialog-actions"><button class="rv2-btn" data-prebill-close>Cerrar</button><button class="rv2-btn rv2-btn-primary" data-prebill-print>Imprimir</button></div>';
+  $('[data-prebill-close]',body).onclick=()=>dialog.close();
+  $('[data-prebill-print]',body).onclick=printPrebill;
+  if(!dialog.open)dialog.showModal();
+}
+function printPrebill(){
+  const node=$('#demoBarPrebillPrint');
+  if(!node)return;
+  const frame=document.createElement('iframe');
+  frame.style.position='fixed';frame.style.width='1px';frame.style.height='1px';frame.style.opacity='0';frame.style.pointerEvents='none';
+  document.body.appendChild(frame);
+  const doc=frame.contentDocument;
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Precuenta</title><style>body{font-family:Arial,sans-serif;margin:0;padding:10mm;color:#111}article{max-width:80mm;margin:auto}header{text-align:center}header h2{margin:0 0 6px}header b,header span{display:block;margin:3px 0}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}th,td{padding:5px 2px;border-bottom:1px dashed #bbb;text-align:left}th:first-child,td:first-child{width:45px}th:last-child,td:last-child{text-align:right;white-space:nowrap}footer{margin-top:10px;border-top:2px solid #111;padding-top:8px}footer span,footer strong,footer small{display:block}footer strong{text-align:right;font-size:18px}footer small{text-align:center;margin-top:12px}@page{size:80mm auto;margin:4mm}</style></head><body>'+node.outerHTML+'</body></html>');
+  doc.close();
+  frame.onload=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),800)};
+}
+
+function openSplitDialog(){
+  const chosen=allItems().filter(item=>S.selected.has(String(item.saleDetailId||item.id)));
+  if(!chosen.length)return;
+  const dialog=ensureDialog();
+  $('[data-dialog-eyebrow]',dialog).textContent='SEPARAR CONSUMOS';
+  $('[data-dialog-title]',dialog).textContent=currentAccount()?.name||'Cuenta';
+  const body=$('[data-dialog-body]',dialog);
+  body.innerHTML='<label>Nombre de la nueva cuenta<input class="rv2-input" data-split-name value="Cuenta separada" maxlength="160"></label>'+chosen.map(item=>'<label>'+esc(item.description)+' · máximo '+Number(item.quantity||0)+'<input class="rv2-input" data-split-detail="'+esc(item.saleDetailId)+'" type="number" min="0.0001" max="'+Number(item.quantity||0)+'" step="0.0001" value="'+Number(item.quantity||0)+'"></label>').join('')+'<div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-dialog-actions"><button class="rv2-btn" data-split-cancel>Cancelar</button><button class="rv2-btn rv2-btn-primary" data-split-confirm>Separar</button></div>';
+  $('[data-split-cancel]',body).onclick=()=>dialog.close();
+  $('[data-split-confirm]',body).onclick=confirmSplit;
+  if(!dialog.open)dialog.showModal();
+}
+async function confirmSplit(){
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog);
+  const lines=$$('[data-split-detail]',body).map(input=>({detailId:input.dataset.splitDetail,quantity:Number(input.value)})).filter(row=>row.quantity>0);
+  const name=$('[data-split-name]',body)?.value?.trim()||'Cuenta separada';
+  if(!lines.length){dialogStatus('Selecciona al menos una cantidad válida.',true);return}
+  try{
+    dialogStatus('Separando consumos…');
+    const result=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/separar',{method:'POST',body:JSON.stringify({name,lines})});
+    dialog.close();S.selected.clear();await loadBase(true);S.accountId=result.accountId;await loadAccount(S.accountId);setStatus('Consumos separados en una nueva cuenta.');
+  }catch(error){dialogStatus(error.message||'No fue posible separar los consumos.',true)}
+}
+function openMergeDialog(){
+  const dest=currentAccount();if(!dest)return;
+  const entries=(S.workspace?.tables||[]).flatMap(table=>(table.accounts||[]).map(acc=>({...acc,tableName:table.name}))).filter(acc=>acc.id!==dest.id);
+  if(!entries.length)return;
+  const dialog=ensureDialog();
+  $('[data-dialog-eyebrow]',dialog).textContent='UNIR CUENTAS';
+  $('[data-dialog-title]',dialog).textContent='Destino: '+(currentTable()?.name||'')+' · '+dest.name;
+  const body=$('[data-dialog-body]',dialog);
+  const groups=new Map();for(const entry of entries){if(!groups.has(entry.tableName))groups.set(entry.tableName,[]);groups.get(entry.tableName).push(entry)}
+  body.innerHTML='<label>Nombre conjunto<input class="rv2-input" data-merge-name value="'+esc(dest.name)+'" maxlength="160"></label>'+[...groups.entries()].map(([tableName,rows])=>'<fieldset><legend>'+esc(tableName)+'</legend>'+rows.map(acc=>'<label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="checkbox" data-merge-source="'+esc(acc.id)+'"><span style="flex:1">#'+esc(acc.number)+' · '+esc(acc.name)+'</span><strong>'+money(acc.sale?.total||0)+'</strong></label>').join('')+'</fieldset>').join('')+'<div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-dialog-actions"><button class="rv2-btn" data-merge-cancel>Cancelar</button><button class="rv2-btn rv2-btn-primary" data-merge-confirm>Unir seleccionadas</button></div>';
+  $('[data-merge-cancel]',body).onclick=()=>dialog.close();
+  $('[data-merge-confirm]',body).onclick=confirmMerge;
+  if(!dialog.open)dialog.showModal();
+}
+async function confirmMerge(){
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog);
+  const sources=$$('[data-merge-source]:checked',body).map(input=>input.dataset.mergeSource);
+  const name=$('[data-merge-name]',body)?.value?.trim()||currentAccount()?.name||'Cuenta';
+  if(!sources.length){dialogStatus('Selecciona al menos una cuenta para unir.',true);return}
+  try{
+    dialogStatus('Uniendo cuentas…');
+    const dest=S.accountId;
+    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(dest)+'/unir',{method:'POST',body:JSON.stringify({name,sources})});
+    dialog.close();S.selected.clear();await loadBase(true);S.accountId=dest;await loadAccount(dest);setStatus('Cuentas unidas.');
+  }catch(error){dialogStatus(error.message||'No fue posible unir las cuentas.',true)}
+}
+
+async function refreshWorkspaceOnly(){
+  try{
+    S.workspace=await RV2.api('/api/v1/restaurante/v2/demo-bar/workspace');
+    if(!currentTable())S.tableId=S.workspace.tables?.[0]?.id||null;
+    if(!currentAccount()){
+      const accs=currentTable()?.accounts||[];
+      S.accountId=accs[0]?.id||null;
+    }
+    renderLocations();renderAccounts();
+  }catch{}
+}
+
+function ensureDialog(){
+  let dialog=$('#demoBarDialog');if(dialog)return dialog;
+  dialog=document.createElement('dialog');dialog.id='demoBarDialog';dialog.className='demo-bar-dialog';
+  dialog.innerHTML='<div class="demo-bar-dialog-shell"><div class="demo-bar-dialog-head"><div><small data-dialog-eyebrow>OPERACIÓN</small><h2 data-dialog-title>—</h2></div><button type="button" class="rv2-btn demo-bar-small-btn" data-dialog-close>Cerrar</button></div><div class="demo-bar-dialog-body" data-dialog-body></div></div>';
+  document.body.appendChild(dialog);$('[data-dialog-close]',dialog).onclick=()=>dialog.close();return dialog;
+}
+function dialogStatus(text,error=false){
+  const node=$('[data-dialog-status]',$('#demoBarDialog'));if(node){node.textContent=text||'';node.classList.toggle('error',Boolean(error))}
+}
+async function openCash(){
+  if(!S.accountId||pendingItems().length){if(pendingItems().length)setStatus('Envía los consumos nuevos antes de cobrar.',true);return}
+  const dialog=ensureDialog();$('[data-dialog-eyebrow]',dialog).textContent='COBRO';$('[data-dialog-title]',dialog).textContent='Cobrar '+currentAccount().name;const body=$('[data-dialog-body]',dialog);body.innerHTML='<div class="rv2-muted">Cargando Caja…</div>';dialog.showModal();
+  try{
+    const [cashWorkspace,detail]=await Promise.all([
+      RV2.api('/api/v1/restaurante/v2/caja'),
+      RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/caja')
+    ]);
+    S.cash={workspace:cashWorkspace,detail,methodId:detail.paymentMethods?.[0]?.id||null,busy:false};
+    renderCash();
+  }catch(error){body.innerHTML='<div class="demo-bar-dialog-status error">'+esc(error.message||'No fue posible abrir Caja.')+'</div>'}
+}
+function renderCash(){
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),cash=S.cash;if(!cash)return;
+  const detail=cash.detail;
+  $('[data-dialog-title]',dialog).textContent=(currentAccount()?.name||'Cuenta')+' · '+money(detail.sale?.total||0);
   if(!cash.workspace?.shift?.own){
     const accounts=cash.workspace?.shift?.cashAccounts||[];
-    body.innerHTML='<div class="demo-pos-shift-warning"><b>Turno de Caja cerrado</b><p>Abre tu turno para cobrar desde Pedidos.</p><div class="demo-pos-shift-grid"><label>Caja<select class="rv2-input" data-demo-cash-account>'+accounts.map(a=>'<option value="'+RV2.esc(a.id)+'">'+RV2.esc(a.nombre)+'</option>').join('')+'</select></label><label>Base inicial<input class="rv2-input" data-demo-initial type="number" min="0" step="100" value="0"></label></div><button type="button" class="rv2-btn rv2-btn-primary" data-demo-open-shift '+(accounts.length?'':'disabled')+'>ABRIR TURNO</button></div><div class="demo-pos-cash-status" data-demo-cash-status></div>';
-    body.querySelector('[data-demo-open-shift]')?.addEventListener('click',openShift);
+    body.innerHTML='<div><b>Turno de Caja cerrado</b><p>Abre tu turno para cobrar esta cuenta.</p><div class="demo-bar-payment-fields"><label>Caja<select class="rv2-input" data-cash-account>'+accounts.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.nombre)+'</option>').join('')+'</select></label><label>Base inicial<input class="rv2-input" data-cash-base type="number" min="0" step="100" value="0"></label></div><button class="rv2-btn rv2-btn-primary" data-open-shift '+(accounts.length?'':'disabled')+'>Abrir turno</button></div><div class="demo-bar-dialog-status" data-dialog-status></div>';
+    $('[data-open-shift]',body)?.addEventListener('click',openShift);
     return;
   }
-
   const methods=detail.paymentMethods||[];
-  if(!methods.some(x=>String(x.id)===String(cash.methodId)))cash.methodId=methods[0]?.id||null;
-  const method=selectedMethod();
-  const credit=method?.kind==='CREDITO';
-
-  body.innerHTML='<section><small>MÉTODO DE PAGO</small><div class="demo-pos-payment-methods">'+methods.map(m=>'<button type="button" class="demo-pos-method '+(String(m.id)===String(cash.methodId)?'active':'')+'" data-demo-method="'+RV2.esc(m.id)+'"><b>'+RV2.esc(m.name)+'</b><span>'+RV2.esc(methodLabel(m.kind))+(m.account?.nombre?' · '+RV2.esc(m.account.nombre):'')+'</span></button>').join('')+'</div></section>'+
-  '<div class="demo-pos-payment-fields"><label>Nombre en recibo<input class="rv2-input" data-demo-customer-name maxlength="160" value="Cliente genérico"></label><label>Propina<input class="rv2-input" data-demo-tip type="number" min="0" step="100" value="0" '+(credit?'disabled':'')+'></label><label style="grid-column:1/-1">Referencia / comprobante<input class="rv2-input" data-demo-reference maxlength="160" placeholder="Opcional"></label></div>'+
-  '<section data-demo-credit-box '+(credit?'':'hidden')+'><b>Cliente para crédito</b><input class="rv2-input" data-demo-customer-search placeholder="Buscar cliente…"><div class="demo-pos-customer-results" data-demo-customers></div></section>'+
-  '<button type="button" class="rv2-btn rv2-btn-primary" data-demo-charge>COBRAR '+money(detail.sale?.total||0)+'</button><div class="demo-pos-cash-status" data-demo-cash-status></div>';
-
-  $$('[data-demo-method]',body).forEach(btn=>btn.onclick=()=>{cash.methodId=btn.dataset.demoMethod;cash.customerId=null;cash.customers=[];renderCash()});
-  body.querySelector('[data-demo-charge]').onclick=charge;
-  const search=body.querySelector('[data-demo-customer-search]');
-  if(search){
-    search.oninput=()=>scheduleCustomerSearch(search.value);
-    loadCustomers('');
-  }
+  if(!methods.some(m=>String(m.id)===String(cash.methodId)))cash.methodId=methods[0]?.id||null;
+  body.innerHTML='<div class="demo-bar-cash-total">'+money(detail.sale?.total||0)+'</div><div class="demo-bar-payment-methods">'+methods.map(m=>'<button class="demo-bar-method '+(String(m.id)===String(cash.methodId)?'active':'')+'" data-cash-method="'+esc(m.id)+'"><b>'+esc(m.name)+'</b><span>'+esc(m.kind)+'</span></button>').join('')+'</div><div class="demo-bar-payment-fields"><label>Propina<input class="rv2-input" data-cash-tip type="number" min="0" step="100" value="0"></label><label>Referencia<input class="rv2-input" data-cash-reference maxlength="160" placeholder="Opcional"></label></div><button class="rv2-btn rv2-btn-primary" data-charge>Confirmar cobro</button><div class="demo-bar-dialog-status" data-dialog-status></div>';
+  $$('[data-cash-method]',body).forEach(btn=>btn.onclick=()=>{cash.methodId=btn.dataset.cashMethod;renderCash()});
+  $('[data-charge]',body).onclick=charge;
 }
-
 async function openShift(){
-  if(cash.busy)return;
-  const dialog=$('#demoOrdersCashDialog');
-  const account=dialog.querySelector('[data-demo-cash-account]')?.value;
-  const initial=Number(dialog.querySelector('[data-demo-initial]')?.value||0);
-  if(!account)return;
-  cash.busy=true;
-  cashStatus('Abriendo turno…');
+  const dialog=$('#demoBarDialog'),account=$('[data-cash-account]',dialog)?.value,base=Number($('[data-cash-base]',dialog)?.value||0);if(!account)return;
   try{
-    await RV2.api('/api/v1/restaurante/v2/caja/turno/abrir',{method:'POST',body:JSON.stringify({cajaBancoId:account,saldoInicial:initial})});
-    cash.workspace=await RV2.api('/api/v1/restaurante/v2/caja');
-    cash.detail=await RV2.api('/api/v1/restaurante/v2/caja/mesas/'+encodeURIComponent(cash.tableId));
-    cash.methodId=cash.detail.paymentMethods?.[0]?.id||null;
-    renderCash();
-  }catch(error){cashStatus(error.message||'No fue posible abrir el turno.',true)}
+    await RV2.api('/api/v1/restaurante/v2/caja/turno/abrir',{method:'POST',body:JSON.stringify({cajaBancoId:account,saldoInicial:base})});
+    S.cash.workspace=await RV2.api('/api/v1/restaurante/v2/caja');renderCash();
+  }catch(error){dialogStatus(error.message||'No fue posible abrir el turno.',true)}
+}
+async function charge(){
+  const cash=S.cash;if(!cash||cash.busy)return;
+  const method=cash.detail.paymentMethods.find(m=>String(m.id)===String(cash.methodId));if(!method)return;
+  if(!confirm('Cobrar '+money(cash.detail.sale?.total||0)+' con '+method.name+'?'))return;
+  cash.busy=true;dialogStatus('Registrando cobro…');
+  try{
+    const dialog=$('#demoBarDialog'),tip=Number($('[data-cash-tip]',dialog)?.value||0),reference=$('[data-cash-reference]',dialog)?.value?.trim()||null;
+    const data=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/cobrar',{method:'POST',body:JSON.stringify({paymentMethodId:method.id,tipAmount:tip,reference})});
+    renderCashResult(data);
+  }catch(error){dialogStatus(error.message||'No fue posible cobrar.',true)}
   finally{cash.busy=false}
 }
-
-let customerTimer=null;
-function scheduleCustomerSearch(q){
-  clearTimeout(customerTimer);
-  customerTimer=setTimeout(()=>loadCustomers(q),180);
-}
-
-async function loadCustomers(q){
-  if(!selectedMethod()||selectedMethod().kind!=='CREDITO')return;
-  try{
-    cash.customers=await RV2.api('/api/v1/restaurante/v2/caja/clientes?q='+encodeURIComponent(q||''));
-    renderCustomers();
-  }catch(error){cashStatus(error.message||'No fue posible buscar clientes.',true)}
-}
-
-function renderCustomers(){
-  const root=$('[data-demo-customers]',$('#demoOrdersCashDialog'));
-  if(!root)return;
-  root.innerHTML=(cash.customers||[]).slice(0,30).map(c=>'<button type="button" class="demo-pos-customer '+(String(c.id)===String(cash.customerId)?'active':'')+'" data-demo-customer="'+RV2.esc(c.id)+'"><b>'+RV2.esc(c.nombre||c.razonSocial||'Cliente')+'</b><small>'+RV2.esc(c.identificacion||'')+'</small></button>').join('')||'<div class="rv2-muted">No hay clientes que coincidan.</div>';
-  $$('[data-demo-customer]',root).forEach(btn=>btn.onclick=()=>{cash.customerId=btn.dataset.demoCustomer;renderCustomers()});
-}
-
-async function charge(){
-  const method=selectedMethod();
-  const dialog=$('#demoOrdersCashDialog');
-  if(!cash.detail||!method||cash.busy)return;
-  if(method.kind==='CREDITO'&&!cash.customerId){cashStatus('Selecciona un cliente para crédito.',true);return}
-  const total=money(cash.detail.sale?.total||0);
-  if(!confirm('Cobrar '+total+' con '+method.name+'?'))return;
-  const body=dialog.querySelector('[data-demo-cash-body]');
-  const customerName=body.querySelector('[data-demo-customer-name]')?.value?.trim()||'Cliente genérico';
-  const tip=Number(body.querySelector('[data-demo-tip]')?.value||0);
-  const reference=body.querySelector('[data-demo-reference]')?.value?.trim()||null;
-  cash.busy=true;
-  body.querySelector('[data-demo-charge]').disabled=true;
-  cashStatus('Registrando cobro…');
-  try{
-    const data=await RV2.api('/api/v1/restaurante/v2/caja/mesas/'+encodeURIComponent(cash.tableId)+'/cobrar',{method:'POST',body:JSON.stringify({paymentMethodId:method.id,tipAmount:tip,reference,terceroId:method.kind==='CREDITO'?cash.customerId:null,customerName})});
-    renderCashResult(data);
-    $('#refresh')?.click();
-  }catch(error){
-    cashStatus(error.message||'No fue posible realizar el cobro.',true);
-    const btn=body.querySelector('[data-demo-charge]');if(btn)btn.disabled=false;
-  }finally{cash.busy=false}
-}
-
 function renderCashResult(data){
-  const dialog=$('#demoOrdersCashDialog');
-  const body=$('[data-demo-cash-body]',dialog);
-  const sessionId=data?.result?.session?.id||null;
-  const saleNumber=data?.result?.sale?.numero||'POS';
-  body.innerHTML='<div class="demo-pos-cash-result"><small>VENTA LIQUIDADA</small><strong>'+RV2.esc(saleNumber)+'</strong><p>El cobro quedó registrado. ¿Deseas imprimir el recibo?</p><div class="demo-pos-print-actions"><button type="button" class="rv2-btn rv2-btn-primary" data-demo-print>SÍ, IMPRIMIR</button><button type="button" class="rv2-btn" data-demo-no-print>NO</button></div><div class="demo-pos-cash-status" data-demo-cash-status></div></div>';
-  const print=body.querySelector('[data-demo-print]');
-  const no=body.querySelector('[data-demo-no-print]');
-  if(print)print.onclick=()=>printReceipt(sessionId);
-  if(no)no.onclick=()=>finishCash();
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),sessionId=data?.result?.session?.id||null,saleNumber=data?.result?.sale?.numero||'POS';
+  body.innerHTML='<div><small>VENTA LIQUIDADA</small><h2>'+esc(saleNumber)+'</h2><p>La cuenta quedó pagada. ¿Deseas imprimir?</p><div class="demo-bar-print-actions"><button class="rv2-btn rv2-btn-primary" data-print>Sí, imprimir</button><button class="rv2-btn" data-no-print>No</button></div><div class="demo-bar-dialog-status" data-dialog-status></div></div>';
+  $('[data-print]',body).onclick=()=>printReceipt(sessionId);
+  $('[data-no-print]',body).onclick=finishCash;
 }
-
 async function printReceipt(sessionId){
-  if(!sessionId){cashStatus('No se recibió la sesión liquidada para imprimir.',true);return}
-  cashStatus('Enviando recibo a impresión…');
   try{
+    dialogStatus('Enviando recibo a impresión…');
     await RV2.api('/api/v1/restaurante/v2/caja/recibo/imprimir',{method:'POST',body:JSON.stringify({sessionId})});
-    cashStatus('Recibo enviado a la cola de impresión.');
-    setTimeout(finishCash,450);
-  }catch(error){cashStatus('La venta quedó liquidada, pero no se pudo imprimir: '+(error.message||'error'),true)}
+    dialogStatus('Recibo enviado.');setTimeout(finishCash,350);
+  }catch(error){dialogStatus('La venta está liquidada, pero no se pudo imprimir: '+(error.message||'error'),true)}
+}
+async function finishCash(){
+  $('#demoBarDialog')?.close();S.cash=null;S.accountId=null;S.draft=null;S.selected.clear();await loadBase(true);setStatus('Cobro registrado.');
 }
 
-function finishCash(){
-  $('#demoOrdersCashDialog')?.close();
-  $('#refresh')?.click();
-  showNotice('Cobro registrado. Mesa actualizada.');
+function realtime(){
+  clearTimeout(realtime.timer);realtime.timer=setTimeout(()=>loadBase(true),100);
 }
-
-const observer=new MutationObserver(schedule);
 function start(){
-  apply();
-  observer.observe(document.body,{subtree:true,childList:true});
-  window.addEventListener('vantix:tenant-realtime',schedule);
-  window.addEventListener('pageshow',schedule);
+  mount();
+  const title=$('.rv2-order-top h1');if(title)title.textContent='Pedidos';
+  const line=$('#tenantLine');if(line)line.textContent=(session.tenant?.nombreEmpresa||session.subdomain)+' · comportamiento VANTIX BAR';
+  $('#refresh')?.addEventListener('click',()=>loadBase(true));
+  window.addEventListener('vantix:tenant-realtime',realtime);
+  loadBase(false);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-window.VantixDemoRestaurantOrdersPosV1=Object.freeze({marker:MARKER,version:'2.0.0',tenant:TENANT,refresh:schedule,openCash,sendCurrentOrderDirect});
+window.VantixDemoRestaurantBarOrdersV1=Object.freeze({marker:MARKER,tenant:TENANT,refresh:()=>loadBase(true)});
 })();

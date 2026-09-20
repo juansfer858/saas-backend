@@ -43,6 +43,7 @@ const { restaurantTableLiveDetailV67Router } = require('../modules/restaurant/re
 const { restaurantV2TableMoveRouter } = require('../modules/restaurant/restaurant-v2-table-move.routes');
 const { restaurantV2TableOpenRequestRouter } = require('../modules/restaurant/restaurant-v2-table-open-request.routes');
 const { restaurantV2OrdersRouter } = require('../modules/restaurant/restaurant-v2-orders.routes');
+const { restaurantDemoBarRouter } = require('../modules/restaurant/restaurant-demo-bar.routes');
 const { restaurantV2CashRouter } = require('../modules/restaurant/restaurant-v2-cash.routes');
 const { restaurantV2SplitRouter } = require('../modules/restaurant/restaurant-v2-split.routes');
 const { restaurantV2KdsRouter } = require('../modules/restaurant/restaurant-v2-kds.routes');
@@ -105,6 +106,7 @@ router.use('/restaurante', restaurantV2TableMoveRouter);
 router.use('/restaurante', restaurantV2TableOpenRequestRouter);
 // V2 P3 orders is opt-in and standalone. V1 routes keep their original waiter scope
 // and billing semantics while this API enables shared-floor reinforcement + optional persons.
+router.use('/restaurante', restaurantDemoBarRouter);
 router.use('/restaurante', restaurantV2OrdersRouter);
 // V2 P4 Caja owns its API independently. It closes the same real sale/session but never
 // enters the legacy V1 cash UI rewrite chain and never makes DIAN a mandatory gate.

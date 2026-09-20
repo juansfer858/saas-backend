@@ -136,11 +136,48 @@ async function closeTableWithMethod(tenantId, user, tableId, input) {
   return { ...result, paymentMethod: method };
 }
 
+async function closeSessionWithMethod(tenantId, user, sessionId, input) {
+  const methods = await listMethods(tenantId);
+  const method = methods.find((row) => row.id === input.paymentMethodId && row.active);
+  if (!method) throw new AppError(400, 'Seleccione un método de pago activo', 'RESTAURANT_PAYMENT_METHOD_REQUIRED');
+  if (method.kind === 'CREDITO') throw new AppError(409, 'El crédito requiere el flujo especializado de Caja', 'RESTAURANT_CREDIT_CUSTOMER_REQUIRED');
+  await validateAccount(tenantId, method.kind, method.cajaBancoId || null);
+
+  const session = await prisma.restaurantTableSession.findFirst({
+    where: { id: sessionId, tenantId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+    include: { table: true }
+  });
+  if (!session) throw new AppError(404, 'Cuenta no encontrada', 'RESTAURANT_SESSION_NOT_FOUND');
+
+  const openShift = await prisma.aperturaCierreCaja.findFirst({
+    where: { tenantId, userId: user.id, estado: 'ABIERTA' },
+    orderBy: { abiertoEn: 'desc' }
+  });
+  if (!openShift) throw new AppError(409, 'Abra el turno de Caja antes de registrar cobros', 'RESTAURANT_CASH_SHIFT_REQUIRED');
+
+  const reference = String(input.reference || '').trim().slice(0, 160) || null;
+  const result = await identity.closeTableGuarded(tenantId, user, session.tableId, {
+    formaPago: formaPagoForKind(method.kind),
+    cajaBancoId: method.cajaBancoId || null,
+    tipAmount: Number(input.tipAmount || 0),
+    split: input.split || { mode: 'NONE' },
+    deferPosReceipt: input.deferPosReceipt === true,
+    paymentMethodId: method.id,
+    paymentMethodLabel: method.name,
+    paymentMethodKind: method.kind,
+    paymentAccountId: method.cajaBancoId || null,
+    paymentReference: reference,
+    cashShiftId: openShift.id
+  }, { sessionId: session.id });
+  return { ...result, paymentMethod: method };
+}
+
 module.exports = {
   KINDS,
   listMethods,
   saveMethod,
   deactivateMethod,
   closeTableWithMethod,
+  closeSessionWithMethod,
   formaPagoForKind
 };
