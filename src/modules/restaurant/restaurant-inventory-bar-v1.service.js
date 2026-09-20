@@ -33,12 +33,24 @@ const dateOnly = (value, label) => {
 };
 const serial = (value) => typeof value === 'bigint' ? value.toString() : value;
 
-async function assertPilot(tenantId, client = prisma) {
+async function isPilotTenant(tenantId, client = prisma) {
   const tenant = await client.tenant.findUnique({ where:{ id:tenantId }, select:{ subdomain:true } });
-  if (!tenant || String(tenant.subdomain || '').trim().toLowerCase() !== PILOT) {
+  return Boolean(tenant && String(tenant.subdomain || '').trim().toLowerCase() === PILOT);
+}
+
+async function assertPilot(tenantId, client = prisma) {
+  if (!(await isPilotTenant(tenantId, client))) {
     throw new AppError(404, 'Inventario Restaurante no habilitado para este tenant', 'RESTAURANT_INVENTORY_NOT_ENABLED');
   }
-  return tenant;
+  return true;
+}
+
+async function enabledForProduct(client, tenantId, productId) {
+  const row = await client.restaurantInventoryStock.findUnique({
+    where:{ tenantId_productId:{ tenantId, productId } },
+    select:{ enabled:true }
+  });
+  return Boolean(row && row.enabled);
 }
 
 async function activeReserved(client, tenantId) {
@@ -563,7 +575,7 @@ async function trackingMap(tenantId) {
 }
 
 module.exports = {
-  MARKER,PILOT,assertPilot,workspace,trackingMap,configureTracking,configureTrackingInTx,
+  MARKER,PILOT,isPilotTenant,assertPilot,enabledForProduct,workspace,trackingMap,configureTracking,configureTrackingInTx,
   setMinimum,moveStock,purchaseList,purchaseDetail,savePurchase,receivePurchase,costHistory,history,
   assertItemsAvailableInTx,recordReservationInTx,consumeSaleInTx
 };
