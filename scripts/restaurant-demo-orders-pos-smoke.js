@@ -80,6 +80,9 @@ expect(runtime.includes("wrap.querySelectorAll('[data-demo-remove]').forEach"), 
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-price]').forEach"), 'price bindings must use a multi-element selector');
 expect(!runtime.includes("$('[data-demo-price]',wrap).forEach"), 'single price selector cannot be used with forEach');
 expect(runtime.includes('data-demo-note'), 'manual observation field missing');
+expect(runtime.includes("const timeLabel=value=>"), 'per-item time formatter missing');
+expect(runtime.includes("const enteredAt=timeLabel(item.createdAt)"), 'each consumption must render its own entry time');
+expect(demoService.includes("createdAt:item?.creadoEn || order?.creadoEn || null"), 'account detail must expose each item creation timestamp');
 expect(runtime.includes("send.disabled=!acc||!hasPending"), 'Enviar pedido must disable when there are no new consumptions');
 expect(runtime.includes("No hay consumos nuevos por enviar."), 'disabled send helper text missing');
 expect(css.includes('.demo-bar-actions .rv2-btn:disabled'), 'disabled action visual state missing');
