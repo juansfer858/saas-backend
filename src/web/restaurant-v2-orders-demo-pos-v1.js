@@ -20,6 +20,7 @@ const $$=(q,root=document)=>[...root.querySelectorAll(q)];
 const esc=RV2.esc;
 const money=v=>RV2.money(v||0);
 const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const CAN_EDIT_PRICE=new Set(['ADMIN','SUPER_ADMIN','CAJERO']).has(String(session?.user?.rol||'').toUpperCase());
 
 function root(){return $('#demoBarOrdersRoot')}
 function currentTable(){return S.workspace?.tables?.find(row=>String(row.id)===String(S.tableId))||null}
@@ -153,7 +154,7 @@ function renderOrder(){
     const draft=String(item.orderState)==='BORRADOR';
     const checked=S.selected.has(item.id);
     const status=draft?'Por enviar':String(item.orderState||'Enviado').replaceAll('_',' ');
-    return '<tr><td><input type="checkbox" data-demo-select="'+esc(item.id)+'" '+(checked?'checked':'')+' '+(draft?'':'disabled')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.id)+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'"></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.id)+'">×</button>':'')+'</td></tr>';
+    return '<tr><td><input type="checkbox" data-demo-select="'+esc(item.id)+'" '+(checked?'checked':'')+' '+(draft?'':'disabled')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.id)+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.id)+'">×</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table>';
   $$('[data-demo-select]',wrap).forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
   $$('[data-demo-qty]',wrap).forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
@@ -302,8 +303,36 @@ async function requestPrebill(){
   if(!S.accountId||!allItems().length)return;
   try{
     await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/pedir-cuenta',{method:'POST',body:'{}'});
-    await refreshWorkspaceOnly();setStatus('Precuenta solicitada para '+currentAccount()?.name+'.');
+    await refreshWorkspaceOnly();
+    openPrebill();
+    setStatus('Precuenta solicitada para '+currentAccount()?.name+'.');
   }catch(error){setStatus(error.message||'No fue posible solicitar la precuenta.',true)}
+}
+function prebillHtml(){
+  const table=currentTable(),acc=currentAccount(),items=allItems();
+  return '<article class="demo-bar-prebill" id="demoBarPrebillPrint"><header><h2>PRECUENTA</h2><b>'+esc(session.tenant?.nombreEmpresa||'Vantix Restaurantes')+'</b><span>'+esc(table?.name||'')+' · '+esc(acc?.name||'Cuenta')+'</span></header><table><thead><tr><th>Cant.</th><th>Descripción</th><th>Valor</th></tr></thead><tbody>'+items.map(item=>'<tr><td>'+Number(item.quantity||0)+'</td><td>'+esc(item.description)+'</td><td>'+money(item.lineTotal||0)+'</td></tr>').join('')+'</tbody></table><footer><span>Total</span><strong>'+money(total())+'</strong><small>Pendiente de pago</small></footer></article>';
+}
+function openPrebill(){
+  const dialog=ensureDialog();
+  $('[data-dialog-eyebrow]',dialog).textContent='PRECUENTA';
+  $('[data-dialog-title]',dialog).textContent=(currentTable()?.name||'Mesa')+' · '+(currentAccount()?.name||'Cuenta');
+  const body=$('[data-dialog-body]',dialog);
+  body.innerHTML=prebillHtml()+'<div class="demo-bar-dialog-actions"><button class="rv2-btn" data-prebill-close>Cerrar</button><button class="rv2-btn rv2-btn-primary" data-prebill-print>Imprimir</button></div>';
+  $('[data-prebill-close]',body).onclick=()=>dialog.close();
+  $('[data-prebill-print]',body).onclick=printPrebill;
+  if(!dialog.open)dialog.showModal();
+}
+function printPrebill(){
+  const node=$('#demoBarPrebillPrint');
+  if(!node)return;
+  const frame=document.createElement('iframe');
+  frame.style.position='fixed';frame.style.width='1px';frame.style.height='1px';frame.style.opacity='0';frame.style.pointerEvents='none';
+  document.body.appendChild(frame);
+  const doc=frame.contentDocument;
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Precuenta</title><style>body{font-family:Arial,sans-serif;margin:0;padding:10mm;color:#111}article{max-width:80mm;margin:auto}header{text-align:center}header h2{margin:0 0 6px}header b,header span{display:block;margin:3px 0}table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}th,td{padding:5px 2px;border-bottom:1px dashed #bbb;text-align:left}th:first-child,td:first-child{width:45px}th:last-child,td:last-child{text-align:right;white-space:nowrap}footer{margin-top:10px;border-top:2px solid #111;padding-top:8px}footer span,footer strong,footer small{display:block}footer strong{text-align:right;font-size:18px}footer small{text-align:center;margin-top:12px}@page{size:80mm auto;margin:4mm}</style></head><body>'+node.outerHTML+'</body></html>');
+  doc.close();
+  frame.onload=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),800)};
 }
 
 async function splitSelectedDraft(){
