@@ -93,7 +93,7 @@ function ensureDraftLayout(){
     actions.dataset.demoOrderActions='1';
     actions.innerHTML='<button type="button" class="rv2-btn" data-demo-split>Separar cuenta</button><button type="button" class="rv2-btn" data-demo-prebill>Precuenta</button><button type="button" class="rv2-btn rv2-btn-primary" data-demo-send>Enviar pedido</button><button type="button" class="rv2-btn" data-demo-cash>Cobrar</button>';
     panel.appendChild(actions);
-    actions.querySelector('[data-demo-send]').onclick=()=>review.click();
+    actions.querySelector('[data-demo-send]').onclick=sendCurrentOrderDirect;
     actions.querySelector('[data-demo-prebill]').onclick=requestAccount;
     actions.querySelector('[data-demo-split]').onclick=openSplit;
     actions.querySelector('[data-demo-cash]').onclick=openCash;
@@ -141,6 +141,27 @@ function apply(){
   }finally{applying=false}
 }
 
+async function sendCurrentOrderDirect(){
+  const tableId=selectedTableId();
+  const review=$('#review');
+  if(!tableId||!selectedTableIsOpen()||!review||review.disabled)return;
+  const button=$('[data-demo-send]');
+  if(button){button.disabled=true;button.textContent='Enviando…'}
+  try{
+    const tables=await RV2.api('/api/v1/restaurante/v2/mesas');
+    const table=(tables||[]).find(row=>String(row.id)===String(tableId));
+    const sessionId=table?.activeSession?.id;
+    if(!sessionId)throw new Error('La mesa ya no tiene una sesión activa.');
+    await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(sessionId)+'/pedido/enviar',{method:'POST',body:'{}'});
+    showNotice('Pedido enviado a producción.');
+    $('#refresh')?.click();
+  }catch(error){
+    showNotice(error.message||'No fue posible enviar el pedido.',true);
+  }finally{
+    if(button){button.disabled=false;button.textContent='Enviar pedido'}
+  }
+}
+
 async function requestAccount(){
   const tableId=selectedTableId();
   if(!tableId||!selectedTableIsOpen())return;
@@ -149,7 +170,6 @@ async function requestAccount(){
     showNotice('Hay productos sin enviar. Envía el pedido antes de pedir la cuenta.',true);
     return;
   }
-  if(!confirm('¿Preparar la cuenta de '+selectedTableName()+' para cobro?'))return;
   try{
     await RV2.api('/api/v1/restaurante/v2/mesas/'+encodeURIComponent(tableId)+'/pedir-cuenta',{method:'POST',body:'{}'});
     showNotice('Precuenta solicitada. La mesa quedó lista para Caja.');
@@ -358,5 +378,5 @@ function start(){
   window.addEventListener('pageshow',schedule);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-window.VantixDemoRestaurantOrdersPosV1=Object.freeze({marker:MARKER,tenant:TENANT,refresh:schedule,openCash});
+window.VantixDemoRestaurantOrdersPosV1=Object.freeze({marker:MARKER,version:'2.0.0',tenant:TENANT,refresh:schedule,openCash,sendCurrentOrderDirect});
 })();
