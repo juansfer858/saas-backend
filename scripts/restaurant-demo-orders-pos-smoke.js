@@ -50,7 +50,7 @@ expect(runtime.includes('VISTA PREVIA DEL DOCUMENTO'), 'receipt preview visual l
 expect(css.includes('VANTIX_DEMO_RESTAURANTE_RECEIPT_PREVIEW_V1'), 'receipt preview visual contract missing');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/recibo-preview"), 'demo receipt preview route missing');
 expect(receiptService.includes('async function receiptPreviewBySession('), 'receipt preview service missing');
-expect(receiptService.includes("receiptLines({ company, sale, session, table: session.table, paperFormat })"), 'preview must reuse the real POS receipt layout');
+expect(receiptService.includes("receiptLines({ company, sale, session, table: session.table, paperFormat, template:templates?.invoice || {} })"), 'preview must reuse the real POS receipt layout and active invoice template');
 expect(runtime.includes('data-cash-method-select'), 'VANTIX BAR payment method selector missing');
 expect(runtime.includes('data-cash-tendered'), 'cash received input missing');
 expect(runtime.includes('data-cash-change'), 'cash change calculation missing');
