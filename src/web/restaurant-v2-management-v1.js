@@ -13,7 +13,7 @@ function notice(text,error=false){const n=$('#notice');if(!n)return;n.textConten
 function err(id,text=''){const n=$(id);if(!n)return;n.textContent=text||'';n.hidden=!text}
 function csvCell(v){const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replaceAll('"','""')+'"':s}
 function downloadCsv(name,heads,rows){const body=[heads,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');const b=new Blob(['\ufeff'+body],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},0)}
-function setTab(tab){S.tab=['sales','customers','suppliers','qrs'].includes(tab)?tab:'sales';$('[data-mg-tab]').forEach(b=>b.classList.toggle('active',b.dataset.mgTab===S.tab));$('#salesPanel').hidden=S.tab!=='sales';$('#customersPanel').hidden=S.tab!=='customers';$('#suppliersPanel').hidden=S.tab!=='suppliers';$('#qrsPanel').hidden=S.tab!=='qrs';if(S.tab==='sales'&&!S.sales)loadSales();if(S.tab==='customers'&&!S.customers.length)loadCustomers();if(S.tab==='suppliers'&&!S.suppliers)loadSuppliers();if(S.tab==='qrs'&&!S.qrs.length)loadQrs()}
+function setTab(tab){S.tab=['sales','customers','suppliers','qrs'].includes(tab)?tab:'sales';$$('[data-mg-tab]').forEach(b=>b.classList.toggle('active',b.dataset.mgTab===S.tab));$('#salesPanel').hidden=S.tab!=='sales';$('#customersPanel').hidden=S.tab!=='customers';$('#suppliersPanel').hidden=S.tab!=='suppliers';$('#qrsPanel').hidden=S.tab!=='qrs';if(S.tab==='sales'&&!S.sales)loadSales();if(S.tab==='customers'&&!S.customers.length)loadCustomers();if(S.tab==='suppliers'&&!S.suppliers)loadSuppliers();if(S.tab==='qrs'&&!S.qrs.length)loadQrs()}
 
 async function loadSales(){
  try{
@@ -88,8 +88,8 @@ function renderQrs(){
   ['Regeneración','Manual','sólo cuando sea necesario']
  ].map(x=>'<article class="mg-metric"><span>'+esc(x[0])+'</span><b>'+esc(x[1])+'</b><small>'+esc(x[2])+'</small></article>').join('');
  $('#qrGrid').innerHTML=rows.length?rows.map(row=>'<article class="mg-qr-card"><div class="mg-qr-card-head"><div><h3>'+esc(row.tableName)+'</h3><small>'+esc(row.zoneName||'Sin zona')+' · '+esc(row.tableCode||'')+'</small></div><span class="mg-qr-chip">FÍSICO</span></div><div class="mg-qr-code">'+(row.svg||'')+'</div><div class="mg-qr-url">'+esc(row.url||'')+'</div><div class="mg-qr-card-actions"><button class="rv2-btn" type="button" data-print-qr="'+esc(row.tableId)+'">Imprimir</button><a class="rv2-btn" href="'+esc(row.url||'#')+'" target="_blank" rel="noopener">Probar</a><button class="rv2-btn mg-danger" type="button" data-regenerate-qr="'+esc(row.tableId)+'">Regenerar</button></div></article>').join(''):'<div class="mg-empty">No hay QR en este filtro.</div>';
- $('[data-print-qr]').forEach(btn=>btn.onclick=()=>{const row=S.qrs.find(x=>x.tableId===btn.dataset.printQr);if(row)printQrMaterials([row],'QR '+row.tableName)});
- $('[data-regenerate-qr]').forEach(btn=>btn.onclick=()=>regenerateQr(btn.dataset.regenerateQr));
+ $$('[data-print-qr]').forEach(btn=>btn.onclick=()=>{const row=S.qrs.find(x=>x.tableId===btn.dataset.printQr);if(row)printQrMaterials([row],'QR '+row.tableName)});
+ $$('[data-regenerate-qr]').forEach(btn=>btn.onclick=()=>regenerateQr(btn.dataset.regenerateQr));
 }
 function printQrMaterials(rows,title){
  if(!rows?.length){notice('No hay QR para imprimir.',true);return}
@@ -110,7 +110,7 @@ async function regenerateQr(tableId){
 
 function bind(){
  $('#salesFrom').value=monthStart();$('#salesTo').value=today();
- $('[data-mg-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.mgTab));
+ $$('[data-mg-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.mgTab));
  $('#qrZoneFilter').onchange=renderQrs;$('#printVisibleQrs').onclick=()=>printQrMaterials(visibleQrs(),'QR '+($('#qrZoneFilter').selectedOptions[0]?.textContent||'visibles'));$('#printAllQrs').onclick=()=>printQrMaterials(S.qrs,'Todos los QR de mesas');
  $('#loadSales').onclick=loadSales;$('#exportSales').onclick=()=>{if(!S.sales)return;downloadCsv('Ventas_'+$('#salesFrom').value+'_'+$('#salesTo').value+'.csv',['Venta','Fecha','Canal','Cuenta','Cliente','Medio','Total'],S.sales.rows.map(r=>[r.number,r.created,r.channel,r.name,r.customer,r.paymentMethod,r.total]))};
  $('#findCustomers').onclick=loadCustomers;$('#customerSearch').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();loadCustomers()}};$('#newCustomer').onclick=()=>openCustomer();
