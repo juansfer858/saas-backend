@@ -71,6 +71,8 @@ expect(runtime.includes("$('[data-demo-price]',wrap).forEach"), 'price bindings 
 expect(!runtime.includes("$('[data-demo-price]',wrap).forEach"), 'single price selector cannot be used with forEach');
 expect(runtime.includes('data-demo-note'), 'manual observation field missing');
 expect(runtime.includes('async function changeNote('), 'manual observation save behavior missing');
+expect(runtime.includes("const noteInputs=root().querySelectorAll('[data-demo-note]');"), 'send must collect observation fields as an iterable NodeList');
+expect(!runtime.includes("const noteInputs=$('[data-demo-note]',root());"), 'single observation selector cannot be iterated');
 expect(runtime.includes("/items/'+encodeURIComponent(itemId)"), 'observation must use canonical item metadata endpoint');
 expect(runtime.includes("Observación guardada. Se enviará con la comanda."), 'observation/comanda feedback missing');
 expect(css.includes('.demo-bar-note{'), 'manual observation field style missing');
