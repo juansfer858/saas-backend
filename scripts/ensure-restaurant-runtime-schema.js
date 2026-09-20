@@ -129,6 +129,18 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantInventoryMovement"')::text AS "restaurantInventoryMovement",
       to_regclass('public."RestaurantInventoryPurchase"')::text AS "restaurantInventoryPurchase",
       to_regclass('public."RestaurantInventoryPurchaseItem"')::text AS "restaurantInventoryPurchaseItem",
+      to_regclass('public."RestaurantIngredient"')::text AS "restaurantIngredient",
+      to_regclass('public."RestaurantIngredientStock"')::text AS "restaurantIngredientStock",
+      to_regclass('public."RestaurantRecipe"')::text AS "restaurantRecipe",
+      to_regclass('public."RestaurantIngredientMovement"')::text AS "restaurantIngredientMovement",
+      to_regclass('public."RestaurantManagementCustomer"')::text AS "restaurantManagementCustomer",
+      to_regclass('public."RestaurantManagementSupplier"')::text AS "restaurantManagementSupplier",
+      to_regclass('public."RestaurantManagementPayable"')::text AS "restaurantManagementPayable",
+      to_regclass('public."RestaurantManagementPayablePayment"')::text AS "restaurantManagementPayablePayment",
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='RestaurantInventoryPurchase' AND column_name='supplierId'
+      ) AS "restaurantInventoryPurchaseSupplierId",
       to_regclass('public."PrintTenantConfig"')::text AS "printTenantConfig",
       to_regclass('public."PrinterEndpoint"')::text AS "printerEndpoint",
       to_regclass('public."NotificationPushDevice"')::text AS "notificationPushDevice",
@@ -153,6 +165,9 @@ async function readRestaurantSchemaState() {
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
     'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile', 'companyProfile',
     'restaurantInventoryStock', 'restaurantInventoryMovement', 'restaurantInventoryPurchase', 'restaurantInventoryPurchaseItem',
+    'restaurantIngredient', 'restaurantIngredientStock', 'restaurantRecipe', 'restaurantIngredientMovement',
+    'restaurantManagementCustomer', 'restaurantManagementSupplier', 'restaurantManagementPayable', 'restaurantManagementPayablePayment',
+    'restaurantInventoryPurchaseSupplierId',
     'printTenantConfig', 'printerEndpoint', 'notificationPushDevice', 'notificationPushDelivery',
     'printerTransportWindows'
   ];
