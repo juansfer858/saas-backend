@@ -3,6 +3,7 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const { decimal, money } = require('../../utils/decimal');
+const { lockOperation } = require('./restaurant-operation-lock-v111.service');
 
 const MARKER = 'VANTIX_RESTAURANT_INVENTORY_BAR_V1';
 const PILOT = 'demo-restaurante';
@@ -252,12 +253,13 @@ async function configureTrackingInTx(tx, tenantId, userId, productId, enabled) {
 }
 
 async function configureTracking(tenantId, userId, productId, enabled) {
-  return prisma.$transaction((tx)=>configureTrackingInTx(tx, tenantId, userId, productId, enabled));
+  return prisma.$transaction(async (tx)=>{ await lockOperation(tx, tenantId); return configureTrackingInTx(tx, tenantId, userId, productId, enabled); });
 }
 
 async function setMinimum(tenantId, userId, input) {
   await assertPilot(tenantId);
   return prisma.$transaction(async (tx)=>{
+    await lockOperation(tx, tenantId);
     const product = await tx.producto.findFirst({ where:{ tenantId, id:text(input.productId,80) } });
     if (!product) throw new AppError(404, 'Producto no encontrado', 'RESTAURANT_INVENTORY_PRODUCT_NOT_FOUND');
     const stock = await ensureStock(tx, tenantId, product.id);
@@ -273,6 +275,7 @@ async function setMinimum(tenantId, userId, input) {
 async function moveStock(tenantId, userId, input) {
   await assertPilot(tenantId);
   return prisma.$transaction(async (tx)=>{
+    await lockOperation(tx, tenantId);
     const productId = text(input.productId,80);
     const product = await tx.producto.findFirst({ where:{ tenantId, id:productId } });
     if (!product) throw new AppError(404, 'Producto no encontrado', 'RESTAURANT_INVENTORY_PRODUCT_NOT_FOUND');
@@ -393,6 +396,7 @@ async function savePurchase(tenantId, userId, input) {
   await assertPilot(tenantId);
   const data = purchaseInput(input || {});
   return prisma.$transaction(async (tx)=>{
+    await lockOperation(tx, tenantId);
     let purchase;
     if (input && input.id) {
       purchase = await tx.restaurantInventoryPurchase.findFirst({ where:{ id:input.id, tenantId } });
@@ -433,6 +437,7 @@ async function savePurchase(tenantId, userId, input) {
 async function receivePurchase(tenantId, userId, id) {
   await assertPilot(tenantId);
   return prisma.$transaction(async (tx)=>{
+    await lockOperation(tx, tenantId);
     const purchase = await tx.restaurantInventoryPurchase.findFirst({ where:{ id, tenantId }, include:{ items:true } });
     if (!purchase) throw new AppError(404, 'Pedido de inventario no encontrado', 'RESTAURANT_INVENTORY_PURCHASE_NOT_FOUND');
     if (purchase.status === 'received') return { marker:MARKER, alreadyReceived:true, purchase:publicPurchase(purchase) };
