@@ -236,7 +236,10 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
         select: { originId: true }
       }) : [],
       prisma.aperturaCierreCaja.count({ where: { tenantId: tenant.id, estado: 'ABIERTA' } }),
-      prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id }, select: { paymentMethods: true } }),
+      prisma.restaurantConfig.findUnique({
+        where: { tenantId: tenant.id },
+        select: { paymentMethods: true, dianRealEnabled: true, allowSimulatedDocumentEquivalent: true }
+      }),
       prisma.cajaBanco.findMany({
         where: { tenantId: tenant.id, activo: true },
         select: { id: true, tipo: true }
@@ -269,6 +272,106 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
       return true;
     }).length;
 
+    const requiredMappingKeys = ['CAJA_GENERAL', 'VENTAS', 'IMPOCONSUMO_VENTA', 'COSTO_VENTAS', 'INVENTARIO'];
+    const mappingRows = await prisma.mapeoContable.findMany({
+      where: { tenantId: tenant.id, clave: { in: requiredMappingKeys } },
+      include: { cuenta: { select: { activa: true, permiteMovimiento: true, requiereTercero: true } } }
+    });
+    const mappingByKey = new Map(mappingRows.map((row) => [row.clave, row]));
+    const accountingMappings = Object.fromEntries(requiredMappingKeys.map((key) => {
+      const mapping = mappingByKey.get(key);
+      return [key, {
+        mappingFound: Boolean(mapping),
+        accountFound: Boolean(mapping?.cuenta),
+        active: Boolean(mapping?.cuenta?.activa),
+        allowsMovement: Boolean(mapping?.cuenta?.permiteMovimiento),
+        requiresThirdParty: Boolean(mapping?.cuenta?.requiereTercero)
+      }];
+    }));
+    const invalidAccountingMappings = Object.values(accountingMappings)
+      .filter((row) => !row.mappingFound || !row.accountFound || !row.active || !row.allowsMovement).length;
+
+    const now = new Date();
+    const currentPeriod = await prisma.periodoContable.findUnique({
+      where: { tenantId_anio_mes: { tenantId: tenant.id, anio: now.getUTCFullYear(), mes: now.getUTCMonth() + 1 } },
+      select: { estado: true }
+    });
+    const automaticVoucher = await prisma.tipoComprobanteContable.findFirst({
+      where: { tenantId: tenant.id, codigo: 'AU', activo: true },
+      select: { id: true }
+    });
+
+    const targetSession = sessions.find((session) => Number(saleById.get(session.saleId)?.total || 0) === 17280)
+      || sessions.find((session) => saleById.has(session.saleId))
+      || null;
+    let targetSaleReadiness = null;
+    if (targetSession) {
+      const targetSale = await prisma.comprobanteComercial.findFirst({
+        where: { id: targetSession.saleId, tenantId: tenant.id, tipo: 'FACTURA_VENTA' },
+        include: {
+          detalles: {
+            select: {
+              productoId: true,
+              cantidad: true,
+              precioUnitario: true,
+              ivaPct: true,
+              impoconsumoPct: true,
+              totalLinea: true
+            }
+          }
+        }
+      });
+      const productIds = [...new Set((targetSale?.detalles || []).map((row) => row.productoId).filter(Boolean))];
+      const recipes = productIds.length ? await prisma.consumptionRecipe.findMany({
+        where: { tenantId: tenant.id, active: true, outputProductId: { in: productIds } },
+        include: { items: { select: { ingredientProductId: true, quantity: true } } }
+      }) : [];
+      const detailQtyByProduct = new Map();
+      for (const detail of targetSale?.detalles || []) {
+        if (!detail.productoId) continue;
+        detailQtyByProduct.set(detail.productoId, Number(detailQtyByProduct.get(detail.productoId) || 0) + Number(detail.cantidad || 0));
+      }
+      const requiredByIngredient = new Map();
+      for (const recipe of recipes) {
+        const saleQty = Number(detailQtyByProduct.get(recipe.outputProductId) || 0);
+        for (const item of recipe.items || []) {
+          const required = Number(item.quantity || 0) * saleQty;
+          requiredByIngredient.set(
+            item.ingredientProductId,
+            Number(requiredByIngredient.get(item.ingredientProductId) || 0) + required
+          );
+        }
+      }
+      const ingredientIds = [...requiredByIngredient.keys()];
+      const ingredients = ingredientIds.length ? await prisma.producto.findMany({
+        where: { tenantId: tenant.id, id: { in: ingredientIds } },
+        select: { id: true, activo: true, controlaInventario: true, stockActual: true }
+      }) : [];
+      const ingredientById = new Map(ingredients.map((row) => [row.id, row]));
+      let insufficientIngredients = 0;
+      let invalidIngredients = 0;
+      for (const [ingredientId, required] of requiredByIngredient.entries()) {
+        const ingredient = ingredientById.get(ingredientId);
+        if (!ingredient || !ingredient.activo || !ingredient.controlaInventario) {
+          invalidIngredients += 1;
+          continue;
+        }
+        if (Number(ingredient.stockActual || 0) < required) insufficientIngredients += 1;
+      }
+      targetSaleReadiness = {
+        total: Number(targetSale?.total || 0),
+        state: targetSale?.estado || 'MISSING',
+        itemCount: targetSale?.detalles?.length || 0,
+        missingProductLines: (targetSale?.detalles || []).filter((row) => !row.productoId).length,
+        recipeOutputs: recipes.length,
+        requiredIngredients: requiredByIngredient.size,
+        invalidIngredients,
+        insufficientIngredients,
+        ivaTotal: Number(targetSale?.ivaTotal || 0),
+        impoconsumoTotal: Number(targetSale?.impoconsumoTotal || 0)
+      };
+    }
+
     const accounts = sessions.slice(0, 50).map((session) => {
       const sale = saleById.get(session.saleId);
       return {
@@ -297,7 +400,16 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
     res.json({
       ok: true,
       data: {
-        ready: Boolean(tenant.activo && invalidPaymentMethods === 0 && inconsistentAccounts === 0),
+        ready: Boolean(
+          tenant.activo &&
+          invalidPaymentMethods === 0 &&
+          inconsistentAccounts === 0 &&
+          invalidAccountingMappings === 0 &&
+          targetSaleReadiness?.invalidIngredients === 0 &&
+          targetSaleReadiness?.insufficientIngredients === 0 &&
+          currentPeriod?.estado !== 'CERRADO' &&
+          automaticVoucher
+        ),
         tenantFound: true,
         active: tenant.activo,
         activeAccounts: accounts.length,
@@ -305,6 +417,13 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
         activePaymentMethods: activeMethods.length,
         invalidPaymentMethods,
         inconsistentAccounts,
+        accountingMappings,
+        invalidAccountingMappings,
+        currentPeriod: currentPeriod?.estado || 'WILL_CREATE_ON_CHARGE',
+        automaticVoucherReady: Boolean(automaticVoucher),
+        dianRealEnabled: Boolean(config?.dianRealEnabled),
+        simulatedFiscalAllowed: Boolean(config?.allowSimulatedDocumentEquivalent),
+        targetSaleReadiness,
         accounts
       }
     });
