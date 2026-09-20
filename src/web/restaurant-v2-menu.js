@@ -339,7 +339,7 @@
         method:'PATCH',
         body:JSON.stringify({
           nombre:$('#editName').value.trim(), precio1:Number($('#editPrice').value || 0), descripcion,
-          controlaInventario:mode === 'DIRECT'
+          controlaInventario:demoFiveCardGrid ? false : mode === 'DIRECT'
         })
       });
       await R.api(`/api/v1/restaurante/menu/${item.id}`, {
