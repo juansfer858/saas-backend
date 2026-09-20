@@ -8,6 +8,7 @@ const treasury = require('../treasury/treasury.service');
 const accounting = require('../accounting/accounting.service');
 const notifications = require('../notifications/notifications.service');
 const restaurantInventory = require('./restaurant-inventory-bar-v1.service');
+const restaurantRecipes = require('./restaurant-recipes-costs-v1.service');
 
 const SIMULATED_STATUS = 'Funcional — validado con impresión simulada (PDF/pantalla)';
 const PRODUCTION_BLOCKED = 'PRODUCCIÓN REAL BLOQUEADA';
@@ -799,6 +800,7 @@ async function closeTable(tenantId, user, tableId, input, options = {}) {
     const emitted = await sales.emitSaleInTx(tx, tenantId, user.id, saleBefore.id, 'DOCUMENTO_EQUIVALENTE_POS');
     if (await restaurantInventory.isPilotTenant(tenantId, tx)) {
       await restaurantInventory.consumeSaleInTx(tx, tenantId, user.id, session.id, emitted.id);
+      await restaurantRecipes.consumeSaleInTx(tx, tenantId, user.id, session.id, emitted.id);
     }
     const split = computeSplit(emitted, tipAmount, input.split || null);
     const tipPosting = await postTipInTx(tx, { tenantId, userId: user.id, sessionId: session.id, sale: emitted, formaPago: input.formaPago, cajaBancoId: input.cajaBancoId || null, tipAmount });
