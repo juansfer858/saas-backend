@@ -74,6 +74,15 @@ router.get('/v2/demo-bar/cuentas/:sessionId/caja', requirePermission('RESTAURANT
   catch (error) { next(error); }
 });
 
+router.patch('/v2/demo-bar/cuentas/:sessionId/items/:detailId/precio', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    await demoBar.assertDemoTenant(req.tenantId);
+    const input = parse(linePriceSchema, req.body, 'Precio inválido');
+    const session = await service.activeSessionById(req.tenantId, req.params.sessionId);
+    res.json({ ok: true, data: await service.updateLinePrice(req.tenantId, req.user, session.tableId, req.params.detailId, input, { sessionId: session.id }) });
+  } catch (error) { next(error); }
+});
+
 router.post('/v2/demo-bar/cuentas/:sessionId/cobrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try {
     await demoBar.assertDemoTenant(req.tenantId);
