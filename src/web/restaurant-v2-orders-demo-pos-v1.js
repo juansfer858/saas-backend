@@ -436,7 +436,7 @@ function ensureDialog(){
   let dialog=$('#demoBarDialog');if(dialog)return dialog;
   dialog=document.createElement('dialog');dialog.id='demoBarDialog';dialog.className='demo-bar-dialog';
   dialog.innerHTML='<div class="demo-bar-dialog-shell"><div class="demo-bar-dialog-head"><div><small data-dialog-eyebrow>OPERACIÓN</small><h2 data-dialog-title>—</h2></div><button type="button" class="rv2-btn demo-bar-small-btn" data-dialog-close>Cerrar</button></div><div class="demo-bar-dialog-body" data-dialog-body></div></div>';
-  document.body.appendChild(dialog);$('[data-dialog-close]',dialog).onclick=()=>dialog.close();dialog.addEventListener('close',()=>{delete dialog.dataset.cashBarMode});return dialog;
+  document.body.appendChild(dialog);$('[data-dialog-close]',dialog).onclick=()=>dialog.close();dialog.addEventListener('close',()=>{delete dialog.dataset.cashBarMode;delete dialog.dataset.receiptPreview});return dialog;
 }
 function dialogStatus(text,error=false){
   const node=$('[data-dialog-status]',$('#demoBarDialog'));if(node){node.textContent=text||'';node.classList.toggle('error',Boolean(error))}
@@ -543,11 +543,27 @@ async function charge(){
   }catch(error){dialogStatus(error.message||'No fue posible cobrar.',true)}
   finally{cash.busy=false;syncCashTender(false)}
 }
+function receiptPreviewMarkup(preview){
+  const rows=[...(Array.isArray(preview?.lines)?preview.lines:[]),preview?.footer].filter(Boolean);
+  return '<div class="demo-bar-receipt-stage"><div class="demo-bar-receipt-stage-title">VISTA PREVIA DEL DOCUMENTO'+(preview?.paperFormat?' · '+esc(preview.paperFormat.replaceAll('_',' ')):'')+'</div><div class="demo-bar-receipt-paper"><pre>'+esc(rows.join('\n'))+'</pre></div></div>';
+}
+async function loadReceiptPreview(sessionId){
+  const dialog=$('#demoBarDialog'),slot=$('[data-receipt-preview]',dialog);
+  if(!slot||!sessionId)return;
+  try{
+    const preview=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(sessionId)+'/recibo-preview');
+    slot.innerHTML=receiptPreviewMarkup(preview);
+  }catch(error){
+    slot.innerHTML='<div class="demo-bar-dialog-status error">La venta quedó liquidada, pero no fue posible cargar la vista previa: '+esc(error.message||'error')+'</div>';
+  }
+}
 function renderCashResult(data){
   const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),sessionId=data?.result?.session?.id||null;
-  body.innerHTML='<div><small>VENTA LIQUIDADA</small><h2>'+esc(accountLabel())+'</h2><p>La cuenta quedó pagada. ¿Deseas imprimir?</p><div class="demo-bar-print-actions"><button class="rv2-btn rv2-btn-primary" data-print>Sí, imprimir</button><button class="rv2-btn" data-no-print>No</button></div><div class="demo-bar-dialog-status" data-dialog-status></div></div>';
+  dialog.dataset.receiptPreview='1';
+  body.innerHTML='<div class="demo-bar-receipt-result"><div><small>VENTA LIQUIDADA</small><h2>'+esc(accountLabel())+'</h2><p>Revisa el documento antes de decidir si deseas imprimirlo.</p></div><div data-receipt-preview class="demo-bar-receipt-loading">Generando vista previa…</div><div class="demo-bar-receipt-question">¿Deseas imprimir este documento?</div><div class="demo-bar-print-actions"><button class="rv2-btn rv2-btn-primary" data-print>Sí, imprimir</button><button class="rv2-btn" data-no-print>No</button></div><div class="demo-bar-dialog-status" data-dialog-status></div></div>';
   $('[data-print]',body).onclick=()=>printReceipt(sessionId);
   $('[data-no-print]',body).onclick=finishCash;
+  loadReceiptPreview(sessionId);
 }
 async function printReceipt(sessionId){
   try{
