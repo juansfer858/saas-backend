@@ -171,6 +171,146 @@ router.get('/api/public/restaurante/demo-readiness', async (_req, res, next) => 
   } catch (error) { next(error); }
 });
 
+
+router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next) => {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { subdomain: 'demo-restaurante' },
+      select: { id: true, activo: true }
+    });
+    if (!tenant) {
+      res.json({ ok: true, data: { ready: false, tenantFound: false } });
+      return;
+    }
+
+    const sessions = await prisma.restaurantTableSession.findMany({
+      where: { tenantId: tenant.id, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      select: { id: true, saleId: true }
+    });
+    const sessionIds = sessions.map((row) => row.id);
+    const saleIds = sessions.map((row) => row.saleId);
+    const sales = saleIds.length ? await prisma.comprobanteComercial.findMany({
+      where: { tenantId: tenant.id, id: { in: saleIds }, tipo: 'FACTURA_VENTA' },
+      select: { id: true, estado: true, total: true, formaPago: true, cajaBancoId: true }
+    }) : [];
+    const saleById = new Map(sales.map((row) => [row.id, row]));
+
+    const [
+      fiscalRows,
+      paymentRows,
+      consumptionRows,
+      treasuryRows,
+      journalRows,
+      draftOrderRows,
+      dianRows,
+      openShifts,
+      config,
+      activeAccounts
+    ] = await Promise.all([
+      sessionIds.length ? prisma.restaurantFiscalDocument.findMany({
+        where: { tenantId: tenant.id, sessionId: { in: sessionIds } },
+        select: { sessionId: true }
+      }) : [],
+      sessionIds.length ? prisma.restaurantSessionPayment.findMany({
+        where: { tenantId: tenant.id, sessionId: { in: sessionIds } },
+        select: { sessionId: true }
+      }) : [],
+      saleIds.length ? prisma.consumptionRun.findMany({
+        where: { tenantId: tenant.id, sourceType: 'SALE', sourceId: { in: saleIds } },
+        select: { sourceId: true }
+      }) : [],
+      saleIds.length ? prisma.movimientoTesoreria.findMany({
+        where: { tenantId: tenant.id, comprobanteId: { in: saleIds } },
+        select: { comprobanteId: true }
+      }) : [],
+      saleIds.length ? prisma.asientoContable.findMany({
+        where: { tenantId: tenant.id, comprobanteId: { in: saleIds } },
+        select: { comprobanteId: true }
+      }) : [],
+      sessionIds.length ? prisma.restaurantOrder.findMany({
+        where: { tenantId: tenant.id, sessionId: { in: sessionIds }, state: 'BORRADOR' },
+        select: { sessionId: true, _count: { select: { items: true } } }
+      }) : [],
+      saleIds.length ? prisma.dianDocument.findMany({
+        where: { tenantId: tenant.id, originType: 'COMPROBANTE_COMERCIAL', originId: { in: saleIds } },
+        select: { originId: true }
+      }) : [],
+      prisma.aperturaCierreCaja.count({ where: { tenantId: tenant.id, estado: 'ABIERTA' } }),
+      prisma.restaurantConfig.findUnique({ where: { tenantId: tenant.id }, select: { paymentMethods: true } }),
+      prisma.cajaBanco.findMany({
+        where: { tenantId: tenant.id, activo: true },
+        select: { id: true, tipo: true }
+      })
+    ]);
+
+    const countBy = (rows, key) => rows.reduce((map, row) => {
+      const value = row[key];
+      if (value) map.set(value, (map.get(value) || 0) + 1);
+      return map;
+    }, new Map());
+    const fiscalBySession = countBy(fiscalRows, 'sessionId');
+    const paymentsBySession = countBy(paymentRows, 'sessionId');
+    const consumptionBySale = countBy(consumptionRows, 'sourceId');
+    const treasuryBySale = countBy(treasuryRows, 'comprobanteId');
+    const journalsBySale = countBy(journalRows, 'comprobanteId');
+    const dianBySale = countBy(dianRows, 'originId');
+    const draftItemsBySession = new Map(draftOrderRows.map((row) => [row.sessionId, Number(row._count?.items || 0)]));
+    const accountById = new Map(activeAccounts.map((row) => [row.id, row]));
+
+    const paymentMethods = Array.isArray(config?.paymentMethods) ? config.paymentMethods : [];
+    const activeMethods = paymentMethods.filter((row) => row && row.active !== false);
+    const invalidPaymentMethods = activeMethods.filter((method) => {
+      const kind = String(method.kind || '').toUpperCase();
+      if (kind === 'CREDITO') return false;
+      const account = method.cajaBancoId ? accountById.get(String(method.cajaBancoId)) : null;
+      if (!account) return true;
+      if (kind === 'EFECTIVO') return account.tipo !== 'CAJA';
+      if (['TRANSFERENCIA', 'TARJETA'].includes(kind)) return account.tipo !== 'BANCO';
+      return true;
+    }).length;
+
+    const accounts = sessions.slice(0, 50).map((session) => {
+      const sale = saleById.get(session.saleId);
+      return {
+        saleState: sale?.estado || 'MISSING',
+        total: Number(sale?.total || 0),
+        formaPago: sale?.formaPago || null,
+        hasSettlementAccount: Boolean(sale?.cajaBancoId),
+        fiscalArtifacts: fiscalBySession.get(session.id) || 0,
+        sessionPayments: paymentsBySession.get(session.id) || 0,
+        consumptionRuns: consumptionBySale.get(session.saleId) || 0,
+        treasuryMovements: treasuryBySale.get(session.saleId) || 0,
+        journals: journalsBySale.get(session.saleId) || 0,
+        dianDocuments: dianBySale.get(session.saleId) || 0,
+        draftItems: draftItemsBySession.get(session.id) || 0
+      };
+    });
+    const inconsistentAccounts = accounts.filter((row) =>
+      row.saleState !== 'BORRADOR' ||
+      row.fiscalArtifacts > 0 ||
+      row.sessionPayments > 0 ||
+      row.treasuryMovements > 0 ||
+      row.journals > 0 ||
+      row.dianDocuments > 0
+    ).length;
+
+    res.json({
+      ok: true,
+      data: {
+        ready: Boolean(tenant.activo && invalidPaymentMethods === 0 && inconsistentAccounts === 0),
+        tenantFound: true,
+        active: tenant.activo,
+        activeAccounts: accounts.length,
+        openShifts,
+        activePaymentMethods: activeMethods.length,
+        invalidPaymentMethods,
+        inconsistentAccounts,
+        accounts
+      }
+    });
+  } catch (error) { next(error); }
+});
+
 router.get('/api/public/restaurante/qr/:token', async (req, res, next) => {
   try { res.json({ ok: true, data: await identity.publicQrContext(req.params.token) }); }
   catch (error) { next(error); }
