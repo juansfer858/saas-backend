@@ -2,13 +2,15 @@
   'use strict';
 
   const MARKER = 'VANTIX_RESTAURANT_V2_EXPENSES_NATIVE_V117';
+  const DEMO_TURN_MARKER = 'VANTIX_DEMO_RESTAURANTE_TURNO_GASTOS_V1';
+  const DEMO_TENANT = 'demo-restaurante';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const $ = (q) => document.querySelector(q);
   const session = (() => { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; } })();
   if (!session?.token || !session?.subdomain) { location.replace('/app'); return; }
 
   document.documentElement.dataset.restaurantV2Expenses = MARKER;
-  const state = { context:null, day:null, saving:false };
+  const state = { context:null, day:null, saving:false, turn:null, turnSummary:null, closing:false, activeTab:'turno' };
   const money = (value) => new Intl.NumberFormat('es-CO',{style:'currency',currency:session.tenant?.moneda || 'COP',maximumFractionDigits:0}).format(Number(value || 0));
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g,(m)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 
@@ -185,6 +187,165 @@
     }
   }
 
+  function demoMode() { return session.subdomain === DEMO_TENANT; }
+  function tzOffsetMinutes() { return new Date().getTimezoneOffset(); }
+
+  function installDemoTurnExpenses() {
+    if (!demoMode() || $('#demoTurnTabs')) return;
+    document.documentElement.dataset.demoTurnExpenses = '1';
+    document.documentElement.dataset.demoTurnExpensesMarker = DEMO_TURN_MARKER;
+    document.title = 'Turno y gastos · VantixGC Restaurantes V2';
+    const title = document.querySelector('.head h1');
+    const subtitle = document.querySelector('.head p');
+    if (title) title.textContent = 'Turno y gastos';
+    if (subtitle) subtitle.textContent = 'Cierre de turno, registro de gastos e historial en un solo lugar.';
+
+    const main = document.querySelector('.page');
+    const head = document.querySelector('.head');
+    const grid = document.querySelector('.grid');
+    const list = document.querySelector('.list-card');
+    if (!main || !head || !grid || !list) return;
+
+    const tabs = document.createElement('nav');
+    tabs.id = 'demoTurnTabs';
+    tabs.className = 'turn-expense-tabs';
+    tabs.innerHTML = '<button type="button" class="turn-expense-tab active" data-turn-tab="turno">Turno</button><button type="button" class="turn-expense-tab" data-turn-tab="gastos">Gastos</button><button type="button" class="turn-expense-tab" data-turn-tab="historial">Historial de cierres</button>';
+    head.insertAdjacentElement('afterend', tabs);
+
+    const turnPanel = document.createElement('section');
+    turnPanel.id = 'demoTurnPanel';
+    turnPanel.className = 'turn-expense-panel';
+    turnPanel.innerHTML = '<div class="turn-close-grid"><article class="card"><div class="card-head"><h2>Cierre de turno</h2><p>Revisa el efectivo esperado, registra el efectivo contado y cierra el turno.</p></div><div class="turn-kpis"><div class="turn-kpi"><span>Base inicial</span><strong id="demoTurnBase">$ 0</strong></div><div class="turn-kpi"><span>Efectivo esperado</span><strong id="demoTurnExpected">$ 0</strong></div><div class="turn-kpi"><span>Ventas del turno</span><strong id="demoTurnSales">$ 0</strong></div></div><div id="demoTurnInfo" class="notice">Consultando turno…</div></article><aside class="card"><div class="card-head"><h2>Finalizar turno</h2><p>El valor contado queda guardado para la conciliación.</p></div><div class="turn-close-form"><label for="demoFinalBalance">Efectivo contado</label><input id="demoFinalBalance" type="number" min="0" step="100" inputmode="numeric" value="0"><div id="demoTurnStatus" class="status" role="status" aria-live="polite"></div><div id="demoTurnResult" hidden></div><div class="turn-close-actions"><button type="button" class="btn" id="demoGoHistory">Ver historial</button><button type="button" class="btn primary" id="demoCloseShift">Cerrar turno</button></div></div></aside></div>';
+    tabs.insertAdjacentElement('afterend', turnPanel);
+
+    const expensePanel = document.createElement('section');
+    expensePanel.id = 'demoExpensePanel';
+    expensePanel.className = 'turn-expense-panel';
+    expensePanel.hidden = true;
+    grid.insertAdjacentElement('beforebegin', expensePanel);
+    expensePanel.appendChild(grid);
+    expensePanel.appendChild(list);
+
+    const historyPanel = document.createElement('section');
+    historyPanel.id = 'demoHistoryPanel';
+    historyPanel.className = 'turn-expense-panel';
+    historyPanel.hidden = true;
+    historyPanel.innerHTML = '<iframe id="demoHistoryFrame" class="turn-history-frame" title="Historial de cierres" loading="lazy" data-src="/app/cierres?embed=turno-gastos"></iframe>';
+    expensePanel.insertAdjacentElement('afterend', historyPanel);
+
+    tabs.querySelectorAll('[data-turn-tab]').forEach((button) => {
+      button.addEventListener('click', () => selectDemoTab(button.dataset.turnTab));
+    });
+    $('#demoCloseShift')?.addEventListener('click', closeDemoShift);
+    $('#demoGoHistory')?.addEventListener('click', () => selectDemoTab('historial'));
+  }
+
+  function selectDemoTab(tab) {
+    if (!demoMode()) return;
+    state.activeTab = ['turno','gastos','historial'].includes(tab) ? tab : 'turno';
+    document.querySelectorAll('[data-turn-tab]').forEach((button) => button.classList.toggle('active', button.dataset.turnTab === state.activeTab));
+    const turn = $('#demoTurnPanel'), expenses = $('#demoExpensePanel'), history = $('#demoHistoryPanel');
+    if (turn) turn.hidden = state.activeTab !== 'turno';
+    if (expenses) expenses.hidden = state.activeTab !== 'gastos';
+    if (history) history.hidden = state.activeTab !== 'historial';
+    if (state.activeTab === 'turno') loadDemoTurn().catch((error) => setDemoTurnStatus(error.message || 'No fue posible cargar el turno.', 'bad'));
+    if (state.activeTab === 'historial') {
+      const frame = $('#demoHistoryFrame');
+      if (frame && !frame.src) frame.src = frame.dataset.src;
+    }
+  }
+
+  function setDemoTurnStatus(text, kind = '') {
+    const node = $('#demoTurnStatus');
+    if (!node) return;
+    node.textContent = text || '';
+    node.className = `status ${kind}`.trim();
+  }
+
+  async function loadDemoTurn() {
+    if (!demoMode()) return;
+    const workspace = await api('/api/v1/restaurante/v2/caja');
+    state.turn = workspace?.shift?.own || null;
+    state.turnSummary = null;
+    const info = $('#demoTurnInfo');
+    const close = $('#demoCloseShift');
+    const input = $('#demoFinalBalance');
+    if (!state.turn) {
+      if (info) info.innerHTML = '<strong>No hay turno abierto.</strong> El turno puede abrirse desde el primer cobro cuando haga falta.';
+      if (close) close.disabled = true;
+      if (input) { input.value = '0'; input.disabled = true; }
+      $('#demoTurnBase').textContent = money(0);
+      $('#demoTurnExpected').textContent = money(0);
+      $('#demoTurnSales').textContent = money(0);
+      return;
+    }
+    state.turnSummary = await api('/api/v1/restaurante/v2/caja/turno/resumen');
+    const expected = Number(state.turnSummary?.systemCashExpected || state.turn?.saldoEsperado || 0);
+    if (info) info.innerHTML = `<strong>Turno abierto:</strong> ${esc(state.turn?.cajaBanco?.nombre || 'Caja')} · registra el efectivo contado para cerrar.`;
+    $('#demoTurnBase').textContent = money(state.turn?.saldoInicial || 0);
+    $('#demoTurnExpected').textContent = money(expected);
+    $('#demoTurnSales').textContent = money(state.turnSummary?.restaurantClosedTablesTotal || 0);
+    if (input) {
+      input.disabled = false;
+      if (input.dataset.manual !== '1') input.value = String(Math.round(expected));
+      input.oninput = () => { input.dataset.manual = '1'; };
+    }
+    if (close) close.disabled = state.closing;
+  }
+
+  async function closeDemoShift() {
+    if (!demoMode() || state.closing || !state.turn) return;
+    const input = $('#demoFinalBalance');
+    const saldoFinal = Number(input?.value || 0);
+    if (!Number.isFinite(saldoFinal) || saldoFinal < 0) { setDemoTurnStatus('Ingresa un efectivo contado válido.', 'bad'); return; }
+    if (!window.confirm('¿Cerrar el turno con el efectivo contado indicado? Las diferencias o pendientes quedarán registradas para revisión.')) return;
+    state.closing = true;
+    const close = $('#demoCloseShift');
+    if (close) { close.disabled = true; close.textContent = 'Cerrando…'; }
+    setDemoTurnStatus('Cerrando turno…');
+    try {
+      const data = await api('/api/v1/restaurante/v2/caja/turno/cerrar', {
+        method:'POST',
+        body:JSON.stringify({ saldoFinal, tzOffsetMinutes:tzOffsetMinutes() })
+      });
+      const shiftId = data?.closed?.id || data?.closure?.shift?.id || null;
+      const result = $('#demoTurnResult');
+      if (result) {
+        result.hidden = false;
+        result.className = 'turn-close-result';
+        result.innerHTML = `<strong>Turno cerrado.</strong><br>${esc(data?.closure?.status === 'REVISAR' ? 'Quedó marcado para revisión en el historial.' : 'La conciliación quedó registrada.')}<div class="turn-close-actions" style="margin-top:10px">${shiftId ? '<button type="button" class="btn" id="demoPrintClosure">Imprimir cierre</button>' : ''}<button type="button" class="btn" id="demoOpenHistoryAfterClose">Abrir historial</button></div>`;
+        $('#demoPrintClosure')?.addEventListener('click', () => printDemoClosure(shiftId));
+        $('#demoOpenHistoryAfterClose')?.addEventListener('click', () => selectDemoTab('historial'));
+      }
+      setDemoTurnStatus('Turno cerrado correctamente.', 'ok');
+      const frame = $('#demoHistoryFrame');
+      if (frame?.src) frame.src = `/app/cierres?embed=turno-gastos&v=${Date.now()}`;
+      await loadContext().catch(() => {});
+      await loadExpenses().catch(() => {});
+      await loadDemoTurn();
+    } catch (error) {
+      setDemoTurnStatus(error.message || 'No fue posible cerrar el turno.', 'bad');
+    } finally {
+      state.closing = false;
+      if (close) close.textContent = 'Cerrar turno';
+      if (close) close.disabled = !state.turn;
+    }
+  }
+
+  async function printDemoClosure(shiftId) {
+    if (!shiftId) return;
+    setDemoTurnStatus('Enviando cierre a impresión…');
+    try {
+      await api(`/api/v1/restaurante/cierres/${encodeURIComponent(shiftId)}/imprimir?tzOffsetMinutes=${encodeURIComponent(tzOffsetMinutes())}`, {
+        method:'POST',
+        body:JSON.stringify({ origin:'TURN_EXPENSES' })
+      });
+      setDemoTurnStatus('Cierre enviado a impresión.', 'ok');
+    } catch (error) {
+      setDemoTurnStatus(error.message || 'No fue posible imprimir el cierre.', 'bad');
+    }
+  }
+
   function bind() {
     $('#expenseForm')?.addEventListener('submit', saveExpense);
     $('#expenseMethod')?.addEventListener('change', () => { renderContext(); setStatus(''); });
@@ -194,9 +355,12 @@
   }
 
   async function boot() {
+    installDemoTurnExpenses();
     bind();
-    try { await refresh(); }
-    catch {}
+    try {
+      await refresh();
+      if (demoMode()) await loadDemoTurn();
+    } catch {}
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
