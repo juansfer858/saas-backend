@@ -22,7 +22,7 @@ function injectStyles(){
   style.id='kdsSimpleDemoStyles';
   style.textContent=`
 body[data-kds-simple-demo="1"]{height:100dvh;min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;background:#e9eeeb}
-body[data-kds-simple-demo="1"] .kds-top{position:fixed!important;inset:0 0 auto 0!important;z-index:40!important;min-height:72px!important;padding:11px 16px!important;background:linear-gradient(180deg,#353d40,#272e31)!important;border-bottom:1px solid #161b1d!important;color:#fff!important;box-shadow:0 7px 20px rgba(15,23,42,.18)!important}
+body[data-kds-simple-demo="1"] .kds-top{position:relative!important;inset:auto!important;z-index:40!important;flex:0 0 auto!important;min-height:72px!important;padding:11px 16px!important;background:linear-gradient(180deg,#353d40,#272e31)!important;border-bottom:1px solid #161b1d!important;color:#fff!important;box-shadow:0 7px 20px rgba(15,23,42,.18)!important}
 body[data-kds-simple-demo="1"] .kds-top>div>span{color:#bfc9c4!important}
 body[data-kds-simple-demo="1"] .kds-top h1{margin:1px 0!important;color:#fff!important;font-size:24px!important}
 body[data-kds-simple-demo="1"] .kds-top p{color:#cbd5d0!important}
@@ -97,10 +97,21 @@ body[data-kds-simple-demo="1"] .empty{min-height:150px!important}
   document.head.appendChild(style);
 }
 
+function observeCanonical(){
+  observer.disconnect();
+  observer.observe(document.body,{childList:true,subtree:true});
+}
+function applyStable(){
+  observer.disconnect();
+  return apply().finally(observeCanonical);
+}
 function schedule(){
   if(scheduled)return;
   scheduled=true;
-  requestAnimationFrame(()=>{scheduled=false;apply().catch(()=>{})});
+  requestAnimationFrame(()=>{
+    scheduled=false;
+    applyStable().catch(()=>{});
+  });
 }
 
 async function setReady(ticket,button){
@@ -301,14 +312,13 @@ function apply(){
   return Promise.resolve();
 }
 
-const observer=new MutationObserver(schedule);
+const observer=new MutationObserver(()=>schedule());
 function start(){
   injectStyles();
-  apply();
-  observer.observe(document.body,{childList:true,subtree:true});
+  applyStable().catch(()=>{});
   window.addEventListener('vantix:tenant-realtime',schedule);
   window.addEventListener('vantix:restaurant-v2:stations-changed',schedule);
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+start();
 window.VantixDemoRestaurantProductionSimpleV1=Object.freeze({marker:MARKER,layoutMarker:LAYOUT_MARKER,tenant:TENANT,refresh:schedule});
 })();
