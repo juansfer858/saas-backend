@@ -125,6 +125,10 @@ async function readRestaurantSchemaState() {
       to_regclass('public."RestaurantDeliveryCommand"')::text AS "deliveryCommand",
       to_regclass('public."RestaurantEmployeeWorkProfile"')::text AS "employeeWorkProfile",
       to_regclass('public."RestaurantCompanyProfile"')::text AS "companyProfile",
+      to_regclass('public."RestaurantInventoryStock"')::text AS "restaurantInventoryStock",
+      to_regclass('public."RestaurantInventoryMovement"')::text AS "restaurantInventoryMovement",
+      to_regclass('public."RestaurantInventoryPurchase"')::text AS "restaurantInventoryPurchase",
+      to_regclass('public."RestaurantInventoryPurchaseItem"')::text AS "restaurantInventoryPurchaseItem",
       to_regclass('public."PrintTenantConfig"')::text AS "printTenantConfig",
       to_regclass('public."PrinterEndpoint"')::text AS "printerEndpoint",
       to_regclass('public."NotificationPushDevice"')::text AS "notificationPushDevice",
@@ -148,6 +152,7 @@ async function readRestaurantSchemaState() {
     'qrVisitDevice', 'qrVisitOriginTableId', 'sessionPayment', 'order', 'orderQrVisitDeviceId',
     'orderItem', 'orderItemSeatNumber', 'command', 'fiscalDocument',
     'deliveryOrder', 'deliveryItem', 'deliveryCommand', 'employeeWorkProfile', 'companyProfile',
+    'restaurantInventoryStock', 'restaurantInventoryMovement', 'restaurantInventoryPurchase', 'restaurantInventoryPurchaseItem',
     'printTenantConfig', 'printerEndpoint', 'notificationPushDevice', 'notificationPushDelivery',
     'printerTransportWindows'
   ];
