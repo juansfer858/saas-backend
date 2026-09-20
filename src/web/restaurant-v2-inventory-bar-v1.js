@@ -7,7 +7,7 @@ const $=(q,r=document)=>r.querySelector(q);
 const $$=(q,r=document)=>[...r.querySelectorAll(q)];
 const esc=V.esc;
 const money=V.money;
-const S={workspace:null,purchases:[],history:[],historyNext:null,tab:'stock',purchaseLines:0};
+const S={workspace:null,purchases:[],history:[],historyNext:null,recipes:null,suppliers:[],tab:'stock',purchaseLines:0,recipeLines:0};
 
 function notice(text,error=false){const n=$('#notice');if(!n)return;n.textContent=text||'';n.classList.toggle('error',error);n.hidden=!text}
 function err(id,text=''){const n=$(id);if(!n)return;n.textContent=text||'';n.hidden=!text}
@@ -104,6 +104,8 @@ function renderPurchases(){
   $$('[data-receive-purchase]').forEach(b=>b.onclick=()=>receivePurchase(b.dataset.receivePurchase));
 }
 function productOptions(selected=''){return enabledProducts().map(p=>'<option value="'+esc(p.productId)+'" '+(p.productId===selected?'selected':'')+'>'+esc(p.name)+' · '+esc(p.sku)+'</option>').join('')}
+function supplierOptions(selected=''){return '<option value="">Selecciona proveedor</option>'+S.suppliers.filter(s=>s.active!==false).map(s=>'<option value="'+esc(s.id)+'" '+(s.id===selected?'selected':'')+'>'+esc(s.name)+(s.nit?' · '+esc(s.nit):'')+'</option>').join('')}
+async function loadSuppliers(){const data=await V.api('/api/v1/restaurante/gestion-v1/proveedores');S.suppliers=Array.isArray(data?.suppliers)?data.suppliers:[];const select=$('#purchaseSupplierId');if(select){const current=select.value;select.innerHTML=supplierOptions(current)}}
 function addPurchaseLine(row={}){
   const id='pl'+(++S.purchaseLines),host=$('#purchaseItems'),wrap=document.createElement('div');wrap.className='inv-purchase-line';wrap.dataset.purchaseLine=id;
   wrap.innerHTML='<label>Producto<select class="inv-select" data-pl-product>'+productOptions(row.productId||'')+'</select></label><label>Cantidad<input class="inv-input" data-pl-qty type="number" min="0.0001" step="0.0001" value="'+esc(row.quantity||1)+'"></label><label>Costo unitario<input class="inv-input" data-pl-cost type="number" min="0.0001" step="0.0001" value="'+esc(row.unitCost||0)+'"></label><label>IVA %<input class="inv-input" data-pl-tax type="number" min="0" max="100" step="0.01" value="'+esc(row.taxPercent||0)+'"></label><button class="rv2-btn" type="button" data-pl-remove>×</button>';
@@ -114,13 +116,13 @@ function purchaseLines(){
 }
 function renderPurchaseTotals(){const lines=purchaseLines();let sub=0,tax=0;lines.forEach(l=>{const s=l.quantity*l.unitCost;sub+=s;tax+=s*l.taxPercent/100});$('#purchaseTotals').innerHTML='<span>Subtotal <b>'+money(sub)+'</b></span><span>IVA <b>'+money(tax)+'</b></span><span>Total <b>'+money(sub+tax)+'</b></span>'}
 function resetPurchase(){
-  $('#purchaseId').value='';$('#purchaseTitle').textContent='Nuevo pedido';$('#purchaseSupplier').value='';$('#purchaseReference').value='';$('#purchaseDate').value=today();$('#purchaseTerms').value='cash';$('#purchaseDue').value='';$('#purchaseDueWrap').hidden=true;$('#purchaseNotes').value='';$('#purchaseItems').innerHTML='';err('#purchaseError');addPurchaseLine();
+  $('#purchaseId').value='';$('#purchaseTitle').textContent='Nuevo pedido';$('#purchaseSupplier').value='';$('#purchaseSupplierId').innerHTML=supplierOptions('');$('#purchaseReference').value='';$('#purchaseDate').value=today();$('#purchaseTerms').value='cash';$('#purchaseDue').value='';$('#purchaseDueWrap').hidden=true;$('#purchaseNotes').value='';$('#purchaseItems').innerHTML='';err('#purchaseError');addPurchaseLine();
   $$('#purchaseForm input,#purchaseForm select,#purchaseForm button').forEach(n=>n.disabled=false);
 }
-function openPurchase(){if(!enabledProducts().length){notice('Activa “Afecta inventario” en al menos un producto antes de crear un pedido.',true);return}resetPurchase();$('#purchaseDialog').showModal()}
+async function openPurchase(){if(!enabledProducts().length){notice('Activa “Afecta inventario” en al menos un producto antes de crear un pedido.',true);return}if(!S.suppliers.length)await loadSuppliers();if(!S.suppliers.some(s=>s.active!==false)){notice('Crea primero un proveedor en Gestión → Proveedores.',true);return}resetPurchase();$('#purchaseDialog').showModal()}
 async function editPurchase(id,readOnly=false){
   try{
-    const r=await V.api('/api/v1/restaurante/inventario-v1/pedidos/'+encodeURIComponent(id));resetPurchase();$('#purchaseId').value=r.id;$('#purchaseTitle').textContent='Pedido #'+r.number;$('#purchaseSupplier').value=r.supplier;$('#purchaseReference').value=r.reference||'';$('#purchaseDate').value=String(r.purchaseDate||'').slice(0,10);$('#purchaseTerms').value=r.paymentTerms;$('#purchaseDue').value=r.dueDate?String(r.dueDate).slice(0,10):'';$('#purchaseDueWrap').hidden=r.paymentTerms!=='credit';$('#purchaseNotes').value=r.notes||'';$('#purchaseItems').innerHTML='';(r.items||[]).forEach(addPurchaseLine);if(readOnly||r.status!=='draft'){$$('#purchaseForm input,#purchaseForm select,#purchaseForm button[type="submit"],#addPurchaseLine,[data-pl-remove]').forEach(n=>n.disabled=true)}$('#purchaseDialog').showModal()
+    const r=await V.api('/api/v1/restaurante/inventario-v1/pedidos/'+encodeURIComponent(id));if(!S.suppliers.length)await loadSuppliers();resetPurchase();$('#purchaseId').value=r.id;$('#purchaseTitle').textContent='Pedido #'+r.number;$('#purchaseSupplier').value=r.supplier;$('#purchaseSupplierId').innerHTML=supplierOptions(r.supplierId||'');$('#purchaseSupplierId').value=r.supplierId||'';$('#purchaseReference').value=r.reference||'';$('#purchaseDate').value=String(r.purchaseDate||'').slice(0,10);$('#purchaseTerms').value=r.paymentTerms;$('#purchaseDue').value=r.dueDate?String(r.dueDate).slice(0,10):'';$('#purchaseDueWrap').hidden=r.paymentTerms!=='credit';$('#purchaseNotes').value=r.notes||'';$('#purchaseItems').innerHTML='';(r.items||[]).forEach(addPurchaseLine);if(readOnly||r.status!=='draft'){$$('#purchaseForm input,#purchaseForm select,#purchaseForm button[type="submit"],#addPurchaseLine,[data-pl-remove]').forEach(n=>n.disabled=true)}$('#purchaseDialog').showModal()
   }catch(e){notice(e.message||'No fue posible abrir el pedido.',true)}
 }
 async function receivePurchase(id){
@@ -150,7 +152,7 @@ function bind(){
   $$('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close)?.close());
   $('#newPurchase').onclick=openPurchase;$('#newPurchase2').onclick=openPurchase;$('#addPurchaseLine').onclick=()=>addPurchaseLine();
   $('#purchaseTerms').onchange=()=>{$('#purchaseDueWrap').hidden=$('#purchaseTerms').value!=='credit'};
-  $('#purchaseForm').onsubmit=async e=>{e.preventDefault();err('#purchaseError');try{const payload={id:$('#purchaseId').value||undefined,supplier:$('#purchaseSupplier').value.trim(),reference:$('#purchaseReference').value.trim(),purchaseDate:$('#purchaseDate').value,paymentTerms:$('#purchaseTerms').value,dueDate:$('#purchaseTerms').value==='credit'?$('#purchaseDue').value:null,notes:$('#purchaseNotes').value.trim(),items:purchaseLines()};await V.api('/api/v1/restaurante/inventario-v1/pedidos',{method:'POST',body:JSON.stringify(payload)});$('#purchaseDialog').close();await loadPurchases(false);notice('Pedido guardado como borrador.')}catch(x){err('#purchaseError',x.message)}};
+  $('#purchaseForm').onsubmit=async e=>{e.preventDefault();err('#purchaseError');try{const supplierId=$('#purchaseSupplierId').value,supplier=S.suppliers.find(s=>s.id===supplierId);if(!supplier)throw new Error('Selecciona un proveedor.');const payload={id:$('#purchaseId').value||undefined,supplierId,supplier:supplier.name,reference:$('#purchaseReference').value.trim(),purchaseDate:$('#purchaseDate').value,paymentTerms:$('#purchaseTerms').value,dueDate:$('#purchaseTerms').value==='credit'?$('#purchaseDue').value:null,notes:$('#purchaseNotes').value.trim(),items:purchaseLines()};await V.api('/api/v1/restaurante/inventario-v1/pedidos',{method:'POST',body:JSON.stringify(payload)});$('#purchaseDialog').close();await loadPurchases(false);notice('Pedido guardado como borrador.')}catch(x){err('#purchaseError',x.message)}};
   $('#historyApply').onclick=()=>loadHistory().catch(e=>notice(e.message,true));$('#historyMore').onclick=()=>loadHistory(true).catch(e=>notice(e.message,true));
   $('#exportStock').onclick=()=>{const rows=controlled();downloadCsv('Inventario_'+today()+'.csv',['SKU','Producto','Categoría','Saldo','Reservado','Disponible','Mínimo'],rows.map(p=>[p.sku,p.name,p.category,p.onHand,p.reserved,p.available,p.minimum]))};
   $('#exportHistory').onclick=()=>downloadCsv('Movimientos_inventario_'+today()+'.csv',['Número','Fecha','Producto','Movimiento','Unidades','Cambio','Saldo','Motivo'],S.history.map(r=>[r.number,r.creadoEn,r.productName,kindLabel(r.kind),r.units,r.delta,r.balance,r.reason]));
