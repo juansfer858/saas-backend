@@ -40,8 +40,15 @@
   const $ = (q, root = document) => root.querySelector(q);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
 
+  const DEMO_RESTAURANTE = 'demo-restaurante';
   function allowed(module) { return module.roles.includes(role); }
-  function visibleModules() { return Object.entries(MODULES).filter(([, module]) => allowed(module)); }
+  function visibleModules() {
+    return Object.entries(MODULES).filter(([key, module]) => {
+      if (!allowed(module)) return false;
+      if (session.subdomain === DEMO_RESTAURANTE && key === 'mesas') return false;
+      return true;
+    });
+  }
   function defaultModuleKey() {
     return visibleModules().find(([, module]) => !module.technical && !module.external)?.[0]
       || visibleModules().find(([, module]) => !module.technical)?.[0]
