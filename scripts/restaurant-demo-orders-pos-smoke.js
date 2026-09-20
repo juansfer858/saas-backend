@@ -54,6 +54,8 @@ expect(css.includes('.demo-bar-cash-actions'), 'cash action layout missing');
 expect(runtime.includes('function openSplitDialog()'), 'split UI behavior missing');
 expect(runtime.includes('/separar'), 'transactional split endpoint missing');
 expect(runtime.includes('function openMergeDialog()'), 'merge UI behavior missing');
+expect(runtime.includes("esc(accountLabel(acc))"), 'merge dialog must show only the account label');
+expect(!runtime.includes("esc(acc.number)"), 'merge dialog must not expose the technical sale number');
 expect(runtime.includes('/unir'), 'transactional merge endpoint missing');
 expect(runtime.includes('/detalle'), 'account detail endpoint missing');
 expect(runtime.includes('data-demo-rename'), 'rename action missing');
