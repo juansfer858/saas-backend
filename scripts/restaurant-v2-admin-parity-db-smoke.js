@@ -83,6 +83,16 @@ async function main() {
     assert.match(htmlSource, /QR DE MESAS/);
     assert.match(htmlSource, /DISPOSITIVOS/);
     assert.match(uiSource, /VANTIX_RESTAURANT_V2_ADMIN_PARITY_V1/);
+    assert.match(htmlSource, /restaurant-print-template-editor-v4\.js/);
+    assert.match(uiSource, /VANTIX_DEMO_RESTAURANTE_PRINT_TEMPLATE_CENTER_V1/);
+    assert.match(uiSource, /Plantillas de impresión/);
+    assert.match(uiSource, /Factura/);
+    assert.match(uiSource, /Comanda/);
+    assert.match(uiSource, /Cierre de turno/);
+    assert.match(uiSource, /plantillas-documentos\/factura/);
+    assert.match(uiSource, /plantillas-documentos\/cierre/);
+    assert.match(uiSource, /RestaurantPrintTemplates/);
+    assert.match(routeSource, /restaurant-print-template-editor-v4\.js/);
     assert.match(uiSource, /\/api\/v1\/restaurante\/qrs/);
     assert.match(uiSource, /dispositivos-mesero\/vinculo/);
     assert.match(uiSource, /dispositivos-produccion\/vinculo/);
