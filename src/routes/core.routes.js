@@ -51,6 +51,7 @@ const { restaurantV2PilotRouter } = require('../modules/restaurant/restaurant-v2
 const { restaurantV2CutoverRouter, restaurantV2CutoverPilotGuard } = require('../modules/restaurant/restaurant-v2-cutover.routes');
 const { restaurantV1RetirementP11Router, restaurantV1RetirementCutoverGuard } = require('../modules/restaurant/restaurant-v1-retirement-p11.routes');
 const { restaurantExpensesV116Router } = require('../modules/restaurant/restaurant-expenses-v116.routes');
+const { restaurantInventoryBarV1Router } = require('../modules/restaurant/restaurant-inventory-bar-v1.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
 
@@ -100,6 +101,7 @@ router.use('/restaurante', restaurantEmployeeWorkRouter);
 router.use('/restaurante', restaurantCashShiftRecoveryRouter);
 router.use('/restaurante', restaurantTableLiveDetailV67Router);
 router.use('/restaurante', restaurantExpensesV116Router);
+router.use('/restaurante', restaurantInventoryBarV1Router);
 router.use('/restaurante', restaurantV2TableMoveRouter);
 // QR Cliente puede solicitar apertura sin abrir la mesa por sí mismo. Mesas/Pedidos V2
 // consumen esta cola y un usuario con MESAS.CREAR confirma la apertura real.
