@@ -6,7 +6,12 @@
   <title>Cierres · Restaurante</title>
   <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
   <link rel="stylesheet" href="/app/restaurant-shift-closures-c86.css?v=86">
-  <style>.c86-empty[hidden]{display:none!important}</style>
+  <style>
+    .c86-empty[hidden]{display:none!important}
+    html[data-c86-embedded="1"] .c86-top{display:none!important}
+    html[data-c86-embedded="1"] .c86-main{padding-top:12px!important;max-width:none!important}
+  </style>
+  <script>if(new URLSearchParams(location.search).get('embed'))document.documentElement.dataset.c86Embedded='1';</script>
 </head>
 <body>
   <header class="c86-top">
