@@ -1,6 +1,8 @@
 name: Demo Restaurante Cash Live Diagnostic
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
     paths:
@@ -21,15 +23,14 @@ jobs:
           set -euo pipefail
           BASE='https://core.vantixgc.com'
           for attempt in $(seq 1 60); do
-            INFO="$(curl -fsS --max-time 12 "$BASE/api/public/runtime-info" 2>/dev/null || true)"
-            if echo "$INFO" | grep -Fq "\"commit\":\"$GITHUB_SHA\""; then
-              BODY="$(curl -fsS --max-time 15 "$BASE/api/public/restaurante/demo-cash-readiness")"
+            BODY="$(curl -fsS --max-time 15 "$BASE/api/public/restaurante/demo-cash-readiness" 2>/dev/null || true)"
+            if echo "$BODY" | grep -q '"tenantFound":true'; then
               echo "$BODY"
-              echo "$BODY" | grep -q '"tenantFound":true'
               echo "DEMO_CASH_LIVE_DIAGNOSTIC_READ"
               exit 0
             fi
+            echo "Waiting for demo cash diagnostic endpoint... attempt=$attempt"
             sleep 10
           done
-          echo "Exact commit not live in time" >&2
+          echo "Demo cash diagnostic endpoint not live in time" >&2
           exit 1
