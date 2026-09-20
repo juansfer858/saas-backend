@@ -147,9 +147,6 @@ async function retireMovedAccountTx(tx, tenantId, user, session, sale, reason, d
   const fiscal = await tx.restaurantFiscalDocument.count({ where:{ tenantId, sessionId:session.id } });
   if (payments || fiscal) throw new AppError(409, 'La cuenta ya tiene actividad financiera y no puede moverse', 'DEMO_BAR_ACCOUNT_FINANCIAL_ACTIVITY');
   const now = new Date();
-  await tx.restaurantOrder.deleteMany({
-    where:{ tenantId, sessionId:session.id, state:'BORRADOR', items:{ none:{} } }
-  }).catch(() => {});
   await tx.restaurantTableSession.update({
     where:{ id:session.id },
     data:{ state:'CANCELADA', closedAt:now, closedByUserId:user.id, accountRequestedAt:null, accountPreparedAt:null, cashierRequestedAt:null }
