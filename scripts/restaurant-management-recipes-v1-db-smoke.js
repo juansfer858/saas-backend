@@ -84,7 +84,13 @@ async function main(){
   assert.match(source,/Ventas/);
   assert.match(source,/Clientes/);
   assert.match(source,/Proveedores/);
+  assert.match(source,/QR de mesas/,'Gestión debe incluir QR de mesas');
+  assert.match(source,/\/api\/v1\/restaurante\/qrs/,'Gestión debe cargar los QR físicos reales');
+  assert.match(source,/data-regenerate-qr/,'Gestión debe conservar regeneración explícita');
+  assert.match(source,/printQrMaterials/,'Gestión debe conservar impresión de QR');
   assert.doesNotMatch(source,/Pedidos QR/i,'Gestión demo must omit Pedidos QR');
+  const nativeControl=fs.readFileSync('src/web/restaurant-v2-native-control-p11.js','utf8');
+  assert.match(nativeControl,/DEMO_HIDDEN_MODULES = new Set\(\['mesas','division','caja','cierres','qrs'\]\)/,'QR no debe seguir como módulo lateral independiente en demo');
   const invHtml=fs.readFileSync('src/web/restaurant-v2-inventory-bar-v1.html','utf8');
   assert.match(invHtml,/Recetas y costos/);
   assert.match(invHtml,/\+ Ingrediente/);
@@ -93,7 +99,7 @@ async function main(){
   assert.match(menuEdit,/Inventario → Recetas y costos/);
 
   console.log('RESTAURANT_MANAGEMENT_RECIPES_V1=PASS');
-  console.log('GESTION_SUBLEVELS=VENTAS|CLIENTES|PROVEEDORES');
+  console.log('GESTION_SUBLEVELS=VENTAS|CLIENTES|PROVEEDORES|QR_MESAS');
   console.log('PEDIDOS_QR_INCLUDED=NO');
   console.log('RECIPE_RESERVATION=PASS');
   console.log('RECIPE_CONSUMPTION=PASS');
