@@ -168,8 +168,8 @@ async function main() {
     assert.match(publicRoutes, /\/app\/restaurante-v2\/inventario/);
     assert.match(html, /Disponible = saldo − reservado/);
     assert.match(ui, /Afecta inventario/);
-    assert.match(ui, /\+ Agregar pedido/);
-    assert.match(ui, /Exportar existencias/);
+    assert.match(html, /\+ Agregar pedido/);
+    assert.match(html, /Exportar existencias/);
     assert.match(nav, /inventario:\{ label:'Inventario'/);
     assert.match(nav, /key === 'inventario' && session\.subdomain !== DEMO_RESTAURANTE/);
     assert.match(menuEdit, /restaurantInventory\.configureTrackingInTx/);
