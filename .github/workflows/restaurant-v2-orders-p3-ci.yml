@@ -7,6 +7,10 @@ on:
       - 'src/modules/restaurant/restaurant-identity.service.js'
       - 'src/modules/edge/edge-restaurant-immediate-print-bridge.js'
       - 'src/modules/restaurant/restaurant-v2-orders.*'
+      - 'src/modules/restaurant/restaurant-demo-bar-accounts-v1.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
@@ -15,6 +19,7 @@ on:
       - 'src/web/restaurant-v2-person-buttons-v100.css'
       - 'scripts/restaurant-v2-admin-empty-table-v107-smoke.js'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
+      - 'scripts/restaurant-demo-bar-behavior-db-smoke.js'
       - 'scripts/restaurant-v2-person-buttons-v100-smoke.js'
       - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
   push:
@@ -24,6 +29,10 @@ on:
       - 'src/modules/restaurant/restaurant-identity.service.js'
       - 'src/modules/edge/edge-restaurant-immediate-print-bridge.js'
       - 'src/modules/restaurant/restaurant-v2-orders.*'
+      - 'src/modules/restaurant/restaurant-demo-bar-accounts-v1.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
       - 'src/modules/restaurant/restaurant-operational-v2-preview.public.routes.js'
       - 'src/routes/core.routes.js'
       - 'src/web/restaurant-v2-orders.*'
@@ -62,6 +71,7 @@ jobs:
       - run: node scripts/restaurant-table-order-nav-v109-smoke.js
       - run: node scripts/restaurant-v2-admin-empty-table-v107-smoke.js
       - run: node scripts/restaurant-v2-orders-p3-db-smoke.js
+      - run: node scripts/restaurant-demo-bar-behavior-db-smoke.js
       - run: node scripts/restaurant-v2-person-buttons-v100-smoke.js
       - run: node --check src/modules/restaurant/restaurant.service.js
       - run: node --check src/modules/restaurant/restaurant-identity.service.js
