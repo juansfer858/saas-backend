@@ -26,11 +26,11 @@ function root(){return $('#demoBarOrdersRoot')}
 function currentTable(){return S.workspace?.tables?.find(row=>String(row.id)===String(S.tableId))||null}
 function accounts(){return currentTable()?.accounts||[]}
 function currentAccount(){return accounts().find(row=>String(row.id)===String(S.accountId))||null}
-function draftItems(){return S.draft?.order?.items||[]}
-function allItems(){return S.draft?.service?.allItems||[]}
-function pendingItems(){return allItems().filter(item=>String(item.orderState)==='BORRADOR')}
-function sentItems(){return allItems().filter(item=>String(item.orderState)!=='BORRADOR')}
-function total(){return Number(S.draft?.service?.total||currentAccount()?.sale?.total||0)}
+function draftItems(){return (S.draft?.items||[]).filter(item=>item.editableDraft)}
+function allItems(){return S.draft?.items||[]}
+function pendingItems(){return draftItems()}
+function sentItems(){return allItems().filter(item=>!item.editableDraft)}
+function total(){return Number(S.draft?.sale?.total||currentAccount()?.sale?.total||0)}
 function setStatus(text,error=false){
   const node=$('[data-demo-status]',root());
   if(node){node.textContent=text||'';node.classList.toggle('error',Boolean(error))}
@@ -70,8 +70,8 @@ function bindStatic(){
   $('[data-demo-send]',r).onclick=sendPending;
   $('[data-demo-prebill]',r).onclick=requestPrebill;
   $('[data-demo-pay]',r).onclick=openCash;
-  $('[data-demo-split]',r).onclick=splitSelectedDraft;
-  $('[data-demo-merge]',r).onclick=mergeDraftAccount;
+  $('[data-demo-split]',r).onclick=openSplitDialog;
+  $('[data-demo-merge]',r).onclick=openMergeDialog;
 }
 
 function parseSearchQuantity(){
@@ -151,14 +151,16 @@ function renderOrder(){
   if(!acc){wrap.innerHTML='<div class="demo-bar-empty">Busca un producto para comenzar una cuenta.</div>';renderActions();return}
   if(!items.length){wrap.innerHTML='<div class="demo-bar-empty">Busca un producto para comenzar esta cuenta.</div>';renderActions();return}
   wrap.innerHTML='<table class="demo-bar-lines"><thead><tr><th class="select-col"></th><th>Producto</th><th class="qty-col">Cant.</th><th class="price-col demo-bar-num">Precio</th><th class="subtotal-col demo-bar-num">Subtotal</th><th class="remove-col"></th></tr></thead><tbody>'+items.map(item=>{
-    const draft=String(item.orderState)==='BORRADOR';
-    const checked=S.selected.has(item.id);
-    const status=draft?'Por enviar':String(item.orderState||'Enviado').replaceAll('_',' ');
-    return '<tr><td><input type="checkbox" data-demo-select="'+esc(item.id)+'" '+(checked?'checked':'')+' '+(draft?'':'disabled')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.id)+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.id)+'">×</button>':'')+'</td></tr>';
+    const draft=Boolean(item.editableDraft);
+    const key=String(item.saleDetailId||item.id);
+    const checked=S.selected.has(key);
+    const status=String(item.operationalState||item.orderState||'Cuenta').replaceAll('_',' ');
+    const origin=item.originTable?.name&&item.originTable.id!==S.tableId?' · origen '+item.originTable.name:'';
+    return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table>';
-  $$('[data-demo-select]',wrap).forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
-  $$('[data-demo-qty]',wrap).forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
-  $$('[data-demo-remove]',wrap).forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
+  $('[data-demo-select]',wrap).forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
+  $('[data-demo-qty]',wrap).forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
+  $('[data-demo-remove]',wrap).forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
   $$('[data-demo-price]',wrap).forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
   renderActions();
 }
@@ -219,7 +221,9 @@ async function selectAccount(accountId){
 async function loadAccount(accountId){
   if(!accountId){S.draft=null;renderOrder();return}
   try{
-    S.draft=await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(accountId)+'/pedido');
+    S.draft=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(accountId)+'/detalle');
+    const visible=new Set(allItems().map(item=>String(item.saleDetailId||item.id)));
+    for(const id of [...S.selected])if(!visible.has(id))S.selected.delete(id);
     renderOrder();
   }catch(error){setStatus(error.message||'No fue posible cargar la cuenta.',true)}
 }
@@ -270,24 +274,30 @@ async function addProduct(menuItemId,qty){
     const existing=draftItems().find(row=>String(row.menuItemId)===String(menuItemId)&&!row.seatNumber);
     const next=Number(existing?.quantity||0)+qty;
     await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(accountId)+'/pedido/items/'+encodeURIComponent(menuItemId),{method:'PUT',body:JSON.stringify({quantity:next,seatNumber:null})});
+    await reopenAfterMutation(accountId);
     S.search='';$('[data-demo-search]',root()).value='';S.focus=0;
     await loadAccount(accountId);await refreshWorkspaceOnly();renderCatalog();
     setStatus('Producto agregado. Pulsa Enviar pedido para pasarlo a producción.');
   }catch(error){setStatus(error.message||'No fue posible agregar el producto.',true)}
   finally{S.busy=false}
 }
+async function reopenAfterMutation(accountId){
+  try{await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(accountId)+'/reabrir',{method:'POST',body:'{}'})}catch{}
+}
 async function changeDraftQty(itemId,quantity){
-  const item=draftItems().find(row=>String(row.id)===String(itemId));if(!item||!S.accountId)return;
+  const item=draftItems().find(row=>String(row.orderItemId||row.id)===String(itemId));if(!item||!S.accountId)return;
   const q=Math.max(0,Math.min(999,Number(quantity)||0));
   try{
     await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(S.accountId)+'/pedido/items/'+encodeURIComponent(item.menuItemId),{method:'PUT',body:JSON.stringify({quantity:q,seatNumber:item.seatNumber??null})});
-    S.selected.delete(item.id);await loadAccount(S.accountId);await refreshWorkspaceOnly();
+    await reopenAfterMutation(S.accountId);
+    S.selected.delete(String(item.saleDetailId||item.id));await loadAccount(S.accountId);await refreshWorkspaceOnly();
   }catch(error){setStatus(error.message||'No fue posible cambiar la cantidad.',true)}
 }
 async function changePrice(detailId,unitPrice){
   if(!S.accountId||!detailId||!Number.isFinite(unitPrice)||unitPrice<0)return;
   try{
     await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/items/'+encodeURIComponent(detailId)+'/precio',{method:'PATCH',body:JSON.stringify({unitPrice})});
+    await reopenAfterMutation(S.accountId);
     await loadAccount(S.accountId);await refreshWorkspaceOnly();setStatus('Precio actualizado.');
   }catch(error){setStatus(error.message||'No fue posible cambiar el precio.',true);await loadAccount(S.accountId)}
 }
@@ -335,42 +345,54 @@ function printPrebill(){
   frame.onload=()=>{frame.contentWindow.focus();frame.contentWindow.print();setTimeout(()=>frame.remove(),800)};
 }
 
-async function splitSelectedDraft(){
-  const selected=draftItems().filter(item=>S.selected.has(item.id));
-  if(!selected.length)return;
-  const name=prompt('Nombre de la nueva cuenta','Cuenta separada');if(name===null)return;
-  try{
-    const created=await RV2.api('/api/v1/restaurante/v2/demo-bar/mesas/'+encodeURIComponent(S.tableId)+'/cuentas',{method:'POST',body:JSON.stringify({name:name.trim()||'Cuenta separada'})});
-    const dest=created.account.id;
-    for(const item of selected){
-      await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(S.accountId)+'/pedido/items/'+encodeURIComponent(item.menuItemId),{method:'PUT',body:JSON.stringify({quantity:0,seatNumber:item.seatNumber??null})});
-      const result=await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(dest)+'/pedido/items/'+encodeURIComponent(item.menuItemId),{method:'PUT',body:JSON.stringify({quantity:Number(item.quantity||0),seatNumber:item.seatNumber??null})});
-      const moved=(result?.order?.items||[]).find(row=>String(row.menuItemId)===String(item.menuItemId)&&Number(row.seatNumber||0)===Number(item.seatNumber||0));
-      if(moved&&item.notes)await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(dest)+'/items/'+encodeURIComponent(moved.id),{method:'PATCH',body:JSON.stringify({notes:item.notes})});
-    }
-    S.selected.clear();await loadBase(true);S.accountId=dest;await loadAccount(dest);setStatus('Consumos por enviar separados en una nueva cuenta.');
-  }catch(error){setStatus(error.message||'No fue posible separar los consumos.',true)}
+function openSplitDialog(){
+  const chosen=allItems().filter(item=>S.selected.has(String(item.saleDetailId||item.id)));
+  if(!chosen.length)return;
+  const dialog=ensureDialog();
+  $('[data-dialog-eyebrow]',dialog).textContent='SEPARAR CONSUMOS';
+  $('[data-dialog-title]',dialog).textContent=currentAccount()?.name||'Cuenta';
+  const body=$('[data-dialog-body]',dialog);
+  body.innerHTML='<label>Nombre de la nueva cuenta<input class="rv2-input" data-split-name value="Cuenta separada" maxlength="160"></label>'+chosen.map(item=>'<label>'+esc(item.description)+' · máximo '+Number(item.quantity||0)+'<input class="rv2-input" data-split-detail="'+esc(item.saleDetailId)+'" type="number" min="0.0001" max="'+Number(item.quantity||0)+'" step="0.0001" value="'+Number(item.quantity||0)+'"></label>').join('')+'<div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-dialog-actions"><button class="rv2-btn" data-split-cancel>Cancelar</button><button class="rv2-btn rv2-btn-primary" data-split-confirm>Separar</button></div>';
+  $('[data-split-cancel]',body).onclick=()=>dialog.close();
+  $('[data-split-confirm]',body).onclick=confirmSplit;
+  if(!dialog.open)dialog.showModal();
 }
-async function mergeDraftAccount(){
-  const dest=currentAccount();if(!dest)return;
-  const all=(S.workspace?.tables||[]).flatMap(table=>(table.accounts||[]).map(acc=>({...acc,tableName:table.name}))).filter(acc=>acc.id!==dest.id);
-  if(!all.length)return;
-  const menu=all.map((acc,index)=>(index+1)+'. '+acc.tableName+' · #'+acc.number+' · '+acc.name+' · '+money(acc.sale?.total||0)).join('\n');
-  const choice=prompt('Cuenta para unir con '+dest.name+':\n'+menu+'\n\nEscribe el número de la lista','1');
-  if(choice===null)return;
-  const source=all[Number(choice)-1];if(!source){setStatus('Selección inválida.',true);return}
+async function confirmSplit(){
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog);
+  const lines=$$('[data-split-detail]',body).map(input=>({detailId:input.dataset.splitDetail,quantity:Number(input.value)})).filter(row=>row.quantity>0);
+  const name=$('[data-split-name]',body)?.value?.trim()||'Cuenta separada';
+  if(!lines.length){dialogStatus('Selecciona al menos una cantidad válida.',true);return}
   try{
-    const src=await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(source.id)+'/pedido');
-    const srcItems=src?.service?.allItems||[];
-    if(srcItems.some(item=>String(item.orderState)!=='BORRADOR'))throw new Error('Por seguridad, esta primera prueba solo une cuentas cuyos consumos todavía no se han enviado a producción.');
-    for(const item of srcItems){
-      const existing=draftItems().find(row=>String(row.menuItemId)===String(item.menuItemId)&&Number(row.seatNumber||0)===Number(item.seatNumber||0));
-      await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(dest.id)+'/pedido/items/'+encodeURIComponent(item.menuItemId),{method:'PUT',body:JSON.stringify({quantity:Number(existing?.quantity||0)+Number(item.quantity||0),seatNumber:item.seatNumber??null})});
-      await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(source.id)+'/pedido/items/'+encodeURIComponent(item.menuItemId),{method:'PUT',body:JSON.stringify({quantity:0,seatNumber:item.seatNumber??null})});
-    }
-    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(source.id)+'/vacia',{method:'DELETE'});
-    await loadBase(true);S.accountId=dest.id;await loadAccount(dest.id);setStatus('Cuentas unidas.');
-  }catch(error){setStatus(error.message||'No fue posible unir las cuentas.',true)}
+    dialogStatus('Separando consumos…');
+    const result=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/separar',{method:'POST',body:JSON.stringify({name,lines})});
+    dialog.close();S.selected.clear();await loadBase(true);S.accountId=result.accountId;await loadAccount(S.accountId);setStatus('Consumos separados en una nueva cuenta.');
+  }catch(error){dialogStatus(error.message||'No fue posible separar los consumos.',true)}
+}
+function openMergeDialog(){
+  const dest=currentAccount();if(!dest)return;
+  const entries=(S.workspace?.tables||[]).flatMap(table=>(table.accounts||[]).map(acc=>({...acc,tableName:table.name}))).filter(acc=>acc.id!==dest.id);
+  if(!entries.length)return;
+  const dialog=ensureDialog();
+  $('[data-dialog-eyebrow]',dialog).textContent='UNIR CUENTAS';
+  $('[data-dialog-title]',dialog).textContent='Destino: '+(currentTable()?.name||'')+' · '+dest.name;
+  const body=$('[data-dialog-body]',dialog);
+  const groups=new Map();for(const entry of entries){if(!groups.has(entry.tableName))groups.set(entry.tableName,[]);groups.get(entry.tableName).push(entry)}
+  body.innerHTML='<label>Nombre conjunto<input class="rv2-input" data-merge-name value="'+esc(dest.name)+'" maxlength="160"></label>'+[...groups.entries()].map(([tableName,rows])=>'<fieldset><legend>'+esc(tableName)+'</legend>'+rows.map(acc=>'<label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="checkbox" data-merge-source="'+esc(acc.id)+'"><span style="flex:1">#'+esc(acc.number)+' · '+esc(acc.name)+'</span><strong>'+money(acc.sale?.total||0)+'</strong></label>').join('')+'</fieldset>').join('')+'<div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-dialog-actions"><button class="rv2-btn" data-merge-cancel>Cancelar</button><button class="rv2-btn rv2-btn-primary" data-merge-confirm>Unir seleccionadas</button></div>';
+  $('[data-merge-cancel]',body).onclick=()=>dialog.close();
+  $('[data-merge-confirm]',body).onclick=confirmMerge;
+  if(!dialog.open)dialog.showModal();
+}
+async function confirmMerge(){
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog);
+  const sources=$$('[data-merge-source]:checked',body).map(input=>input.dataset.mergeSource);
+  const name=$('[data-merge-name]',body)?.value?.trim()||currentAccount()?.name||'Cuenta';
+  if(!sources.length){dialogStatus('Selecciona al menos una cuenta para unir.',true);return}
+  try{
+    dialogStatus('Uniendo cuentas…');
+    const dest=S.accountId;
+    await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(dest)+'/unir',{method:'POST',body:JSON.stringify({name,sources})});
+    dialog.close();S.selected.clear();await loadBase(true);S.accountId=dest;await loadAccount(dest);setStatus('Cuentas unidas.');
+  }catch(error){dialogStatus(error.message||'No fue posible unir las cuentas.',true)}
 }
 
 async function refreshWorkspaceOnly(){
