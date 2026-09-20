@@ -422,6 +422,7 @@ async function accountDetail(tenantId, sessionId) {
         station:item?.station || null,
         seatNumber:item?.seatNumber || null,
         notes:item?.notes || null,
+        createdAt:item?.creadoEn || order?.creadoEn || null,
         orderId:order?.id || null,
         orderState:order?.state || null,
         operationalState:operationalState(order,item),
