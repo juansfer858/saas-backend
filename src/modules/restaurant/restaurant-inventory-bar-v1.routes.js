@@ -35,6 +35,7 @@ const purchaseItemSchema = z.object({
 });
 const purchaseSchema = z.object({
   id:z.string().uuid().optional(),
+  supplierId:z.string().uuid().optional().nullable(),
   supplier:z.string().trim().min(1).max(200),
   reference:z.string().trim().max(160).optional().default(''),
   purchaseDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
