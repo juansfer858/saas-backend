@@ -169,7 +169,8 @@ async function main() {
     assert.match(html, /Disponible = saldo − reservado/);
     assert.match(ui, /Afecta inventario/);
     assert.ok(ui.includes("$('[data-inv-tab]').forEach"), 'inventory tabs must use multi-selector helper');
-    assert.ok(!ui.includes("$('[data-inv-tab]').forEach"), 'inventory tabs cannot iterate a single element');
+    assert.equal(/(^|[^$])\$\([^;\n]*\)\.(forEach|map|filter|some|every|reduce)\(/m.test(ui), false, 'single-element selector cannot be iterated as a collection');
+    assert.equal(ui.includes('$$('), false, 'triple-dollar selector helper is invalid');
     assert.ok(ui.includes("$('[data-ing-edit]').forEach"), 'ingredient actions must use multi-selector helper');
     assert.ok(ui.includes("$('[data-recipe-product]').forEach"), 'recipe actions must use multi-selector helper');
     assert.ok(ui.includes("$('input,select',wrap).forEach"), 'recipe line controls must use multi-selector helper');
