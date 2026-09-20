@@ -67,7 +67,7 @@ expect(runtime.includes("$('#backToTables')?.remove();"), 'demo must remove the 
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-select]').forEach"), 'split selection bindings must use a multi-element selector');
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-qty]').forEach"), 'quantity bindings must use a multi-element selector');
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-remove]').forEach"), 'remove bindings must use a multi-element selector');
-expect(runtime.includes("$('[data-demo-price]',wrap).forEach"), 'price bindings must use the multi-selector helper');
+expect(runtime.includes("wrap.querySelectorAll('[data-demo-price]').forEach"), 'price bindings must use a multi-element selector');
 expect(!runtime.includes("$('[data-demo-price]',wrap).forEach"), 'single price selector cannot be used with forEach');
 expect(runtime.includes('data-demo-note'), 'manual observation field missing');
 expect(runtime.includes('async function changeNote('), 'manual observation save behavior missing');
