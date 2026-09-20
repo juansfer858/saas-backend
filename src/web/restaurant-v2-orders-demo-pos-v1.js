@@ -158,9 +158,9 @@ function renderOrder(){
     const origin=item.originTable?.name&&item.originTable.id!==S.tableId?' · origen '+item.originTable.name:'';
     return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table>';
-  $('[data-demo-select]',wrap).forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
-  $('[data-demo-qty]',wrap).forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
-  $('[data-demo-remove]',wrap).forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
+  wrap.querySelectorAll('[data-demo-select]').forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
+  wrap.querySelectorAll('[data-demo-qty]').forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
+  wrap.querySelectorAll('[data-demo-remove]').forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
   $$('[data-demo-price]',wrap).forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
   renderActions();
 }
