@@ -164,7 +164,7 @@ function renderOrder(){
   wrap.querySelectorAll('[data-demo-qty]').forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
   wrap.querySelectorAll('[data-demo-remove]').forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
   wrap.querySelectorAll('[data-demo-note]').forEach(input=>input.onchange=()=>changeNote(input.dataset.demoNote,input.value));
-  $('[data-demo-price]',wrap).forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
+  wrap.querySelectorAll('[data-demo-price]').forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
   renderActions();
 }
 function renderActions(){
