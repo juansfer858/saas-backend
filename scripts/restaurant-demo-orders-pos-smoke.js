@@ -62,6 +62,11 @@ expect(runtime.includes("$('#backToTables')?.remove();"), 'demo must remove the 
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-select]').forEach"), 'split selection bindings must use a multi-element selector');
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-qty]').forEach"), 'quantity bindings must use a multi-element selector');
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-remove]').forEach"), 'remove bindings must use a multi-element selector');
+expect(runtime.includes('data-demo-note'), 'manual observation field missing');
+expect(runtime.includes('async function changeNote('), 'manual observation save behavior missing');
+expect(runtime.includes("/items/'+encodeURIComponent(itemId)"), 'observation must use canonical item metadata endpoint');
+expect(runtime.includes("Observación guardada. Se enviará con la comanda."), 'observation/comanda feedback missing');
+expect(css.includes('.demo-bar-note{'), 'manual observation field style missing');
 expect(demoRoutes.includes("/v2/demo-bar/workspace"), 'demo workspace route missing');
 expect(demoRoutes.includes("/v2/demo-bar/mesas/:tableId/cuentas"), 'demo account create route missing');
 expect(demoRoutes.includes("/v2/demo-bar/cuentas/:sessionId/detalle"), 'demo account detail route missing');
