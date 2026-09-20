@@ -43,7 +43,7 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
 
   const DEMO_RESTAURANTE = 'demo-restaurante';
-  const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres']);
+  const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres','qrs']);
   function allowed(module) { return module.roles.includes(role); }
   function visibleModules() {
     return Object.entries(MODULES).flatMap(([key, module]) => {
