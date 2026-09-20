@@ -151,6 +151,7 @@ function apply(){
     if(pending&&preparing){
       [...preparing.querySelectorAll('.ticket')].forEach(ticket=>pending.appendChild(ticket));
       const count=pending.querySelectorAll('.ticket').length;
+      if(count)pending.querySelector('.empty')?.remove();
       const pendingCount=document.querySelector('#pendingCount');
       const pendingBadge=document.querySelector('#pendingBadge');
       if(pendingCount)pendingCount.textContent=String(count);
