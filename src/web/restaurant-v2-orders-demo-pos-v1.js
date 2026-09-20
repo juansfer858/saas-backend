@@ -319,7 +319,7 @@ async function changePrice(detailId,unitPrice){
 async function sendPending(){
   if(!S.accountId||!pendingItems().length)return;
   try{
-    const noteInputs=$('[data-demo-note]',root());
+    const noteInputs=root().querySelectorAll('[data-demo-note]');
     for(const input of noteInputs){
       const item=draftItems().find(row=>String(row.orderItemId||row.id)===String(input.dataset.demoNote));
       const typed=String(input.value||'').trim().slice(0,300);
