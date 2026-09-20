@@ -5,6 +5,9 @@
   const R = window.RestaurantV2;
   if (!R) throw new Error('Restaurant V2 SDK no disponible');
   const session = R.requireSession();
+  const DEMO_TENANT = 'demo-restaurante';
+  const demoFiveCardGrid = String(session?.subdomain || '').trim().toLowerCase() === DEMO_TENANT;
+  if (demoFiveCardGrid) document.documentElement.dataset.menuDemoGrid = '5';
   const role = String(session.user?.rol || '').toUpperCase();
   if (!['ADMIN', 'SUPER_ADMIN'].includes(role)) {
     location.replace('/app/centro-de-control');

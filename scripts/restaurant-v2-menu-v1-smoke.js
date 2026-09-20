@@ -63,6 +63,11 @@ assert.match(js, /restaurant-menu-import-ui\.js/);
 assert.match(js, /canonicalOcrReused:true/);
 assert.doesNotThrow(() => new vm.Script(js));
 assert.match(css, /VANTIX_RESTAURANT_V2_MENU_CSS_V1/);
+assert.match(js, /const DEMO_TENANT = 'demo-restaurante'/);
+assert.match(js, /dataset\.menuDemoGrid = '5'/);
+assert.match(css, /VANTIX_DEMO_RESTAURANTE_MENU_FIVE_CARDS_V1/);
+assert.match(css, /html\[data-menu-demo-grid="5"\] \.menu-grid\{grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:5px;padding:8px 9px/);
 
 // V2: Eliminar es distinto de Ocultar. Se retira únicamente el vínculo de Carta,
 // preservando el producto maestro y los pedidos/ventas históricos.
