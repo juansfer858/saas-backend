@@ -150,7 +150,10 @@ async function main() {
       const opened = await cash.openShift(demo.tenantId, user, { cajaBancoId: cashAccount.id, saldoInicial: 0 });
       ownShift = opened.shift;
     }
-    const splitCashDetail = await cash.tableDetailBySession(demo.tenantId, user, splitForCash.accountId);
+    let splitCashDetail = await cash.tableDetailBySession(demo.tenantId, user, splitForCash.accountId);
+    await cash.updateLinePrice(demo.tenantId, user, table.id, splitCashDetail.sale.items[0].id, { unitPrice:16000 }, { sessionId:splitForCash.accountId });
+    splitCashDetail = await cash.tableDetailBySession(demo.tenantId, user, splitForCash.accountId);
+    assert.equal(Number(splitCashDetail.sale.total),17280,'edited sent split account should total 17,280');
     const cashMethod = splitCashDetail.paymentMethods.find(method => method.kind === 'EFECTIVO') || splitCashDetail.paymentMethods[0];
     assert.ok(cashMethod, 'demo needs one active non-credit payment method');
     const splitCharged = await cash.chargeWholeAccountBySession(demo.tenantId, user, splitForCash.accountId, {
@@ -192,6 +195,7 @@ async function main() {
     console.log('EXACT_ACCOUNT_CASH_TARGET=PASS');
     console.log('EXACT_ACCOUNT_CHARGE=PASS');
     console.log('SEPARATED_ACCOUNT_CHARGE=PASS');
+    console.log('EDITED_17280_ACCOUNT_CHARGE=PASS');
     console.log('SIBLING_ACCOUNT_PRESERVES_TABLE_STATE=PASS');
     console.log('TENANT_ISOLATION=PASS');
   } finally {
