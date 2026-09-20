@@ -104,6 +104,42 @@ function receiptLines({ company, sale, session, table, paperFormat = 'TERMICA_80
   });
 }
 
+async function receiptPreviewBySession(tenantId, sessionId, client = prisma) {
+  const [company, session, printers] = await Promise.all([
+    companyService.getCompanyProfile(tenantId, client),
+    client.restaurantTableSession.findFirst({
+      where: { id: sessionId, tenantId, state: 'CERRADA' },
+      include: { table: true }
+    }),
+    client.printerEndpoint.findMany({
+      where: { tenantId, active: true, transport: { in: ['LAN', 'WINDOWS'] } },
+      orderBy: { name: 'asc' }
+    })
+  ]);
+  if (!session) return null;
+  const sale = await client.comprobanteComercial.findFirst({
+    where: { id: session.saleId, tenantId, tipo: 'FACTURA_VENTA', estado: { not: 'ANULADO' } },
+    include: { tercero: true, detalles: { orderBy: { id: 'asc' } } }
+  });
+  if (!sale) return null;
+  const selected = selectReceiptPrinters(printers);
+  const printer = selected.printers[0] || null;
+  const paperFormat = printer?.format || 'TERMICA_80';
+  const columns = receiptLayout.paperColumns(paperFormat);
+  return {
+    marker: 'VANTIX_RESTAURANT_POS_RECEIPT_PREVIEW_V1',
+    sessionId: session.id,
+    saleId: sale.id,
+    paperFormat,
+    columns,
+    routing: selected.routing,
+    printerName: printer?.name || null,
+    documentTitle: String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
+    lines: receiptLines({ company, sale, session, table: session.table, paperFormat }),
+    footer: receiptLayout.centerLine('Gracias por su compra', columns)
+  };
+}
+
 function buildReceiptJob({ company, sale, session, table, printer }) {
   const transport = String(printer.transport || 'LAN').toUpperCase();
   const paperFormat = printer.format || 'TERMICA_80';
@@ -469,6 +505,7 @@ module.exports = {
   cashCloseColumns,
   paperColumns: receiptLayout.paperColumns,
   receiptLines,
+  receiptPreviewBySession,
   buildReceiptJob,
   paymentKind,
   buildCashCloseSnapshot,

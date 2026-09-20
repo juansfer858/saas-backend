@@ -15,6 +15,7 @@ const shiftClosures = require('./restaurant-shift-close-history-c86.runtime');
 const { restaurantShiftCloseHistoryC86Router } = require('./restaurant-shift-close-history-c86.routes');
 const demoBar = require('./restaurant-demo-bar-accounts-v1.service');
 const demoCashDiagnostic = require('./restaurant-demo-cash-diagnostic-state');
+const posReceiptPrint = require('./restaurant-pos-receipt-print.service');
 
 const router = express.Router();
 
@@ -73,6 +74,15 @@ const customerSchema = z.object({
 router.get('/v2/demo-bar/cuentas/:sessionId/caja', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
   try { await demoBar.assertDemoTenant(req.tenantId); res.json({ ok: true, data: await service.tableDetailBySession(req.tenantId, req.user, req.params.sessionId) }); }
   catch (error) { next(error); }
+});
+
+router.get('/v2/demo-bar/cuentas/:sessionId/recibo-preview', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    await demoBar.assertDemoTenant(req.tenantId);
+    const data = await posReceiptPrint.receiptPreviewBySession(req.tenantId, req.params.sessionId);
+    if (!data) throw new AppError(404, 'La vista previa del recibo no está disponible', 'DEMO_BAR_RECEIPT_PREVIEW_NOT_FOUND');
+    res.json({ ok: true, data });
+  } catch (error) { next(error); }
 });
 
 router.patch('/v2/demo-bar/cuentas/:sessionId/items/:detailId/precio', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {

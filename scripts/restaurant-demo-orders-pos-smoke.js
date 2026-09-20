@@ -10,6 +10,7 @@ const html = fs.readFileSync(path.join(root, 'src/web/restaurant-v2-orders.html'
 const demoRoutes = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-demo-bar.routes.js'), 'utf8');
 const coreRoutes = fs.readFileSync(path.join(root, 'src/routes/core.routes.js'), 'utf8');
 const cashRoutes = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-v2-cash.routes.js'), 'utf8');
+const receiptService = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-pos-receipt-print.service.js'), 'utf8');
 const demoService = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-demo-bar-accounts-v1.service.js'), 'utf8');
 
 function expect(condition, message) {
@@ -43,6 +44,13 @@ expect(runtime.includes('/demo-bar/cuentas/'+""), 'demo account route constructi
 expect(runtime.includes('/caja'), 'embedded cash behavior missing');
 expect(runtime.includes('/cobrar'), 'exact-account charge missing');
 expect(runtime.includes('/recibo/imprimir'), 'print decision missing');
+expect(runtime.includes('/recibo-preview'), 'receipt preview request missing');
+expect(runtime.includes('function receiptPreviewMarkup('), 'receipt preview renderer missing');
+expect(runtime.includes('VISTA PREVIA DEL DOCUMENTO'), 'receipt preview visual label missing');
+expect(css.includes('VANTIX_DEMO_RESTAURANTE_RECEIPT_PREVIEW_V1'), 'receipt preview visual contract missing');
+expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/recibo-preview"), 'demo receipt preview route missing');
+expect(receiptService.includes('async function receiptPreviewBySession('), 'receipt preview service missing');
+expect(receiptService.includes("receiptLines({ company, sale, session, table: session.table, paperFormat })"), 'preview must reuse the real POS receipt layout');
 expect(runtime.includes('data-cash-method-select'), 'VANTIX BAR payment method selector missing');
 expect(runtime.includes('data-cash-tendered'), 'cash received input missing');
 expect(runtime.includes('data-cash-change'), 'cash change calculation missing');
