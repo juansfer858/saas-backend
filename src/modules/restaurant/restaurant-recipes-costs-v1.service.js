@@ -26,8 +26,14 @@ async function ingredientRow(client,tenantId,id){
   if(!row)throw new AppError(404,'Ingrediente no encontrado','RESTAURANT_INGREDIENT_NOT_FOUND');
   return row;
 }
-async function recipeMap(client,tenantId){
-  const rows=await client.restaurantRecipe.findMany({where:{tenantId},include:{ingredient:true}});
+async function recipeMap(client,tenantId,{operational=false}={}){
+  let productFilter=null;
+  if(operational){
+    const active=await client.restaurantMenuItem.findMany({where:{tenantId,requiresRecipe:true,active:true},select:{productId:true}});
+    productFilter=active.map(x=>x.productId);
+    if(!productFilter.length)return {rows:[],byProduct:new Map()};
+  }
+  const rows=await client.restaurantRecipe.findMany({where:{tenantId,...(productFilter?{productId:{in:productFilter}}:{})},include:{ingredient:true}});
   const byProduct=new Map();
   for(const row of rows){if(!byProduct.has(row.productId))byProduct.set(row.productId,[]);byProduct.get(row.productId).push(row)}
   return {rows,byProduct};
@@ -41,7 +47,7 @@ async function activeSentItems(client,tenantId){
   });
 }
 async function reservedByIngredient(client,tenantId){
-  const [items,recipes]=await Promise.all([activeSentItems(client,tenantId),recipeMap(client,tenantId)]);
+  const [items,recipes]=await Promise.all([activeSentItems(client,tenantId),recipeMap(client,tenantId,{operational:true})]);
   const result=new Map();
   for(const item of items){
     for(const row of recipes.byProduct.get(item.productId)||[]){
@@ -182,7 +188,7 @@ async function clearRecipe(tenantId,userId,productId){
 }
 async function assertItemsAvailableInTx(tx,tenantId,items){
   await localInventory.assertPilot(tenantId,tx);
-  const recipes=await recipeMap(tx,tenantId),reserved=await reservedByIngredient(tx,tenantId),needs=new Map();
+  const recipes=await recipeMap(tx,tenantId,{operational:true}),reserved=await reservedByIngredient(tx,tenantId),needs=new Map();
   for(const item of items||[])for(const r of recipes.byProduct.get(item.productId)||[])needs.set(r.ingredientId,round3((needs.get(r.ingredientId)||0)+n(item.quantity)*n(r.quantity)));
   for(const [ingredientId,need] of needs){
     const row=await ingredientRow(tx,tenantId,ingredientId),available=round3(n(row.stock?.onHand)-(reserved.get(ingredientId)||0));
@@ -191,7 +197,7 @@ async function assertItemsAvailableInTx(tx,tenantId,items){
   return{checked:needs.size};
 }
 async function recordReservationsInTx(tx,tenantId,userId,sessionId,orderId,items){
-  const recipes=await recipeMap(tx,tenantId),needs=new Map();
+  const recipes=await recipeMap(tx,tenantId,{operational:true}),needs=new Map();
   for(const item of items||[])for(const r of recipes.byProduct.get(item.productId)||[])needs.set(r.ingredientId,{quantity:round3((needs.get(r.ingredientId)?.quantity||0)+n(item.quantity)*n(r.quantity)),productNames:[...(needs.get(r.ingredientId)?.productNames||[]),item.description]});
   for(const [ingredientId,info] of needs){
     const exists=await tx.restaurantIngredientMovement.findFirst({where:{tenantId,orderId,ingredientId,kind:'reserve'},select:{id:true}});if(exists)continue;
@@ -203,7 +209,7 @@ async function consumeSaleInTx(tx,tenantId,userId,sessionId,saleId){
   await localInventory.assertPilot(tenantId,tx);
   const prior=await tx.restaurantIngredientMovement.findFirst({where:{tenantId,saleId,kind:'sale'},select:{id:true}});if(prior)return{consumed:false,alreadyConsumed:true,totalCost:0};
   const details=await tx.detalleComprobante.findMany({where:{tenantId,comprobanteId:saleId},select:{productoId:true,cantidad:true}});
-  const recipes=await recipeMap(tx,tenantId),needs=new Map();
+  const recipes=await recipeMap(tx,tenantId,{operational:true}),needs=new Map();
   for(const d of details)for(const r of recipes.byProduct.get(d.productoId)||[])needs.set(r.ingredientId,round3((needs.get(r.ingredientId)||0)+n(d.cantidad)*n(r.quantity)));
   let totalCost=0;
   for(const [ingredientId,amount] of needs){
