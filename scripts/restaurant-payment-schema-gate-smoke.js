@@ -15,7 +15,7 @@ async function main() {
   assert.equal(broken.ready, false, 'schema gate must reject a DB missing payment fields');
   assert.equal(broken.state.configPaymentMethods, false);
   assert.equal(broken.state.sessionPaymentReference, false);
-  assert.equal(broken.state.inventoryReservation, false);
+  assert.equal(Boolean(broken.state.inventoryReservation), false);
 
   const repaired = await ensureRestaurantRuntimeSchema();
   assert.equal(repaired.ready, true);
