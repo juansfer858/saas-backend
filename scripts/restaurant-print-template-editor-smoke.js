@@ -10,6 +10,8 @@ const template = require('../src/modules/restaurant/restaurant-print-template.se
 const { buildCommandPrintJobs } = require('../src/modules/edge/edge-restaurant-print-bridge');
 const { RESTAURANT_COMMAND_LARGE_V2, DEFAULT_COMMAND_LAYOUT, normalizeCommandLayout, buildEscPos } = require('../edge/print-spooler/escpos');
 const ui = require('../src/modules/restaurant/restaurant-print-template-ui.public.routes');
+const documentTemplates = require('../src/modules/restaurant/restaurant-document-print-template.service');
+const posReceipt = require('../src/modules/restaurant/restaurant-pos-receipt-print.service');
 
 const recommended = template.normalizePrintTemplate({});
 assert.equal(recommended.version, 'RESTAURANT_COMMAND_TEMPLATE_V4');
@@ -35,6 +37,42 @@ assert.equal(safe.blankLinesBetweenItems, 2);
 assert.equal(safe.showTopTime, true);
 assert.equal(safe.customHeaderText, 'PRIORIDAD COCINA');
 assert.equal(safe.customFooterText.length, 48, 'custom text must be bounded for thermal paper');
+
+const invoiceTemplate = documentTemplates.normalizeInvoiceTemplate({
+  title:'FACTURA POS',
+  showNit:false,
+  showCustomerEmail:false,
+  showUnitPrice:false,
+  thankYouText:'Gracias por su visita',
+  footerText:'VANTIX GC · www.vantixgc.com'
+});
+assert.equal(invoiceTemplate.version, 'RESTAURANT_DOCUMENT_PRINT_TEMPLATES_V1');
+assert.equal(invoiceTemplate.title, 'FACTURA POS');
+assert.equal(invoiceTemplate.showNit, false);
+assert.equal(invoiceTemplate.showCustomerEmail, false);
+assert.equal(invoiceTemplate.showUnitPrice, false);
+assert.equal(invoiceTemplate.showCompanyName, true);
+assert.equal(invoiceTemplate.thankYouText, 'Gracias por su visita');
+
+const invoiceLines = posReceipt.receiptLines({
+  company:{ nombreEmpresa:'Restaurante Demo', nit:'900123456-7', address:'Calle 1', city:'Yarumal', department:'Antioquia', phone:'6040000000', email:'demo@restaurante.com', receiptTitle:'COMPROBANTE DE VENTA' },
+  sale:{ numero:'FV-123', subtotal:22000, descuentoTotal:0, ivaTotal:0, impoconsumoTotal:0, total:22000, formaPago:'EFECTIVO', tercero:{ nombre:'Juan', identificacion:'123', tipoDocumento:'CC', email:'juan@x.com' }, detalles:[{ cantidad:1, descripcion:'Hamburguesa', precioUnitario:22000, totalLinea:22000 }] },
+  session:{ paymentMethodLabel:'Efectivo', paymentReference:'ABC', tipAmount:0, closedAt:new Date('2026-09-20T20:00:00Z') },
+  table:{ name:'Mesa 1' },
+  paperFormat:'TERMICA_80',
+  template:invoiceTemplate
+});
+const invoiceText = invoiceLines.join('\n');
+assert.match(invoiceText, /FACTURA POS/);
+assert.match(invoiceText, /Restaurante Demo/);
+assert.doesNotMatch(invoiceText, /900123456-7/);
+assert.doesNotMatch(invoiceText, /juan@x\.com/);
+assert.doesNotMatch(invoiceText, /22\.000 c\/u/);
+assert.match(invoiceText, /VANTIX GC/);
+
+const closeTemplate = documentTemplates.normalizeCashCloseTemplate({ title:'CIERRE DIARIO', showInternalNote:false, footerText:'FIN' });
+assert.equal(closeTemplate.title, 'CIERRE DIARIO');
+assert.equal(closeTemplate.showInternalNote, false);
 
 const command = {
   id:'cmd-template-1', station:'COCINA', state:'PENDIENTE', createdAt:'2026-09-05T17:04:00.000Z',
@@ -135,6 +173,15 @@ assert.match(publicRoutes, /installPrintTemplateEditorRuntime/);
 assert.match(routeSource, /router\.get\('\/plantilla-impresion'/);
 assert.match(routeSource, /router\.put\('\/plantilla-impresion'/);
 assert.match(routeSource, /plantilla-impresion\/restaurar/);
+assert.match(routeSource, /\/plantillas-documentos/);
+assert.match(routeSource, /plantillas-documentos\/factura\/preview/);
+assert.match(routeSource, /plantillas-documentos\/cierre\/preview/);
+assert.match(routeSource, /invoiceTemplateSchema/);
+assert.match(routeSource, /cashCloseTemplateSchema/);
+const documentTemplateSource = fs.readFileSync('src/modules/restaurant/restaurant-document-print-template.service.js', 'utf8');
+assert.match(documentTemplateSource, /restaurantDocumentPrintTemplates/);
+assert.match(documentTemplateSource, /saveInvoiceTemplate/);
+assert.match(documentTemplateSource, /saveCashCloseTemplate/);
 assert.match(routeSource, /RESTAURANTE\.ADMINISTRAR/);
 assert.match(serviceSource, /RESTAURANT_PRINT_TEMPLATE/);
 assert.match(serviceSource, /themeData/);
