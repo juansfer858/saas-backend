@@ -30,6 +30,9 @@ expect(runtime.includes("name:'Cuenta'"), 'auto-created account default missing'
 expect(runtime.includes("raw.match(/^(\\d+)\\s*\\+\\s*(.*)$/)"), 'quantity + search behavior missing');
 expect(runtime.includes('/pedido/enviar'), 'direct send to production missing');
 expect(runtime.includes('/pedir-cuenta'), 'prebill behavior missing');
+expect(runtime.includes('function openPrebill()'), 'prebill preview behavior missing');
+expect(runtime.includes('function printPrebill()'), 'prebill print behavior missing');
+expect(runtime.includes("const CAN_EDIT_PRICE=new Set(['ADMIN','SUPER_ADMIN','CAJERO'])"), 'waiter price permission behavior missing');
 expect(runtime.includes('/demo-bar/cuentas/'+""), 'demo account route construction missing');
 expect(runtime.includes('/caja'), 'embedded cash behavior missing');
 expect(runtime.includes('/cobrar'), 'exact-account charge missing');
