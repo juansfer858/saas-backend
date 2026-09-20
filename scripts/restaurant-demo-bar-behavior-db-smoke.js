@@ -76,12 +76,20 @@ async function main() {
     assert.equal(Number(detail.items[0].quantity), 2);
     assert.equal(detail.items[0].operationalState, 'POR_ENVIAR');
 
+    await identity.updateOrderItemMeta(demo.tenantId, user, first.account.id, detail.items[0].orderItemId, { notes:'SIN CEBOLLA' }, V2_OPTIONS);
+    detail = await demoBar.accountDetail(demo.tenantId, first.account.id);
+    assert.equal(detail.items[0].notes, 'SIN CEBOLLA', 'manual observation must persist before sending');
+
     const sent = await identity.sendWaiterDraft(demo.tenantId, user, first.account.id, V2_OPTIONS);
     assert.equal(sent.state, 'ENVIADO');
     const commandCountBeforeSplit = await prisma.restaurantCommand.count({
       where:{ tenantId:demo.tenantId, orderId:sent.id }
     });
     assert.ok(commandCountBeforeSplit >= 1, 'sent order must create production commands');
+    const sentItem = await prisma.restaurantOrderItem.findFirst({ where:{ tenantId:demo.tenantId, orderId:sent.id } });
+    assert.equal(sentItem.notes, 'SIN CEBOLLA', 'observation must stay on the sent line for production/comanda');
+    const commandWithNote = await prisma.restaurantCommand.findFirst({ where:{ tenantId:demo.tenantId, orderId:sent.id } });
+    assert.equal(commandWithNote?.simulationRecord?.items?.[0]?.notes, 'SIN CEBOLLA', 'comanda payload must include the observation');
 
     detail = await demoBar.accountDetail(demo.tenantId, first.account.id);
     assert.equal(detail.items[0].operationalState, 'PENDIENTE');
@@ -149,6 +157,7 @@ async function main() {
 
     console.log('DEMO_BAR_BEHAVIOR_DB=PASS');
     console.log('MULTIPLE_ACCOUNTS_PER_LOCATION=PASS');
+    console.log('MANUAL_OBSERVATION_TO_COMMAND=PASS');
     console.log('SENT_LINE_PARTIAL_SPLIT=PASS');
     console.log('SPLIT_MERGE_DO_NOT_DUPLICATE_PRODUCTION=PASS');
     console.log('EXACT_ACCOUNT_CASH_TARGET=PASS');
