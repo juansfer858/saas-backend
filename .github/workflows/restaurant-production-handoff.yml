@@ -108,6 +108,28 @@ jobs:
           done
           exit 1
 
+      - name: Wait for cash diagnostic fix in live production
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://core.vantixgc.com'
+          EXPECTED='dd02a3aae8af7a2bb98bcd2b0a6514d7c758d17a'
+          for attempt in $(seq 1 60); do
+            info="$(curl -fsSL --max-time 12 "$BASE/api/public/runtime-info" 2>/dev/null || true)"
+            if echo "$info" | grep -Fq "\"commit\":\"$EXPECTED\""; then
+              body="$(curl -fsSL --max-time 12 "$BASE/api/public/restaurante/demo-cash-readiness")"
+              echo "$info"
+              echo "$body"
+              echo "$body" | grep -q '"lastChargeError"'
+              echo "DEMO_CASH_DIAGNOSTIC_FIX_LIVE"
+              exit 0
+            fi
+            echo "Waiting for fix commit in production... attempt=$attempt"
+            sleep 10
+          done
+          exit 1
+
       - name: Wait for exact commit in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
