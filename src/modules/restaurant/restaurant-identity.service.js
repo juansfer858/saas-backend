@@ -217,7 +217,8 @@ async function resolveMenuLine(tx, tenantId, menuItemId, quantity) {
   if (menu.requiresRecipe) {
     const localPilot = await restaurantInventory.isPilotTenant(tenantId, tx);
     const recipe = localPilot
-      ? await tx.restaurantRecipe.findFirst({ where: { tenantId, productId: product.id } })
+      ? (await tx.restaurantRecipe.findFirst({ where: { tenantId, productId: product.id } })
+        || await tx.consumptionRecipe.findFirst({ where: { tenantId, outputProductId: product.id, active: true } }))
       : await tx.consumptionRecipe.findFirst({ where: { tenantId, outputProductId: product.id, active: true } });
     if (!recipe) throw new AppError(409, `Configure la receta de ${product.nombre} antes de venderlo`, 'RESTAURANT_RECIPE_REQUIRED');
   }
