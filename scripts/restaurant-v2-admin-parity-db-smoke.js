@@ -108,7 +108,8 @@ async function main() {
       independentRevocation:true,
       productionPairingReused:true,
       adminOnlyNavigation:true,
-      noPolling:true
+      noPolling:true,
+      demoPrintTemplateCenter:true
     }));
   } finally {
     await prisma.notificationAudit.deleteMany({ where:{ tenantId:demo.tenantId, entityId:{ in:createdDeviceIds } } }).catch(() => {});
