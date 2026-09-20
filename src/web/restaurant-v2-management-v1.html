@@ -18,6 +18,7 @@
     <button class="active" data-mg-tab="sales" type="button">Ventas</button>
     <button data-mg-tab="customers" type="button">Clientes</button>
     <button data-mg-tab="suppliers" type="button">Proveedores</button>
+    <button data-mg-tab="qrs" type="button">QR de mesas</button>
   </nav>
 
   <section id="salesPanel" class="mg-panel">
@@ -44,6 +45,19 @@
       <section class="rv2-panel mg-table-wrap"><table class="mg-table"><thead><tr><th>Proveedor</th><th>NIT</th><th>Contacto</th><th>Plazo</th><th>Pendientes</th><th>Saldo</th><th></th></tr></thead><tbody id="supplierRows"></tbody></table></section>
       <section class="rv2-panel mg-table-wrap"><div class="mg-subhead"><b>Cuentas por pagar</b><select id="payableFilter" class="mg-select"><option value="all">Todas</option><option value="open">Pendientes</option><option value="overdue">Vencidas</option></select></div><table class="mg-table"><thead><tr><th>Proveedor</th><th>Documento</th><th>Fecha</th><th>Vence</th><th>Total</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="payableRows"></tbody></table></section>
     </div>
+  </section>
+
+  <section id="qrsPanel" class="mg-panel" hidden>
+    <div class="rv2-panel mg-section-head">
+      <div><small>QR FÍSICOS PERMANENTES</small><h2>QR de mesas</h2><p>Verlos o imprimirlos no cambia ningún código. Regenerar invalida el QR físico anterior.</p></div>
+      <div class="mg-qr-actions">
+        <select id="qrZoneFilter" class="mg-select" aria-label="Filtrar zona"></select>
+        <button id="printVisibleQrs" class="rv2-btn" type="button">Imprimir visibles</button>
+        <button id="printAllQrs" class="rv2-btn rv2-btn-primary" type="button">Imprimir todos</button>
+      </div>
+    </div>
+    <div id="qrSummary" class="mg-metrics"></div>
+    <div id="qrGrid" class="mg-qr-grid"></div>
   </section>
 </main>
 

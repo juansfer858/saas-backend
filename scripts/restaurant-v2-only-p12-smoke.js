@@ -56,7 +56,7 @@ must(!nativeControl.includes('assertRetirement'), 'Native Control Center still h
 must(!nativeControl.includes("retiro:{ label:'Retiro V1'"), 'Retiro V1 must not be exposed in P12 navigation');
 must(nativeControl.includes('renderIdentity();\n      renderNav();'), 'Tenant identity must render directly under P12');
 must(nativeControl.includes("const DEMO_RESTAURANTE = 'demo-restaurante';"), 'demo tenant navigation guard missing');
-must(nativeControl.includes("const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres']);"), 'demo hidden module set missing');
+must(nativeControl.includes("const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres','qrs']);"), 'demo hidden module set missing');
 must(nativeControl.includes("session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)"), 'demo-restaurante must hide only the configured sidebar modules');
 must(nativeControl.includes("label:'Turno y gastos'"), 'demo-restaurante must expose Turno y gastos in the sidebar');
 
