@@ -26,6 +26,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const sessionKey='vantixgc_core_session_v1';
 let session=null;try{session=JSON.parse(localStorage.getItem(sessionKey)||'null')}catch{}
 if(!session){location.replace('/app/login')}
+if(String(session?.subdomain||'').trim().toLowerCase()!=='demo-restaurante'){location.replace('/app/centro-de-control-v2')}
 const st={tab:'puc',accounts:[],third:[],types:[],vats:[],retentions:[],assets:[],banks:[],periods:[],manual:[]};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[m]))}
 function money(v){return new Intl.NumberFormat('es-CO',{style:'currency',currency:session?.tenant?.moneda||'COP',maximumFractionDigits:0}).format(Number(v||0))}
