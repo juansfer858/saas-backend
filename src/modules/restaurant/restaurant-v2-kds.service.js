@@ -14,6 +14,12 @@ const MARKER = 'VANTIX_RESTAURANT_V2_KDS_P6';
 const DELIVERY_INTEGRATION = 'VANTIX_RESTAURANT_V2_KDS_DELIVERY_V87';
 const ORDER_CANCEL_MARKER = 'VANTIX_RESTAURANT_V2_KDS_ORDER_CANCEL_V98';
 const QUEUES = Object.freeze(['COCINA', 'BARRA', 'POSTRES']);
+const DEMO_TENANT = 'demo-restaurante';
+const DEMO_DEFAULT_STATIONS = Object.freeze([
+  Object.freeze({ name:'Cocina', queue:'COCINA', mode:'KDS', sortOrder:10 }),
+  Object.freeze({ name:'Barra', queue:'BARRA', mode:'KDS', sortOrder:20 }),
+  Object.freeze({ name:'Postres', queue:'POSTRES', mode:'KDS', sortOrder:30 })
+]);
 const ACTIVE_STATES = Object.freeze(['PENDIENTE', 'EN_PREPARACION', 'LISTA']);
 const CANCELABLE_COMMAND_STATES = Object.freeze(['PENDIENTE']);
 const NEXT_STATE = Object.freeze({ PENDIENTE:'EN_PREPARACION', EN_PREPARACION:'LISTA', LISTA:'ENTREGADA' });
@@ -104,6 +110,23 @@ async function cancellationMap(tenantId, rows) {
   }));
 }
 
+async function ensureDemoDefaultStations(tenantId) {
+  const tenant = await prisma.tenant.findUnique({ where:{ id:tenantId }, select:{ subdomain:true } });
+  if (String(tenant?.subdomain || '').trim().toLowerCase() !== DEMO_TENANT) return false;
+  const existing = await prisma.restaurantProductionStation.findMany({
+    where:{ tenantId },
+    select:{ name:true, active:true }
+  });
+  const defaultNames = new Set(DEMO_DEFAULT_STATIONS.map((station) => station.name.toLocaleLowerCase('es')));
+  if (existing.some((station) => defaultNames.has(String(station.name || '').trim().toLocaleLowerCase('es')))) return false;
+  if (existing.some((station) => station.active)) return false;
+  await prisma.restaurantProductionStation.createMany({
+    data:DEMO_DEFAULT_STATIONS.map((station) => ({ tenantId, ...station, active:true })),
+    skipDuplicates:true
+  });
+  return true;
+}
+
 async function stationMatrix(tenantId, profile) {
   const rows = await stations.listStations(tenantId, { includeInactive:false });
   const byQueue = new Map(QUEUES.map((queue) => [queue, []]));
@@ -122,6 +145,7 @@ async function stationMatrix(tenantId, profile) {
 }
 
 async function workspace(tenantId, user, input = {}) {
+  await ensureDemoDefaultStations(tenantId);
   const profile = await work.getProfile(tenantId, user.id);
   const matrix = await stationMatrix(tenantId, profile);
   const requested = normalizeQueue(input.station);
@@ -359,6 +383,9 @@ module.exports = {
   DELIVERY_INTEGRATION,
   ORDER_CANCEL_MARKER,
   QUEUES,
+  DEMO_TENANT,
+  DEMO_DEFAULT_STATIONS,
+  ensureDemoDefaultStations,
   ACTIVE_STATES,
   CANCELABLE_COMMAND_STATES,
   NEXT_STATE,

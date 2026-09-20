@@ -101,18 +101,33 @@ function simplifyAction(ticket){
 }
 
 function relabelQueues(){
+  let firstVisible=null;
+  let activeHidden=false;
   document.querySelectorAll('#queues .queue-tab').forEach(tab=>{
-    if(tab.dataset.simpleLabeled==='1')return;
     const title=tab.querySelector('b');
     const small=tab.querySelector('small');
-    const queueName=title?.textContent?.trim()||'Estación';
+    const queueName=title?.dataset.queueLabel||title?.textContent?.trim()||'Estación';
     const configured=small?.textContent?.replace(/^★ Principal · /,'').trim()||'';
-    if(title&&small&&configured&&configured!=='Sin KDS configurado'){
-      title.textContent=configured;
-      small.textContent=queueName;
+    const hasStation=Boolean(configured&&configured!=='Sin KDS configurado');
+    if(!hasStation){
+      if(tab.classList.contains('active'))activeHidden=true;
+      tab.style.display='none';
+      tab.dataset.simpleConfigured='0';
+      return;
     }
+    tab.style.removeProperty('display');
+    tab.dataset.simpleConfigured='1';
+    if(!firstVisible)firstVisible=tab;
+    if(title){
+      if(!title.dataset.queueLabel)title.dataset.queueLabel=queueName;
+      title.textContent=configured;
+    }
+    if(small)small.textContent=queueName;
     tab.dataset.simpleLabeled='1';
   });
+  if(activeHidden&&firstVisible&&!firstVisible.classList.contains('active')){
+    queueMicrotask(()=>firstVisible.click());
+  }
 }
 
 function apply(){
@@ -122,8 +137,10 @@ function apply(){
     injectStyles();
     const h1=document.querySelector('.kds-top h1');
     const eyebrow=document.querySelector('.kds-top>div>span');
+    const manageButton=document.querySelector('[data-rv2-stations-v23]');
     if(h1)h1.textContent='Producción';
     if(eyebrow)eyebrow.textContent='RESTAURANTE · PRODUCCIÓN SIMPLE · PILOTO';
+    if(manageButton){manageButton.textContent='⚙ Administrar estaciones';manageButton.title='Crear, editar o eliminar estaciones';}
     relabelQueues();
 
     const prepArticle=document.querySelector('#preparingCount')?.closest('article');

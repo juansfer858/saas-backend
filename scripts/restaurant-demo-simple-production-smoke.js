@@ -7,10 +7,12 @@ const root = path.resolve(__dirname, '..');
 const runtimePath = path.join(root, 'src', 'web', 'restaurant-v2-kds-simple-demo-v1.js');
 const htmlPath = path.join(root, 'src', 'web', 'restaurant-v2-kds.html');
 const publicRoutesPath = path.join(root, 'src', 'modules', 'restaurant', 'restaurant-v2-kds.public.routes.js');
+const kdsServicePath = path.join(root, 'src', 'modules', 'restaurant', 'restaurant-v2-kds.service.js');
 
 const runtime = fs.readFileSync(runtimePath, 'utf8');
 const html = fs.readFileSync(htmlPath, 'utf8');
 const publicRoutes = fs.readFileSync(publicRoutesPath, 'utf8');
+const kdsService = fs.readFileSync(kdsServicePath, 'utf8');
 
 function expect(condition, message) {
   if (!condition) throw new Error(message);
@@ -27,6 +29,15 @@ expect(runtime.includes("Por preparar"), 'simple pending label missing');
 expect(runtime.includes("Listos para recoger"), 'simple ready label missing');
 expect(html.includes('/app/restaurant-v2-kds-simple-demo-v1.js?v=v1'), 'KDS does not load demo runtime');
 expect(publicRoutes.includes("router.get('/app/restaurant-v2-kds-simple-demo-v1.js'"), 'demo runtime public asset route missing');
+expect(kdsService.includes("const DEMO_TENANT = 'demo-restaurante';"), 'demo tenant station bootstrap guard missing');
+expect(kdsService.includes("name:'Cocina'"), 'default Cocina station missing');
+expect(kdsService.includes("name:'Barra'"), 'default Barra station missing');
+expect(kdsService.includes("name:'Postres'"), 'default Postres station missing');
+expect(kdsService.includes('const existing = await prisma.restaurantProductionStation.findMany'), 'one-time bootstrap station lookup missing');
+expect(kdsService.includes('defaultNames.has'), 'deleted default station memory guard missing');
+expect(kdsService.includes('existing.some((station) => station.active)'), 'existing active station guard missing');
+expect(runtime.includes("configured!=='Sin KDS configurado'"), 'unconfigured deleted station cards must be hidden');
+expect(runtime.includes("⚙ Administrar estaciones"), 'station administration action missing');
 
 const globalFiles = [
   'src/modules/restaurant/restaurant-v2-kds.routes.js',
@@ -41,3 +52,5 @@ for (const rel of globalFiles) {
 console.log('DEMO_RESTAURANTE_SIMPLE_PRODUCTION=PASS');
 console.log('OTHER_TENANTS_CANONICAL_KDS=PASS');
 console.log('BACKEND_STATE_MACHINE_UNCHANGED=PASS');
+console.log('DEMO_DEFAULT_EDITABLE_STATIONS=COCINA,BARRA,POSTRES');
+console.log('DELETED_STATIONS_DO_NOT_RESEED=PASS');
