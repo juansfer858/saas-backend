@@ -28,7 +28,7 @@ expect(runtime.includes("state:'LISTA'"), 'preparing -> ready internal transitio
 expect(runtime.includes("state:'ENTREGADA'"), 'ready -> delivered compatibility transition missing');
 expect(runtime.includes("textContent='✓ LISTO'"), 'simple one-touch ready action missing');
 expect(runtime.includes("Por preparar"), 'simple pending label missing');
-expect(runtime.includes("Listos para recoger"), 'simple ready label missing');
+expect(!runtime.includes("textContent='Listos para recoger'"), 'Salida/Listos visible must stay removed from demo layout');
 expect(html.includes('/app/restaurant-v2-kds-simple-demo-v1.js?v=v1'), 'KDS does not load demo runtime');
 expect(publicRoutes.includes("router.get('/app/restaurant-v2-kds-simple-demo-v1.js'"), 'demo runtime public asset route missing');
 expect(kdsService.includes("const DEMO_TENANT = 'demo-restaurante';"), 'demo tenant station bootstrap guard missing');
@@ -41,7 +41,7 @@ expect(kdsService.includes('existing.some((station) => station.active)'), 'exist
 expect(runtime.includes("configured!=='Sin KDS configurado'"), 'unconfigured deleted station cards must be hidden');
 expect(runtime.includes("⚙ Estaciones"), 'station administration action missing');
 expect(runtime.includes('VANTIX_DEMO_PRODUCTION_BAR_LAYOUT_V1'), 'Vantix Bar production layout marker missing');
-expect(runtime.includes('bar-production-layout'), 'three-zone production layout missing');
+expect(runtime.includes('bar-production-layout'), 'production layout missing');
 expect(runtime.includes('position:relative!important;inset:auto!important'), 'demo KDS header must participate in layout');
 expect(!runtime.includes('position:fixed!important;inset:0 0 auto 0!important'), 'fixed demo KDS header must not return');
 expect(runtime.includes('function applyStable()'), 'stable demo apply wrapper missing');
@@ -51,15 +51,20 @@ expect(!runtime.includes("document.addEventListener('DOMContentLoaded',start"), 
 expect(runtime.includes('padding:8px 10px 10px!important'), 'desktop production must not reserve the old fixed-header gap');
 expect(!runtime.includes('padding:82px 10px 10px!important'), 'old 82px top spacer must not return');
 expect(runtime.includes('flex:1 1 auto!important;min-height:0!important;height:auto!important'), 'production main must fill only the remaining viewport');
-expect(runtime.includes('bar-production-layout{display:grid;grid-template-columns:245px minmax(420px,1fr) 355px;gap:9px;flex:1 1 auto;min-height:0;height:auto}'), 'production cards must rise and fill the remaining space');
+expect(runtime.includes('bar-production-layout{display:grid;grid-template-columns:245px minmax(0,1fr);gap:9px;flex:1 1 auto;min-height:0;height:auto}'), 'production must keep Areas + one full work panel');
 expect(runtime.includes('bar-stations-panel'), 'left station panel missing');
 expect(runtime.includes('bar-work-panel'), 'central work panel missing');
-expect(runtime.includes('bar-ready-panel'), 'right ready panel missing');
+expect(runtime.includes('.bar-ready-panel{display:none!important}'), 'Salida panel must remain hidden in demo production');
 expect(runtime.includes('Áreas de producción'), 'station selector heading missing');
 expect(runtime.includes("textContent='Por preparar'"), 'central pending work label missing');
-expect(runtime.includes("textContent='Listos para recoger'"), 'right ready label missing');
+expect(runtime.includes("if(readyLane)readyLane.style.display='none'"), 'ready lane must stay hidden after refresh');
 expect(kdsUi.includes("return 'Domicilio · '+deliveryName"), 'Producción demo debe mostrar Domicilio + nombre del cliente');
 expect(kdsUi.includes("parts.push(String(c.order.delivery.code))"), 'Producción demo debe conservar código del domicilio como dato secundario');
+expect(runtime.includes('grid-template-columns:repeat(5,minmax(0,1fr))!important'), 'desktop production must fit five work cards per row');
+expect(runtime.includes('function decoratePendingTickets(container)'), 'entry-order decorator missing');
+expect(runtime.includes("meta.querySelector('b').textContent='#'+String(index+1)"), 'visible entry sequence number missing');
+expect(runtime.includes("meta.querySelector('span').textContent='Ingreso '+ticketClock(ticket)"), 'exact entrance time missing');
+expect(kdsUi.includes('data-created-at="${esc(c.creadoEn||\'\')}"'), 'KDS ticket must expose the real creation timestamp');
 
 const globalFiles = [
   'src/modules/restaurant/restaurant-v2-kds.routes.js',
@@ -76,4 +81,4 @@ console.log('OTHER_TENANTS_CANONICAL_KDS=PASS');
 console.log('BACKEND_STATE_MACHINE_UNCHANGED=PASS');
 console.log('DEMO_DEFAULT_EDITABLE_STATIONS=COCINA,BARRA,POSTRES');
 console.log('DELETED_STATIONS_DO_NOT_RESEED=PASS');
-console.log('DEMO_PRODUCTION_BAR_LAYOUT=ESTACIONES|POR_PREPARAR|LISTOS');
+console.log('DEMO_PRODUCTION_LAYOUT=AREAS|POR_PREPARAR_5_CARDS');
