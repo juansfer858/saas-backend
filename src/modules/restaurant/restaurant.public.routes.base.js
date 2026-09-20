@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const { z } = require('zod');
+const { Prisma } = require('@prisma/client');
 const { prisma } = require('../../config/prisma');
 const service = require('./restaurant.service');
 const identity = require('./restaurant-identity.service');
@@ -372,6 +373,67 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
       };
     }
 
+    const chargeModelNames = new Set([
+      'ComprobanteComercial',
+      'DetalleComprobante',
+      'Tercero',
+      'CajaBanco',
+      'Producto',
+      'MovimientoInventario',
+      'Cartera',
+      'PagoRecibido',
+      'AsientoContable',
+      'TipoComprobanteContable',
+      'DetalleAsiento',
+      'CuentaPUC',
+      'MapeoContable',
+      'PeriodoContable',
+      'ConsecutivoContable',
+      'MovimientoTesoreria',
+      'ConsumptionRecipe',
+      'ConsumptionRecipeItem',
+      'ConsumptionRun',
+      'ConsumptionRunItem',
+      'DianDocument',
+      'DianTransmissionAttempt',
+      'RestaurantFiscalDocument',
+      'RestaurantTableSession',
+      'RestaurantTable',
+      'AperturaCierreCaja'
+    ]);
+    const chargeModels = (Prisma.dmmf?.datamodel?.models || []).filter((model) => chargeModelNames.has(model.name));
+    const dbColumns = await prisma.$queryRawUnsafe(`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+    `);
+    const dbColumnsByTable = new Map();
+    for (const row of dbColumns) {
+      if (!dbColumnsByTable.has(row.table_name)) dbColumnsByTable.set(row.table_name, new Set());
+      dbColumnsByTable.get(row.table_name).add(row.column_name);
+    }
+    const missingTables = [];
+    const missingColumns = [];
+    for (const model of chargeModels) {
+      const tableName = model.dbName || model.name;
+      const present = dbColumnsByTable.get(tableName);
+      if (!present) {
+        missingTables.push(tableName);
+        continue;
+      }
+      for (const field of model.fields || []) {
+        if (field.kind === 'object') continue;
+        const columnName = field.dbName || field.name;
+        if (!present.has(columnName)) missingColumns.push(`${tableName}.${columnName}`);
+      }
+    }
+    const schemaDrift = {
+      checkedModels: chargeModels.length,
+      missingTables: missingTables.slice(0, 30),
+      missingColumns: missingColumns.slice(0, 80),
+      clean: missingTables.length === 0 && missingColumns.length === 0
+    };
+
     const accounts = sessions.slice(0, 50).map((session) => {
       const sale = saleById.get(session.saleId);
       return {
@@ -408,7 +470,8 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
           targetSaleReadiness?.invalidIngredients === 0 &&
           targetSaleReadiness?.insufficientIngredients === 0 &&
           currentPeriod?.estado !== 'CERRADO' &&
-          automaticVoucher
+          automaticVoucher &&
+          schemaDrift.clean
         ),
         tenantFound: true,
         active: tenant.activo,
@@ -424,6 +487,7 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
         dianRealEnabled: Boolean(config?.dianRealEnabled),
         simulatedFiscalAllowed: Boolean(config?.allowSimulatedDocumentEquivalent),
         targetSaleReadiness,
+        schemaDrift,
         accounts
       }
     });
