@@ -1,0 +1,14 @@
+model PlatformTenantModule {
+  id              String   @id @default(uuid())
+  tenantId        String
+  moduleCode      String
+  enabled         Boolean  @default(true)
+  settings        Json?
+  updatedByUserId String?
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  @@unique([tenantId, moduleCode])
+  @@index([tenantId, enabled])
+  @@index([moduleCode, enabled])
+}
