@@ -1,0 +1,152 @@
+model RestaurantIngredient {
+  id            String   @id @default(uuid())
+  tenantId      String
+  code          String
+  name          String
+  unit          String
+  unitCost      Decimal  @default(0) @db.Decimal(18, 4)
+  active        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  stock     RestaurantIngredientStock?
+  recipes   RestaurantRecipe[]
+  movements RestaurantIngredientMovement[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active, name])
+}
+
+model RestaurantIngredientStock {
+  id            String   @id @default(uuid())
+  tenantId      String
+  ingredientId  String   @unique
+  onHand        Decimal  @default(0) @db.Decimal(18, 3)
+  minimum       Decimal  @default(0) @db.Decimal(18, 3)
+  version       Int      @default(1)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  ingredient RestaurantIngredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, actualizadoEn])
+}
+
+model RestaurantRecipe {
+  id            String   @id @default(uuid())
+  tenantId      String
+  productId     String
+  ingredientId  String
+  quantity      Decimal  @db.Decimal(18, 3)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  ingredient RestaurantIngredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, productId, ingredientId])
+  @@index([tenantId, productId])
+  @@index([tenantId, ingredientId])
+}
+
+model RestaurantIngredientMovement {
+  id             String   @id @default(uuid())
+  number         BigInt   @unique @default(autoincrement())
+  tenantId       String
+  ingredientId   String
+  ingredientName String
+  kind           String
+  quantity       Decimal  @db.Decimal(18, 3)
+  delta          Decimal  @db.Decimal(18, 3)
+  balance        Decimal  @db.Decimal(18, 3)
+  unitCost       Decimal  @default(0) @db.Decimal(18, 4)
+  reason         String
+  sessionId      String?
+  orderId        String?
+  saleId         String?
+  userId         String
+  creadoEn       DateTime @default(now())
+
+  ingredient RestaurantIngredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, ingredientId, number(sort: Desc)])
+  @@index([tenantId, creadoEn])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, orderId])
+  @@index([tenantId, saleId])
+}
+
+model RestaurantManagementCustomer {
+  id            String   @id @default(uuid())
+  tenantId      String
+  name          String
+  documentType  String   @default("")
+  document      String   @default("")
+  phone         String   @default("")
+  email         String   @default("")
+  address       String   @default("")
+  active        Boolean  @default(true)
+  version       Int      @default(1)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@index([tenantId, active, name])
+  @@index([tenantId, documentType, document])
+}
+
+model RestaurantManagementSupplier {
+  id            String   @id @default(uuid())
+  tenantId      String
+  name          String
+  nit           String   @default("")
+  contact       String   @default("")
+  phone         String   @default("")
+  email         String   @default("")
+  address       String   @default("")
+  termsDays     Int      @default(0)
+  active        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  payables RestaurantManagementPayable[]
+
+  @@index([tenantId, active, name])
+  @@index([tenantId, nit])
+}
+
+model RestaurantManagementPayable {
+  id            String   @id @default(uuid())
+  number        BigInt   @unique @default(autoincrement())
+  tenantId      String
+  supplierId    String
+  purchaseId    String?  @unique
+  document      String   @default("")
+  issueDate     DateTime @db.Date
+  dueDate       DateTime @db.Date
+  total         Decimal  @db.Decimal(18, 2)
+  balance       Decimal  @db.Decimal(18, 2)
+  status        String   @default("open")
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  supplier RestaurantManagementSupplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  payments RestaurantManagementPayablePayment[]
+
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, supplierId, creadoEn])
+}
+
+model RestaurantManagementPayablePayment {
+  id         String   @id @default(uuid())
+  tenantId   String
+  payableId  String
+  amount     Decimal  @db.Decimal(18, 2)
+  method     String
+  note       String   @default("")
+  shiftId    String?
+  userId     String
+  creadoEn   DateTime @default(now())
+
+  payable RestaurantManagementPayable @relation(fields: [payableId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, payableId, creadoEn])
+}

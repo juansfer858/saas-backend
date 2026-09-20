@@ -61,6 +61,7 @@ const { installPosReceiptImmediateRuntime } = require('./restaurant-pos-receipt-
 const { restaurantCashCompactV30PublicRouter, compactCashRuntime } = require('./restaurant-cash-compact-v30.public.routes');
 const { installRestaurantExpensesV116 } = require('./restaurant-expenses-v116.public.routes');
 const { restaurantInventoryBarV1PublicRouter } = require('./restaurant-inventory-bar-v1.public.routes');
+const { restaurantManagementV1PublicRouter } = require('./restaurant-management-v1.public.routes');
 const { restaurantPublicRouter: legacyRestaurantPublicRouter } = require('./restaurant.public.routes.base');
 
 const router = express.Router();
@@ -159,6 +160,7 @@ router.use(restaurantEmployeeWorkPublicRouter);
 router.use(restaurantControlCenterResiliencePublicRouter);
 router.use(restaurantCashCompactV30PublicRouter);
 router.use(restaurantInventoryBarV1PublicRouter);
+router.use(restaurantManagementV1PublicRouter);
 router.use(legacyRestaurantPublicRouter);
 
 module.exports = { restaurantPublicRouter: router, installCashCompactRuntime };

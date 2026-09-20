@@ -42,6 +42,7 @@ model RestaurantInventoryPurchase {
   id           String   @id @default(uuid())
   number       BigInt   @unique @default(autoincrement())
   tenantId     String
+  supplierId   String?
   supplier     String
   reference    String   @default("")
   purchaseDate DateTime @db.Date
@@ -62,6 +63,7 @@ model RestaurantInventoryPurchase {
 
   @@index([tenantId, number(sort: Desc)])
   @@index([tenantId, status, purchaseDate])
+  @@index([tenantId, supplierId, purchaseDate])
 }
 
 model RestaurantInventoryPurchaseItem {

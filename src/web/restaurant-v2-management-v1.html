@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0D6B43">
+<title>Gestión · Restaurante V2</title>
+<link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+<link rel="stylesheet" href="/app/restaurant-v2-management-v1.css?v=v1">
+</head>
+<body data-rv2-module-header="true" data-rv2-module-title="Gestión">
+<header class="rv2-top mg-top rv2-module-top">
+  <div><span>RESTAURANTE V2 · GESTIÓN</span><h1>Gestión</h1><p id="tenantLine">Ventas, clientes y proveedores</p></div>
+  <div class="rv2-top-actions"><button id="refresh" class="rv2-btn" type="button">Actualizar</button></div>
+</header>
+<main class="mg-main">
+  <section id="notice" class="rv2-notice">Cargando Gestión…</section>
+  <nav class="mg-tabs">
+    <button class="active" data-mg-tab="sales" type="button">Ventas</button>
+    <button data-mg-tab="customers" type="button">Clientes</button>
+    <button data-mg-tab="suppliers" type="button">Proveedores</button>
+  </nav>
+
+  <section id="salesPanel" class="mg-panel">
+    <div class="rv2-panel mg-toolbar">
+      <label>Desde<input id="salesFrom" class="mg-input" type="date"></label>
+      <label>Hasta<input id="salesTo" class="mg-input" type="date"></label>
+      <button id="loadSales" class="rv2-btn rv2-btn-primary" type="button">Consultar</button>
+      <button id="exportSales" class="rv2-btn" type="button">Exportar ventas</button>
+    </div>
+    <div id="salesMetrics" class="mg-metrics"></div>
+    <div class="rv2-panel mg-table-wrap"><table class="mg-table"><thead><tr><th>Venta</th><th>Fecha</th><th>Canal / cuenta</th><th>Cliente</th><th>Medio</th><th>Total</th></tr></thead><tbody id="salesRows"></tbody></table></div>
+    <section class="rv2-panel mg-section"><div><small>PRODUCTOS</small><h2>Unidades vendidas</h2></div><div id="salesProducts"></div></section>
+  </section>
+
+  <section id="customersPanel" class="mg-panel" hidden>
+    <div class="rv2-panel mg-toolbar"><input id="customerSearch" class="mg-input grow" type="search" placeholder="Nombre, documento, teléfono o correo"><button id="findCustomers" class="rv2-btn" type="button">Buscar</button><button id="newCustomer" class="rv2-btn rv2-btn-primary" type="button">+ Crear cliente</button></div>
+    <div class="rv2-panel mg-table-wrap"><table class="mg-table"><thead><tr><th>Cliente</th><th>Documento</th><th>Teléfono</th><th>Correo</th><th></th></tr></thead><tbody id="customerRows"></tbody></table></div>
+  </section>
+
+  <section id="suppliersPanel" class="mg-panel" hidden>
+    <div id="supplierMetrics" class="mg-metrics"></div>
+    <div class="rv2-panel mg-section-head"><div><small>PROVEEDORES</small><h2>Proveedores y cuentas por pagar</h2><p>Las compras a crédito recibidas desde Inventario crean aquí su cuenta por pagar.</p></div><div><button id="newSupplier" class="rv2-btn rv2-btn-primary" type="button">+ Proveedor</button></div></div>
+    <div class="mg-supplier-grid">
+      <section class="rv2-panel mg-table-wrap"><table class="mg-table"><thead><tr><th>Proveedor</th><th>NIT</th><th>Contacto</th><th>Plazo</th><th>Pendientes</th><th>Saldo</th><th></th></tr></thead><tbody id="supplierRows"></tbody></table></section>
+      <section class="rv2-panel mg-table-wrap"><div class="mg-subhead"><b>Cuentas por pagar</b><select id="payableFilter" class="mg-select"><option value="all">Todas</option><option value="open">Pendientes</option><option value="overdue">Vencidas</option></select></div><table class="mg-table"><thead><tr><th>Proveedor</th><th>Documento</th><th>Fecha</th><th>Vence</th><th>Total</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="payableRows"></tbody></table></section>
+    </div>
+  </section>
+</main>
+
+<dialog id="customerDialog" class="mg-dialog"><form id="customerForm">
+<div class="mg-dialog-head"><div><small>CLIENTE</small><h2 id="customerTitle">Crear cliente</h2></div><button class="rv2-btn" type="button" data-close="customerDialog">Cerrar</button></div>
+<div class="mg-dialog-body"><input id="customerId" type="hidden"><input id="customerVersion" type="hidden">
+<div class="mg-grid2"><label>Nombre o razón social<input id="customerName" class="mg-input" maxlength="160" required></label><label>Tipo de documento<select id="customerDocumentType" class="mg-select"><option value="">Sin documento</option><option>CC</option><option>NIT</option><option>CE</option><option>Pasaporte</option><option>Otro</option></select></label><label>Número de documento<input id="customerDocument" class="mg-input" maxlength="80"></label><label>Teléfono<input id="customerPhone" class="mg-input" maxlength="80"></label><label>Correo<input id="customerEmail" class="mg-input" type="email" maxlength="160"></label><label>Dirección<input id="customerAddress" class="mg-input" maxlength="200"></label></div><div id="customerError" class="mg-error" hidden></div></div>
+<div class="mg-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar cliente</button></div></form></dialog>
+
+<dialog id="supplierDialog" class="mg-dialog"><form id="supplierForm">
+<div class="mg-dialog-head"><div><small>PROVEEDOR</small><h2 id="supplierTitle">Crear proveedor</h2></div><button class="rv2-btn" type="button" data-close="supplierDialog">Cerrar</button></div>
+<div class="mg-dialog-body"><input id="supplierId" type="hidden"><div class="mg-grid2"><label>Nombre<input id="supplierName" class="mg-input" maxlength="160" required></label><label>NIT<input id="supplierNit" class="mg-input" maxlength="60"></label><label>Contacto<input id="supplierContact" class="mg-input" maxlength="200"></label><label>Teléfono<input id="supplierPhone" class="mg-input" maxlength="80"></label><label>Correo<input id="supplierEmail" class="mg-input" type="email" maxlength="160"></label><label>Dirección<input id="supplierAddress" class="mg-input" maxlength="200"></label><label>Plazo predeterminado (días)<input id="supplierTerms" class="mg-input" type="number" min="0" max="3650" value="0"></label><label class="mg-check"><input id="supplierActive" type="checkbox" checked> Activo</label></div><div id="supplierError" class="mg-error" hidden></div></div>
+<div class="mg-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar proveedor</button></div></form></dialog>
+
+<dialog id="payableDialog" class="mg-dialog"><div class="mg-dialog-head"><div><small>CUENTA POR PAGAR</small><h2 id="payableTitle">Detalle</h2></div><button class="rv2-btn" type="button" data-close="payableDialog">Cerrar</button></div><div id="payableBody" class="mg-dialog-body"></div></dialog>
+<dialog id="saleDialog" class="mg-dialog"><div class="mg-dialog-head"><div><small>VENTA</small><h2 id="saleTitle">Detalle</h2></div><button class="rv2-btn" type="button" data-close="saleDialog">Cerrar</button></div><div id="saleBody" class="mg-dialog-body"></div></dialog>
+
+<script src="/app/restaurant-v2-sdk.js"></script>
+<script src="/app/restaurant-v2-management-v1.js?v=v1"></script>
+<script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
+</body></html>
