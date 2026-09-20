@@ -26,6 +26,7 @@ function root(){return $('#demoBarOrdersRoot')}
 function currentTable(){return S.workspace?.tables?.find(row=>String(row.id)===String(S.tableId))||null}
 function accounts(){return currentTable()?.accounts||[]}
 function currentAccount(){return accounts().find(row=>String(row.id)===String(S.accountId))||null}
+function accountLabel(acc=currentAccount()){return String(acc?.name||'').trim()||'Cuenta'}
 function draftItems(){return (S.draft?.items||[]).filter(item=>item.editableDraft)}
 function allItems(){return S.draft?.items||[]}
 function pendingItems(){return draftItems()}
@@ -43,7 +44,7 @@ function mount(){
   const main=document.createElement('main');
   main.id='demoBarOrdersRoot';
   main.className='demo-bar-orders-main';
-  main.innerHTML='<div class="demo-bar-status" data-demo-status>Inicializando Pedidos…</div><div class="demo-bar-layout"><aside class="demo-bar-pane demo-bar-locations"><span class="demo-bar-cap">UBICACIONES</span><div class="demo-bar-location-scroll" data-demo-locations></div></aside><section class="demo-bar-pane demo-bar-catalog"><div class="demo-bar-categories" data-demo-categories></div><div class="demo-bar-catalog-head"><b>Agregar productos</b><label>Cantidad + nombre o código<input class="demo-bar-search" data-demo-search autocomplete="off" placeholder="Ej.: 5+cerv"></label><div class="demo-bar-hint">↑ ↓ Seleccionar · Enter Agregar</div></div><div class="demo-bar-catalog-summary" data-demo-catalog-summary></div><div class="demo-bar-products" data-demo-products></div></section><section class="demo-bar-pane demo-bar-account-pane"><div class="demo-bar-account-list"><div class="demo-bar-account-head"><strong data-demo-location>Selecciona una ubicación</strong><div class="demo-bar-account-head-actions"><button class="rv2-btn demo-bar-small-btn" data-demo-close-account>Cerrar cuenta</button><button class="rv2-btn demo-bar-small-btn" data-demo-new-account>+ Nueva cuenta</button></div></div><div class="demo-bar-account-table-wrap"><table class="demo-bar-account-table"><thead><tr><th>Pedido</th><th>Cuenta</th><th class="demo-bar-num">Total</th></tr></thead><tbody data-demo-accounts></tbody></table></div></div><section class="demo-bar-order"><div class="demo-bar-order-head"><b data-demo-order-name>Nueva venta</b><small>CONSUMOS</small></div><div class="demo-bar-lines-wrap" data-demo-lines-wrap><div class="demo-bar-empty">Selecciona una cuenta o agrega un producto para comenzar.</div></div></section><section class="demo-bar-checkout"><div class="demo-bar-total"><span data-demo-item-count>0 unidades</span><strong data-demo-total>$0</strong></div><div class="demo-bar-actions"><button class="rv2-btn" data-demo-rename>Nombre</button><button class="rv2-btn" data-demo-split>Separar</button><button class="rv2-btn" data-demo-merge>Unir</button><button class="rv2-btn" data-demo-send>Enviar pedido</button><button class="rv2-btn" data-demo-prebill>Precuenta</button><button class="rv2-btn pay" data-demo-pay>Cobrar</button></div></section></section></div>';
+  main.innerHTML='<div class="demo-bar-status" data-demo-status>Inicializando Pedidos…</div><div class="demo-bar-layout"><aside class="demo-bar-pane demo-bar-locations"><span class="demo-bar-cap">UBICACIONES</span><div class="demo-bar-location-scroll" data-demo-locations></div></aside><section class="demo-bar-pane demo-bar-catalog"><div class="demo-bar-categories" data-demo-categories></div><div class="demo-bar-catalog-head"><b>Agregar productos</b><label>Cantidad + nombre o código<input class="demo-bar-search" data-demo-search autocomplete="off" placeholder="Ej.: 5+cerv"></label><div class="demo-bar-hint">↑ ↓ Seleccionar · Enter Agregar</div></div><div class="demo-bar-catalog-summary" data-demo-catalog-summary></div><div class="demo-bar-products" data-demo-products></div></section><section class="demo-bar-pane demo-bar-account-pane"><div class="demo-bar-account-list"><div class="demo-bar-account-head"><strong data-demo-location>Selecciona una ubicación</strong><div class="demo-bar-account-head-actions"><button class="rv2-btn demo-bar-small-btn" data-demo-close-account>Cerrar cuenta</button><button class="rv2-btn demo-bar-small-btn" data-demo-new-account>+ Nueva cuenta</button></div></div><div class="demo-bar-account-table-wrap"><table class="demo-bar-account-table"><thead><tr><th>Cuenta</th><th class="demo-bar-num">Total</th></tr></thead><tbody data-demo-accounts></tbody></table></div></div><section class="demo-bar-order"><div class="demo-bar-order-head"><b data-demo-order-name>Nueva venta</b><small>CONSUMOS</small></div><div class="demo-bar-lines-wrap" data-demo-lines-wrap><div class="demo-bar-empty">Selecciona una cuenta o agrega un producto para comenzar.</div></div></section><section class="demo-bar-checkout"><div class="demo-bar-total"><span data-demo-item-count>0 unidades</span><strong data-demo-total>$0</strong></div><div class="demo-bar-actions"><button class="rv2-btn" data-demo-rename>Nombre</button><button class="rv2-btn" data-demo-split>Separar</button><button class="rv2-btn" data-demo-merge>Unir</button><button class="rv2-btn" data-demo-send>Enviar pedido</button><button class="rv2-btn" data-demo-prebill>Precuenta</button><button class="rv2-btn pay" data-demo-pay>Cobrar</button></div></section></section></div>';
   canonicalMain?.insertAdjacentElement('afterend',main);
   bindStatic();
 }
@@ -108,7 +109,7 @@ function renderAccounts(){
   $('[data-demo-location]',root()).textContent=table?.name||'Selecciona una ubicación';
   const tbody=$('[data-demo-accounts]',root());
   const rows=accounts();
-  tbody.innerHTML=rows.map(acc=>'<tr class="demo-bar-account-row '+(String(acc.id)===String(S.accountId)?'active':'')+'" data-demo-account="'+esc(acc.id)+'"><td>#'+esc(acc.number||'—')+'</td><td><button>'+esc(acc.name||'Cuenta')+'</button>'+(acc.accountRequestedAt?'<small style="display:block;color:var(--rv2-danger);margin-top:2px">Cuenta solicitada</small>':'')+'</td><td class="demo-bar-num">'+money(acc.sale?.total||0)+'</td></tr>').join('')||'<tr><td colspan="3">Sin cuentas abiertas</td></tr>';
+  tbody.innerHTML=rows.map(acc=>'<tr class="demo-bar-account-row '+(String(acc.id)===String(S.accountId)?'active':'')+'" data-demo-account="'+esc(acc.id)+'"><td><button>'+esc(accountLabel(acc))+'</button>'+(acc.accountRequestedAt?'<small style="display:block;color:var(--rv2-danger);margin-top:2px">Cuenta solicitada</small>':'')+'</td><td class="demo-bar-num">'+money(acc.sale?.total||0)+'</td></tr>').join('')||'<tr><td colspan="2">Sin cuentas abiertas</td></tr>';
   $$('[data-demo-account]',tbody).forEach(row=>row.onclick=()=>selectAccount(row.dataset.demoAccount));
   $('[data-demo-new-account]',root()).disabled=!table;
   $('[data-demo-close-account]',root()).disabled=!currentAccount();
@@ -142,7 +143,7 @@ function renderProducts(){
 
 function renderOrder(){
   const acc=currentAccount();
-  $('[data-demo-order-name]',root()).textContent=acc?'Pedido #'+(acc.number||'—')+' · '+acc.name:'Nueva venta';
+  $('[data-demo-order-name]',root()).textContent=acc?accountLabel(acc):'Nueva venta';
   $('[data-demo-total]',root()).textContent=money(total());
   const items=allItems();
   const count=items.reduce((sum,item)=>sum+Number(item.quantity||0),0);
@@ -250,7 +251,7 @@ async function newAccount(){
 }
 async function renameAccount(){
   const acc=currentAccount();if(!acc)return;
-  const name=prompt('Nombre de la cuenta',acc.name||'Cuenta');if(name===null)return;
+  const name=prompt('Nombre de la cuenta',accountLabel(acc));if(name===null)return;
   try{
     await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(acc.id),{method:'PATCH',body:JSON.stringify({name:name.trim()||'Cuenta'})});
     await loadBase(true);setStatus('Nombre actualizado.');
@@ -259,7 +260,7 @@ async function renameAccount(){
 async function closeAccount(){
   const acc=currentAccount();if(!acc)return;
   if(allItems().length||total()>0){openCash();return}
-  if(!confirm('Cerrar '+acc.name+' vacía?'))return;
+  if(!confirm('Cerrar '+accountLabel(acc)+' vacía?'))return;
   try{
     await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(acc.id)+'/vacia',{method:'DELETE'});
     S.accountId=null;await loadBase(true);setStatus('Cuenta vacía cerrada.');
@@ -394,7 +395,7 @@ function openMergeDialog(){
   if(!entries.length)return;
   const dialog=ensureDialog();
   $('[data-dialog-eyebrow]',dialog).textContent='UNIR CUENTAS';
-  $('[data-dialog-title]',dialog).textContent='Destino: '+(currentTable()?.name||'')+' · '+dest.name;
+  $('[data-dialog-title]',dialog).textContent='Destino: '+(currentTable()?.name||'')+' · '+accountLabel(dest);
   const body=$('[data-dialog-body]',dialog);
   const groups=new Map();for(const entry of entries){if(!groups.has(entry.tableName))groups.set(entry.tableName,[]);groups.get(entry.tableName).push(entry)}
   body.innerHTML='<label>Nombre conjunto<input class="rv2-input" data-merge-name value="'+esc(dest.name)+'" maxlength="160"></label>'+[...groups.entries()].map(([tableName,rows])=>'<fieldset><legend>'+esc(tableName)+'</legend>'+rows.map(acc=>'<label style="display:flex;align-items:center;gap:8px;margin:6px 0"><input type="checkbox" data-merge-source="'+esc(acc.id)+'"><span style="flex:1">#'+esc(acc.number)+' · '+esc(acc.name)+'</span><strong>'+money(acc.sale?.total||0)+'</strong></label>').join('')+'</fieldset>').join('')+'<div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-dialog-actions"><button class="rv2-btn" data-merge-cancel>Cancelar</button><button class="rv2-btn rv2-btn-primary" data-merge-confirm>Unir seleccionadas</button></div>';
@@ -405,7 +406,7 @@ function openMergeDialog(){
 async function confirmMerge(){
   const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog);
   const sources=$$('[data-merge-source]:checked',body).map(input=>input.dataset.mergeSource);
-  const name=$('[data-merge-name]',body)?.value?.trim()||currentAccount()?.name||'Cuenta';
+  const name=$('[data-merge-name]',body)?.value?.trim()||accountLabel();
   if(!sources.length){dialogStatus('Selecciona al menos una cuenta para unir.',true);return}
   try{
     dialogStatus('Uniendo cuentas…');
@@ -438,7 +439,7 @@ function dialogStatus(text,error=false){
 }
 async function openCash(){
   if(!S.accountId||pendingItems().length){if(pendingItems().length)setStatus('Envía los consumos nuevos antes de cobrar.',true);return}
-  const dialog=ensureDialog();dialog.dataset.cashBarMode='1';$('[data-dialog-eyebrow]',dialog).textContent='COBRO';$('[data-dialog-title]',dialog).textContent='Cobrar pedido';const body=$('[data-dialog-body]',dialog);body.innerHTML='<div class="rv2-muted">Cargando Caja…</div>';dialog.showModal();
+  const dialog=ensureDialog();dialog.dataset.cashBarMode='1';$('[data-dialog-eyebrow]',dialog).textContent='COBRO';$('[data-dialog-title]',dialog).textContent='Cobrar '+accountLabel();const body=$('[data-dialog-body]',dialog);body.innerHTML='<div class="rv2-muted">Cargando Caja…</div>';dialog.showModal();
   try{
     const [cashWorkspace,detail]=await Promise.all([
       RV2.api('/api/v1/restaurante/v2/caja'),
@@ -491,8 +492,7 @@ function syncCashTender(forceExact=false){
 function renderCash(){
   const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),cash=S.cash;if(!cash)return;
   const detail=cash.detail,account=currentAccount(),table=currentTable();
-  const orderNumber=account?.number||detail.sale?.numero||'—';
-  $('[data-dialog-title]',dialog).textContent='Cobrar pedido #'+orderNumber;
+  $('[data-dialog-title]',dialog).textContent='Cobrar '+accountLabel(account);
   if(!cash.workspace?.shift?.own){
     const accounts=cash.workspace?.shift?.cashAccounts||[];
     body.innerHTML='<div><b>Turno de Caja cerrado</b><p>Abre tu turno para cobrar esta cuenta.</p><div class="demo-bar-payment-fields"><label>Caja<select class="rv2-input" data-cash-account>'+accounts.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.nombre)+'</option>').join('')+'</select></label><label>Base inicial<input class="rv2-input" data-cash-base type="number" min="0" step="100" value="0"></label></div><button class="rv2-btn rv2-btn-primary" data-open-shift '+(accounts.length?'':'disabled')+'>Abrir turno</button></div><div class="demo-bar-dialog-status" data-dialog-status></div>';
@@ -506,7 +506,7 @@ function renderCash(){
     $('[data-cash-cancel]',body).onclick=()=>dialog.close();
     return;
   }
-  body.innerHTML='<div class="demo-bar-cash-context">'+esc(table?.name||'Mesa')+' · '+esc(account?.name||'Cuenta')+'</div><div class="demo-bar-cash-total">'+money(detail.sale?.total||0)+'</div><div class="demo-bar-cash-form"><label class="demo-bar-cash-field demo-bar-cash-method-field"><span>Medio de pago</span><select class="rv2-input demo-bar-cash-select" data-cash-method-select>'+methods.map(m=>'<option value="'+esc(m.id)+'" '+(String(m.id)===String(cash.methodId)?'selected':'')+'>'+esc(m.name)+'</option>').join('')+'</select></label><div class="demo-bar-cash-two"><label class="demo-bar-cash-field"><span>Propina</span><input class="rv2-input" data-cash-tip type="number" min="0" step="100" value="0"></label><label class="demo-bar-cash-field" data-cash-reference-group><span>Referencia</span><input class="rv2-input" data-cash-reference maxlength="160" placeholder="Opcional"></label></div><div class="demo-bar-cash-two"><label class="demo-bar-cash-field" data-cash-tender-group><span>Efectivo recibido</span><input class="rv2-input" data-cash-tendered type="number" min="0" step="100" inputmode="decimal"></label><div class="demo-bar-cash-change" data-cash-change-group><span>Cambio</span><strong data-cash-change>'+money(0)+'</strong><small data-cash-change-hint>Pago exacto</small></div></div></div><div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-cash-actions"><button type="button" class="rv2-btn" data-cash-cancel>Cancelar</button><button type="button" class="rv2-btn rv2-btn-primary" data-charge>Confirmar cobro</button></div>';
+  body.innerHTML='<div class="demo-bar-cash-context">'+esc(table?.name||'Mesa')+' · '+esc(accountLabel(account))+'</div><div class="demo-bar-cash-total">'+money(detail.sale?.total||0)+'</div><div class="demo-bar-cash-form"><label class="demo-bar-cash-field demo-bar-cash-method-field"><span>Medio de pago</span><select class="rv2-input demo-bar-cash-select" data-cash-method-select>'+methods.map(m=>'<option value="'+esc(m.id)+'" '+(String(m.id)===String(cash.methodId)?'selected':'')+'>'+esc(m.name)+'</option>').join('')+'</select></label><div class="demo-bar-cash-two"><label class="demo-bar-cash-field"><span>Propina</span><input class="rv2-input" data-cash-tip type="number" min="0" step="100" value="0"></label><label class="demo-bar-cash-field" data-cash-reference-group><span>Referencia</span><input class="rv2-input" data-cash-reference maxlength="160" placeholder="Opcional"></label></div><div class="demo-bar-cash-two"><label class="demo-bar-cash-field" data-cash-tender-group><span>Efectivo recibido</span><input class="rv2-input" data-cash-tendered type="number" min="0" step="100" inputmode="decimal"></label><div class="demo-bar-cash-change" data-cash-change-group><span>Cambio</span><strong data-cash-change>'+money(0)+'</strong><small data-cash-change-hint>Pago exacto</small></div></div></div><div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-cash-actions"><button type="button" class="rv2-btn" data-cash-cancel>Cancelar</button><button type="button" class="rv2-btn rv2-btn-primary" data-charge>Confirmar cobro</button></div>';
   $('[data-cash-method-select]',body).onchange=event=>{cash.methodId=event.target.value;syncCashTender(true)};
   $('[data-cash-tip]',body).oninput=()=>syncCashTender(false);
   $('[data-cash-tendered]',body).oninput=()=>syncCashTender(false);
@@ -540,8 +540,8 @@ async function charge(){
   finally{cash.busy=false;syncCashTender(false)}
 }
 function renderCashResult(data){
-  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),sessionId=data?.result?.session?.id||null,saleNumber=data?.result?.sale?.numero||'POS';
-  body.innerHTML='<div><small>VENTA LIQUIDADA</small><h2>'+esc(saleNumber)+'</h2><p>La cuenta quedó pagada. ¿Deseas imprimir?</p><div class="demo-bar-print-actions"><button class="rv2-btn rv2-btn-primary" data-print>Sí, imprimir</button><button class="rv2-btn" data-no-print>No</button></div><div class="demo-bar-dialog-status" data-dialog-status></div></div>';
+  const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),sessionId=data?.result?.session?.id||null;
+  body.innerHTML='<div><small>VENTA LIQUIDADA</small><h2>'+esc(accountLabel())+'</h2><p>La cuenta quedó pagada. ¿Deseas imprimir?</p><div class="demo-bar-print-actions"><button class="rv2-btn rv2-btn-primary" data-print>Sí, imprimir</button><button class="rv2-btn" data-no-print>No</button></div><div class="demo-bar-dialog-status" data-dialog-status></div></div>';
   $('[data-print]',body).onclick=()=>printReceipt(sessionId);
   $('[data-no-print]',body).onclick=finishCash;
 }
