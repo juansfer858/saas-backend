@@ -8,11 +8,13 @@ const runtimePath = path.join(root, 'src', 'web', 'restaurant-v2-kds-simple-demo
 const htmlPath = path.join(root, 'src', 'web', 'restaurant-v2-kds.html');
 const publicRoutesPath = path.join(root, 'src', 'modules', 'restaurant', 'restaurant-v2-kds.public.routes.js');
 const kdsServicePath = path.join(root, 'src', 'modules', 'restaurant', 'restaurant-v2-kds.service.js');
+const kdsUiPath = path.join(root, 'src', 'web', 'restaurant-v2-kds.js');
 
 const runtime = fs.readFileSync(runtimePath, 'utf8');
 const html = fs.readFileSync(htmlPath, 'utf8');
 const publicRoutes = fs.readFileSync(publicRoutesPath, 'utf8');
 const kdsService = fs.readFileSync(kdsServicePath, 'utf8');
+const kdsUi = fs.readFileSync(kdsUiPath, 'utf8');
 
 function expect(condition, message) {
   if (!condition) throw new Error(message);
@@ -56,6 +58,8 @@ expect(runtime.includes('bar-ready-panel'), 'right ready panel missing');
 expect(runtime.includes('Áreas de producción'), 'station selector heading missing');
 expect(runtime.includes("textContent='Por preparar'"), 'central pending work label missing');
 expect(runtime.includes("textContent='Listos para recoger'"), 'right ready label missing');
+expect(kdsUi.includes("return 'Domicilio · '+deliveryName"), 'Producción demo debe mostrar Domicilio + nombre del cliente');
+expect(kdsUi.includes("parts.push(String(c.order.delivery.code))"), 'Producción demo debe conservar código del domicilio como dato secundario');
 
 const globalFiles = [
   'src/modules/restaurant/restaurant-v2-kds.routes.js',
