@@ -162,11 +162,11 @@ function calculateAppliedLine(detail, unitPrice) {
   };
 }
 
-async function updateLinePrice(tenantId, user, tableId, detailId, input) {
+async function updateLinePrice(tenantId, user, tableId, detailId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
     await lockOperation(tx, tenantId);
     const session = await tx.restaurantTableSession.findFirst({
-      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] }, ...(options.sessionId ? { id: options.sessionId } : {}) },
       include: { table: true },
       orderBy: { openedAt: 'desc' }
     });
