@@ -756,13 +756,14 @@ async function postTipInTx(tx, params) {
   return { movement, journal };
 }
 
-async function closeTable(tenantId, user, tableId, input) {
+async function closeTable(tenantId, user, tableId, input, options = {}) {
   return prisma.$transaction(async (tx) => {
     await lockOperation(tx, tenantId);
     const config = await getOrCreateConfig(tenantId, tx);
     const session = await tx.restaurantTableSession.findFirst({
-      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
-      include: { table: true }
+      where: { tenantId, tableId, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] }, ...(options.sessionId ? { id: options.sessionId } : {}) },
+      include: { table: true },
+      orderBy: { openedAt: 'desc' }
     });
     if (!session) throw new AppError(404, 'No hay cuenta abierta para cerrar', 'RESTAURANT_SESSION_NOT_FOUND');
     const saleBefore = await tx.comprobanteComercial.findFirst({ where: { id: session.saleId, tenantId, estado: 'BORRADOR' }, include: { detalles: true } });
@@ -847,8 +848,13 @@ async function closeTable(tenantId, user, tableId, input) {
         ...paymentMetadata
       }
     });
-    await tx.restaurantTable.update({ where: { id: session.tableId }, data: { state: 'LIBRE' } });
-    return { session: closed, sale: emitted, fiscalDocument: fiscal, tipPosting, split, status: productionStatus(config) };
+    const remaining = await tx.restaurantTableSession.findMany({
+      where: { tenantId, tableId: session.tableId, id: { not: session.id }, state: { in: ['ABIERTA', 'CUENTA_PEDIDA'] } },
+      select: { state: true }
+    });
+    const nextTableState = !remaining.length ? 'LIBRE' : remaining.some((row) => row.state === 'ABIERTA') ? 'OCUPADA' : 'CUENTA_PEDIDA';
+    await tx.restaurantTable.update({ where: { id: session.tableId }, data: { state: nextTableState } });
+    return { session: closed, sale: emitted, fiscalDocument: fiscal, tipPosting, split, tableState: nextTableState, status: productionStatus(config) };
   }, RESTAURANT_CLOSE_TRANSACTION_OPTIONS);
 }
 
