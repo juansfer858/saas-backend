@@ -40,6 +40,10 @@ expect(runtime.includes("configured!=='Sin KDS configurado'"), 'unconfigured del
 expect(runtime.includes("⚙ Estaciones"), 'station administration action missing');
 expect(runtime.includes('VANTIX_DEMO_PRODUCTION_BAR_LAYOUT_V1'), 'Vantix Bar production layout marker missing');
 expect(runtime.includes('bar-production-layout'), 'three-zone production layout missing');
+expect(runtime.includes('padding:8px 10px 10px!important'), 'desktop production must not reserve the old fixed-header gap');
+expect(!runtime.includes('padding:82px 10px 10px!important'), 'old 82px top spacer must not return');
+expect(runtime.includes('flex:1 1 auto!important;min-height:0!important;height:auto!important'), 'production main must fill only the remaining viewport');
+expect(runtime.includes('bar-production-layout{display:grid;grid-template-columns:245px minmax(420px,1fr) 355px;gap:9px;flex:1 1 auto;min-height:0;height:auto}'), 'production cards must rise and fill the remaining space');
 expect(runtime.includes('bar-stations-panel'), 'left station panel missing');
 expect(runtime.includes('bar-work-panel'), 'central work panel missing');
 expect(runtime.includes('bar-ready-panel'), 'right ready panel missing');
