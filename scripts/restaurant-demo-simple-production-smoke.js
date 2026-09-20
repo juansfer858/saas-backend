@@ -40,6 +40,12 @@ expect(runtime.includes("configured!=='Sin KDS configurado'"), 'unconfigured del
 expect(runtime.includes("⚙ Estaciones"), 'station administration action missing');
 expect(runtime.includes('VANTIX_DEMO_PRODUCTION_BAR_LAYOUT_V1'), 'Vantix Bar production layout marker missing');
 expect(runtime.includes('bar-production-layout'), 'three-zone production layout missing');
+expect(runtime.includes('position:relative!important;inset:auto!important'), 'demo KDS header must participate in layout');
+expect(!runtime.includes('position:fixed!important;inset:0 0 auto 0!important'), 'fixed demo KDS header must not return');
+expect(runtime.includes('function applyStable()'), 'stable demo apply wrapper missing');
+expect(runtime.includes('observer.disconnect();'), 'observer must disconnect during demo DOM rewrite');
+expect(runtime.includes('start();'), 'demo runtime must mount immediately at end of body');
+expect(!runtime.includes("document.addEventListener('DOMContentLoaded',start"), 'demo runtime must not wait and flash canonical KDS first');
 expect(runtime.includes('padding:8px 10px 10px!important'), 'desktop production must not reserve the old fixed-header gap');
 expect(!runtime.includes('padding:82px 10px 10px!important'), 'old 82px top spacer must not return');
 expect(runtime.includes('flex:1 1 auto!important;min-height:0!important;height:auto!important'), 'production main must fill only the remaining viewport');
