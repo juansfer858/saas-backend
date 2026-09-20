@@ -70,6 +70,9 @@ expect(runtime.includes("wrap.querySelectorAll('[data-demo-remove]').forEach"), 
 expect(runtime.includes("wrap.querySelectorAll('[data-demo-price]').forEach"), 'price bindings must use a multi-element selector');
 expect(!runtime.includes("$('[data-demo-price]',wrap).forEach"), 'single price selector cannot be used with forEach');
 expect(runtime.includes('data-demo-note'), 'manual observation field missing');
+expect(runtime.includes("send.disabled=!acc||!hasPending"), 'Enviar pedido must disable when there are no new consumptions');
+expect(runtime.includes("No hay consumos nuevos por enviar."), 'disabled send helper text missing');
+expect(css.includes('.demo-bar-actions .rv2-btn:disabled'), 'disabled action visual state missing');
 expect(runtime.includes('async function changeNote('), 'manual observation save behavior missing');
 expect(runtime.includes("const noteInputs=root().querySelectorAll('[data-demo-note]');"), 'send must collect observation fields as an iterable NodeList');
 expect(!runtime.includes("const noteInputs=$('[data-demo-note]',root());"), 'single observation selector cannot be iterated');
