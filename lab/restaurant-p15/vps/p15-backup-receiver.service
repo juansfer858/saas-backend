@@ -1,0 +1,22 @@
+[Unit]
+Description=VantixGC P15 Backup Receiver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vantix
+Group=vantix
+WorkingDirectory=/opt/vantix-saas/p15-backup-receiver
+EnvironmentFile=/opt/vantix-saas/secrets/p15-backup-receiver.env
+ExecStart=/usr/bin/node /opt/vantix-saas/p15-backup-receiver/cloud-backup-receiver.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/vantix-saas/data/p15-backups
+
+[Install]
+WantedBy=multi-user.target

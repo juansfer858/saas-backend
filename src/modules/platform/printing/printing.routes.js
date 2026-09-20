@@ -2,6 +2,7 @@ const express = require('express');
 const { z } = require('zod');
 const service = require('./printing.service');
 const stationService = require('./printing-stations.service');
+const p15Spooler = require('./p15-local-spooler.service');
 const companyService = require('../../restaurant/restaurant-company-profile.service');
 const { AppError } = require('../../../utils/app-error');
 const { requirePermission } = require('../../../middleware/require-permission');
@@ -118,8 +119,11 @@ router.post('/impresoras', requirePermission('CONFIGURACION.EDITAR'), async (req
   catch (error) { next(error); }
 });
 router.post('/trabajos-dirigidos', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
-  try { res.json({ ok: true, data: await service.buildDirectedJobs(req.tenantId, parse(directedSchema, req.body)) }); }
-  catch (error) { next(error); }
+  try {
+    const directed = await service.buildDirectedJobs(req.tenantId, parse(directedSchema, req.body));
+    const localDispatch = await p15Spooler.dispatchDirectedJobs(directed);
+    res.json({ ok: true, data: localDispatch ? { ...directed, localDispatch } : directed });
+  } catch (error) { next(error); }
 });
 router.get('/plantilla/:format', requirePermission('CONFIGURACION.VER'), async (req, res, next) => {
   try {
