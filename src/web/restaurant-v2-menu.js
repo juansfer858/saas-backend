@@ -475,7 +475,15 @@
 
   async function boot() {
     $('#restaurantName').textContent = session.tenant?.nombreEmpresa || session.subdomain || 'Carta';
-    $('#tenantLine').textContent = `${session.subdomain} · Carta conectada al producto maestro del Super Core`;
+    $('#tenantLine').textContent = demoFiveCardGrid
+      ? `${session.subdomain} · Inventario propio del restaurante · catálogo compartido temporalmente`
+      : `${session.subdomain} · Carta conectada al producto maestro del Super Core`;
+    if (demoFiveCardGrid) {
+      const copy = document.querySelector('.menu-command p');
+      if (copy) copy.textContent = 'Lo que ve el mesero y el cliente. Las existencias de producto terminado se controlan desde Inventario del restaurante.';
+      const addInventory = $('#addInventory');
+      if (addInventory) addInventory.textContent = '+ Vincular producto';
+    }
     bind();
     await loadData();
     await loadCanonicalOcr();
