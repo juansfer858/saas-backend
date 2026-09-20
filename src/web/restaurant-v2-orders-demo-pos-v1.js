@@ -156,12 +156,14 @@ function renderOrder(){
     const checked=S.selected.has(key);
     const status=String(item.operationalState||item.orderState||'Cuenta').replaceAll('_',' ');
     const origin=item.originTable?.name&&item.originTable.id!==S.tableId?' · origen '+item.originTable.name:'';
-    return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+(item.notes?' · '+esc(item.notes):'')+'</small></td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
+    const note=draft?'<textarea class="demo-bar-note" data-demo-note="'+esc(item.orderItemId||'')+'" maxlength="300" rows="1" placeholder="Observaciones">'+esc(item.notes||'')+'</textarea>':(item.notes?'<div class="demo-bar-note-sent">Obs: '+esc(item.notes)+'</div>':'');
+    return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+'</small>'+note+'</td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table>';
   wrap.querySelectorAll('[data-demo-select]').forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
   wrap.querySelectorAll('[data-demo-qty]').forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
   wrap.querySelectorAll('[data-demo-remove]').forEach(btn=>btn.onclick=()=>changeDraftQty(btn.dataset.demoRemove,0));
-  $$('[data-demo-price]',wrap).forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
+  wrap.querySelectorAll('[data-demo-note]').forEach(input=>input.onchange=()=>changeNote(input.dataset.demoNote,input.value));
+  $('[data-demo-price]',wrap).forEach(input=>input.onchange=()=>changePrice(input.dataset.demoPrice,Number(input.value)));
   renderActions();
 }
 function renderActions(){
@@ -293,6 +295,17 @@ async function changeDraftQty(itemId,quantity){
     S.selected.delete(String(item.saleDetailId||item.id));await loadAccount(S.accountId);await refreshWorkspaceOnly();
   }catch(error){setStatus(error.message||'No fue posible cambiar la cantidad.',true)}
 }
+async function changeNote(itemId,notes){
+  if(!S.accountId||!itemId)return;
+  const value=String(notes||'').trim().slice(0,300);
+  try{
+    await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(S.accountId)+'/items/'+encodeURIComponent(itemId),{method:'PATCH',body:JSON.stringify({notes:value||null})});
+    const item=draftItems().find(row=>String(row.orderItemId||row.id)===String(itemId));
+    if(item)item.notes=value||null;
+    setStatus(value?'Observación guardada. Se enviará con la comanda.':'Observación eliminada.');
+  }catch(error){setStatus(error.message||'No fue posible guardar la observación.',true);await loadAccount(S.accountId)}
+}
+
 async function changePrice(detailId,unitPrice){
   if(!S.accountId||!detailId||!Number.isFinite(unitPrice)||unitPrice<0)return;
   try{
@@ -305,6 +318,13 @@ async function changePrice(detailId,unitPrice){
 async function sendPending(){
   if(!S.accountId||!pendingItems().length)return;
   try{
+    const noteInputs=$('[data-demo-note]',root());
+    for(const input of noteInputs){
+      const item=draftItems().find(row=>String(row.orderItemId||row.id)===String(input.dataset.demoNote));
+      const typed=String(input.value||'').trim().slice(0,300);
+      const saved=String(item?.notes||'').trim();
+      if(typed!==saved)await changeNote(input.dataset.demoNote,typed);
+    }
     await RV2.api('/api/v1/restaurante/v2/sesiones/'+encodeURIComponent(S.accountId)+'/pedido/enviar',{method:'POST',body:'{}'});
     await loadAccount(S.accountId);await refreshWorkspaceOnly();setStatus('Pedido enviado a producción.');
   }catch(error){setStatus(error.message||'No fue posible enviar el pedido.',true)}
