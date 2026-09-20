@@ -16,6 +16,10 @@ jobs:
       - name: Read sanitized demo cash readiness
         run: |
           set -euo pipefail
+          echo '--- runtime-info ---'
+          curl -fsS --retry 3 --retry-delay 2 https://core.vantixgc.com/api/public/runtime-info | tee runtime.json
+          echo
+          echo '--- readiness ---'
           curl -fsS --retry 3 --retry-delay 2 https://core.vantixgc.com/api/public/restaurante/demo-cash-readiness | tee readiness.json
           echo
           echo '--- lastChargeError ---'
