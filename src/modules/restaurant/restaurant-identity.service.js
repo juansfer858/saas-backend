@@ -215,7 +215,10 @@ async function resolveMenuLine(tx, tenantId, menuItemId, quantity) {
   const product = await tx.producto.findFirst({ where: { id: menu.productId, tenantId, activo: true } });
   if (!product) throw new AppError(409, 'Producto del menú no disponible', 'RESTAURANT_MENU_PRODUCT_INVALID');
   if (menu.requiresRecipe) {
-    const recipe = await tx.consumptionRecipe.findFirst({ where: { tenantId, outputProductId: product.id, active: true } });
+    const localPilot = await restaurantInventory.isPilotTenant(tenantId, tx);
+    const recipe = localPilot
+      ? await tx.restaurantRecipe.findFirst({ where: { tenantId, productId: product.id } })
+      : await tx.consumptionRecipe.findFirst({ where: { tenantId, outputProductId: product.id, active: true } });
     if (!recipe) throw new AppError(409, `Configure la receta de ${product.nombre} antes de venderlo`, 'RESTAURANT_RECIPE_REQUIRED');
   }
   return { menu, product, ...calculation(product, quantity) };
