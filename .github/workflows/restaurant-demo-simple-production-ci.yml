@@ -9,7 +9,9 @@ on:
       - 'src/web/restaurant-v2-kds-simple-demo-v1.js'
       - 'src/web/restaurant-v2-kds.html'
       - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-kds.service.js'
       - 'scripts/restaurant-demo-simple-production-smoke.js'
+      - 'scripts/restaurant-demo-default-stations-db-smoke.js'
       - '.github/workflows/restaurant-demo-simple-production-ci.yml'
   workflow_dispatch:
 
@@ -19,13 +21,31 @@ permissions:
 jobs:
   tenant-isolation:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: postgres}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      RESTAURANT_QR_VISIT_SECRET: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
       - name: Syntax check
         run: node --check src/web/restaurant-v2-kds-simple-demo-v1.js
       - name: Verify tenant-only production pilot
         run: node scripts/restaurant-demo-simple-production-smoke.js
+      - name: Verify default editable stations in database
+        run: node scripts/restaurant-demo-default-stations-db-smoke.js
