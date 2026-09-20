@@ -411,38 +411,88 @@ function ensureDialog(){
   let dialog=$('#demoBarDialog');if(dialog)return dialog;
   dialog=document.createElement('dialog');dialog.id='demoBarDialog';dialog.className='demo-bar-dialog';
   dialog.innerHTML='<div class="demo-bar-dialog-shell"><div class="demo-bar-dialog-head"><div><small data-dialog-eyebrow>OPERACIÓN</small><h2 data-dialog-title>—</h2></div><button type="button" class="rv2-btn demo-bar-small-btn" data-dialog-close>Cerrar</button></div><div class="demo-bar-dialog-body" data-dialog-body></div></div>';
-  document.body.appendChild(dialog);$('[data-dialog-close]',dialog).onclick=()=>dialog.close();return dialog;
+  document.body.appendChild(dialog);$('[data-dialog-close]',dialog).onclick=()=>dialog.close();dialog.addEventListener('close',()=>{delete dialog.dataset.cashBarMode});return dialog;
 }
 function dialogStatus(text,error=false){
   const node=$('[data-dialog-status]',$('#demoBarDialog'));if(node){node.textContent=text||'';node.classList.toggle('error',Boolean(error))}
 }
 async function openCash(){
   if(!S.accountId||pendingItems().length){if(pendingItems().length)setStatus('Envía los consumos nuevos antes de cobrar.',true);return}
-  const dialog=ensureDialog();$('[data-dialog-eyebrow]',dialog).textContent='COBRO';$('[data-dialog-title]',dialog).textContent='Cobrar '+currentAccount().name;const body=$('[data-dialog-body]',dialog);body.innerHTML='<div class="rv2-muted">Cargando Caja…</div>';dialog.showModal();
+  const dialog=ensureDialog();dialog.dataset.cashBarMode='1';$('[data-dialog-eyebrow]',dialog).textContent='COBRO';$('[data-dialog-title]',dialog).textContent='Cobrar pedido';const body=$('[data-dialog-body]',dialog);body.innerHTML='<div class="rv2-muted">Cargando Caja…</div>';dialog.showModal();
   try{
     const [cashWorkspace,detail]=await Promise.all([
       RV2.api('/api/v1/restaurante/v2/caja'),
       RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/caja')
     ]);
-    S.cash={workspace:cashWorkspace,detail,methodId:detail.paymentMethods?.[0]?.id||null,busy:false};
+    const methods=(detail.paymentMethods||[]).filter(method=>String(method.kind||'').toUpperCase()!=='CREDITO');
+    S.cash={workspace:cashWorkspace,detail,methods,methodId:methods[0]?.id||null,busy:false};
     renderCash();
   }catch(error){body.innerHTML='<div class="demo-bar-dialog-status error">'+esc(error.message||'No fue posible abrir Caja.')+'</div>'}
 }
+function currentCashMethod(){
+  const cash=S.cash;if(!cash)return null;
+  return (cash.methods||[]).find(method=>String(method.id)===String(cash.methodId))||null;
+}
+function cashPaymentDue(){
+  const cash=S.cash;if(!cash)return 0;
+  const dialog=$('#demoBarDialog');
+  const tip=Math.max(0,Number($('[data-cash-tip]',dialog)?.value||0));
+  return Number(cash.detail?.sale?.total||0)+tip;
+}
+function syncCashTender(forceExact=false){
+  const cash=S.cash,dialog=$('#demoBarDialog');if(!cash||!dialog)return;
+  const method=currentCashMethod();
+  const isCash=String(method?.kind||'').toUpperCase()==='EFECTIVO';
+  const tenderGroup=$('[data-cash-tender-group]',dialog);
+  const changeGroup=$('[data-cash-change-group]',dialog);
+  const referenceGroup=$('[data-cash-reference-group]',dialog);
+  const tender=$('[data-cash-tendered]',dialog);
+  const change=$('[data-cash-change]',dialog);
+  const hint=$('[data-cash-change-hint]',dialog);
+  const confirmBtn=$('[data-charge]',dialog);
+  if(tenderGroup)tenderGroup.hidden=!isCash;
+  if(changeGroup)changeGroup.hidden=!isCash;
+  if(referenceGroup)referenceGroup.hidden=isCash;
+  const due=cashPaymentDue();
+  if(isCash&&tender){
+    if(forceExact||!Number.isFinite(Number(tender.value))||Number(tender.value)<=0)tender.value=String(Math.round(due));
+    const received=Math.max(0,Number(tender.value||0));
+    const delta=received-due;
+    if(change)change.textContent=money(Math.max(0,delta));
+    if(hint){
+      hint.textContent=delta<0?'Faltan '+money(Math.abs(delta)):delta===0?'Pago exacto':'Devolver '+money(delta);
+      hint.classList.toggle('error',delta<0);
+    }
+    if(confirmBtn)confirmBtn.disabled=delta<0||cash.busy;
+  }else if(confirmBtn){
+    confirmBtn.disabled=!method||cash.busy;
+  }
+}
 function renderCash(){
   const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),cash=S.cash;if(!cash)return;
-  const detail=cash.detail;
-  $('[data-dialog-title]',dialog).textContent=(currentAccount()?.name||'Cuenta')+' · '+money(detail.sale?.total||0);
+  const detail=cash.detail,account=currentAccount(),table=currentTable();
+  const orderNumber=account?.number||detail.sale?.numero||'—';
+  $('[data-dialog-title]',dialog).textContent='Cobrar pedido #'+orderNumber;
   if(!cash.workspace?.shift?.own){
     const accounts=cash.workspace?.shift?.cashAccounts||[];
     body.innerHTML='<div><b>Turno de Caja cerrado</b><p>Abre tu turno para cobrar esta cuenta.</p><div class="demo-bar-payment-fields"><label>Caja<select class="rv2-input" data-cash-account>'+accounts.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.nombre)+'</option>').join('')+'</select></label><label>Base inicial<input class="rv2-input" data-cash-base type="number" min="0" step="100" value="0"></label></div><button class="rv2-btn rv2-btn-primary" data-open-shift '+(accounts.length?'':'disabled')+'>Abrir turno</button></div><div class="demo-bar-dialog-status" data-dialog-status></div>';
     $('[data-open-shift]',body)?.addEventListener('click',openShift);
     return;
   }
-  const methods=detail.paymentMethods||[];
+  const methods=cash.methods||[];
   if(!methods.some(m=>String(m.id)===String(cash.methodId)))cash.methodId=methods[0]?.id||null;
-  body.innerHTML='<div class="demo-bar-cash-total">'+money(detail.sale?.total||0)+'</div><div class="demo-bar-payment-methods">'+methods.map(m=>'<button class="demo-bar-method '+(String(m.id)===String(cash.methodId)?'active':'')+'" data-cash-method="'+esc(m.id)+'"><b>'+esc(m.name)+'</b><span>'+esc(m.kind)+'</span></button>').join('')+'</div><div class="demo-bar-payment-fields"><label>Propina<input class="rv2-input" data-cash-tip type="number" min="0" step="100" value="0"></label><label>Referencia<input class="rv2-input" data-cash-reference maxlength="160" placeholder="Opcional"></label></div><button class="rv2-btn rv2-btn-primary" data-charge>Confirmar cobro</button><div class="demo-bar-dialog-status" data-dialog-status></div>';
-  $$('[data-cash-method]',body).forEach(btn=>btn.onclick=()=>{cash.methodId=btn.dataset.cashMethod;renderCash()});
+  if(!methods.length){
+    body.innerHTML='<div class="demo-bar-dialog-status error">No hay medios de pago activos disponibles para este cobro.</div><div class="demo-bar-cash-actions"><button type="button" class="rv2-btn" data-cash-cancel>Cancelar</button></div>';
+    $('[data-cash-cancel]',body).onclick=()=>dialog.close();
+    return;
+  }
+  body.innerHTML='<div class="demo-bar-cash-context">'+esc(table?.name||'Mesa')+' · '+esc(account?.name||'Cuenta')+'</div><div class="demo-bar-cash-total">'+money(detail.sale?.total||0)+'</div><div class="demo-bar-cash-form"><label class="demo-bar-cash-field demo-bar-cash-method-field"><span>Medio de pago</span><select class="rv2-input demo-bar-cash-select" data-cash-method-select>'+methods.map(m=>'<option value="'+esc(m.id)+'" '+(String(m.id)===String(cash.methodId)?'selected':'')+'>'+esc(m.name)+'</option>').join('')+'</select></label><div class="demo-bar-cash-two"><label class="demo-bar-cash-field"><span>Propina</span><input class="rv2-input" data-cash-tip type="number" min="0" step="100" value="0"></label><label class="demo-bar-cash-field" data-cash-reference-group><span>Referencia</span><input class="rv2-input" data-cash-reference maxlength="160" placeholder="Opcional"></label></div><div class="demo-bar-cash-two"><label class="demo-bar-cash-field" data-cash-tender-group><span>Efectivo recibido</span><input class="rv2-input" data-cash-tendered type="number" min="0" step="100" inputmode="decimal"></label><div class="demo-bar-cash-change" data-cash-change-group><span>Cambio</span><strong data-cash-change>'+money(0)+'</strong><small data-cash-change-hint>Pago exacto</small></div></div></div><div class="demo-bar-dialog-status" data-dialog-status></div><div class="demo-bar-cash-actions"><button type="button" class="rv2-btn" data-cash-cancel>Cancelar</button><button type="button" class="rv2-btn rv2-btn-primary" data-charge>Confirmar cobro</button></div>';
+  $('[data-cash-method-select]',body).onchange=event=>{cash.methodId=event.target.value;syncCashTender(true)};
+  $('[data-cash-tip]',body).oninput=()=>syncCashTender(false);
+  $('[data-cash-tendered]',body).oninput=()=>syncCashTender(false);
+  $('[data-cash-cancel]',body).onclick=()=>dialog.close();
   $('[data-charge]',body).onclick=charge;
+  syncCashTender(true);
 }
 async function openShift(){
   const dialog=$('#demoBarDialog'),account=$('[data-cash-account]',dialog)?.value,base=Number($('[data-cash-base]',dialog)?.value||0);if(!account)return;
@@ -453,15 +503,21 @@ async function openShift(){
 }
 async function charge(){
   const cash=S.cash;if(!cash||cash.busy)return;
-  const method=cash.detail.paymentMethods.find(m=>String(m.id)===String(cash.methodId));if(!method)return;
-  if(!confirm('Cobrar '+money(cash.detail.sale?.total||0)+' con '+method.name+'?'))return;
-  cash.busy=true;dialogStatus('Registrando cobro…');
+  const method=currentCashMethod();if(!method)return;
+  const dialog=$('#demoBarDialog'),tip=Math.max(0,Number($('[data-cash-tip]',dialog)?.value||0));
+  const isCash=String(method.kind||'').toUpperCase()==='EFECTIVO';
+  const due=Number(cash.detail.sale?.total||0)+tip;
+  const received=isCash?Math.max(0,Number($('[data-cash-tendered]',dialog)?.value||0)):0;
+  if(isCash&&received<due){syncCashTender(false);return}
+  const typedReference=$('[data-cash-reference]',dialog)?.value?.trim()||'';
+  const cashReference=isCash?'Recibido '+received+' · Cambio '+Math.max(0,received-due):'';
+  const reference=(isCash?cashReference:typedReference).slice(0,160)||null;
+  cash.busy=true;syncCashTender(false);dialogStatus('Registrando cobro…');
   try{
-    const dialog=$('#demoBarDialog'),tip=Number($('[data-cash-tip]',dialog)?.value||0),reference=$('[data-cash-reference]',dialog)?.value?.trim()||null;
     const data=await RV2.api('/api/v1/restaurante/v2/demo-bar/cuentas/'+encodeURIComponent(S.accountId)+'/cobrar',{method:'POST',body:JSON.stringify({paymentMethodId:method.id,tipAmount:tip,reference})});
     renderCashResult(data);
   }catch(error){dialogStatus(error.message||'No fue posible cobrar.',true)}
-  finally{cash.busy=false}
+  finally{cash.busy=false;syncCashTender(false)}
 }
 function renderCashResult(data){
   const dialog=$('#demoBarDialog'),body=$('[data-dialog-body]',dialog),sessionId=data?.result?.session?.id||null,saleNumber=data?.result?.sale?.numero||'POS';
