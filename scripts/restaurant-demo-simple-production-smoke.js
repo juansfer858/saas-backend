@@ -33,8 +33,9 @@ expect(kdsService.includes("const DEMO_TENANT = 'demo-restaurante';"), 'demo ten
 expect(kdsService.includes("name:'Cocina'"), 'default Cocina station missing');
 expect(kdsService.includes("name:'Barra'"), 'default Barra station missing');
 expect(kdsService.includes("name:'Postres'"), 'default Postres station missing');
-expect(kdsService.includes('const existing = await prisma.restaurantProductionStation.count'), 'one-time bootstrap station count missing');
-expect(kdsService.includes('if (existing > 0) return false;'), 'deleted stations could be recreated unexpectedly');
+expect(kdsService.includes('const existing = await prisma.restaurantProductionStation.findMany'), 'one-time bootstrap station lookup missing');
+expect(kdsService.includes('defaultNames.has'), 'deleted default station memory guard missing');
+expect(kdsService.includes('existing.some((station) => station.active)'), 'existing active station guard missing');
 expect(runtime.includes("configured!=='Sin KDS configurado'"), 'unconfigured deleted station cards must be hidden');
 expect(runtime.includes("⚙ Administrar estaciones"), 'station administration action missing');
 
