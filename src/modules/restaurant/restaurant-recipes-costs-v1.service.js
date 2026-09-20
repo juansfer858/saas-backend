@@ -18,7 +18,7 @@ const cost=(v)=>{const x=round4(v);if(!Number.isFinite(x)||x<0||x>1000000000000)
 const serial=(v)=>typeof v==='bigint'?v.toString():v;
 
 async function ingredientForUpdate(tx,tenantId,id){
-  const rows=await tx.$queryRawUnsafe('SELECT i.*,s."onHand",s."minimum",s."version" FROM "RestaurantIngredient" i JOIN "RestaurantIngredientStock" s ON s."ingredientId"=i.id WHERE i."tenantId"=$1 AND i.id=$2 FOR UPDATE OF s',tenantId,id);
+  const rows=await tx.$queryRawUnsafe('SELECT i.*,s.id AS "stockId",s."onHand",s."minimum",s."version" FROM "RestaurantIngredient" i JOIN "RestaurantIngredientStock" s ON s."ingredientId"=i.id WHERE i."tenantId"=$1 AND i.id=$2 FOR UPDATE OF s',tenantId,id);
   return rows?.[0]||null;
 }
 async function ingredientRow(client,tenantId,id){
@@ -123,7 +123,7 @@ async function ingredientMinimum(tenantId,userId,input){
     await lockOperation(tx,tenantId);
     const row=await ingredientForUpdate(tx,tenantId,input.id);if(!row)throw new AppError(404,'Ingrediente no encontrado','RESTAURANT_INGREDIENT_NOT_FOUND');
     if(Number(input.version)!==Number(row.version))throw new AppError(409,'El inventario del ingrediente cambió. Actualiza antes de guardar.','RESTAURANT_INGREDIENT_VERSION_CONFLICT');
-    const updated=await tx.restaurantIngredientStock.update({where:{id:row.id},data:{minimum:qty(input.minimum,true),version:{increment:1}}});
+    const updated=await tx.restaurantIngredientStock.update({where:{id:row.stockId},data:{minimum:qty(input.minimum,true),version:{increment:1}}});
     return{marker:MARKER,minimum:n(updated.minimum),version:updated.version};
   });
 }
@@ -143,7 +143,7 @@ async function ingredientMove(tenantId,userId,input){
     if(Math.abs(delta)<0.0001)throw new AppError(409,'El conteo coincide con el saldo.','RESTAURANT_INGREDIENT_NO_CHANGE');
     if(n(row.onHand)+delta<held-0.0001)throw new AppError(409,'Hay '+held+' '+row.unit+' reservados en pedidos abiertos.','RESTAURANT_INGREDIENT_RESERVED_FLOOR');
     const ingredient={id:row.id,name:row.name,unitCost:row.unitCost};
-    return{marker:MARKER,...await recordMovement(tx,{tenantId,userId,ingredient,stock:row,kind,quantity:Math.abs(delta),delta,reason,unitCost:kind==='entry'&&input.unitCost!==undefined?input.unitCost:null})};
+    return{marker:MARKER,...await recordMovement(tx,{tenantId,userId,ingredient,stock:{...row,id:row.stockId},kind,quantity:Math.abs(delta),delta,reason,unitCost:kind==='entry'&&input.unitCost!==undefined?input.unitCost:null})};
   });
 }
 async function ingredientHistory(tenantId,filters={}){
@@ -202,7 +202,7 @@ async function recordReservationsInTx(tx,tenantId,userId,sessionId,orderId,items
   for(const [ingredientId,info] of needs){
     const exists=await tx.restaurantIngredientMovement.findFirst({where:{tenantId,orderId,ingredientId,kind:'reserve'},select:{id:true}});if(exists)continue;
     const row=await ingredientForUpdate(tx,tenantId,ingredientId);if(!row)throw new AppError(404,'Ingrediente no encontrado','RESTAURANT_INGREDIENT_NOT_FOUND');
-    await recordMovement(tx,{tenantId,userId,ingredient:{id:row.id,name:row.name,unitCost:row.unitCost},stock:row,kind:'reserve',quantity:info.quantity,delta:0,reason:'Reserva de receta · '+[...new Set(info.productNames)].join(', '),sessionId,orderId});
+    await recordMovement(tx,{tenantId,userId,ingredient:{id:row.id,name:row.name,unitCost:row.unitCost},stock:{...row,id:row.stockId},kind:'reserve',quantity:info.quantity,delta:0,reason:'Reserva de receta · '+[...new Set(info.productNames)].join(', '),sessionId,orderId});
   }
 }
 async function consumeSaleInTx(tx,tenantId,userId,sessionId,saleId){
@@ -216,7 +216,7 @@ async function consumeSaleInTx(tx,tenantId,userId,sessionId,saleId){
     const row=await ingredientForUpdate(tx,tenantId,ingredientId);if(!row)throw new AppError(404,'Ingrediente no encontrado','RESTAURANT_INGREDIENT_NOT_FOUND');
     if(amount>n(row.onHand)+0.0001)throw new AppError(409,'Ingrediente insuficiente al cobrar: '+row.name+'. Revisa inventario.','RESTAURANT_RECIPE_INGREDIENT_INSUFFICIENT_AT_PAYMENT');
     totalCost+=amount*n(row.unitCost);
-    await recordMovement(tx,{tenantId,userId,ingredient:{id:row.id,name:row.name,unitCost:row.unitCost},stock:row,kind:'sale',quantity:amount,delta:-amount,reason:'Cobro de cuenta',sessionId,saleId});
+    await recordMovement(tx,{tenantId,userId,ingredient:{id:row.id,name:row.name,unitCost:row.unitCost},stock:{...row,id:row.stockId},kind:'sale',quantity:amount,delta:-amount,reason:'Cobro de cuenta',sessionId,saleId});
   }
   return{consumed:true,ingredients:needs.size,totalCost:round4(totalCost)};
 }
