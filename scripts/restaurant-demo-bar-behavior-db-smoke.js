@@ -69,6 +69,9 @@ async function main() {
 
     const menu = (await restaurant.listMenu(demo.tenantId)).filter(x=>!x.warning&&x.product);
     assert.ok(menu.length, 'demo needs at least one sellable menu item');
+    const papasMenu = menu.find(x=>x.product?.sku==='REST-PAPAS');
+    const limonadaMenu = menu.find(x=>x.product?.sku==='REST-LIMONADA');
+    assert.ok(papasMenu && limonadaMenu, 'demo needs Papas + Limonada for exact 17,280 cash regression');
 
     await identity.setWaiterDraftItem(demo.tenantId, user, first.account.id, menu[0].id, 2, null, V2_OPTIONS);
     let detail = await demoBar.accountDetail(demo.tenantId, first.account.id);
@@ -134,6 +137,63 @@ async function main() {
     catch (error) { blocked = error.code === 'DEMO_BAR_EMPTY_ACCOUNT_HAS_ACTIVITY'; }
     assert.equal(blocked, true, 'account with consumption must not close as empty');
 
+    const splitForCashSource = await demoBar.accountDetail(demo.tenantId, first.account.id);
+    const splitForCash = await demoBar.splitAccount(demo.tenantId, user, first.account.id, {
+      name:'Cuenta separada para cobrar',
+      lines:[{ detailId:splitForCashSource.items[0].saleDetailId, quantity:1 }]
+    });
+    const splitForCashDetail = await demoBar.accountDetail(demo.tenantId, splitForCash.accountId);
+    assert.equal(Number(splitForCashDetail.items.reduce((sum,item)=>sum+Number(item.quantity),0)),1,'new split cash account must contain one unit');
+
+    const twoLineAccount = await demoBar.createAccount(demo.tenantId, user, table.id, { name:'Cuenta 17.280 dos líneas' });
+    await identity.setWaiterDraftItem(demo.tenantId, user, twoLineAccount.account.id, papasMenu.id, 1, null, V2_OPTIONS);
+    await identity.setWaiterDraftItem(demo.tenantId, user, twoLineAccount.account.id, limonadaMenu.id, 1, null, V2_OPTIONS);
+    await identity.sendWaiterDraft(demo.tenantId, user, twoLineAccount.account.id, V2_OPTIONS);
+    const twoLineDetail = await demoBar.accountDetail(demo.tenantId, twoLineAccount.account.id);
+    assert.equal(twoLineDetail.items.length,2,'17,280 regression account must contain two lines');
+    assert.equal(Number(twoLineDetail.sale.total),17280,'Papas + Limonada must total 17,280');
+
+    const cashWorkspace = await cash.workspace(demo.tenantId, user);
+    let ownShift = cashWorkspace.shift.own;
+    if (!ownShift) {
+      const cashAccount = cashWorkspace.shift.cashAccounts?.[0];
+      assert.ok(cashAccount, 'demo needs one cash account for exact-account charge');
+      const opened = await cash.openShift(demo.tenantId, user, { cajaBancoId: cashAccount.id, saldoInicial: 0 });
+      ownShift = opened.shift;
+    }
+    let splitCashDetail = await cash.tableDetailBySession(demo.tenantId, user, splitForCash.accountId);
+    await cash.updateLinePrice(demo.tenantId, user, table.id, splitCashDetail.sale.items[0].id, { unitPrice:16000 }, { sessionId:splitForCash.accountId });
+    splitCashDetail = await cash.tableDetailBySession(demo.tenantId, user, splitForCash.accountId);
+    assert.equal(Number(splitCashDetail.sale.total),17280,'edited sent split account should total 17,280');
+    const cashMethod = splitCashDetail.paymentMethods.find(method => method.kind === 'EFECTIVO') || splitCashDetail.paymentMethods[0];
+    assert.ok(cashMethod, 'demo needs one active non-credit payment method');
+    const twoLineCharged = await cash.chargeWholeAccountBySession(demo.tenantId, user, twoLineAccount.account.id, {
+      paymentMethodId: cashMethod.id,
+      tipAmount: 0,
+      reference: 'Recibido 17280 · Cambio 0'
+    });
+    assert.equal(twoLineCharged.charged, true, 'two-line exact 17,280 account must charge successfully');
+    assert.doesNotThrow(()=>JSON.stringify({ok:true,data:twoLineCharged}), 'two-line charge must serialize over HTTP');
+    const splitCharged = await cash.chargeWholeAccountBySession(demo.tenantId, user, splitForCash.accountId, {
+      paymentMethodId: cashMethod.id,
+      tipAmount: 0,
+      reference: 'Recibido 100000 · Cambio 0'
+    });
+    assert.equal(splitCharged.charged, true, 'separated account must charge successfully');
+    assert.doesNotThrow(()=>JSON.stringify({ ok:true, data:splitCharged }), 'HTTP charge response must be JSON serializable');
+    const splitChargedSession = await prisma.restaurantTableSession.findUnique({ where:{ id:splitForCash.accountId } });
+    assert.equal(splitChargedSession.state, 'CERRADA', 'charged separated account must be closed');
+
+    const cashDetail = await cash.tableDetailBySession(demo.tenantId, user, first.account.id);
+    const charged = await cash.chargeWholeAccountBySession(demo.tenantId, user, first.account.id, {
+      paymentMethodId: cashMethod.id,
+      tipAmount: 0,
+      reference: 'Recibido 100000 · Cambio 0'
+    });
+    assert.equal(charged.charged, true, 'exact selected account must charge successfully');
+    const chargedSession = await prisma.restaurantTableSession.findUnique({ where:{ id:first.account.id } });
+    assert.equal(chargedSession.state, 'CERRADA', 'charged account must be closed');
+
     const other = await prisma.tenant.create({
       data:{ nombreEmpresa:'Other '+suffix, subdomain:'other-'+suffix, nicho:'RESTAURANTE', pais:'CO', moneda:'COP', activo:true }
     });
@@ -152,6 +212,11 @@ async function main() {
     console.log('SENT_LINE_PARTIAL_SPLIT=PASS');
     console.log('SPLIT_MERGE_DO_NOT_DUPLICATE_PRODUCTION=PASS');
     console.log('EXACT_ACCOUNT_CASH_TARGET=PASS');
+    console.log('EXACT_ACCOUNT_CHARGE=PASS');
+    console.log('SEPARATED_ACCOUNT_CHARGE=PASS');
+    console.log('EDITED_17280_ACCOUNT_CHARGE=PASS');
+    console.log('TWO_LINE_17280_ACCOUNT_CHARGE=PASS');
+    console.log('EXACT_ACCOUNT_CHARGE_JSON_SERIALIZATION=PASS');
     console.log('SIBLING_ACCOUNT_PRESERVES_TABLE_STATE=PASS');
     console.log('TENANT_ISOLATION=PASS');
   } finally {
