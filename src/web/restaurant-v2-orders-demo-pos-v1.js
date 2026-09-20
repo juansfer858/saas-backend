@@ -174,7 +174,11 @@ function renderActions(){
   $('[data-demo-rename]',root()).disabled=!acc;
   $('[data-demo-split]',root()).disabled=!acc||!selectedCount();
   $('[data-demo-merge]',root()).disabled=!acc||(S.workspace?.tables||[]).flatMap(t=>t.accounts||[]).filter(a=>a.id!==acc.id).length===0;
-  $('[data-demo-send]',root()).disabled=!acc||!hasPending;
+  const send=$('[data-demo-send]',root());
+  if(send){
+    send.disabled=!acc||!hasPending;
+    send.title=!acc?'Selecciona una cuenta.':(!hasPending?'No hay consumos nuevos por enviar.':'Enviar consumos nuevos a producción.');
+  }
   $('[data-demo-prebill]',root()).disabled=!acc||!hasItems;
   $('[data-demo-pay]',root()).disabled=!acc||!hasItems||hasPending;
   const pay=$('[data-demo-pay]',root());

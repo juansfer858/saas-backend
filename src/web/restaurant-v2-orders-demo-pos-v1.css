@@ -393,6 +393,18 @@ body[data-demo-bar-orders="1"] .rv2-order-top #backToTables{display:none!importa
   padding:6px 7px!important;
   font-size:9px!important;
 }
+.demo-bar-actions .rv2-btn:disabled{
+  opacity:.42!important;
+  background:#f1f5f9!important;
+  border-color:#d7dee8!important;
+  color:#8a96a8!important;
+  cursor:not-allowed!important;
+  box-shadow:none!important;
+}
+.demo-bar-actions .rv2-btn:disabled:hover{
+  background:#f1f5f9!important;
+  border-color:#d7dee8!important;
+}
 .demo-bar-actions .pay{
   background:var(--rv2-primary)!important;
   border-color:var(--rv2-primary)!important;
