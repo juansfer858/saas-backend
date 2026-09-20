@@ -8,7 +8,16 @@ on:
       - 'src/web/restaurant-v2-orders-demo-pos-v1.css'
       - 'src/web/restaurant-v2-orders.html'
       - 'src/modules/restaurant/restaurant-v2-orders.public.routes.js'
+      - 'scripts/restaurant-demo-bar-behavior-db-smoke.js'
+      - 'src/modules/restaurant/restaurant-demo-bar-accounts-v1.service.js'
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/restaurant/restaurant-payment-methods.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.service.js'
+      - 'src/modules/restaurant/restaurant-v2-cash.routes.js'
+      - 'src/modules/restaurant/restaurant-v2-orders.routes.js'
       - 'scripts/restaurant-demo-orders-pos-smoke.js'
+      - 'scripts/restaurant-demo-bar-behavior-db-smoke.js'
       - '.github/workflows/restaurant-demo-orders-pos-ci.yml'
   push:
     branches: [main]
@@ -37,3 +46,12 @@ jobs:
         run: node --check src/web/restaurant-v2-orders-demo-pos-v1.js
       - name: Verify demo-only POS contract
         run: node scripts/restaurant-demo-orders-pos-smoke.js
+      - name: Verify touched server syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-demo-bar-accounts-v1.service.js
+          node --check src/modules/restaurant/restaurant-v2-orders.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash.routes.js
+          node --check src/modules/restaurant/restaurant-v2-cash.service.js
+          node --check src/modules/restaurant/restaurant-payment-methods.service.js
+          node --check src/modules/restaurant/restaurant-identity.service.js
+          node --check src/modules/restaurant/restaurant.service.js
