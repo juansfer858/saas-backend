@@ -36,7 +36,7 @@ body[data-kds-simple-demo="1"] .status-line{flex:0 0 auto!important;height:38px!
 body[data-kds-simple-demo="1"] .stats{display:none!important}
 body[data-kds-simple-demo="1"] .station-warning{display:none!important}
 body[data-kds-simple-demo="1"] .board{display:none!important}
-body[data-kds-simple-demo="1"] .bar-production-layout{display:grid;grid-template-columns:245px minmax(420px,1fr) 355px;gap:9px;flex:1 1 auto;min-height:0;height:auto}
+body[data-kds-simple-demo="1"] .bar-production-layout{display:grid;grid-template-columns:245px minmax(0,1fr);gap:9px;flex:1 1 auto;min-height:0;height:auto}
 body[data-kds-simple-demo="1"] .bar-stations-panel,
 body[data-kds-simple-demo="1"] .bar-work-panel,
 body[data-kds-simple-demo="1"] .bar-ready-panel{min-width:0;min-height:0;border:1px solid #cfd8d3;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 3px 12px rgba(15,23,42,.05)}
@@ -72,26 +72,43 @@ body[data-kds-simple-demo="1"] .ticket.EN_PREPARACION{border-left-color:#0d6b43!
 body[data-kds-simple-demo="1"] .ticket.LISTA{border-left-color:#0d6b43!important;background:linear-gradient(90deg,#eefaf3,#fff 25%)!important}
 body[data-kds-simple-demo="1"] .simple-delivered{background:#fff!important;color:#0d6b43!important;border:1px solid #9fd1ba!important}
 body[data-kds-simple-demo="1"] .empty{min-height:150px!important}
+body[data-kds-simple-demo="1"] .bar-ready-panel{display:none!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .tickets{grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-auto-rows:max-content!important;align-content:start!important;gap:9px!important;padding:9px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket{min-width:0!important;padding:10px!important;border-radius:10px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket-head{align-items:flex-start!important;gap:6px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket-head h3{font-size:15px!important;line-height:1.15!important;overflow-wrap:anywhere}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket-head p{font-size:9px!important;line-height:1.25!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .state{padding:4px 6px!important;font-size:8px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .item{padding:6px 0!important;font-size:11px!important;line-height:1.25!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .item strong{font-size:14px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .note{margin-top:4px!important;padding:5px 6px!important;font-size:10px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket-actions{gap:5px!important;margin-top:7px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket-action{min-height:40px!important;font-size:12px!important;border-radius:8px!important}
+body[data-kds-simple-demo="1"] .bar-work-panel .ticket-cancel{min-height:34px!important;font-size:9px!important;border-radius:8px!important}
+body[data-kds-simple-demo="1"] .simple-entry-order{display:flex;align-items:center;gap:6px;margin:0 0 5px;color:#0d6b43}
+body[data-kds-simple-demo="1"] .simple-entry-order b{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:999px;background:#0d6b43;color:#fff;font-size:12px}
+body[data-kds-simple-demo="1"] .simple-entry-order span{font-size:9px;font-weight:900;color:#5b6a62;white-space:nowrap}
+@media(max-width:1500px){body[data-kds-simple-demo="1"] .bar-work-panel .tickets{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+@media(max-width:1250px){body[data-kds-simple-demo="1"] .bar-work-panel .tickets{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:1050px){body[data-kds-simple-demo="1"] .bar-work-panel .tickets{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:1180px){
-  body[data-kds-simple-demo="1"] .bar-production-layout{grid-template-columns:210px minmax(360px,1fr) 300px}
+  body[data-kds-simple-demo="1"] .bar-production-layout{grid-template-columns:210px minmax(0,1fr)}
 }
 @media(max-width:900px){
   body[data-kds-simple-demo="1"]{height:auto;min-height:100dvh;display:block;overflow:auto}
   body[data-kds-simple-demo="1"] .kds-top{position:sticky!important}
   body[data-kds-simple-demo="1"] .kds-main{display:block!important;height:auto!important;padding:9px!important;overflow:visible!important}
-  body[data-kds-simple-demo="1"] .bar-production-layout{height:auto;grid-template-columns:1fr 1fr;grid-template-areas:"stations stations" "work ready"}
+  body[data-kds-simple-demo="1"] .bar-production-layout{height:auto;grid-template-columns:1fr;grid-template-areas:"stations" "work"}
   body[data-kds-simple-demo="1"] .bar-stations-panel{grid-area:stations}
   body[data-kds-simple-demo="1"] .bar-work-panel{grid-area:work}
-  body[data-kds-simple-demo="1"] .bar-ready-panel{grid-area:ready}
   body[data-kds-simple-demo="1"] .queue-tabs{flex-direction:row!important;overflow-x:auto!important;overflow-y:hidden!important}
   body[data-kds-simple-demo="1"] .queue-tab{width:auto!important;min-width:145px!important}
-  body[data-kds-simple-demo="1"] .bar-work-panel>.lane,
-  body[data-kds-simple-demo="1"] .bar-ready-panel>.lane{min-height:430px!important}
+  body[data-kds-simple-demo="1"] .bar-work-panel>.lane{min-height:430px!important}
 }
 @media(max-width:650px){
-  body[data-kds-simple-demo="1"] .bar-production-layout{grid-template-columns:1fr;grid-template-areas:"stations" "work" "ready"}
-  body[data-kds-simple-demo="1"] .bar-work-panel>.lane,
-  body[data-kds-simple-demo="1"] .bar-ready-panel>.lane{min-height:320px!important}
+  body[data-kds-simple-demo="1"] .bar-work-panel .tickets{grid-template-columns:1fr!important}
+  body[data-kds-simple-demo="1"] .bar-production-layout{grid-template-columns:1fr;grid-template-areas:"stations" "work"}
+  body[data-kds-simple-demo="1"] .bar-work-panel>.lane{min-height:320px!important}
 }
 `;
   document.head.appendChild(style);
@@ -145,6 +162,36 @@ async function setDelivered(ticket,button){
     button.disabled=false;
     button.textContent='✓ Entregado';
   }
+}
+
+function ticketEnteredAt(ticket){
+  const value=ticket?.dataset?.createdAt||'';
+  const time=new Date(value).getTime();
+  return Number.isFinite(time)?time:Number.MAX_SAFE_INTEGER;
+}
+function ticketClock(ticket){
+  const value=ticket?.dataset?.createdAt||'';
+  const date=value?new Date(value):null;
+  if(!date||Number.isNaN(date.getTime()))return 'Hora no disponible';
+  return new Intl.DateTimeFormat('es-CO',{hour:'numeric',minute:'2-digit'}).format(date);
+}
+function decoratePendingTickets(container){
+  if(!container)return;
+  const tickets=[...container.querySelectorAll('.ticket')].sort((a,b)=>ticketEnteredAt(a)-ticketEnteredAt(b));
+  tickets.forEach((ticket,index)=>{
+    container.appendChild(ticket);
+    const host=ticket.querySelector('.ticket-head>div');
+    if(!host)return;
+    let meta=host.querySelector('.simple-entry-order');
+    if(!meta){
+      meta=document.createElement('div');
+      meta.className='simple-entry-order';
+      meta.innerHTML='<b></b><span></span>';
+      host.prepend(meta);
+    }
+    meta.querySelector('b').textContent='#'+String(index+1);
+    meta.querySelector('span').textContent='Ingreso '+ticketClock(ticket);
+  });
 }
 
 function simplifyAction(ticket){
@@ -269,16 +316,14 @@ function apply(){
       pendingLane.querySelector('small')&&(pendingLane.querySelector('small').textContent='ESTACIÓN · '+selectedStationName());
       pendingLane.querySelector('h2')&&(pendingLane.querySelector('h2').textContent='Por preparar');
     }
-    if(readyLane){
-      readyLane.querySelector('small')&&(readyLane.querySelector('small').textContent='SALIDA');
-      readyLane.querySelector('h2')&&(readyLane.querySelector('h2').textContent='Listos para recoger');
-    }
+    if(readyLane)readyLane.style.display='none';
     if(preparingLane)preparingLane.style.display='none';
 
     const pending=document.querySelector('#pendingLane');
     const preparing=document.querySelector('#preparingLane');
     if(pending&&preparing){
       [...preparing.querySelectorAll('.ticket')].forEach(ticket=>pending.appendChild(ticket));
+      decoratePendingTickets(pending);
       const count=pending.querySelectorAll('.ticket').length;
       if(count)pending.querySelector('.empty')?.remove();
       const pendingCount=document.querySelector('#pendingCount');

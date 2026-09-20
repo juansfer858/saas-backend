@@ -75,6 +75,7 @@ async function main() {
     assert.equal(detail.items.length, 1);
     assert.equal(Number(detail.items[0].quantity), 2);
     assert.equal(detail.items[0].operationalState, 'POR_ENVIAR');
+    assert.ok(detail.items[0].createdAt, 'each order item must expose its creation time');
 
     await identity.updateOrderItemMeta(demo.tenantId, user, first.account.id, detail.items[0].orderItemId, { notes:'SIN CEBOLLA' }, V2_OPTIONS);
     detail = await demoBar.accountDetail(demo.tenantId, first.account.id);
@@ -157,6 +158,7 @@ async function main() {
 
     console.log('DEMO_BAR_BEHAVIOR_DB=PASS');
     console.log('MULTIPLE_ACCOUNTS_PER_LOCATION=PASS');
+    console.log('ITEM_CREATED_AT_VISIBLE=PASS');
     console.log('MANUAL_OBSERVATION_TO_COMMAND=PASS');
     console.log('SENT_LINE_PARTIAL_SPLIT=PASS');
     console.log('SPLIT_MERGE_DO_NOT_DUPLICATE_PRODUCTION=PASS');

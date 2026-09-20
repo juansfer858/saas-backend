@@ -19,6 +19,7 @@ const $=(q,root=document)=>root.querySelector(q);
 const $$=(q,root=document)=>[...root.querySelectorAll(q)];
 const esc=RV2.esc;
 const money=v=>RV2.money(v||0);
+const timeLabel=value=>{const d=value?new Date(value):null;return d&&!Number.isNaN(d.getTime())?new Intl.DateTimeFormat('es-CO',{hour:'numeric',minute:'2-digit'}).format(d):''};
 const normalize=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 const CAN_EDIT_PRICE=new Set(['ADMIN','SUPER_ADMIN','CAJERO']).has(String(session?.user?.rol||'').toUpperCase());
 
@@ -157,8 +158,10 @@ function renderOrder(){
     const checked=S.selected.has(key);
     const status=String(item.operationalState||item.orderState||'Cuenta').replaceAll('_',' ');
     const origin=item.originTable?.name&&item.originTable.id!==S.tableId?' · origen '+item.originTable.name:'';
+    const enteredAt=timeLabel(item.createdAt);
+    const entered=enteredAt?' · '+enteredAt:'';
     const note=draft?'<textarea class="demo-bar-note" data-demo-note="'+esc(item.orderItemId||'')+'" maxlength="300" rows="1" placeholder="Observaciones">'+esc(item.notes||'')+'</textarea>':(item.notes?'<div class="demo-bar-note-sent">Obs: '+esc(item.notes)+'</div>':'');
-    return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+'</small>'+note+'</td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
+    return '<tr><td><input type="checkbox" data-demo-select="'+esc(key)+'" '+(checked?'checked':'')+'></td><td class="demo-bar-line-name"><b>'+esc(item.description)+'</b><small>'+esc(item.station||'')+' · '+esc(status)+esc(origin)+esc(entered)+'</small>'+note+'</td><td><input class="demo-bar-line-input" data-demo-qty="'+esc(item.orderItemId||'')+'" type="number" min="1" max="999" value="'+Number(item.quantity||0)+'" '+(draft?'':'disabled title="El consumo ya fue enviado"')+'></td><td><input class="demo-bar-line-input" data-demo-price="'+esc(item.saleDetailId||'')+'" type="number" min="0" step="100" value="'+Number(item.unitPrice||0)+'" '+(CAN_EDIT_PRICE?'':'disabled title="El mesero no puede modificar precios"')+'></td><td class="demo-bar-num">'+money(item.lineTotal||0)+'</td><td>'+(draft?'<button class="demo-bar-remove" data-demo-remove="'+esc(item.orderItemId||'')+'">×</button>':'')+'</td></tr>';
   }).join('')+'</tbody></table>';
   wrap.querySelectorAll('[data-demo-select]').forEach(box=>box.onchange=()=>{box.checked?S.selected.add(box.dataset.demoSelect):S.selected.delete(box.dataset.demoSelect);renderActions()});
   wrap.querySelectorAll('[data-demo-qty]').forEach(input=>input.onchange=()=>changeDraftQty(input.dataset.demoQty,Number(input.value)));
