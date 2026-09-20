@@ -162,6 +162,7 @@ async function main() {
       reference: 'Recibido 100000 · Cambio 0'
     });
     assert.equal(splitCharged.charged, true, 'separated account must charge successfully');
+    assert.doesNotThrow(()=>JSON.stringify({ ok:true, data:splitCharged }), 'HTTP charge response must be JSON serializable');
     const splitChargedSession = await prisma.restaurantTableSession.findUnique({ where:{ id:splitForCash.accountId } });
     assert.equal(splitChargedSession.state, 'CERRADA', 'charged separated account must be closed');
 
@@ -196,6 +197,7 @@ async function main() {
     console.log('EXACT_ACCOUNT_CHARGE=PASS');
     console.log('SEPARATED_ACCOUNT_CHARGE=PASS');
     console.log('EDITED_17280_ACCOUNT_CHARGE=PASS');
+    console.log('EXACT_ACCOUNT_CHARGE_JSON_SERIALIZATION=PASS');
     console.log('SIBLING_ACCOUNT_PRESERVES_TABLE_STATE=PASS');
     console.log('TENANT_ISOLATION=PASS');
   } finally {
