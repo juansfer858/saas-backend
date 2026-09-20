@@ -29,7 +29,7 @@ body[data-demo-orders-pos="1"] #notice{
 }
 body[data-demo-orders-pos="1"] .order-shell{
   display:grid!important;
-  grid-template-columns:190px minmax(0,1fr) minmax(380px,440px)!important;
+  grid-template-columns:190px minmax(390px,38vw) minmax(560px,1fr)!important;
   gap:8px!important;
   height:calc(100vh - 108px);
   min-height:0;
@@ -148,7 +148,7 @@ body[data-demo-orders-pos="1"] .menu-grid{
   flex:1 1 auto;
   min-height:0;
   display:grid!important;
-  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
   gap:7px!important;
   padding:8px 9px 10px;
   overflow:auto;
@@ -318,9 +318,13 @@ body[data-demo-orders-pos="1"] .demo-order-actions [data-demo-cash]:hover{
 .demo-pos-cash-result{padding:14px;border:1px solid #bbf7d0;border-radius:12px;background:#f0fdf4}
 .demo-pos-cash-result strong{display:block;font-size:18px}
 .demo-pos-print-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-@media(max-width:1250px){
-  body[data-demo-orders-pos="1"] .order-shell{grid-template-columns:165px minmax(0,1fr) minmax(330px,390px)!important}
+@media(max-width:1450px){
+  body[data-demo-orders-pos="1"] .order-shell{grid-template-columns:170px minmax(350px,36vw) minmax(500px,1fr)!important}
   body[data-demo-orders-pos="1"] .menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:1180px){
+  body[data-demo-orders-pos="1"] .order-shell{grid-template-columns:155px minmax(320px,36vw) minmax(440px,1fr)!important}
+  body[data-demo-orders-pos="1"] .menu-grid{grid-template-columns:1fr!important}
 }
 @media(max-width:900px){
   body[data-demo-orders-pos="1"]{overflow:auto}
@@ -338,3 +342,55 @@ body[data-demo-orders-pos="1"] .demo-order-actions [data-demo-cash]:hover{
   body[data-demo-orders-pos="1"] .menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .demo-pos-shift-grid,.demo-pos-payment-fields,.demo-pos-payment-methods{grid-template-columns:1fr}
 }
+
+/* VANTIX_DEMO_RESTAURANTE_ORDERS_POS_V2_LAYOUT */
+body[data-demo-orders-pos="1"] .draft-panel{border-width:1px!important}
+body[data-demo-orders-pos="1"] .draft-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center!important}
+body[data-demo-orders-pos="1"] .draft-body{padding:8px 12px!important}
+body[data-demo-orders-pos="1"] .draft-line{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto!important;
+  gap:8px 14px!important;
+  align-items:center!important;
+  padding:10px 4px!important;
+  margin:0!important;
+  border:0!important;
+  border-bottom:1px solid var(--demo-pos-line)!important;
+  border-radius:0!important;
+}
+body[data-demo-orders-pos="1"] .draft-line header{display:contents!important}
+body[data-demo-orders-pos="1"] .draft-line header>div{min-width:0}
+body[data-demo-orders-pos="1"] .draft-line header>div>b{font-size:14px!important}
+body[data-demo-orders-pos="1"] .draft-line header>strong{font-size:14px!important;white-space:nowrap;color:var(--demo-pos-accent-hover)}
+body[data-demo-orders-pos="1"] .draft-line .line-controls{
+  grid-column:1/-1!important;
+  display:grid!important;
+  grid-template-columns:auto minmax(180px,1fr)!important;
+  gap:8px!important;
+  margin-top:2px!important;
+}
+body[data-demo-orders-pos="1"] .qty-controls{min-width:126px}
+body[data-demo-orders-pos="1"] .sent-section{max-height:155px!important}
+body[data-demo-orders-pos="1"] .sent-section h3{font-size:11px!important}
+body[data-demo-orders-pos="1"] .demo-order-actions{
+  grid-template-columns:1fr 1fr 1fr 1.35fr!important;
+  align-items:stretch;
+}
+body[data-demo-orders-pos="1"] .demo-order-actions [data-demo-send]{
+  grid-column:1/3!important;
+  grid-row:1!important;
+}
+body[data-demo-orders-pos="1"] .demo-order-actions [data-demo-prebill]{
+  grid-column:3!important;
+  grid-row:1!important;
+}
+body[data-demo-orders-pos="1"] .demo-order-actions [data-demo-split]{
+  grid-column:1/3!important;
+  grid-row:2!important;
+}
+body[data-demo-orders-pos="1"] .demo-order-actions [data-demo-cash]{
+  grid-column:4!important;
+  grid-row:1/3!important;
+  min-height:90px!important;
+}
+body[data-demo-orders-pos="1"] #reviewDialog{display:none!important}
