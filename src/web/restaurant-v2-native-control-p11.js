@@ -18,6 +18,7 @@
     cierres:{ label:'Historial de cierres', hint:'Turnos anteriores · informes y reimpresión', route:'/app/cierres', roles:['ADMIN','SUPER_ADMIN','CAJERO'] },
     domicilios:{ label:'Domicilios', hint:'Pedidos para entrega', route:'/app/restaurante-v2/domicilios', roles:['ADMIN','SUPER_ADMIN','MESERO','CAJERO'] },
     carta:{ label:'Carta', hint:'Productos que vende el restaurante', route:'/app/restaurante-v2/carta', roles:['ADMIN','SUPER_ADMIN'] },
+    inventario:{ label:'Inventario', hint:'Existencias · compras · movimientos', route:'/app/restaurante-v2/inventario', roles:['ADMIN','SUPER_ADMIN'] },
     empleados:{ label:'Empleados', hint:'Usuarios, roles y asignaciones', route:'/app/restaurante-v2/empleados', roles:['ADMIN','SUPER_ADMIN'] },
     qrs:{ label:'QR de mesas', hint:'Ver e imprimir QR físicos', route:'/app/restaurante-v2/qrs', roles:['ADMIN','SUPER_ADMIN'] },
     devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] }
@@ -46,6 +47,7 @@
   function visibleModules() {
     return Object.entries(MODULES).flatMap(([key, module]) => {
       if (!allowed(module)) return [];
+      if (key === 'inventario' && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)) return [];
       if (session.subdomain === DEMO_RESTAURANTE && key === 'gastos') {
         return [[key, { ...module, label:'Turno y gastos', hint:'Cierre de turno · gastos · historial' }]];
