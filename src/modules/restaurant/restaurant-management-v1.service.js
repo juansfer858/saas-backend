@@ -68,6 +68,7 @@ async function supplierSave(tenantId,userId,input){
     if(nit){const dup=await tx.restaurantManagementSupplier.findFirst({where:{tenantId,nit:{equals:nit,mode:'insensitive'},...(input.id?{id:{not:input.id}}:{})}});if(dup)throw new AppError(409,'Ya existe un proveedor con ese NIT','RESTAURANT_MANAGEMENT_SUPPLIER_DUPLICATE')}
     if(input.id){
       const row=await tx.restaurantManagementSupplier.findFirst({where:{id:input.id,tenantId}});if(!row)throw new AppError(404,'Proveedor no encontrado','RESTAURANT_MANAGEMENT_SUPPLIER_NOT_FOUND');
+      if(!active){const open=await tx.restaurantManagementPayable.findFirst({where:{tenantId,supplierId:row.id,status:'open',balance:{gt:0}}});if(open)throw new AppError(409,'Este proveedor tiene cuentas pendientes','RESTAURANT_MANAGEMENT_SUPPLIER_OPEN_PAYABLES')}
       return tx.restaurantManagementSupplier.update({where:{id:row.id},data:{name,nit,contact,phone,email,address,termsDays,active}});
     }
     return tx.restaurantManagementSupplier.create({data:{tenantId,name,nit,contact,phone,email,address,termsDays,active}});
@@ -132,7 +133,7 @@ async function payableVoid(tenantId,userId,id){
 async function sales(tenantId,from,to){
   await localInventory.assertPilot(tenantId);
   const w=window(from,to);
-  const sessions=await prisma.restaurantTableSession.findMany({where:{tenantId,state:'CERRADA',closedAt:w},include:{table:true},select:{id:true,saleId:true,closedAt:true,paymentMethodLabel:true,table:true}});
+  const sessions=await prisma.restaurantTableSession.findMany({where:{tenantId,state:'CERRADA',closedAt:w},select:{id:true,saleId:true,closedAt:true,paymentMethodLabel:true,table:{select:{name:true,code:true}}}});
   const deliveries=await prisma.restaurantDeliveryOrder.findMany({where:{tenantId,paymentStatus:'PAGADO'},select:{saleId:true,code:true,customerName:true}}).catch(()=>[]);
   const context=new Map();
   for(const s of sessions)context.set(s.saleId,{channel:'Mesa',name:s.table?.name||'Mesa',at:s.closedAt,method:s.paymentMethodLabel||null});
