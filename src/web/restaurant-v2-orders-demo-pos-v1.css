@@ -606,3 +606,120 @@ body[data-demo-bar-orders="1"] .rv2-order-top .rv2-btn{
   }
   .demo-bar-account-pane{grid-column:auto!important}
 }
+
+
+/* VANTIX_DEMO_RESTAURANTE_BAR_CASH_V1 */
+.demo-bar-dialog[data-cash-bar-mode="1"]{
+  width:min(560px,calc(100vw - 24px));
+}
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-dialog-shell{
+  padding:20px;
+}
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-dialog-head{
+  padding-bottom:14px;
+}
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-dialog-head [data-dialog-close]{
+  display:none!important;
+}
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-dialog-head h2{
+  font-size:22px;
+  line-height:1.15;
+}
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-dialog-body{
+  gap:14px;
+  padding-top:14px;
+}
+.demo-bar-cash-context{
+  margin-top:-5px;
+  color:var(--rv2-muted);
+  font-size:11px;
+  font-weight:750;
+}
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-cash-total{
+  margin:2px 0 0;
+  font-size:34px;
+  line-height:1;
+  font-weight:950;
+  color:var(--rv2-primary-hover);
+}
+.demo-bar-cash-form{
+  display:grid;
+  gap:12px;
+}
+.demo-bar-cash-field{
+  display:grid;
+  gap:6px;
+  color:var(--rv2-ink);
+  font-size:11px;
+  font-weight:800;
+}
+.demo-bar-cash-field>span,
+.demo-bar-cash-change>span{
+  color:var(--rv2-muted);
+  font-size:10px;
+  font-weight:850;
+}
+.demo-bar-cash-select,
+.demo-bar-dialog[data-cash-bar-mode="1"] .demo-bar-cash-field .rv2-input{
+  min-height:46px!important;
+  padding:10px 12px!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+}
+.demo-bar-cash-two{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  align-items:end;
+}
+.demo-bar-cash-change{
+  min-height:67px;
+  display:grid;
+  align-content:center;
+  gap:3px;
+  padding:9px 12px;
+  border:1px solid var(--rv2-line);
+  border-radius:10px;
+  background:#f8fafc;
+}
+.demo-bar-cash-change strong{
+  font-size:21px;
+  color:var(--rv2-ink);
+}
+.demo-bar-cash-change small{
+  color:var(--rv2-muted);
+  font-size:10px;
+  font-weight:750;
+}
+.demo-bar-cash-change small.error{
+  color:#b42318;
+}
+.demo-bar-cash-actions{
+  display:grid;
+  grid-template-columns:minmax(120px,.45fr) 1fr;
+  gap:9px;
+  margin-top:2px;
+}
+.demo-bar-cash-actions .rv2-btn{
+  min-height:48px!important;
+  font-size:13px!important;
+  font-weight:900!important;
+}
+.demo-bar-cash-actions .rv2-btn-primary{
+  background:var(--rv2-primary)!important;
+  border-color:var(--rv2-primary)!important;
+  color:#fff!important;
+}
+.demo-bar-cash-actions .rv2-btn-primary:disabled{
+  opacity:.48;
+  cursor:not-allowed;
+}
+@media(max-width:650px){
+  .demo-bar-dialog[data-cash-bar-mode="1"]{
+    width:calc(100vw - 14px);
+  }
+  .demo-bar-cash-two,
+  .demo-bar-cash-actions{
+    grid-template-columns:1fr;
+  }
+}

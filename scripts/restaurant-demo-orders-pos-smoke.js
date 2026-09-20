@@ -43,6 +43,14 @@ expect(runtime.includes('/demo-bar/cuentas/'+""), 'demo account route constructi
 expect(runtime.includes('/caja'), 'embedded cash behavior missing');
 expect(runtime.includes('/cobrar'), 'exact-account charge missing');
 expect(runtime.includes('/recibo/imprimir'), 'print decision missing');
+expect(runtime.includes('data-cash-method-select'), 'VANTIX BAR payment method selector missing');
+expect(runtime.includes('data-cash-tendered'), 'cash received input missing');
+expect(runtime.includes('data-cash-change'), 'cash change calculation missing');
+expect(runtime.includes('function syncCashTender('), 'cash tender/change behavior missing');
+expect(runtime.includes("'Recibido '+received+' · Cambio '"), 'cash received/change audit reference missing');
+expect(runtime.includes('data-cash-cancel'), 'VANTIX BAR cancel action missing');
+expect(css.includes('VANTIX_DEMO_RESTAURANTE_BAR_CASH_V1'), 'VANTIX BAR cash visual contract missing');
+expect(css.includes('.demo-bar-cash-actions'), 'cash action layout missing');
 expect(runtime.includes('function openSplitDialog()'), 'split UI behavior missing');
 expect(runtime.includes('/separar'), 'transactional split endpoint missing');
 expect(runtime.includes('function openMergeDialog()'), 'merge UI behavior missing');
