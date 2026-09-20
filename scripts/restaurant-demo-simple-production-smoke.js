@@ -37,7 +37,15 @@ expect(kdsService.includes('const existing = await prisma.restaurantProductionSt
 expect(kdsService.includes('defaultNames.has'), 'deleted default station memory guard missing');
 expect(kdsService.includes('existing.some((station) => station.active)'), 'existing active station guard missing');
 expect(runtime.includes("configured!=='Sin KDS configurado'"), 'unconfigured deleted station cards must be hidden');
-expect(runtime.includes("⚙ Administrar estaciones"), 'station administration action missing');
+expect(runtime.includes("⚙ Estaciones"), 'station administration action missing');
+expect(runtime.includes('VANTIX_DEMO_PRODUCTION_BAR_LAYOUT_V1'), 'Vantix Bar production layout marker missing');
+expect(runtime.includes('bar-production-layout'), 'three-zone production layout missing');
+expect(runtime.includes('bar-stations-panel'), 'left station panel missing');
+expect(runtime.includes('bar-work-panel'), 'central work panel missing');
+expect(runtime.includes('bar-ready-panel'), 'right ready panel missing');
+expect(runtime.includes('Áreas de producción'), 'station selector heading missing');
+expect(runtime.includes("textContent='Por preparar'"), 'central pending work label missing');
+expect(runtime.includes("textContent='Listos para recoger'"), 'right ready label missing');
 
 const globalFiles = [
   'src/modules/restaurant/restaurant-v2-kds.routes.js',
@@ -54,3 +62,4 @@ console.log('OTHER_TENANTS_CANONICAL_KDS=PASS');
 console.log('BACKEND_STATE_MACHINE_UNCHANGED=PASS');
 console.log('DEMO_DEFAULT_EDITABLE_STATIONS=COCINA,BARRA,POSTRES');
 console.log('DELETED_STATIONS_DO_NOT_RESEED=PASS');
+console.log('DEMO_PRODUCTION_BAR_LAYOUT=ESTACIONES|POR_PREPARAR|LISTOS');
