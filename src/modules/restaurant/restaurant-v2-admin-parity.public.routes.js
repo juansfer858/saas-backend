@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('node:path');
+const { browserRuntime: commandTemplateRuntime } = require('./restaurant-print-template-ui.public.routes');
 
 const router = express.Router();
 const webRoot = path.join(__dirname, '../../web');
@@ -24,6 +25,12 @@ router.get('/app/restaurant-v2-admin-parity.css', (_req, res) => {
 
 router.get('/app/restaurant-v2-admin-parity.js', (_req, res) => {
   return send(res, 'restaurant-v2-admin-parity.js', 'application/javascript; charset=utf-8');
+});
+
+router.get('/app/restaurant-print-template-editor-v4.js', (_req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('X-VantixGC-Restaurant-Print-Template-Editor', 'v4-command-template');
+  res.type('application/javascript; charset=utf-8').send(commandTemplateRuntime);
 });
 
 module.exports = {
