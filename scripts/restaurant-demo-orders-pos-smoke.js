@@ -7,7 +7,8 @@ const root = path.resolve(__dirname, '..');
 const runtime = fs.readFileSync(path.join(root, 'src/web/restaurant-v2-orders-demo-pos-v1.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'src/web/restaurant-v2-orders-demo-pos-v1.css'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'src/web/restaurant-v2-orders.html'), 'utf8');
-const ordersRoutes = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-v2-orders.routes.js'), 'utf8');
+const demoRoutes = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-demo-bar.routes.js'), 'utf8');
+const coreRoutes = fs.readFileSync(path.join(root, 'src/routes/core.routes.js'), 'utf8');
 const cashRoutes = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-v2-cash.routes.js'), 'utf8');
 const demoService = fs.readFileSync(path.join(root, 'src/modules/restaurant/restaurant-demo-bar-accounts-v1.service.js'), 'utf8');
 
@@ -37,8 +38,9 @@ expect(runtime.includes('async function splitSelectedDraft()'), 'split behavior 
 expect(runtime.includes('async function mergeDraftAccount()'), 'merge behavior missing');
 expect(runtime.includes('data-demo-rename'), 'rename action missing');
 expect(runtime.includes('data-demo-close-account'), 'close account action missing');
-expect(ordersRoutes.includes("/v2/demo-bar/workspace"), 'demo workspace route missing');
-expect(ordersRoutes.includes("/v2/demo-bar/mesas/:tableId/cuentas"), 'demo account create route missing');
+expect(demoRoutes.includes("/v2/demo-bar/workspace"), 'demo workspace route missing');
+expect(demoRoutes.includes("/v2/demo-bar/mesas/:tableId/cuentas"), 'demo account create route missing');
+expect(coreRoutes.includes('restaurantDemoBarRouter'), 'isolated demo router must be mounted');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/caja"), 'exact account cash detail route missing');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/cobrar"), 'exact account charge route missing');
 expect(demoService.includes("const DEMO_TENANT = 'demo-restaurante';"), 'service tenant guard missing');
