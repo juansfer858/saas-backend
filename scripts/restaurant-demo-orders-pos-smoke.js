@@ -69,6 +69,9 @@ expect(demoRoutes.includes("/v2/demo-bar/cuentas/:sessionId/unir"), 'demo merge 
 expect(coreRoutes.includes('restaurantDemoBarRouter'), 'isolated demo router must be mounted');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/caja"), 'exact account cash detail route missing');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/cobrar"), 'exact account charge route missing');
+expect(cashRoutes.includes('demoCashDiagnostic.record(error)'), 'demo charge diagnostic capture missing');
+expect(cashRoutes.includes('DEMO_BAR_CHARGE_INTERNAL'), 'demo unknown charge error mapping missing');
+expect(css.includes('.demo-bar-dialog[data-cash-bar-mode="1"] [hidden]{display:none!important}'), 'cash hidden fields must stay hidden');
 expect(demoService.includes("const DEMO_TENANT = 'demo-restaurante';"), 'service tenant guard missing');
 expect(demoService.includes('restaurantTableSession.create'), 'accounts must be real restaurant sessions');
 expect(demoService.includes('async function splitAccount('), 'server split behavior missing');

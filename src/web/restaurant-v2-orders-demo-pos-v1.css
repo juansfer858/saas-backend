@@ -609,6 +609,8 @@ body[data-demo-bar-orders="1"] .rv2-order-top .rv2-btn{
 
 
 /* VANTIX_DEMO_RESTAURANTE_BAR_CASH_V1 */
+.demo-bar-dialog[data-cash-bar-mode="1"] [hidden]{display:none!important}
+
 .demo-bar-dialog[data-cash-bar-mode="1"]{
   width:min(560px,calc(100vw - 24px));
 }

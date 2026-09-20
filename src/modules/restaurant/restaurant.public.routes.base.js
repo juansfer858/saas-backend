@@ -8,6 +8,7 @@ const service = require('./restaurant.service');
 const identity = require('./restaurant-identity.service');
 const notifications = require('../notifications/notifications.service');
 const demoBootstrapState = require('./restaurant-demo-bootstrap-state');
+const demoCashDiagnostic = require('./restaurant-demo-cash-diagnostic-state');
 const { AppError } = require('../../utils/app-error');
 
 const router = express.Router();
@@ -488,6 +489,7 @@ router.get('/api/public/restaurante/demo-cash-readiness', async (_req, res, next
         simulatedFiscalAllowed: Boolean(config?.allowSimulatedDocumentEquivalent),
         targetSaleReadiness,
         schemaDrift,
+        lastChargeError: demoCashDiagnostic.snapshot(),
         accounts
       }
     });
