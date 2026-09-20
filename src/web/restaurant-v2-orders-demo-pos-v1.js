@@ -541,6 +541,7 @@ function realtime(){
 }
 function start(){
   mount();
+  $('#backToTables')?.remove();
   const title=$('.rv2-order-top h1');if(title)title.textContent='Pedidos';
   const line=$('#tenantLine');if(line)line.textContent=(session.tenant?.nombreEmpresa||session.subdomain)+' · comportamiento VANTIX BAR';
   $('#refresh')?.addEventListener('click',()=>loadBase(true));
