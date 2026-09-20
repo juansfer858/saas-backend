@@ -301,6 +301,7 @@ async function moveStock(tenantId, userId, input) {
 }
 
 function purchaseInput(input) {
+  const supplierId = input && input.supplierId ? text(input.supplierId,80) : null;
   const supplier = text(input && input.supplier,200);
   const reference = text(input && input.reference || '',160,false);
   const purchaseDate = dateOnly(input && input.purchaseDate,'Fecha de compra');
@@ -340,7 +341,7 @@ function purchaseInput(input) {
   });
 
   return {
-    supplier,reference,purchaseDate,paymentTerms,dueDate,notes,items,
+    supplierId,supplier,reference,purchaseDate,paymentTerms,dueDate,notes,items,
     subtotal:money(subtotal).toString(),
     taxTotal:money(taxTotal).toString(),
     total:money(subtotal.plus(taxTotal)).toString()
@@ -397,6 +398,12 @@ async function savePurchase(tenantId, userId, input) {
   const data = purchaseInput(input || {});
   return prisma.$transaction(async (tx)=>{
     await lockOperation(tx, tenantId);
+    let supplierName=data.supplier;
+    if(data.supplierId){
+      const supplier=await tx.restaurantManagementSupplier.findFirst({where:{id:data.supplierId,tenantId,active:true}});
+      if(!supplier)throw new AppError(409,'Proveedor no disponible','RESTAURANT_INVENTORY_SUPPLIER_NOT_FOUND');
+      supplierName=supplier.name;
+    }
     let purchase;
     if (input && input.id) {
       purchase = await tx.restaurantInventoryPurchase.findFirst({ where:{ id:input.id, tenantId } });
@@ -405,7 +412,7 @@ async function savePurchase(tenantId, userId, input) {
       purchase = await tx.restaurantInventoryPurchase.update({
         where:{ id:purchase.id },
         data:{
-          supplier:data.supplier,reference:data.reference,purchaseDate:data.purchaseDate,paymentTerms:data.paymentTerms,
+          supplierId:data.supplierId,supplier:supplierName,reference:data.reference,purchaseDate:data.purchaseDate,paymentTerms:data.paymentTerms,
           dueDate:data.dueDate,notes:data.notes,subtotal:data.subtotal,taxTotal:data.taxTotal,total:data.total
         }
       });
@@ -413,7 +420,7 @@ async function savePurchase(tenantId, userId, input) {
     } else {
       purchase = await tx.restaurantInventoryPurchase.create({
         data:{
-          tenantId,supplier:data.supplier,reference:data.reference,purchaseDate:data.purchaseDate,paymentTerms:data.paymentTerms,
+          tenantId,supplierId:data.supplierId,supplier:supplierName,reference:data.reference,purchaseDate:data.purchaseDate,paymentTerms:data.paymentTerms,
           dueDate:data.dueDate,notes:data.notes,subtotal:data.subtotal,taxTotal:data.taxTotal,total:data.total,createdByUserId:userId
         }
       });
@@ -452,11 +459,13 @@ async function receivePurchase(tenantId, userId, id) {
       });
     }
 
-    await tx.restaurantInventoryPurchase.update({
+    const updatedPurchase=await tx.restaurantInventoryPurchase.update({
       where:{ id },
       data:{ status:'received', receivedByUserId:userId, receivedAt:new Date() }
     });
-    return { marker:MARKER, alreadyReceived:false, purchase:await purchaseDetailInTx(tx,tenantId,id) };
+    const management=require('./restaurant-management-v1.service');
+    const payableId=await management.createPayableForPurchaseInTx(tx,tenantId,{...updatedPurchase,number:purchase.number});
+    return { marker:MARKER, alreadyReceived:false, payableId, purchase:await purchaseDetailInTx(tx,tenantId,id) };
   });
 }
 
