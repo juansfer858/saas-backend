@@ -134,6 +134,26 @@ async function main() {
     catch (error) { blocked = error.code === 'DEMO_BAR_EMPTY_ACCOUNT_HAS_ACTIVITY'; }
     assert.equal(blocked, true, 'account with consumption must not close as empty');
 
+    const cashWorkspace = await cash.workspace(demo.tenantId, user);
+    let ownShift = cashWorkspace.shift.own;
+    if (!ownShift) {
+      const cashAccount = cashWorkspace.shift.cashAccounts?.[0];
+      assert.ok(cashAccount, 'demo needs one cash account for exact-account charge');
+      const opened = await cash.openShift(demo.tenantId, user, { cajaBancoId: cashAccount.id, saldoInicial: 0 });
+      ownShift = opened.shift;
+    }
+    const cashDetail = await cash.tableDetailBySession(demo.tenantId, user, first.account.id);
+    const cashMethod = cashDetail.paymentMethods.find(method => method.kind === 'EFECTIVO') || cashDetail.paymentMethods[0];
+    assert.ok(cashMethod, 'demo needs one active non-credit payment method');
+    const charged = await cash.chargeWholeAccountBySession(demo.tenantId, user, first.account.id, {
+      paymentMethodId: cashMethod.id,
+      tipAmount: 0,
+      reference: 'Recibido 100000 · Cambio 0'
+    });
+    assert.equal(charged.charged, true, 'exact selected account must charge successfully');
+    const chargedSession = await prisma.restaurantTableSession.findUnique({ where:{ id:first.account.id } });
+    assert.equal(chargedSession.state, 'CERRADA', 'charged account must be closed');
+
     const other = await prisma.tenant.create({
       data:{ nombreEmpresa:'Other '+suffix, subdomain:'other-'+suffix, nicho:'RESTAURANTE', pais:'CO', moneda:'COP', activo:true }
     });
@@ -152,6 +172,7 @@ async function main() {
     console.log('SENT_LINE_PARTIAL_SPLIT=PASS');
     console.log('SPLIT_MERGE_DO_NOT_DUPLICATE_PRODUCTION=PASS');
     console.log('EXACT_ACCOUNT_CASH_TARGET=PASS');
+    console.log('EXACT_ACCOUNT_CHARGE=PASS');
     console.log('SIBLING_ACCOUNT_PRESERVES_TABLE_STATE=PASS');
     console.log('TENANT_ISOLATION=PASS');
   } finally {
