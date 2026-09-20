@@ -40,6 +40,7 @@
     <nav class="inv-tabs" aria-label="Inventario">
       <button class="active" type="button" data-inv-tab="stock">Existencias</button>
       <button type="button" data-inv-tab="purchases">Pedidos de inventario</button>
+      <button type="button" data-inv-tab="recipes">Recetas y costos</button>
       <button type="button" data-inv-tab="history">Historial de movimientos</button>
     </nav>
 
@@ -69,6 +70,22 @@
         <button id="newPurchase2" class="rv2-btn rv2-btn-primary" type="button">+ Agregar pedido</button>
       </div>
       <div id="purchaseList" class="inv-purchase-list"></div>
+    </section>
+
+    <section id="recipesPanel" class="inv-panel" hidden>
+      <div class="rv2-panel inv-section-head">
+        <div><small>INGREDIENTES · RECETAS · COSTOS</small><h2>Recetas y costos</h2><p>Las recetas reservan ingredientes al enviar y descuentan el saldo al cobrar. El costo teórico usa el costo actual de cada ingrediente.</p></div>
+        <div class="inv-actions"><button id="newIngredient" class="rv2-btn rv2-btn-primary" type="button">+ Ingrediente</button><button id="exportRecipes" class="rv2-btn" type="button">Exportar CSV</button></div>
+      </div>
+      <div id="recipeMetrics" class="inv-metrics"></div>
+      <section class="rv2-panel inv-table-wrap">
+        <div class="inv-subhead"><b>Ingredientes</b><span>Saldo · Reservado · Disponible</span></div>
+        <table class="inv-table"><thead><tr><th>Ingrediente</th><th>Unidad</th><th>Costo base</th><th>Saldo</th><th>Reservado</th><th>Disponible</th><th>Mínimo</th><th></th></tr></thead><tbody id="ingredientRows"></tbody></table>
+      </section>
+      <section class="rv2-panel inv-table-wrap">
+        <div class="inv-subhead"><b>Recetas por producto</b><span>Precio de venta · costo teórico · margen bruto</span></div>
+        <table class="inv-table"><thead><tr><th>Producto</th><th>Precio</th><th>Costo receta</th><th>Margen</th><th>Ingredientes</th><th></th></tr></thead><tbody id="recipeProductRows"></tbody></table>
+      </section>
     </section>
 
     <section id="historyPanel" class="inv-panel" hidden>
@@ -121,7 +138,7 @@
       <div class="inv-dialog-body">
         <input id="purchaseId" type="hidden">
         <div class="inv-form-grid">
-          <label>Proveedor<input id="purchaseSupplier" class="inv-input" maxlength="200" required></label>
+          <label>Proveedor<select id="purchaseSupplierId" class="inv-select" required><option value="">Selecciona proveedor</option></select><input id="purchaseSupplier" type="hidden"></label>
           <label>Factura / referencia<input id="purchaseReference" class="inv-input" maxlength="160"></label>
           <label>Fecha de compra<input id="purchaseDate" class="inv-input" type="date" required></label>
           <label>Condición de pago<select id="purchaseTerms" class="inv-select"><option value="cash">Contado</option><option value="credit">Crédito</option></select></label>
@@ -141,6 +158,28 @@
     <div class="inv-dialog-head"><div><small>HISTORIAL DE COSTO</small><h2 id="costTitle">Últimas compras</h2></div><button class="rv2-btn" type="button" data-close="costDialog">Cerrar</button></div>
     <div class="inv-dialog-body"><div id="costRows"></div></div>
   </dialog>
+  <dialog id="ingredientDialog" class="inv-dialog"><form id="ingredientForm">
+    <div class="inv-dialog-head"><div><small>INGREDIENTE</small><h2 id="ingredientTitle">Nuevo ingrediente</h2></div><button class="rv2-btn" type="button" data-close="ingredientDialog">Cerrar</button></div>
+    <div class="inv-dialog-body"><input id="ingredientId" type="hidden"><label>Código<input id="ingredientCode" class="inv-input" maxlength="40" required></label><label>Nombre<input id="ingredientName" class="inv-input" maxlength="120" required></label><label>Unidad base<select id="ingredientUnit" class="inv-select"><option value="g">Gramos (g)</option><option value="ml">Mililitros (ml)</option><option value="unidad">Unidad</option></select></label><label>Costo por unidad base<input id="ingredientCost" class="inv-input" type="number" min="0" step="0.0001" value="0"></label><label class="inv-check"><input id="ingredientActive" type="checkbox" checked> Activo</label><div id="ingredientError" class="inv-error" hidden></div></div>
+    <div class="inv-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar ingrediente</button></div>
+  </form></dialog>
+
+  <dialog id="ingredientMoveDialog" class="inv-dialog"><form id="ingredientMoveForm">
+    <div class="inv-dialog-head"><div><small>MOVIMIENTO DE INGREDIENTE</small><h2 id="ingredientMoveTitle">Movimiento</h2></div><button class="rv2-btn" type="button" data-close="ingredientMoveDialog">Cerrar</button></div>
+    <div class="inv-dialog-body"><input id="ingredientMoveId" type="hidden"><input id="ingredientMoveVersion" type="hidden"><label>Movimiento<select id="ingredientMoveKind" class="inv-select"><option value="entry">Entrada</option><option value="initial">Saldo inicial</option><option value="exit">Salida / merma</option><option value="adjustment">Conteo físico</option></select></label><label>Cantidad<input id="ingredientMoveQty" class="inv-input" type="number" min="0" step="0.001" required></label><label id="ingredientCostWrap">Costo por unidad base<input id="ingredientMoveCost" class="inv-input" type="number" min="0" step="0.0001"></label><label>Motivo<input id="ingredientMoveReason" class="inv-input" maxlength="400" required></label><div id="ingredientMoveError" class="inv-error" hidden></div></div><div class="inv-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar movimiento</button></div>
+  </form></dialog>
+
+  <dialog id="ingredientMinDialog" class="inv-dialog"><form id="ingredientMinForm">
+    <div class="inv-dialog-head"><div><small>MÍNIMO DE INGREDIENTE</small><h2 id="ingredientMinTitle">Mínimo</h2></div><button class="rv2-btn" type="button" data-close="ingredientMinDialog">Cerrar</button></div>
+    <div class="inv-dialog-body"><input id="ingredientMinId" type="hidden"><input id="ingredientMinVersion" type="hidden"><label>Alertar cuando disponible sea igual o menor que<input id="ingredientMinValue" class="inv-input" type="number" min="0" step="0.001" required></label><div id="ingredientMinError" class="inv-error" hidden></div></div><div class="inv-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar mínimo</button></div>
+  </form></dialog>
+
+  <dialog id="recipeDialog" class="inv-dialog inv-dialog-wide"><form id="recipeForm">
+    <div class="inv-dialog-head"><div><small>RECETA</small><h2 id="recipeTitle">Configurar receta</h2></div><button class="rv2-btn" type="button" data-close="recipeDialog">Cerrar</button></div>
+    <div class="inv-dialog-body"><input id="recipeProductId" type="hidden"><div id="recipePrice" class="inv-pay-line"></div><div id="recipeBuilder" class="inv-recipe-builder"></div><div class="inv-purchase-items-head"><b>Ingredientes de la receta</b><button id="addRecipeIngredient" class="rv2-btn" type="button">+ Ingrediente</button></div><div id="recipeLines" class="inv-recipe-lines"></div><div id="recipeTotal" class="inv-purchase-totals"></div><div id="recipeError" class="inv-error" hidden></div></div><div class="inv-dialog-actions"><button id="clearRecipe" class="rv2-btn" type="button">Quitar receta</button><button class="rv2-btn rv2-btn-primary" type="submit">Guardar receta</button></div>
+  </form></dialog>
+
+
 
   <script src="/app/restaurant-v2-sdk.js"></script>
   <script src="/app/restaurant-v2-inventory-bar-v1.js?v=v1"></script>
