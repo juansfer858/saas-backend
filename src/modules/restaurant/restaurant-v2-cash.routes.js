@@ -14,6 +14,7 @@ const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
 const shiftClosures = require('./restaurant-shift-close-history-c86.runtime');
 const { restaurantShiftCloseHistoryC86Router } = require('./restaurant-shift-close-history-c86.routes');
 const demoBar = require('./restaurant-demo-bar-accounts-v1.service');
+const demoCashDiagnostic = require('./restaurant-demo-cash-diagnostic-state');
 
 const router = express.Router();
 
@@ -87,8 +88,22 @@ router.post('/v2/demo-bar/cuentas/:sessionId/cobrar', requirePermission('RESTAUR
   try {
     await demoBar.assertDemoTenant(req.tenantId);
     const input = parse(chargeSchema, req.body);
-    res.json({ ok: true, data: await service.chargeWholeAccountBySession(req.tenantId, req.user, req.params.sessionId, input) });
-  } catch (error) { next(error); }
+    const data = await service.chargeWholeAccountBySession(req.tenantId, req.user, req.params.sessionId, input);
+    demoCashDiagnostic.clear();
+    res.json({ ok: true, data });
+  } catch (error) {
+    const diagnostic = demoCashDiagnostic.record(error);
+    if (error instanceof AppError) {
+      next(error);
+      return;
+    }
+    next(new AppError(
+      500,
+      `Cobro no completado · diagnóstico ${diagnostic.code || 'UNKNOWN'}`,
+      'DEMO_BAR_CHARGE_INTERNAL',
+      { technicalCode: diagnostic.code, technicalName: diagnostic.name, technicalMeta: diagnostic.meta }
+    ));
+  }
 });
 
 router.get('/v2/caja', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
