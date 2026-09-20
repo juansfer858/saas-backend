@@ -41,12 +41,16 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
 
   const DEMO_RESTAURANTE = 'demo-restaurante';
+  const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres']);
   function allowed(module) { return module.roles.includes(role); }
   function visibleModules() {
-    return Object.entries(MODULES).filter(([key, module]) => {
-      if (!allowed(module)) return false;
-      if (session.subdomain === DEMO_RESTAURANTE && key === 'mesas') return false;
-      return true;
+    return Object.entries(MODULES).flatMap(([key, module]) => {
+      if (!allowed(module)) return [];
+      if (session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)) return [];
+      if (session.subdomain === DEMO_RESTAURANTE && key === 'gastos') {
+        return [[key, { ...module, label:'Turno y gastos', hint:'Cierre de turno · gastos · historial' }]];
+      }
+      return [[key, module]];
     });
   }
   function defaultModuleKey() {
