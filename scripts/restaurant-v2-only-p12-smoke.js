@@ -55,6 +55,8 @@ must(!nativeControl.includes('/api/v1/restaurante/v2/retiro-v1/launch'), 'Native
 must(!nativeControl.includes('assertRetirement'), 'Native Control Center still has P11 retirement bootstrap gate');
 must(!nativeControl.includes("retiro:{ label:'Retiro V1'"), 'Retiro V1 must not be exposed in P12 navigation');
 must(nativeControl.includes('renderIdentity();\n      renderNav();'), 'Tenant identity must render directly under P12');
+must(nativeControl.includes("const DEMO_RESTAURANTE = 'demo-restaurante';"), 'demo tenant navigation guard missing');
+must(nativeControl.includes("session.subdomain === DEMO_RESTAURANTE && key === 'mesas'"), 'Mesas must be hidden only for demo-restaurante');
 
 must(devicePwa.includes("legacyScope:'/app/centro-de-control'"), 'Waiter legacy worker scope cleanup missing');
 must(devicePwa.includes("legacyScope:'/app/produccion'"), 'Production legacy worker scope cleanup missing');
