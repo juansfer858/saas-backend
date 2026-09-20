@@ -1,0 +1,168 @@
+name: Restaurant P14 Windows Supervisor CI V3
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p14/windows/supervisor-p14-windows.ps1'
+      - 'lab/restaurant-p14/windows/repair-p14-supervisor-windows.ps1'
+      - '.github/workflows/restaurant-p14-supervisor-windows-ci-v3.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p14-supervisor-v3-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scheduled-task-supervisor-over-two-minutes:
+    runs-on: windows-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Exercise exact local Node layout and SYSTEM supervisor
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'C:\P14-Supervisor-CI-V3'
+          $taskName = 'VantixGC P14 Supervisor CI V3'
+          $port = 18992
+          $marker = 'P14_SUPERVISOR_CI_V3_MARKER'
+          $supervisorSource = Resolve-Path 'lab/restaurant-p14/windows/supervisor-p14-windows.ps1'
+
+          function Stop-TestProcesses {
+            try {
+              Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+                $_.CommandLine -and (
+                  ([string]$_.CommandLine).IndexOf((Join-Path $root 'app\lab\restaurant-p14\runtime.js'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                  ([string]$_.CommandLine).IndexOf((Join-Path $root 'ops\start-p14-windows.ps1'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                  ([string]$_.CommandLine).IndexOf((Join-Path $root 'ops\supervisor-p14-windows.ps1'), [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+                )
+              } | Where-Object { $_.ProcessId -ne $PID } | ForEach-Object {
+                Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+              }
+            } catch {}
+          }
+
+          function Wait-Health([int]$Seconds) {
+            for ($i = 0; $i -lt $Seconds; $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:$port/__p14/status" -TimeoutSec 2
+                if ($status.ok -and $status.marker -eq $marker) { return $true }
+              } catch {}
+              Start-Sleep -Seconds 1
+            }
+            return $false
+          }
+
+          try {
+            try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch {}
+            try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Stop-TestProcesses
+            Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+
+            $runtimeDir = Join-Path $root 'app\lab\restaurant-p14'
+            New-Item -ItemType Directory -Force -Path $root,(Join-Path $root 'ops'),(Join-Path $root 'logs'),(Join-Path $root 'runtime'),$runtimeDir | Out-Null
+            Copy-Item -LiteralPath $supervisorSource -Destination (Join-Path $root 'ops\supervisor-p14-windows.ps1') -Force
+
+            $nodeSource = (Get-Command node.exe -ErrorAction Stop).Source
+            Copy-Item -LiteralPath $nodeSource -Destination (Join-Path $root 'runtime\node.exe') -Force
+
+            $runtimeSource = @'
+          'use strict';
+          const fs = require('node:fs');
+          const http = require('node:http');
+          const counterFile = 'C:\\P14-Supervisor-CI-V3\\starts.txt';
+          let count = 0;
+          try { count = Number(fs.readFileSync(counterFile, 'utf8').trim()) || 0; } catch {}
+          fs.writeFileSync(counterFile, String(count + 1));
+          const port = 18992;
+          const marker = 'P14_SUPERVISOR_CI_V3_MARKER';
+          const server = http.createServer((req, res) => {
+            res.setHeader('content-type', 'application/json');
+            if (req.url === '/__p14/status') return res.end(JSON.stringify({ ok: true, marker }));
+            res.statusCode = 404;
+            res.end(JSON.stringify({ ok: false }));
+          });
+          server.listen(port, '127.0.0.1', () => console.log('FAKE_P14_READY'));
+          setTimeout(() => process.exit(17), 22000);
+          '@
+            $runtimeSource = ($runtimeSource -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`r`n"
+            $runtimePath = Join-Path $runtimeDir 'runtime.js'
+            [System.IO.File]::WriteAllText($runtimePath, $runtimeSource, (New-Object System.Text.UTF8Encoding($false)))
+
+            $startSource = @'
+          param([string]$InstallDir = 'C:\P14-Supervisor-CI-V3')
+          $ErrorActionPreference = 'Stop'
+          $node = Join-Path $InstallDir 'runtime\node.exe'
+          $runtime = Join-Path $InstallDir 'app\lab\restaurant-p14\runtime.js'
+          & $node $runtime >> (Join-Path $InstallDir 'logs\runtime.log') 2>&1
+          exit $LASTEXITCODE
+          '@
+            $startSource = ($startSource -split "`r?`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`r`n"
+            $startPath = Join-Path $root 'ops\start-p14-windows.ps1'
+            [System.IO.File]::WriteAllText($startPath, $startSource, (New-Object System.Text.UTF8Encoding($false)))
+
+            # Preflight: prove the exact copied node.exe and generated runtime work before SYSTEM owns them.
+            $preflight = Start-Process -FilePath (Join-Path $root 'runtime\node.exe') -ArgumentList ('"{0}"' -f $runtimePath) -PassThru -WindowStyle Hidden
+            if (-not (Wait-Health 20)) {
+              $text = if (Test-Path (Join-Path $root 'starts.txt')) { Get-Content (Join-Path $root 'starts.txt') -Raw } else { 'NO_START_COUNTER' }
+              throw "Preflight local Node no levantó el puerto. counter=$text"
+            }
+            Stop-Process -Id $preflight.Id -Force -ErrorAction SilentlyContinue
+            for ($i = 0; $i -lt 20; $i++) {
+              if (-not (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)) { break }
+              Start-Sleep -Milliseconds 250
+            }
+            Remove-Item (Join-Path $root 'starts.txt') -Force -ErrorAction SilentlyContinue
+
+            $supervisor = Join-Path $root 'ops\supervisor-p14-windows.ps1'
+            $arguments = @(
+              '-NoProfile',
+              '-NonInteractive',
+              '-ExecutionPolicy', 'Bypass',
+              '-File', ('"{0}"' -f $supervisor),
+              '-InstallDir', ('"{0}"' -f $root),
+              '-HealthUrl', ('"http://127.0.0.1:{0}/__p14/status"' -f $port),
+              '-ExpectedMarker', ('"{0}"' -f $marker),
+              '-StartupGraceSeconds', '30',
+              '-HealthIntervalSeconds', '3',
+              '-UnhealthyThreshold', '3',
+              '-RestartDelaySeconds', '1'
+            ) -join ' '
+            $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory $root
+            $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5)
+            $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+            Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -User 'SYSTEM' -RunLevel Highest -Force | Out-Null
+            Start-ScheduledTask -TaskName $taskName
+
+            if (-not (Wait-Health 60)) {
+              $taskInfo = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction SilentlyContinue
+              $supervisorLog = if (Test-Path (Join-Path $root 'logs\supervisor.log')) { Get-Content (Join-Path $root 'logs\supervisor.log') -Raw } else { 'NO_SUPERVISOR_LOG' }
+              $runtimeLog = if (Test-Path (Join-Path $root 'logs\runtime.log')) { Get-Content (Join-Path $root 'logs\runtime.log') -Raw } else { 'NO_RUNTIME_LOG' }
+              throw "SYSTEM no inició el runtime. LastResult=$($taskInfo.LastTaskResult) SUPERVISOR=$supervisorLog RUNTIME=$runtimeLog"
+            }
+
+            # Repeated forced exits plus >2 minutes of elapsed field time.
+            Start-Sleep -Seconds 135
+
+            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+            if ([string]$task.State -ne 'Running') { throw "El supervisor dejó de ejecutarse: $($task.State)" }
+
+            $starts = [int]((Get-Content -LiteralPath (Join-Path $root 'starts.txt') -Raw).Trim())
+            if ($starts -lt 5) { throw "Recuperaciones insuficientes. starts=$starts" }
+            if (-not (Wait-Health 30)) { throw 'El runtime no quedó saludable al final.' }
+
+            $log = Get-Content -LiteralPath (Join-Path $root 'logs\supervisor.log') -Raw
+            if ($log -notmatch 'Wrapper P14 terminó' -or $log -notmatch 'P14 saludable') {
+              throw 'Falta evidencia de recuperación y salud en supervisor.log.'
+            }
+
+            Write-Host "P14_SUPERVISOR_OVER_TWO_MINUTES_OK starts=$starts state=$($task.State)"
+          } finally {
+            try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch {}
+            try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } catch {}
+            Stop-TestProcesses
+            Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
+          }
