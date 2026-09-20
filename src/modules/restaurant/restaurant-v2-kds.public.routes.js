@@ -66,6 +66,7 @@ function sendStationsWithPrintTemplate(res){
 }
 router.get('/app/restaurante-v2/kds',(_req,res)=>send(res,'restaurant-v2-kds.html','html'));
 router.get('/app/restaurant-v2-kds.js',(_req,res)=>send(res,'restaurant-v2-kds.js','application/javascript; charset=utf-8'));
+router.get('/app/restaurant-v2-kds-simple-demo-v1.js',(_req,res)=>send(res,'restaurant-v2-kds-simple-demo-v1.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-kds-stations-v23.js',(_req,res)=>sendStationsWithPrintTemplate(res));
 router.get('/app/restaurant-v2-kds-printer-hybrid-v24.js',(_req,res)=>send(res,'restaurant-v2-kds-printer-hybrid-v24.js','application/javascript; charset=utf-8'));
 router.get('/app/restaurant-v2-kds.css',(_req,res)=>send(res,'restaurant-v2-kds.css','text/css; charset=utf-8'));

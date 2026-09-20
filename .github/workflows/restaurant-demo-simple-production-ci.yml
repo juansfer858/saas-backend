@@ -1,0 +1,31 @@
+name: Demo Restaurante Simple Production CI
+
+on:
+  push:
+    branches:
+      - pilot/demo-restaurante-production-simple-v1
+  pull_request:
+    paths:
+      - 'src/web/restaurant-v2-kds-simple-demo-v1.js'
+      - 'src/web/restaurant-v2-kds.html'
+      - 'src/modules/restaurant/restaurant-v2-kds.public.routes.js'
+      - 'scripts/restaurant-demo-simple-production-smoke.js'
+      - '.github/workflows/restaurant-demo-simple-production-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tenant-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check src/web/restaurant-v2-kds-simple-demo-v1.js
+      - name: Verify tenant-only production pilot
+        run: node scripts/restaurant-demo-simple-production-smoke.js
