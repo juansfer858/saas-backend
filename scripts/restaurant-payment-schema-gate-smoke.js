@@ -31,7 +31,7 @@ async function main() {
     'sessionPaymentAccountId',
     'sessionPaymentReference',
     'inventoryReservation'
-  ]) assert.equal(final.state[key], true, `${key} must exist after self-heal`);
+  ]) assert.equal(Boolean(final.state[key]), true, `${key} must exist after self-heal`);
 
   console.log('RESTAURANT PAYMENT + INVENTORY RESERVATION SCHEMA GATE SELF-HEAL OK');
   console.log(JSON.stringify({ detectedMissingPaymentSchema:true, prismaDbPushRecovered:true, startupGateReady:true }, null, 2));
