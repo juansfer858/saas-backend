@@ -113,8 +113,13 @@ async function cancellationMap(tenantId, rows) {
 async function ensureDemoDefaultStations(tenantId) {
   const tenant = await prisma.tenant.findUnique({ where:{ id:tenantId }, select:{ subdomain:true } });
   if (String(tenant?.subdomain || '').trim().toLowerCase() !== DEMO_TENANT) return false;
-  const existing = await prisma.restaurantProductionStation.count({ where:{ tenantId } });
-  if (existing > 0) return false;
+  const existing = await prisma.restaurantProductionStation.findMany({
+    where:{ tenantId },
+    select:{ name:true, active:true }
+  });
+  const defaultNames = new Set(DEMO_DEFAULT_STATIONS.map((station) => station.name.toLocaleLowerCase('es')));
+  if (existing.some((station) => defaultNames.has(String(station.name || '').trim().toLocaleLowerCase('es')))) return false;
+  if (existing.some((station) => station.active)) return false;
   await prisma.restaurantProductionStation.createMany({
     data:DEMO_DEFAULT_STATIONS.map((station) => ({ tenantId, ...station, active:true })),
     skipDuplicates:true
