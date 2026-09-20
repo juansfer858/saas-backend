@@ -5,6 +5,7 @@ const { decimal, money, qty, pct } = require('../../utils/decimal');
 const base = require('./restaurant.service');
 const themeService = require('./restaurant-theme.service');
 const rbac = require('../platform/rbac/rbac.service');
+const restaurantInventory = require('./restaurant-inventory-bar-v1.service');
 
 function calculation(product, quantity) {
   const q = qty(quantity);
@@ -401,6 +402,8 @@ async function sendWaiterDraft(tenantId, user, sessionId, options = {}) {
     if (!ctx.order) throw new AppError(409, 'No hay pedido en curso para enviar', 'RESTAURANT_DRAFT_ORDER_NOT_FOUND');
     const items = await tx.restaurantOrderItem.findMany({ where: { tenantId, orderId: ctx.order.id }, orderBy: { creadoEn: 'asc' } });
     if (!items.length) throw new AppError(409, 'Agregue al menos un ítem antes de enviar', 'RESTAURANT_DRAFT_ORDER_EMPTY');
+    const localInventoryPilot = await restaurantInventory.isPilotTenant(tenantId, tx);
+    if (localInventoryPilot) await restaurantInventory.assertItemsAvailableInTx(tx, tenantId, items);
     if (ctx.session.billingMode === 'INDIVIDUAL' && options.optionalSeat !== true) {
       const invalid = items.find((item) => !Number.isInteger(Number(item.seatNumber)) || Number(item.seatNumber) < 1 || Number(item.seatNumber) > Number(ctx.session.guestCount));
       if (invalid) throw new AppError(409, 'Asigna cada producto a una persona antes de enviarlo.', 'RESTAURANT_INDIVIDUAL_ITEM_UNASSIGNED');
@@ -441,6 +444,9 @@ async function sendWaiterDraft(tenantId, user, sessionId, options = {}) {
       });
     }
     await tx.restaurantOrder.update({ where: { id: ctx.order.id }, data: { state: 'ENVIADO' } });
+    if (localInventoryPilot) {
+      await restaurantInventory.recordReservationInTx(tx, tenantId, user.id, ctx.session.id, ctx.order.id, items);
+    }
     if (ctx.session.state === 'CUENTA_PEDIDA' || ctx.session.accountPreparedAt || ctx.session.cashierRequestedAt) {
       await tx.restaurantTableSession.update({
         where: { id: ctx.session.id },
