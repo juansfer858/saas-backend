@@ -21,7 +21,7 @@ function injectStyles(){
   const style=document.createElement('style');
   style.id='kdsSimpleDemoStyles';
   style.textContent=`
-body[data-kds-simple-demo="1"]{overflow:hidden;background:#e9eeeb}
+body[data-kds-simple-demo="1"]{height:100dvh;min-height:100dvh;display:flex;flex-direction:column;overflow:hidden;background:#e9eeeb}
 body[data-kds-simple-demo="1"] .kds-top{position:fixed!important;inset:0 0 auto 0!important;z-index:40!important;min-height:72px!important;padding:11px 16px!important;background:linear-gradient(180deg,#353d40,#272e31)!important;border-bottom:1px solid #161b1d!important;color:#fff!important;box-shadow:0 7px 20px rgba(15,23,42,.18)!important}
 body[data-kds-simple-demo="1"] .kds-top>div>span{color:#bfc9c4!important}
 body[data-kds-simple-demo="1"] .kds-top h1{margin:1px 0!important;color:#fff!important;font-size:24px!important}
@@ -31,12 +31,12 @@ body[data-kds-simple-demo="1"] .kds-top nav>a{display:none!important}
 body[data-kds-simple-demo="1"] .kds-top nav .rv2-btn{min-height:40px!important;border-color:#5b6762!important;background:#414a4d!important;color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important}
 body[data-kds-simple-demo="1"] .kds-top nav .rv2-btn:hover{background:#4a5558!important}
 body[data-kds-simple-demo="1"] .kds-top nav .rv2-station-manage{border-color:#3c9a70!important;background:#0d6b43!important;color:#fff!important}
-body[data-kds-simple-demo="1"] .kds-main{box-sizing:border-box!important;max-width:none!important;height:100vh!important;margin:0!important;padding:82px 10px 10px!important;overflow:hidden!important}
-body[data-kds-simple-demo="1"] .status-line{height:38px!important;margin:0 0 8px!important;padding:8px 11px!important;border-radius:10px!important;background:#fff!important}
+body[data-kds-simple-demo="1"] .kds-main{box-sizing:border-box!important;max-width:none!important;flex:1 1 auto!important;min-height:0!important;height:auto!important;margin:0!important;padding:8px 10px 10px!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}
+body[data-kds-simple-demo="1"] .status-line{flex:0 0 auto!important;height:38px!important;margin:0 0 8px!important;padding:8px 11px!important;border-radius:10px!important;background:#fff!important}
 body[data-kds-simple-demo="1"] .stats{display:none!important}
 body[data-kds-simple-demo="1"] .station-warning{display:none!important}
 body[data-kds-simple-demo="1"] .board{display:none!important}
-body[data-kds-simple-demo="1"] .bar-production-layout{display:grid;grid-template-columns:245px minmax(420px,1fr) 355px;gap:9px;height:calc(100vh - 138px);min-height:0}
+body[data-kds-simple-demo="1"] .bar-production-layout{display:grid;grid-template-columns:245px minmax(420px,1fr) 355px;gap:9px;flex:1 1 auto;min-height:0;height:auto}
 body[data-kds-simple-demo="1"] .bar-stations-panel,
 body[data-kds-simple-demo="1"] .bar-work-panel,
 body[data-kds-simple-demo="1"] .bar-ready-panel{min-width:0;min-height:0;border:1px solid #cfd8d3;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 3px 12px rgba(15,23,42,.05)}
@@ -76,9 +76,9 @@ body[data-kds-simple-demo="1"] .empty{min-height:150px!important}
   body[data-kds-simple-demo="1"] .bar-production-layout{grid-template-columns:210px minmax(360px,1fr) 300px}
 }
 @media(max-width:900px){
-  body[data-kds-simple-demo="1"]{overflow:auto}
+  body[data-kds-simple-demo="1"]{height:auto;min-height:100dvh;display:block;overflow:auto}
   body[data-kds-simple-demo="1"] .kds-top{position:sticky!important}
-  body[data-kds-simple-demo="1"] .kds-main{height:auto!important;padding:9px!important;overflow:visible!important}
+  body[data-kds-simple-demo="1"] .kds-main{display:block!important;height:auto!important;padding:9px!important;overflow:visible!important}
   body[data-kds-simple-demo="1"] .bar-production-layout{height:auto;grid-template-columns:1fr 1fr;grid-template-areas:"stations stations" "work ready"}
   body[data-kds-simple-demo="1"] .bar-stations-panel{grid-area:stations}
   body[data-kds-simple-demo="1"] .bar-work-panel{grid-area:work}
