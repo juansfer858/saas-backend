@@ -4,7 +4,7 @@ const V=window.RestaurantV2;if(!V)throw new Error('Restaurant V2 SDK no disponib
 const session=V.requireSession();
 if(String(session?.subdomain||'').trim().toLowerCase()!=='demo-restaurante'){location.replace('/app/centro-de-control-v2');return}
 const $=(q,r=document)=>r.querySelector(q),$$=(q,r=document)=>[...r.querySelectorAll(q)],esc=V.esc,money=V.money;
-const S={tab:'sales',sales:null,customers:[],suppliers:null,paymentContext:null};
+const S={tab:'sales',sales:null,customers:[],suppliers:null,paymentContext:null,qrs:[]};
 const today=()=>{const d=new Date();return[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
 const monthStart=()=>{const d=new Date();return[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),'01'].join('-')};
 const dt=v=>{const d=new Date(v);return Number.isNaN(d.getTime())?'—':new Intl.DateTimeFormat('es-CO',{dateStyle:'short',timeStyle:'short'}).format(d)};
@@ -13,7 +13,7 @@ function notice(text,error=false){const n=$('#notice');if(!n)return;n.textConten
 function err(id,text=''){const n=$(id);if(!n)return;n.textContent=text||'';n.hidden=!text}
 function csvCell(v){const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replaceAll('"','""')+'"':s}
 function downloadCsv(name,heads,rows){const body=[heads,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');const b=new Blob(['\ufeff'+body],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},0)}
-function setTab(tab){S.tab=tab;$$('[data-mg-tab]').forEach(b=>b.classList.toggle('active',b.dataset.mgTab===tab));$('#salesPanel').hidden=tab!=='sales';$('#customersPanel').hidden=tab!=='customers';$('#suppliersPanel').hidden=tab!=='suppliers';if(tab==='sales'&&!S.sales)loadSales();if(tab==='customers'&&!S.customers.length)loadCustomers();if(tab==='suppliers'&&!S.suppliers)loadSuppliers()}
+function setTab(tab){S.tab=['sales','customers','suppliers','qrs'].includes(tab)?tab:'sales';$('[data-mg-tab]').forEach(b=>b.classList.toggle('active',b.dataset.mgTab===S.tab));$('#salesPanel').hidden=S.tab!=='sales';$('#customersPanel').hidden=S.tab!=='customers';$('#suppliersPanel').hidden=S.tab!=='suppliers';$('#qrsPanel').hidden=S.tab!=='qrs';if(S.tab==='sales'&&!S.sales)loadSales();if(S.tab==='customers'&&!S.customers.length)loadCustomers();if(S.tab==='suppliers'&&!S.suppliers)loadSuppliers();if(S.tab==='qrs'&&!S.qrs.length)loadQrs()}
 
 async function loadSales(){
  try{
@@ -67,17 +67,59 @@ async function openPayable(id){
   $('#payableDialog').showModal();
  }catch(e){notice(e.message,true)}
 }
+async function loadQrs(){
+ try{
+  notice('Cargando QR de mesas…');
+  S.qrs=await V.api('/api/v1/restaurante/qrs');if(!Array.isArray(S.qrs))S.qrs=[];
+  const filter=$('#qrZoneFilter'),current=filter.value||'ALL';
+  const zones=[...new Map(S.qrs.map(row=>[row.zoneId||'NONE',row.zoneName||'Sin zona'])).entries()].sort((a,b)=>a[1].localeCompare(b[1],'es'));
+  filter.innerHTML='<option value="ALL">Todas las zonas</option>'+zones.map(([id,name])=>'<option value="'+esc(id)+'">'+esc(name)+'</option>').join('');
+  filter.value=[...filter.options].some(o=>o.value===current)?current:'ALL';
+  renderQrs();notice('');
+ }catch(e){notice(e.message||'No fue posible cargar los QR.',true)}
+}
+function visibleQrs(){const zone=$('#qrZoneFilter').value||'ALL';return zone==='ALL'?S.qrs:S.qrs.filter(row=>(row.zoneId||'NONE')===zone)}
+function renderQrs(){
+ const rows=visibleQrs(),zoneCount=new Set(S.qrs.map(row=>row.zoneId||'NONE')).size;
+ $('#qrSummary').innerHTML=[
+  ['QR totales',S.qrs.length,'mesas físicas'],
+  ['Zonas',zoneCount,'organización del salón'],
+  ['Visibles',rows.length,$('#qrZoneFilter').selectedOptions[0]?.textContent||'filtro'],
+  ['Regeneración','Manual','sólo cuando sea necesario']
+ ].map(x=>'<article class="mg-metric"><span>'+esc(x[0])+'</span><b>'+esc(x[1])+'</b><small>'+esc(x[2])+'</small></article>').join('');
+ $('#qrGrid').innerHTML=rows.length?rows.map(row=>'<article class="mg-qr-card"><div class="mg-qr-card-head"><div><h3>'+esc(row.tableName)+'</h3><small>'+esc(row.zoneName||'Sin zona')+' · '+esc(row.tableCode||'')+'</small></div><span class="mg-qr-chip">FÍSICO</span></div><div class="mg-qr-code">'+(row.svg||'')+'</div><div class="mg-qr-url">'+esc(row.url||'')+'</div><div class="mg-qr-card-actions"><button class="rv2-btn" type="button" data-print-qr="'+esc(row.tableId)+'">Imprimir</button><a class="rv2-btn" href="'+esc(row.url||'#')+'" target="_blank" rel="noopener">Probar</a><button class="rv2-btn mg-danger" type="button" data-regenerate-qr="'+esc(row.tableId)+'">Regenerar</button></div></article>').join(''):'<div class="mg-empty">No hay QR en este filtro.</div>';
+ $('[data-print-qr]').forEach(btn=>btn.onclick=()=>{const row=S.qrs.find(x=>x.tableId===btn.dataset.printQr);if(row)printQrMaterials([row],'QR '+row.tableName)});
+ $('[data-regenerate-qr]').forEach(btn=>btn.onclick=()=>regenerateQr(btn.dataset.regenerateQr));
+}
+function printQrMaterials(rows,title){
+ if(!rows?.length){notice('No hay QR para imprimir.',true);return}
+ const popup=window.open('','_blank');if(!popup){notice('El navegador bloqueó la ventana de impresión. Habilita ventanas emergentes.',true);return}
+ popup.opener=null;
+ const cards=rows.map(row=>'<article><div class="name">'+esc(row.tableName)+'</div><div class="zone">'+esc(row.zoneName||'Sin zona')+'</div><div class="qr">'+(row.svg||'')+'</div><div class="hint">Escanea para ver la carta y pedir desde esta mesa</div></article>').join('');
+ popup.document.open();popup.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>@page{margin:10mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;color:#111}.sheet{display:grid;grid-template-columns:repeat(2,1fr);gap:10mm}article{break-inside:avoid;border:1px solid #bbb;border-radius:10px;padding:8mm;text-align:center}.name{font-size:22px;font-weight:800}.zone{margin-top:3px;font-size:12px;color:#555}.qr{display:grid;place-items:center;margin:5mm auto}.qr svg{width:58mm;height:58mm}.hint{font-size:11px;color:#444}@media(max-width:700px){.sheet{grid-template-columns:1fr}}</style></head><body><div class="sheet">'+cards+'</div><script>window.addEventListener("load",()=>setTimeout(()=>window.print(),80));<\/script></body></html>');popup.document.close();
+}
+async function regenerateQr(tableId){
+ const row=S.qrs.find(x=>x.tableId===tableId);if(!row)return;
+ if(!confirm('¿Regenerar el QR de '+row.tableName+'?\n\nEl QR físico impreso actualmente dejará de funcionar y deberá imprimirse de nuevo.'))return;
+ try{
+  notice('Regenerando QR de '+row.tableName+'…');
+  const updated=await V.api('/api/v1/restaurante/mesas/'+encodeURIComponent(tableId)+'/qr/regenerar',{method:'POST',body:'{}'});
+  S.qrs=S.qrs.map(x=>x.tableId===tableId?updated:x);renderQrs();notice('QR de '+row.tableName+' regenerado. Imprime el nuevo código.');
+ }catch(e){notice(e.message||'No fue posible regenerar el QR.',true)}
+}
+
 function bind(){
  $('#salesFrom').value=monthStart();$('#salesTo').value=today();
- $$('[data-mg-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.mgTab));
+ $('[data-mg-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.mgTab));
+ $('#qrZoneFilter').onchange=renderQrs;$('#printVisibleQrs').onclick=()=>printQrMaterials(visibleQrs(),'QR '+($('#qrZoneFilter').selectedOptions[0]?.textContent||'visibles'));$('#printAllQrs').onclick=()=>printQrMaterials(S.qrs,'Todos los QR de mesas');
  $('#loadSales').onclick=loadSales;$('#exportSales').onclick=()=>{if(!S.sales)return;downloadCsv('Ventas_'+$('#salesFrom').value+'_'+$('#salesTo').value+'.csv',['Venta','Fecha','Canal','Cuenta','Cliente','Medio','Total'],S.sales.rows.map(r=>[r.number,r.created,r.channel,r.name,r.customer,r.paymentMethod,r.total]))};
  $('#findCustomers').onclick=loadCustomers;$('#customerSearch').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();loadCustomers()}};$('#newCustomer').onclick=()=>openCustomer();
  $('#customerForm').onsubmit=async e=>{e.preventDefault();err('#customerError');try{const body={id:$('#customerId').value||undefined,version:$('#customerVersion').value?Number($('#customerVersion').value):undefined,name:$('#customerName').value.trim(),documentType:$('#customerDocumentType').value,document:$('#customerDocument').value.trim(),phone:$('#customerPhone').value.trim(),email:$('#customerEmail').value.trim(),address:$('#customerAddress').value.trim()};await V.api('/api/v1/restaurante/gestion-v1/clientes',{method:'POST',body:JSON.stringify(body)});$('#customerDialog').close();await loadCustomers();notice('Cliente guardado.')}catch(x){err('#customerError',x.message)}};
  $('#newSupplier').onclick=()=>openSupplier();$('#payableFilter').onchange=renderSuppliers;
  $('#supplierForm').onsubmit=async e=>{e.preventDefault();err('#supplierError');try{await V.api('/api/v1/restaurante/gestion-v1/proveedores',{method:'POST',body:JSON.stringify({id:$('#supplierId').value||undefined,name:$('#supplierName').value.trim(),nit:$('#supplierNit').value.trim(),contact:$('#supplierContact').value.trim(),phone:$('#supplierPhone').value.trim(),email:$('#supplierEmail').value.trim(),address:$('#supplierAddress').value.trim(),termsDays:Number($('#supplierTerms').value||0),active:$('#supplierActive').checked})});$('#supplierDialog').close();await loadSuppliers();notice('Proveedor guardado.')}catch(x){err('#supplierError',x.message)}};
  $$('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close)?.close());
- $('#refresh').onclick=()=>{if(S.tab==='sales')loadSales();else if(S.tab==='customers')loadCustomers();else loadSuppliers()};
+ $('#refresh').onclick=()=>{if(S.tab==='sales')loadSales();else if(S.tab==='customers')loadCustomers();else if(S.tab==='suppliers')loadSuppliers();else loadQrs()};
 }
-async function boot(){bind();$('#tenantLine').textContent=(session.tenant?.nombreEmpresa||session.subdomain)+' · Ventas · Clientes · Proveedores';setTab('sales')}
+async function boot(){bind();$('#tenantLine').textContent=(session.tenant?.nombreEmpresa||session.subdomain)+' · Ventas · Clientes · Proveedores · QR de mesas';setTab('sales')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
