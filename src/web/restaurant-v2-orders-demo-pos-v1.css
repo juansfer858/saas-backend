@@ -428,3 +428,16 @@ body[data-demo-bar-orders="1"] .rv2-order-top #backToTables{display:none!importa
   .demo-bar-actions .pay{grid-column:1/-1;grid-row:auto}
   .demo-bar-payment-methods,.demo-bar-payment-fields{grid-template-columns:1fr}
 }
+
+.demo-bar-prebill{max-width:380px;margin:auto;padding:12px;border:1px solid var(--rv2-line);border-radius:12px;background:#fff}
+.demo-bar-prebill header{text-align:center}
+.demo-bar-prebill header h2{margin:0 0 6px;font-size:18px}
+.demo-bar-prebill header b,.demo-bar-prebill header span{display:block;margin-top:3px}
+.demo-bar-prebill header span{color:var(--rv2-muted);font-size:10px}
+.demo-bar-prebill table{width:100%;margin-top:12px;border-collapse:collapse;font-size:10px}
+.demo-bar-prebill th,.demo-bar-prebill td{padding:6px 3px;border-bottom:1px dashed var(--rv2-line);text-align:left}
+.demo-bar-prebill th:last-child,.demo-bar-prebill td:last-child{text-align:right}
+.demo-bar-prebill footer{margin-top:10px;padding-top:8px;border-top:2px solid var(--rv2-ink)}
+.demo-bar-prebill footer span,.demo-bar-prebill footer strong,.demo-bar-prebill footer small{display:block}
+.demo-bar-prebill footer strong{text-align:right;font-size:20px}
+.demo-bar-prebill footer small{text-align:center;margin-top:10px;color:var(--rv2-muted)}
