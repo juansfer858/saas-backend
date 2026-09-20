@@ -168,6 +168,15 @@ async function main() {
     assert.match(publicRoutes, /\/app\/restaurante-v2\/inventario/);
     assert.match(html, /Disponible = saldo − reservado/);
     assert.match(ui, /Afecta inventario/);
+    assert.match(ui, /\$\$\('\[data-inv-tab\]'\)\.forEach/, 'inventory tabs must use multi-selector helper');
+    assert.match(ui, /\$\$\('\[data-ing-edit\]'\)\.forEach/, 'ingredient actions must use multi-selector helper');
+    assert.match(ui, /\$\$\('\[data-recipe-product\]'\)\.forEach/, 'recipe actions must use multi-selector helper');
+    assert.match(ui, /\$\$\('input,select',wrap\)\.forEach/, 'recipe line controls must use multi-selector helper');
+    assert.match(ui, /\$\$\('\.inv-recipe-line'\)\.map/, 'recipe line reader must use multi-selector helper');
+    assert.match(ui, /\$\$\('\.inv-recipe-line'\)\.forEach/, 'recipe total must iterate a collection');
+    assert.doesNotMatch(ui, /\$\$\$\(/, 'triple-dollar selector helper is invalid');
+    assert.doesNotMatch(ui, /(?<!\$)\$\('\[data-inv-tab\]'\)\.forEach/, 'inventory tabs cannot iterate a single element');
+    assert.doesNotMatch(ui, /(?<!\$)\$\('\[data-ing-(?:edit|move|min|history)\]'\)\.forEach/, 'ingredient action bindings cannot iterate a single element');
     assert.match(html, /\+ Agregar pedido/);
     assert.match(html, /Exportar existencias/);
     assert.match(nav, /inventario:\{ label:'Inventario'/);
