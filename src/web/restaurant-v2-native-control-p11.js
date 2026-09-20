@@ -22,7 +22,9 @@
     gestion:{ label:'Gestión', hint:'Ventas · clientes · proveedores', route:'/app/restaurante-v2/gestion', roles:['ADMIN','SUPER_ADMIN'] },
     empleados:{ label:'Empleados', hint:'Usuarios, roles y asignaciones', route:'/app/restaurante-v2/empleados', roles:['ADMIN','SUPER_ADMIN'] },
     qrs:{ label:'QR de mesas', hint:'Ver e imprimir QR físicos', route:'/app/restaurante-v2/qrs', roles:['ADMIN','SUPER_ADMIN'] },
-    devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] }
+    devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] },
+    contabilidad:{ label:'Contabilidad', hint:'PUC · asientos · libros · reportes', route:'/app/restaurante-v2/contabilidad', roles:['ADMIN','SUPER_ADMIN'], group:'finance' },
+    configuracionAvanzada:{ label:'Configuración avanzada', hint:'DIAN · permisos · impresión · empresa', route:'/app/restaurante-v2/configuracion-avanzada', roles:['ADMIN','SUPER_ADMIN'], group:'finance' }
   });
   const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos' });
 
@@ -50,6 +52,7 @@
       if (!allowed(module)) return [];
       if (key === 'inventario' && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (key === 'gestion' && session.subdomain !== DEMO_RESTAURANTE) return [];
+      if (['contabilidad','configuracionAvanzada'].includes(key) && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)) return [];
       if (session.subdomain === DEMO_RESTAURANTE && key === 'gastos') {
         return [[key, { ...module, label:'Turno y gastos', hint:'Cierre de turno · gastos · historial' }]];
@@ -88,9 +91,11 @@
   }
   function renderNav() {
     const nav = $('#p11Nav');
-    const ops = visibleModules().filter(([, module]) => !module.technical);
-    const tech = visibleModules().filter(([, module]) => module.technical);
-    nav.innerHTML = `<div class="p11-nav-label">Operación</div>${ops.map(([key,module]) => navItem(key,module)).join('')}${tech.length ? `<div class="p11-nav-label">Técnico</div>${tech.map(([key,module]) => navItem(key,module)).join('')}` : ''}`;
+    const visible = visibleModules();
+    const ops = visible.filter(([, module]) => !module.technical && module.group !== 'finance');
+    const finance = visible.filter(([, module]) => !module.technical && module.group === 'finance');
+    const tech = visible.filter(([, module]) => module.technical);
+    nav.innerHTML = `<div class="p11-nav-label">Operación</div>${ops.map(([key,module]) => navItem(key,module)).join('')}${finance.length ? `<div class="p11-nav-label">Finanzas y sistema</div>${finance.map(([key,module]) => navItem(key,module)).join('')}` : ''}${tech.length ? `<div class="p11-nav-label">Técnico</div>${tech.map(([key,module]) => navItem(key,module)).join('')}` : ''}`;
     nav.addEventListener('click', (event) => {
       const button = event.target.closest('[data-module]');
       if (button) openModule(button.dataset.module);
