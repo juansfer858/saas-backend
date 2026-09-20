@@ -1,0 +1,60 @@
+name: Restaurant Inventory Bar V1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'prisma/restaurant-inventory-vantix-bar-v1.prisma'
+      - 'src/modules/restaurant/restaurant-inventory-bar-v1.*'
+      - 'src/web/restaurant-v2-inventory-bar-v1.*'
+      - 'src/modules/restaurant/restaurant-menu-item-edit.service.js'
+      - 'src/modules/restaurant/restaurant-identity.service.js'
+      - 'src/modules/restaurant/restaurant.service.js'
+      - 'src/web/restaurant-v2-menu.js'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'src/routes/core.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'scripts/ensure-restaurant-runtime-schema.js'
+      - 'scripts/restaurant-inventory-bar-v1-db-smoke.js'
+      - '.github/workflows/restaurant-inventory-bar-v1-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+      JWT_SECRET: inventory-bar-ci-secret
+      RESTAURANT_DEVICE_SECRET: inventory-device-ci-secret
+      RESTAURANT_QR_VISIT_SECRET: inventory-qr-ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-inventory-bar-v1.service.js
+          node --check src/modules/restaurant/restaurant-inventory-bar-v1.routes.js
+          node --check src/modules/restaurant/restaurant-inventory-bar-v1.public.routes.js
+          node --check src/web/restaurant-v2-inventory-bar-v1.js
+          node --check src/modules/restaurant/restaurant-menu-item-edit.service.js
+          node --check src/modules/restaurant/restaurant-identity.service.js
+          node --check src/modules/restaurant/restaurant.service.js
+      - name: Verify restaurant-owned inventory
+        run: node scripts/restaurant-inventory-bar-v1-db-smoke.js

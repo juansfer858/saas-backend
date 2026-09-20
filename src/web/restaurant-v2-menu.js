@@ -19,7 +19,7 @@
   const PREFIX = 'Categoría de carta: ';
   const OCR_GUARD = "if (!location.pathname.startsWith('/app/centro-de-control')) return;";
   const OCR_CARTA_GUARD = "if (!location.pathname.startsWith('/app/centro-de-control') && location.pathname !== '/app/restaurante-v2/carta') return;";
-  const state = { menu: [], products: [], recipes: [], carta: [], selectedInventory: null, editItem: null, recipeRows: 0 };
+  const state = { menu: [], products: [], recipes: [], carta: [], localTracking: {}, selectedInventory: null, editItem: null, recipeRows: 0 };
 
   function showNotice(text, error = false) {
     const box = $('#notice');
@@ -57,7 +57,8 @@
 
   function kindOf(item) {
     if (item.requiresRecipe) return 'RECIPE';
-    if (item.product?.controlaInventario) return 'DIRECT';
+    if (demoFiveCardGrid && state.localTracking?.[item.productId]) return 'DIRECT';
+    if (!demoFiveCardGrid && item.product?.controlaInventario) return 'DIRECT';
     return 'PREPARED';
   }
 
@@ -79,18 +80,20 @@
   async function loadData() {
     showNotice('Actualizando Carta…');
     try {
-      const [active, inactive, products, recipes, carta] = await Promise.all([
+      const [active, inactive, products, recipes, carta, localTracking] = await Promise.all([
         R.api('/api/v1/restaurante/menu?active=true'),
         R.api('/api/v1/restaurante/menu?active=false'),
         R.api('/api/v1/inventario/productos?activo=true&limit=1000'),
         R.api('/api/v1/consumo/recetas?limit=1000'),
-        R.api('/api/v1/restaurante/carta-importacion/lista')
+        R.api('/api/v1/restaurante/carta-importacion/lista'),
+        demoFiveCardGrid ? R.api('/api/v1/restaurante/inventario-v1/tracking') : Promise.resolve({})
       ]);
       state.menu = [...(Array.isArray(active) ? active : []), ...(Array.isArray(inactive) ? inactive : [])]
         .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
       state.products = Array.isArray(products) ? products : [];
       state.recipes = Array.isArray(recipes) ? recipes : [];
       state.carta = Array.isArray(carta) ? carta : [];
+      state.localTracking = localTracking && typeof localTracking === 'object' ? localTracking : {};
       render();
       showNotice('');
     } catch (error) {
@@ -106,7 +109,7 @@
     $('#summary').innerHTML = [
       ['Productos en Carta', rows.length, 'visibles para venta'],
       ['Preparados', prepared, 'sin inventario obligatorio'],
-      ['Inventario directo', direct, 'descuentan el mismo producto'],
+      ['Inventario directo', direct, demoFiveCardGrid ? 'controlado por Restaurante' : 'descuentan el mismo producto'],
       ['Con receta', recipes, 'control avanzado opcional']
     ].map(([label, value, hint]) => `<div class="menu-stat"><span>${esc(label)}</span><b>${value}</b><small>${esc(hint)}</small></div>`).join('');
   }
@@ -336,7 +339,7 @@
         method:'PATCH',
         body:JSON.stringify({
           nombre:$('#editName').value.trim(), precio1:Number($('#editPrice').value || 0), descripcion,
-          controlaInventario:mode === 'DIRECT'
+          controlaInventario:demoFiveCardGrid ? false : mode === 'DIRECT'
         })
       });
       await R.api(`/api/v1/restaurante/menu/${item.id}`, {
@@ -472,7 +475,15 @@
 
   async function boot() {
     $('#restaurantName').textContent = session.tenant?.nombreEmpresa || session.subdomain || 'Carta';
-    $('#tenantLine').textContent = `${session.subdomain} · Carta conectada al producto maestro del Super Core`;
+    $('#tenantLine').textContent = demoFiveCardGrid
+      ? `${session.subdomain} · Inventario propio del restaurante · catálogo compartido temporalmente`
+      : `${session.subdomain} · Carta conectada al producto maestro del Super Core`;
+    if (demoFiveCardGrid) {
+      const copy = document.querySelector('.menu-command p');
+      if (copy) copy.textContent = 'Lo que ve el mesero y el cliente. Las existencias de producto terminado se controlan desde Inventario del restaurante.';
+      const addInventory = $('#addInventory');
+      if (addInventory) addInventory.textContent = '+ Vincular producto';
+    }
     bind();
     await loadData();
     await loadCanonicalOcr();

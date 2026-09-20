@@ -3,6 +3,7 @@
 const { prisma } = require('../../config/prisma');
 const { AppError } = require('../../utils/app-error');
 const commercialCategories = require('./restaurant-commercial-categories-v26.service');
+const restaurantInventory = require('./restaurant-inventory-bar-v1.service');
 
 const CATEGORY_DESCRIPTION_PREFIX = 'Categoría de carta: ';
 const MENU_CATEGORIES = new Set(['ENTRADAS', 'FUERTES', 'BEBIDAS', 'POSTRES']);
@@ -176,6 +177,10 @@ async function updateCartaItem(tenantId, userId, menuItemId, input) {
     }
 
     const commercialCategory = await resolveCommercialCategory(tx, tenantId, input);
+    const localInventoryPilot = await restaurantInventory.isPilotTenant(tenantId, tx);
+    const localInventoryEnabled = localInventoryPilot
+      ? await restaurantInventory.enabledForProduct(tx, tenantId, product.id)
+      : false;
     const recipe = await tx.consumptionRecipe.findFirst({
       where: { tenantId, outputProductId: product.id },
       orderBy: { creadoEn: 'desc' }
@@ -196,7 +201,7 @@ async function updateCartaItem(tenantId, userId, menuItemId, input) {
       category: menuItem.category,
       commercialCategoryId: menuItem.commercialCategoryId || null,
       station: menuItem.station,
-      mode: menuItem.requiresRecipe ? 'RECIPE' : (product.controlaInventario ? 'DIRECT' : 'PREPARED'),
+      mode: menuItem.requiresRecipe ? 'RECIPE' : ((localInventoryPilot ? localInventoryEnabled : product.controlaInventario) ? 'DIRECT' : 'PREPARED'),
       active: menuItem.active !== false
     };
 
@@ -213,7 +218,7 @@ async function updateCartaItem(tenantId, userId, menuItemId, input) {
         nombre: name,
         precio1: price,
         descripcion: nextDescription,
-        controlaInventario: mode === 'DIRECT'
+        controlaInventario: localInventoryPilot ? false : mode === 'DIRECT'
       }
     });
 
@@ -227,6 +232,10 @@ async function updateCartaItem(tenantId, userId, menuItemId, input) {
         active
       }
     });
+
+    if (localInventoryPilot) {
+      await restaurantInventory.configureTrackingInTx(tx, tenantId, userId, product.id, mode === 'DIRECT');
+    }
 
     if (userId) {
       await tx.auditoriaContable.create({

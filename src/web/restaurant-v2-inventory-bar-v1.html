@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0D6B43">
+  <title>Inventario · Restaurante V2</title>
+  <link rel="stylesheet" href="/app/restaurant-v2-design-system.css">
+  <link rel="stylesheet" href="/app/restaurant-v2-inventory-bar-v1.css?v=v1">
+</head>
+<body data-rv2-module-header="true" data-rv2-module-title="Inventario">
+  <header class="rv2-top inv-top rv2-module-top">
+    <div>
+      <span>RESTAURANTE V2 · INVENTARIO</span>
+      <h1>Inventario</h1>
+      <p id="tenantLine">Cargando inventario…</p>
+    </div>
+    <div class="rv2-top-actions">
+      <button id="refresh" class="rv2-btn" type="button">Actualizar</button>
+    </div>
+  </header>
+
+  <main class="inv-main">
+    <section id="notice" class="rv2-notice">Cargando existencias…</section>
+
+    <section class="rv2-panel inv-command">
+      <div>
+        <small>INVENTARIO DEL RESTAURANTE</small>
+        <h2>Existencias, compras y movimientos</h2>
+        <p><b>Disponible = saldo − reservado.</b> El pedido reserva existencias al enviarse a Producción y descuenta el saldo cuando se cobra.</p>
+      </div>
+      <div class="inv-actions">
+        <button id="newPurchase" class="rv2-btn rv2-btn-primary" type="button">+ Agregar pedido</button>
+        <button id="exportStock" class="rv2-btn" type="button">Exportar existencias</button>
+      </div>
+    </section>
+
+    <section id="metrics" class="inv-metrics"></section>
+
+    <nav class="inv-tabs" aria-label="Inventario">
+      <button class="active" type="button" data-inv-tab="stock">Existencias</button>
+      <button type="button" data-inv-tab="purchases">Pedidos de inventario</button>
+      <button type="button" data-inv-tab="history">Historial de movimientos</button>
+    </nav>
+
+    <section id="stockPanel" class="inv-panel">
+      <div class="rv2-panel inv-toolbar">
+        <input id="stockSearch" class="inv-input" type="search" placeholder="Buscar producto, categoría o SKU" autocomplete="off">
+        <select id="stockFilter" class="inv-select">
+          <option value="ALL">Todos</option>
+          <option value="CONTROLLED">Controlados</option>
+          <option value="LOW">Bajo mínimo</option>
+          <option value="OUT">Agotados</option>
+          <option value="RESERVED">Con reservas</option>
+        </select>
+      </div>
+      <div class="rv2-panel inv-table-wrap">
+        <table class="inv-table">
+          <thead><tr><th>Producto</th><th>Saldo</th><th>Reservado</th><th>Disponible</th><th>Mínimo</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="stockRows"></tbody>
+        </table>
+        <div id="stockCards" class="inv-stock-cards"></div>
+      </div>
+    </section>
+
+    <section id="purchasesPanel" class="inv-panel" hidden>
+      <div class="rv2-panel inv-section-head">
+        <div><small>ENTRADAS DE MERCANCÍA</small><h2>Pedidos de inventario</h2><p>El borrador no mueve existencias. El saldo aumenta únicamente al confirmar “Recibir pedido”.</p></div>
+        <button id="newPurchase2" class="rv2-btn rv2-btn-primary" type="button">+ Agregar pedido</button>
+      </div>
+      <div id="purchaseList" class="inv-purchase-list"></div>
+    </section>
+
+    <section id="historyPanel" class="inv-panel" hidden>
+      <div class="rv2-panel inv-toolbar">
+        <select id="historyProduct" class="inv-select"><option value="">Todos los productos</option></select>
+        <input id="historyFrom" class="inv-input date" type="date">
+        <input id="historyTo" class="inv-input date" type="date">
+        <button id="historyApply" class="rv2-btn" type="button">Consultar</button>
+        <button id="exportHistory" class="rv2-btn" type="button">Exportar historial</button>
+      </div>
+      <div class="rv2-panel inv-table-wrap">
+        <table class="inv-table">
+          <thead><tr><th>#</th><th>Fecha</th><th>Producto</th><th>Movimiento</th><th>Unidades</th><th>Cambio</th><th>Saldo</th><th>Motivo</th></tr></thead>
+          <tbody id="historyRows"></tbody>
+        </table>
+      </div>
+      <button id="historyMore" class="rv2-btn inv-more" type="button" hidden>Ver más</button>
+    </section>
+  </main>
+
+  <dialog id="movementDialog" class="inv-dialog">
+    <form id="movementForm">
+      <div class="inv-dialog-head"><div><small>MOVIMIENTO MANUAL</small><h2 id="movementTitle">Registrar movimiento</h2></div><button class="rv2-btn" type="button" data-close="movementDialog">Cerrar</button></div>
+      <div class="inv-dialog-body">
+        <input id="movementProductId" type="hidden"><input id="movementVersion" type="hidden">
+        <label>Tipo<select id="movementKind" class="inv-select"><option value="entry">Entrada</option><option value="exit">Salida</option><option value="adjustment">Conteo físico / ajuste</option><option value="initial">Saldo inicial</option></select></label>
+        <label><span id="movementQuantityLabel">Cantidad</span><input id="movementQuantity" class="inv-input" type="number" min="0" step="0.0001" required></label>
+        <label>Motivo<input id="movementReason" class="inv-input" maxlength="400" required placeholder="Ej. Ajuste por conteo físico"></label>
+        <div id="movementError" class="inv-error" hidden></div>
+      </div>
+      <div class="inv-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar movimiento</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="minimumDialog" class="inv-dialog">
+    <form id="minimumForm">
+      <div class="inv-dialog-head"><div><small>ALERTA DE INVENTARIO</small><h2 id="minimumTitle">Mínimo</h2></div><button class="rv2-btn" type="button" data-close="minimumDialog">Cerrar</button></div>
+      <div class="inv-dialog-body">
+        <input id="minimumProductId" type="hidden"><input id="minimumVersion" type="hidden">
+        <label>Existencia mínima<input id="minimumValue" class="inv-input" type="number" min="0" step="0.0001" required></label>
+        <div id="minimumError" class="inv-error" hidden></div>
+      </div>
+      <div class="inv-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar mínimo</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="purchaseDialog" class="inv-dialog inv-dialog-wide">
+    <form id="purchaseForm">
+      <div class="inv-dialog-head"><div><small>PEDIDO DE INVENTARIO</small><h2 id="purchaseTitle">Nuevo pedido</h2></div><button class="rv2-btn" type="button" data-close="purchaseDialog">Cerrar</button></div>
+      <div class="inv-dialog-body">
+        <input id="purchaseId" type="hidden">
+        <div class="inv-form-grid">
+          <label>Proveedor<input id="purchaseSupplier" class="inv-input" maxlength="200" required></label>
+          <label>Factura / referencia<input id="purchaseReference" class="inv-input" maxlength="160"></label>
+          <label>Fecha de compra<input id="purchaseDate" class="inv-input" type="date" required></label>
+          <label>Condición de pago<select id="purchaseTerms" class="inv-select"><option value="cash">Contado</option><option value="credit">Crédito</option></select></label>
+          <label id="purchaseDueWrap" hidden>Vencimiento<input id="purchaseDue" class="inv-input" type="date"></label>
+          <label class="wide">Notas<input id="purchaseNotes" class="inv-input" maxlength="400"></label>
+        </div>
+        <div class="inv-purchase-items-head"><b>Productos</b><button id="addPurchaseLine" class="rv2-btn" type="button">+ Producto</button></div>
+        <div id="purchaseItems" class="inv-purchase-items"></div>
+        <div id="purchaseTotals" class="inv-purchase-totals"></div>
+        <div id="purchaseError" class="inv-error" hidden></div>
+      </div>
+      <div class="inv-dialog-actions"><button class="rv2-btn rv2-btn-primary" type="submit">Guardar borrador</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="costDialog" class="inv-dialog">
+    <div class="inv-dialog-head"><div><small>HISTORIAL DE COSTO</small><h2 id="costTitle">Últimas compras</h2></div><button class="rv2-btn" type="button" data-close="costDialog">Cerrar</button></div>
+    <div class="inv-dialog-body"><div id="costRows"></div></div>
+  </dialog>
+
+  <script src="/app/restaurant-v2-sdk.js"></script>
+  <script src="/app/restaurant-v2-inventory-bar-v1.js?v=v1"></script>
+  <script src="/app/restaurant-v2-operational-ux-v12.js?v=v12"></script>
+</body>
+</html>

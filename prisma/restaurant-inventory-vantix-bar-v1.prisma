@@ -1,0 +1,85 @@
+model RestaurantInventoryStock {
+  id           String   @id @default(uuid())
+  tenantId     String
+  productId    String
+  enabled      Boolean  @default(false)
+  onHand       Decimal  @default(0) @db.Decimal(18, 4)
+  minimum      Decimal  @default(0) @db.Decimal(18, 4)
+  version      Int      @default(1)
+  creadoEn     DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@unique([tenantId, productId])
+  @@index([tenantId, enabled])
+  @@index([tenantId, actualizadoEn])
+}
+
+model RestaurantInventoryMovement {
+  id          String   @id @default(uuid())
+  number      BigInt   @unique @default(autoincrement())
+  tenantId    String
+  productId   String
+  productName String
+  kind        String
+  units       Decimal  @db.Decimal(18, 4)
+  delta       Decimal  @db.Decimal(18, 4)
+  balance     Decimal  @db.Decimal(18, 4)
+  reason      String
+  sessionId   String?
+  orderId     String?
+  saleId      String?
+  userId      String
+  creadoEn    DateTime @default(now())
+
+  @@index([tenantId, productId, number(sort: Desc)])
+  @@index([tenantId, creadoEn])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, orderId])
+  @@index([tenantId, saleId])
+}
+
+model RestaurantInventoryPurchase {
+  id           String   @id @default(uuid())
+  number       BigInt   @unique @default(autoincrement())
+  tenantId     String
+  supplier     String
+  reference    String   @default("")
+  purchaseDate DateTime @db.Date
+  paymentTerms String   @default("cash")
+  dueDate      DateTime? @db.Date
+  notes        String   @default("")
+  status       String   @default("draft")
+  subtotal     Decimal  @default(0) @db.Decimal(18, 2)
+  taxTotal     Decimal  @default(0) @db.Decimal(18, 2)
+  total        Decimal  @default(0) @db.Decimal(18, 2)
+  createdByUserId  String
+  receivedByUserId String?
+  receivedAt   DateTime?
+  creadoEn     DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  items RestaurantInventoryPurchaseItem[]
+
+  @@index([tenantId, number(sort: Desc)])
+  @@index([tenantId, status, purchaseDate])
+}
+
+model RestaurantInventoryPurchaseItem {
+  id          String   @id @default(uuid())
+  tenantId    String
+  purchaseId  String
+  productId   String
+  productName String
+  quantity    Decimal  @db.Decimal(18, 4)
+  unitCost    Decimal  @db.Decimal(18, 4)
+  taxPercent  Decimal  @default(0) @db.Decimal(7, 4)
+  subtotal    Decimal  @default(0) @db.Decimal(18, 2)
+  tax         Decimal  @default(0) @db.Decimal(18, 2)
+  total       Decimal  @default(0) @db.Decimal(18, 2)
+  creadoEn    DateTime @default(now())
+
+  purchase RestaurantInventoryPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseId, productId])
+  @@index([tenantId, productId, creadoEn])
+}
