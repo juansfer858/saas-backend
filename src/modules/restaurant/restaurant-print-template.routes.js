@@ -71,7 +71,7 @@ const cashCloseTemplateSchema = z.object({
 
 const previewSchema = z.object({
   paperFormat: z.enum(['TERMICA_80', 'TERMICA_58']).optional().default('TERMICA_80'),
-  template: z.record(z.any()).optional().default({})
+  template: z.record(z.string(), z.any()).optional().default({})
 });
 
 function sampleSale() {
