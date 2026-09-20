@@ -41,6 +41,7 @@ on:
       - 'src/web/restaurant-v2-person-buttons-v100.css'
       - 'scripts/restaurant-v2-admin-empty-table-v107-smoke.js'
       - 'scripts/restaurant-v2-orders-p3-db-smoke.js'
+      - 'scripts/restaurant-demo-bar-behavior-db-smoke.js'
       - 'scripts/restaurant-v2-person-buttons-v100-smoke.js'
       - '.github/workflows/restaurant-v2-orders-p3-ci.yml'
 permissions:
