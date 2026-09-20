@@ -13,6 +13,7 @@ const paymentMethods = require('./restaurant-payment-methods.service');
 const cashCloseEmpty = require('./restaurant-v2-cash-close-empty-v80.service');
 const shiftClosures = require('./restaurant-shift-close-history-c86.runtime');
 const { restaurantShiftCloseHistoryC86Router } = require('./restaurant-shift-close-history-c86.routes');
+const demoBar = require('./restaurant-demo-bar-accounts-v1.service');
 
 const router = express.Router();
 
@@ -66,6 +67,19 @@ const customerSchema = z.object({
   email: z.string().trim().email().max(254).optional().nullable(),
   cupoCredito: z.coerce.number().min(0).max(1000000000000).optional().default(0),
   diasPlazo: z.coerce.number().int().min(0).max(3650).optional().default(0)
+});
+
+router.get('/v2/demo-bar/cuentas/:sessionId/caja', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try { await demoBar.assertDemoTenant(req.tenantId); res.json({ ok: true, data: await service.tableDetailBySession(req.tenantId, req.user, req.params.sessionId) }); }
+  catch (error) { next(error); }
+});
+
+router.post('/v2/demo-bar/cuentas/:sessionId/cobrar', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
+  try {
+    await demoBar.assertDemoTenant(req.tenantId);
+    const input = parse(chargeSchema, req.body);
+    res.json({ ok: true, data: await service.chargeWholeAccountBySession(req.tenantId, req.user, req.params.sessionId, input) });
+  } catch (error) { next(error); }
 });
 
 router.get('/v2/caja', requirePermission('RESTAURANTE.CERRAR'), async (req, res, next) => {
