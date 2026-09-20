@@ -185,9 +185,12 @@ async function updateCartaItem(tenantId, userId, menuItemId, input) {
       where: { tenantId, outputProductId: product.id },
       orderBy: { creadoEn: 'desc' }
     });
+    const localRecipe = localInventoryPilot
+      ? await tx.restaurantRecipe.findFirst({ where: { tenantId, productId: product.id } })
+      : null;
 
-    if (mode === 'RECIPE' && !recipe) {
-      throw new AppError(409, 'Primero configura la receta de este producto', 'RESTAURANT_CARTA_EDIT_RECIPE_REQUIRED');
+    if (mode === 'RECIPE' && !(localInventoryPilot ? localRecipe : recipe)) {
+      throw new AppError(409, localInventoryPilot ? 'Primero configura la receta en Inventario → Recetas y costos.' : 'Primero configura la receta de este producto', 'RESTAURANT_CARTA_EDIT_RECIPE_REQUIRED');
     }
 
     const currentDescription = String(product.descripcion || '').trim();
@@ -208,7 +211,7 @@ async function updateCartaItem(tenantId, userId, menuItemId, input) {
     if (recipe) {
       await tx.consumptionRecipe.update({
         where: { id: recipe.id },
-        data: { active: mode === 'RECIPE' }
+        data: { active: localInventoryPilot ? false : mode === 'RECIPE' }
       });
     }
 
