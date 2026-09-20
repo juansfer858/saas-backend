@@ -27,7 +27,7 @@ expect(runtime.includes('/demo-bar/mesas/'), 'new account API missing');
 expect(runtime.includes('/demo-bar/cuentas/'), 'account actions API missing');
 expect(runtime.includes('async function ensureAccount()'), 'auto-create account behavior missing');
 expect(runtime.includes("name:'Cuenta'"), 'auto-created account default missing');
-expect(runtime.includes(/^(\\d+)\\s*\\+/.source) || runtime.includes("match(/^(\\d+)\\s*\\+"), 'quantity + search behavior missing');
+expect(runtime.includes("raw.match(/^(\\d+)\\s*\\+\\s*(.*)$/)"), 'quantity + search behavior missing');
 expect(runtime.includes('/pedido/enviar'), 'direct send to production missing');
 expect(runtime.includes('/pedir-cuenta'), 'prebill behavior missing');
 expect(runtime.includes('/demo-bar/cuentas/'+""), 'demo account route construction missing');
