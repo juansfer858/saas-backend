@@ -757,3 +757,97 @@ body[data-demo-bar-orders="1"] .rv2-order-top .rv2-btn{
     grid-template-columns:1fr;
   }
 }
+
+
+/* VANTIX_DEMO_RESTAURANTE_RECEIPT_PREVIEW_V1 */
+.demo-bar-dialog[data-receipt-preview="1"]{
+  width:min(760px,calc(100vw - 24px));
+}
+.demo-bar-dialog[data-receipt-preview="1"] .demo-bar-dialog-shell{
+  padding:18px 20px 20px;
+}
+.demo-bar-dialog[data-receipt-preview="1"] .demo-bar-dialog-head [data-dialog-close]{
+  display:none!important;
+}
+.demo-bar-receipt-result{
+  display:grid;
+  gap:12px;
+}
+.demo-bar-receipt-result>div:first-child h2{
+  margin:3px 0 4px;
+}
+.demo-bar-receipt-result>div:first-child p{
+  margin:0;
+  color:var(--rv2-muted);
+  font-size:11px;
+}
+.demo-bar-receipt-loading{
+  min-height:220px;
+  display:grid;
+  place-items:center;
+  border:1px dashed var(--rv2-line);
+  border-radius:14px;
+  background:#f1f5f9;
+  color:var(--rv2-muted);
+  font-size:11px;
+}
+.demo-bar-receipt-stage{
+  max-height:48vh;
+  overflow:auto;
+  padding:18px;
+  border:1px solid var(--rv2-line);
+  border-radius:14px;
+  background:#e9edf2;
+}
+.demo-bar-receipt-stage-title{
+  margin-bottom:10px;
+  text-align:center;
+  color:#64748b;
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:.09em;
+}
+.demo-bar-receipt-paper{
+  position:relative;
+  width:min(390px,100%);
+  margin:0 auto;
+  padding:22px 18px 28px;
+  background:#fff;
+  box-shadow:0 12px 30px rgba(15,23,42,.16);
+}
+.demo-bar-receipt-paper:after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:-8px;
+  height:8px;
+  background:linear-gradient(135deg,#fff 50%,transparent 51%) 0 0/12px 8px repeat-x;
+}
+.demo-bar-receipt-paper pre{
+  margin:0;
+  overflow:visible;
+  white-space:pre-wrap;
+  word-break:break-word;
+  color:#111827;
+  font:11px/1.38 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+}
+.demo-bar-receipt-question{
+  text-align:center;
+  font-size:13px;
+  font-weight:900;
+}
+.demo-bar-dialog[data-receipt-preview="1"] .demo-bar-print-actions{
+  grid-template-columns:1fr 1fr;
+}
+.demo-bar-dialog[data-receipt-preview="1"] .demo-bar-print-actions .rv2-btn{
+  min-height:48px!important;
+  font-size:13px!important;
+  font-weight:900!important;
+}
+@media(max-width:650px){
+  .demo-bar-dialog[data-receipt-preview="1"]{width:calc(100vw - 12px)}
+  .demo-bar-receipt-stage{padding:10px;max-height:52vh}
+  .demo-bar-receipt-paper{padding:18px 12px 24px}
+  .demo-bar-receipt-paper pre{font-size:10px}
+}
