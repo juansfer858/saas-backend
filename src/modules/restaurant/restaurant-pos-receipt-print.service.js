@@ -6,6 +6,7 @@ const { decimal, money: decimalMoney } = require('../../utils/decimal');
 const companyService = require('./restaurant-company-profile.service');
 const { summaryRows, legacyReport } = require('./restaurant-cash-close-summary.service');
 const receiptLayout = require('./restaurant-pos-receipt-layout.service');
+const documentTemplates = require('./restaurant-document-print-template.service');
 
 const POS_ROLE = 'CAJA';
 const DOCUMENT_ROLE = 'DOCUMENTOS';
@@ -88,7 +89,7 @@ function cashCloseColumns(format) {
   return normalized.includes('58') ? CASH_CLOSE_COLUMNS_58 : CASH_CLOSE_COLUMNS_80;
 }
 
-function receiptLines({ company, sale, session, table, paperFormat = 'TERMICA_80' }) {
+function receiptLines({ company, sale, session, table, paperFormat = 'TERMICA_80', template = {} }) {
   return receiptLayout.receiptLinesFullWidth({
     company,
     sale,
@@ -100,12 +101,13 @@ function receiptLines({ company, sale, session, table, paperFormat = 'TERMICA_80
     qty,
     dateTime,
     number,
-    defaultTitle: companyService.DEFAULT_POS_RECEIPT_TITLE
+    defaultTitle: companyService.DEFAULT_POS_RECEIPT_TITLE,
+    template
   });
 }
 
 async function receiptPreviewBySession(tenantId, sessionId, client = prisma) {
-  const [company, session, printers] = await Promise.all([
+  const [company, session, printers, templates] = await Promise.all([
     companyService.getCompanyProfile(tenantId, client),
     client.restaurantTableSession.findFirst({
       where: { id: sessionId, tenantId, state: 'CERRADA' },
@@ -114,7 +116,8 @@ async function receiptPreviewBySession(tenantId, sessionId, client = prisma) {
     client.printerEndpoint.findMany({
       where: { tenantId, active: true, transport: { in: ['LAN', 'WINDOWS'] } },
       orderBy: { name: 'asc' }
-    })
+    }),
+    documentTemplates.getDocumentPrintTemplates(tenantId, client)
   ]);
   if (!session) return null;
   const sale = await client.comprobanteComercial.findFirst({
@@ -134,13 +137,13 @@ async function receiptPreviewBySession(tenantId, sessionId, client = prisma) {
     columns,
     routing: selected.routing,
     printerName: printer?.name || null,
-    documentTitle: String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
-    lines: receiptLines({ company, sale, session, table: session.table, paperFormat }),
-    footer: receiptLayout.centerLine('Gracias por su compra', columns)
+    documentTitle: String(templates?.invoice?.title || company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
+    lines: receiptLines({ company, sale, session, table: session.table, paperFormat, template:templates?.invoice || {} }),
+    footer: receiptLayout.centerLine(templates?.invoice?.thankYouText || 'Gracias por su compra', columns)
   };
 }
 
-function buildReceiptJob({ company, sale, session, table, printer }) {
+function buildReceiptJob({ company, sale, session, table, printer, template = {} }) {
   const transport = String(printer.transport || 'LAN').toUpperCase();
   const paperFormat = printer.format || 'TERMICA_80';
   const columns = receiptLayout.paperColumns(paperFormat);
@@ -158,15 +161,15 @@ function buildReceiptJob({ company, sale, session, table, printer }) {
     },
     payload: {
       title: String(company?.nombreEmpresa || 'VantixGC').trim(),
-      lines: receiptLines({ company, sale, session, table, paperFormat }),
-      footer: receiptLayout.centerLine('Gracias por su compra', columns),
+      lines: receiptLines({ company, sale, session, table, paperFormat, template }),
+      footer: receiptLayout.centerLine(template?.thankYouText || 'Gracias por su compra', columns),
       copies: 1,
       cut: true,
       paperFormat,
       receiptType: 'RESTAURANT_POS_V1',
       receiptLayout: 'FULL_WIDTH_V2',
       columns,
-      documentTitle: String(company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
+      documentTitle: String(template?.title || company?.receiptTitle || companyService.DEFAULT_POS_RECEIPT_TITLE).trim(),
       saleId: sale.id,
       sessionId: session.id
     }
@@ -273,7 +276,7 @@ async function buildCashCloseSnapshot(tenantId, shiftId, client = prisma) {
   };
 }
 
-function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }) {
+function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80', template = {} }) {
   const width = cashCloseColumns(paperFormat);
   const separator = '-'.repeat(width);
   const lines = [];
@@ -281,7 +284,7 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
   const center = (value) => lines.push(...receiptLayout.centeredWrapped(value, width));
   center(String(company?.nombreEmpresa || 'Restaurante').slice(0, 80));
   if (company?.nit) center(`NIT ${String(company.nit).slice(0, 30)}`);
-  center('CIERRE DE TURNO / CAJA');
+  center(String(template?.title || 'CIERRE DE TURNO / CAJA'));
   center('RESUMEN');
   // VANTIX_RESTAURANT_CASH_CLOSE_SUMMARY_V110
   // Old queued jobs may contain thousands of detailRows: never print those lists.
@@ -298,13 +301,13 @@ function cashCloseReceiptLines({ company, snapshot, paperFormat = 'TERMICA_80' }
     pair(row.label, row.value);
   }
   lines.push(separator);
-  center('Detalle: Historial de cierres');
-  center('Control interno - no es factura');
+  if (template?.showDetailHint !== false) center('Detalle: Historial de cierres');
+  if (template?.showInternalNote !== false) center('Control interno - no es factura');
   center('FIN DEL CIERRE');
   return lines;
 }
 
-function buildCashCloseJob({ company, snapshot, printer }) {
+function buildCashCloseJob({ company, snapshot, printer, template = {} }) {
   const transport = String(printer.transport || 'LAN').toUpperCase();
   const paperFormat = printer.format || 'TERMICA_80';
   const columns = cashCloseColumns(paperFormat);
@@ -322,8 +325,8 @@ function buildCashCloseJob({ company, snapshot, printer }) {
     },
     payload: {
       title: String(company?.nombreEmpresa || 'VantixGC').trim(),
-      lines: cashCloseReceiptLines({ company, snapshot, paperFormat }),
-      footer: receiptLayout.centerLine('VantixGC · Cierre de caja', columns),
+      lines: cashCloseReceiptLines({ company, snapshot, paperFormat, template }),
+      footer: receiptLayout.centerLine(template?.footerText || 'VantixGC · Cierre de caja', columns),
       copies: 1,
       cut: true,
       paperFormat,
@@ -421,7 +424,7 @@ function cashCloseSnapshotFromIntent(intent) {
 
 async function buildPendingReceiptJobs(tenantId) {
   const now = new Date();
-  const [company, printers, intents] = await Promise.all([
+  const [company, printers, intents, templates] = await Promise.all([
     companyService.getCompanyProfile(tenantId),
     prisma.printerEndpoint.findMany({ where: { tenantId, active: true, transport: { in: ['LAN', 'WINDOWS'] } }, orderBy: { name: 'asc' } }),
     prisma.trackingLink.findMany({
@@ -434,7 +437,8 @@ async function buildPendingReceiptJobs(tenantId) {
       },
       orderBy: { creadoEn: 'asc' },
       take: 80
-    })
+    }),
+    documentTemplates.getDocumentPrintTemplates(tenantId)
   ]);
   const selected = selectReceiptPrinters(printers);
   if (!selected.printers.length || !intents.length) {
@@ -464,14 +468,14 @@ async function buildPendingReceiptJobs(tenantId) {
     const sale = session ? saleById.get(session.saleId) : null;
     if (!session || !sale || !sale.detalles?.length || number(sale.saldo) > 0) continue;
     posReceiptCount += 1;
-    for (const printer of selected.printers) jobs.push(buildReceiptJob({ company, sale, session, table: session.table, printer }));
+    for (const printer of selected.printers) jobs.push(buildReceiptJob({ company, sale, session, table: session.table, printer, template:templates.invoice }));
   }
 
   for (const intent of closeIntents) {
     const snapshot = cashCloseSnapshotFromIntent(intent);
     if (!snapshot) continue;
     cashCloseReceiptCount += 1;
-    for (const printer of selected.printers) jobs.push(buildCashCloseJob({ company, snapshot, printer }));
+    for (const printer of selected.printers) jobs.push(buildCashCloseJob({ company, snapshot, printer, template:templates.cashClose }));
   }
 
   return {

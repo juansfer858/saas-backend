@@ -91,15 +91,33 @@ function customerDocumentLabel(tercero) {
   return type || 'Documento';
 }
 
-function customerDetailLines(sale, width) {
+function enabled(template, key, fallback = true) {
+  return template?.[key] === undefined ? fallback : Boolean(template[key]);
+}
+
+function customerDetailLines(sale, width, template = {}) {
   const tercero = sale?.tercero || null;
   const lines = [];
-  lines.push(...labelValueLines('Cliente', customerName(sale), width));
+  if (enabled(template, 'showCustomerName')) {
+    const name = customerName(sale);
+    if (name) lines.push(...labelValueLines('Cliente', name, width));
+  }
   if (!tercero) return lines;
-  if (tercero.identificacion) lines.push(...labelValueLines(customerDocumentLabel(tercero), tercero.identificacion, width));
-  if (tercero.direccion) lines.push(...deliveryDetailLines('Dirección', tercero.direccion, width));
-  if (tercero.telefono) lines.push(...labelValueLines('Teléfono', tercero.telefono, width));
-  if (tercero.email) lines.push(...deliveryDetailLines('Correo', tercero.email, width));
+  if (enabled(template, 'showCustomerDocument') && tercero.identificacion) lines.push(...labelValueLines(customerDocumentLabel(tercero), tercero.identificacion, width));
+  if (enabled(template, 'showCustomerAddress') && tercero.direccion) lines.push(...deliveryDetailLines('Dirección', tercero.direccion, width));
+  if (enabled(template, 'showCustomerPhone') && tercero.telefono) lines.push(...labelValueLines('Teléfono', tercero.telefono, width));
+  if (enabled(template, 'showCustomerEmail') && tercero.email) lines.push(...deliveryDetailLines('Correo', tercero.email, width));
+  return lines;
+}
+
+function companyTemplateLines(company, template = {}, width) {
+  const lines = [];
+  if (enabled(template, 'showCompanyName')) lines.push(...centeredWrapped(company?.nombreEmpresa || 'Restaurante', width));
+  if (enabled(template, 'showNit') && company?.nit) lines.push(...centeredWrapped(`NIT: ${company.nit}`, width));
+  if (enabled(template, 'showAddress') && company?.address) lines.push(...centeredWrapped(`Dirección: ${company.address}`, width));
+  if (enabled(template, 'showCity') && (company?.city || company?.department)) lines.push(...centeredWrapped([company?.city, company?.department].filter(Boolean).join(' · '), width));
+  if (enabled(template, 'showPhone') && company?.phone) lines.push(...centeredWrapped(`Tel: ${company.phone}`, width));
+  if (enabled(template, 'showEmail') && company?.email) lines.push(...centeredWrapped(company.email, width));
   return lines;
 }
 
@@ -121,7 +139,7 @@ function formatDeliveryDateTime(value, timeZone, fallbackFormatter) {
   return typeof fallbackFormatter === 'function' ? fallbackFormatter(value) : '';
 }
 
-function productLines(detail, { width, qty, money }) {
+function productLines(detail, { width, qty, money, showUnitPrice = true }) {
   const quantity = qty(detail?.cantidad);
   const description = cleanText(detail?.descripcion || 'Producto');
   const prefix = `${quantity} x `;
@@ -134,51 +152,72 @@ function productLines(detail, { width, qty, money }) {
   } else {
     lines.push(`${prefix}Producto`.slice(0, width));
   }
-  lines.push(...pairOrWrap(`${money(detail?.precioUnitario)} c/u`, money(detail?.totalLinea), width, 2));
+  if (showUnitPrice) lines.push(...pairOrWrap(`${money(detail?.precioUnitario)} c/u`, money(detail?.totalLinea), width, 2));
+  else lines.push(cleanText(money(detail?.totalLinea)).slice(0, width).padStart(width, ' '));
   return lines;
 }
 
-function receiptLinesFullWidth({ company, sale, session, table, paperFormat, companyLines, money, qty, dateTime, number, defaultTitle }) {
+function receiptLinesFullWidth({ company, sale, session, table, paperFormat, companyLines, money, qty, dateTime, number, defaultTitle, template = {} }) {
   const width = paperColumns(paperFormat);
   const separator = '-'.repeat(width);
   const lines = [];
 
-  lines.push(centerLine(String(company?.receiptTitle || defaultTitle).trim(), width));
-  lines.push(...centeredWrapped(company?.nombreEmpresa || 'Restaurante', width));
-  for (const companyLine of companyLines(company)) lines.push(...centeredWrapped(companyLine, width));
+  const title = cleanText(template?.title) || cleanText(company?.receiptTitle) || cleanText(defaultTitle);
+  if (title) lines.push(centerLine(title, width));
+  const useLegacyCompanyLines = !template || Object.keys(template).length === 0;
+  if (useLegacyCompanyLines && typeof companyLines === 'function') {
+    lines.push(...centeredWrapped(company?.nombreEmpresa || 'Restaurante', width));
+    for (const companyLine of companyLines(company)) lines.push(...centeredWrapped(companyLine, width));
+  } else {
+    lines.push(...companyTemplateLines(company, template, width));
+  }
   lines.push(separator);
 
   const saleLabel = `Venta: ${sale?.numero || String(sale?.id || '').slice(0, 8).toUpperCase()}`;
   const tableLabel = `Mesa: ${table?.name || table?.code || 'Mesa'}`;
-  lines.push(...pairOrWrap(saleLabel, tableLabel, width, 3));
+  const showSale = enabled(template, 'showSaleNumber');
+  const showTable = enabled(template, 'showTable');
+  if (showSale && showTable) lines.push(...pairOrWrap(saleLabel, tableLabel, width, 3));
+  else if (showSale) lines.push(...wrapText(saleLabel, width));
+  else if (showTable) lines.push(...wrapText(tableLabel, width));
+
   const rawWhen = sale?.emitidoEn || session?.closedAt || sale?.fecha;
   const when = session?.deliveryTimeZone
     ? formatDeliveryDateTime(rawWhen, session.deliveryTimeZone, dateTime)
     : dateTime(rawWhen);
-  if (when) lines.push(centerLine(`Fecha: ${when}`, width));
-  lines.push(...customerDetailLines(sale, width));
-  if (session?.deliveryPhone && !sameText(session.deliveryPhone, sale?.tercero?.telefono)) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
-  if (session?.deliveryAddress && !sameText(session.deliveryAddress, sale?.tercero?.direccion)) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
-  if (session?.deliveryNeighborhood) lines.push(...deliveryDetailLines('Barrio/Zona', session.deliveryNeighborhood, width));
-  if (session?.deliveryReference) lines.push(...deliveryDetailLines('Referencia', session.deliveryReference, width));
+  if (enabled(template, 'showDate') && when) lines.push(centerLine(`Fecha: ${when}`, width));
+
+  lines.push(...customerDetailLines(sale, width, template));
+  if (enabled(template, 'showCustomerPhone') && session?.deliveryPhone && !sameText(session.deliveryPhone, sale?.tercero?.telefono)) lines.push(...labelValueLines('Teléfono', session.deliveryPhone, width));
+  if (enabled(template, 'showCustomerAddress') && session?.deliveryAddress && !sameText(session.deliveryAddress, sale?.tercero?.direccion)) lines.push(...deliveryAddressLines(session.deliveryAddress, width));
+  if (enabled(template, 'showCustomerAddress') && session?.deliveryNeighborhood) lines.push(...deliveryDetailLines('Barrio/Zona', session.deliveryNeighborhood, width));
+  if (enabled(template, 'showCustomerAddress') && session?.deliveryReference) lines.push(...deliveryDetailLines('Referencia', session.deliveryReference, width));
   lines.push(separator);
 
   for (const detail of Array.isArray(sale?.detalles) ? sale.detalles : []) {
-    lines.push(...productLines(detail, { width, qty, money }));
+    lines.push(...productLines(detail, { width, qty, money, showUnitPrice:enabled(template, 'showUnitPrice') }));
   }
 
   lines.push(separator);
-  lines.push(...labelValueLines('Subtotal', money(sale?.subtotal), width));
-  if (number(sale?.descuentoTotal) > 0) lines.push(...labelValueLines('Descuento', money(sale.descuentoTotal), width));
-  if (number(sale?.ivaTotal) > 0) lines.push(...labelValueLines('IVA', money(sale.ivaTotal), width));
-  if (number(sale?.impoconsumoTotal) > 0) lines.push(...labelValueLines('Impoconsumo', money(sale.impoconsumoTotal), width));
+  if (enabled(template, 'showSubtotal')) lines.push(...labelValueLines('Subtotal', money(sale?.subtotal), width));
+  if (enabled(template, 'showDiscount') && number(sale?.descuentoTotal) > 0) lines.push(...labelValueLines('Descuento', money(sale.descuentoTotal), width));
+  if (enabled(template, 'showTaxes')) {
+    if (number(sale?.ivaTotal) > 0) lines.push(...labelValueLines('IVA', money(sale.ivaTotal), width));
+    if (number(sale?.impoconsumoTotal) > 0) lines.push(...labelValueLines('Impoconsumo', money(sale.impoconsumoTotal), width));
+  }
   const tip = number(session?.tipAmount);
-  if (tip > 0) lines.push(...labelValueLines('Propina', money(tip), width));
+  if (enabled(template, 'showTip') && tip > 0) lines.push(...labelValueLines('Propina', money(tip), width));
   lines.push(...labelValueLines('TOTAL', money(number(sale?.total) + tip), width));
 
   const payment = cleanText(session?.paymentMethodLabel || session?.paymentMethodKind || sale?.formaPago || '');
-  if (payment) lines.push(...labelValueLines('Pago', payment, width));
-  if (session?.paymentReference) lines.push(...labelValueLines('Ref', String(session.paymentReference).slice(0, 80), width));
+  if (enabled(template, 'showPayment') && payment) lines.push(...labelValueLines('Pago', payment, width));
+  if (enabled(template, 'showReference') && session?.paymentReference) lines.push(...labelValueLines('Ref', String(session.paymentReference).slice(0, 80), width));
+
+  const footerText = cleanText(template?.footerText);
+  if (footerText) {
+    lines.push(separator);
+    lines.push(...centeredWrapped(footerText, width));
+  }
   return lines;
 }
 
@@ -198,7 +237,9 @@ module.exports = {
   deliveryAddressLines,
   customerName,
   customerDocumentLabel,
+  enabled,
   customerDetailLines,
+  companyTemplateLines,
   sameText,
   formatDeliveryDateTime,
   productLines,
