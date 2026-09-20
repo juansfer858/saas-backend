@@ -62,6 +62,9 @@ assert.match(ui, /ACEPTAR PEDIDO/);
 assert.match(ui, /MARCAR EN CAMINO/);
 assert.match(ui, /MARCAR ENTREGADO/);
 assert.match(ui, /PAGO PENDIENTE/);
+assert.match(ui, /deliveryDemoGrid = '4'/, 'demo-restaurante debe activar grilla compacta de domicilios');
+assert.match(ui, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/, 'Domicilios demo debe mostrar cuatro tarjetas por fila en escritorio');
+assert.match(ui, /const itemLimit = demoFourCards \? 3 : 5;/, 'tarjeta compacta demo debe limitar el detalle visible sin perder el resto');
 assert.match(ui, /Ya conocemos a/);
 assert.match(ui, /deliveryLayoutReady/, 'El MutationObserver debe quedar estabilizado después de ordenar los botones');
 
