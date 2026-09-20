@@ -16,6 +16,7 @@
 </head><body><div id="root"></div><div id="modal"></div>
 <script>
 const key='vantixgc_core_session_v1';let session=null;try{session=JSON.parse(localStorage.getItem(key)||'null')}catch{}if(!session)location.replace('/app/login');
+if(String(session?.subdomain||'').trim().toLowerCase()!=='demo-restaurante')location.replace('/app/centro-de-control-v2');
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];const state={tab:'dian',permissions:[],roles:[],accounts:[],thirds:[],dianMetric:null};
 function esc(v){return String(v??'').replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[m]))}function money(v){return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(v||0))}
 async function api(path,opts={}){const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.token}`,'x-tenant-subdomain':session.subdomain,...(opts.headers||{})}});let b={};try{b=await r.json()}catch{}if(r.status===401){localStorage.removeItem(key);location.replace('/app/login');throw new Error('Sesión vencida')}if(!r.ok)throw new Error(b?.error?.message||`HTTP ${r.status}`);return b}
