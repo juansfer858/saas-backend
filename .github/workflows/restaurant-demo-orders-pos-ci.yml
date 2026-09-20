@@ -1,0 +1,39 @@
+name: Demo Restaurante Orders POS CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-orders-demo-pos-v1.js'
+      - 'src/web/restaurant-v2-orders-demo-pos-v1.css'
+      - 'src/web/restaurant-v2-orders.html'
+      - 'src/modules/restaurant/restaurant-v2-orders.public.routes.js'
+      - 'scripts/restaurant-demo-orders-pos-smoke.js'
+      - '.github/workflows/restaurant-demo-orders-pos-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-orders-demo-pos-v1.js'
+      - 'src/web/restaurant-v2-orders-demo-pos-v1.css'
+      - 'src/web/restaurant-v2-orders.html'
+      - 'src/modules/restaurant/restaurant-v2-orders.public.routes.js'
+      - 'scripts/restaurant-demo-orders-pos-smoke.js'
+      - '.github/workflows/restaurant-demo-orders-pos-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: node --check src/web/restaurant-v2-orders-demo-pos-v1.js
+      - name: Verify demo-only POS contract
+        run: node scripts/restaurant-demo-orders-pos-smoke.js
