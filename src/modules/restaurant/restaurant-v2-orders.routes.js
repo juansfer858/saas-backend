@@ -9,6 +9,7 @@ const base=require('./restaurant.service');
 const identity=require('./restaurant-identity.service');
 const kdsPush=require('./restaurant-v2-kds-push.service');
 const { groupOperationalLines }=require('./restaurant-order-line-identity-v94');
+const demoBar=require('./restaurant-demo-bar-accounts-v1.service');
 
 const router=express.Router();
 const V2_OPTIONS=Object.freeze({sharedFloor:true,optionalSeat:true});
@@ -18,6 +19,8 @@ const openSchema=z.object({guestCount:z.coerce.number().int().min(1).max(50).def
 const qtySchema=z.object({quantity:z.coerce.number().min(0).max(999),seatNumber:z.coerce.number().int().min(1).max(50).nullable().optional()});
 const metaSchema=z.object({seatNumber:z.coerce.number().int().min(1).max(50).nullable().optional(),notes:z.string().trim().max(300).nullable().optional()}).refine(x=>Object.keys(x).length>0,{message:'Debe enviar al menos un cambio'});
 const peopleSchema=z.object({guestCount:z.coerce.number().int().min(1).max(50)});
+const demoAccountCreateSchema=z.object({name:z.string().trim().min(1).max(160).optional(),guestCount:z.coerce.number().int().min(1).max(50).optional()});
+const demoAccountRenameSchema=z.object({name:z.string().trim().min(1).max(160)});
 
 function withOperationalService(data){
   if(!data?.service)return data;
@@ -47,6 +50,11 @@ async function listTablesV2(tenantId,user){
 }
 
 router.get('/v2/mesas',requirePermission('MESAS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:await listTablesV2(req.tenantId,req.user)})}catch(error){next(error)}});
+router.get('/v2/demo-bar/workspace',requirePermission('PEDIDOS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:await demoBar.workspace(req.tenantId)})}catch(error){next(error)}});
+router.post('/v2/demo-bar/mesas/:tableId/cuentas',requirePermission('MESAS.CREAR'),async(req,res,next)=>{try{const input=parse(demoAccountCreateSchema,req.body);res.status(201).json({ok:true,data:await demoBar.createAccount(req.tenantId,req.user,req.params.tableId,input)})}catch(error){next(error)}});
+router.patch('/v2/demo-bar/cuentas/:sessionId',requirePermission('PEDIDOS.CREAR'),async(req,res,next)=>{try{const input=parse(demoAccountRenameSchema,req.body);res.json({ok:true,data:await demoBar.renameAccount(req.tenantId,req.user,req.params.sessionId,input)})}catch(error){next(error)}});
+router.post('/v2/demo-bar/cuentas/:sessionId/pedir-cuenta',requirePermission('MESAS.EDITAR'),async(req,res,next)=>{try{res.json({ok:true,data:await demoBar.requestAccount(req.tenantId,req.user,req.params.sessionId)})}catch(error){next(error)}});
+router.delete('/v2/demo-bar/cuentas/:sessionId/vacia',requirePermission('MESAS.EDITAR'),async(req,res,next)=>{try{res.json({ok:true,data:await demoBar.closeEmptyAccount(req.tenantId,req.user,req.params.sessionId)})}catch(error){next(error)}});
 router.post('/v2/mesas/:id/abrir',requirePermission('MESAS.CREAR'),async(req,res,next)=>{try{const input=parse(openSchema,req.body);res.status(201).json({ok:true,data:await base.openTable(req.tenantId,req.user,req.params.id,{guestCount:input.guestCount},V2_OPTIONS)})}catch(error){next(error)}});
 router.post('/v2/mesas/:id/pedir-cuenta',requirePermission('MESAS.EDITAR'),async(req,res,next)=>{try{res.json({ok:true,data:await base.requestAccount(req.tenantId,req.user,req.params.id,V2_OPTIONS)})}catch(error){next(error)}});
 router.get('/v2/sesiones/:sessionId/pedido',requirePermission('PEDIDOS.VER'),async(req,res,next)=>{try{res.json({ok:true,data:withOperationalService(await identity.getWaiterDraft(req.tenantId,req.user,req.params.sessionId,V2_OPTIONS))})}catch(error){next(error)}});
