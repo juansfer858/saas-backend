@@ -9,11 +9,13 @@ async function main() {
   // seen after PR #198: code knows the new payment fields while PostgreSQL is still missing them.
   await prisma.$executeRawUnsafe('ALTER TABLE "RestaurantConfig" DROP COLUMN IF EXISTS "paymentMethods"');
   await prisma.$executeRawUnsafe('ALTER TABLE "RestaurantTableSession" DROP COLUMN IF EXISTS "paymentReference"');
+  await prisma.$executeRawUnsafe('DROP TABLE IF EXISTS "InventoryReservation"');
 
   const broken = await readRestaurantSchemaState();
   assert.equal(broken.ready, false, 'schema gate must reject a DB missing payment fields');
   assert.equal(broken.state.configPaymentMethods, false);
   assert.equal(broken.state.sessionPaymentReference, false);
+  assert.equal(Boolean(broken.state.inventoryReservation), false);
 
   const repaired = await ensureRestaurantRuntimeSchema();
   assert.equal(repaired.ready, true);
@@ -27,10 +29,11 @@ async function main() {
     'sessionPaymentMethodLabel',
     'sessionPaymentMethodKind',
     'sessionPaymentAccountId',
-    'sessionPaymentReference'
-  ]) assert.equal(final.state[key], true, `${key} must exist after self-heal`);
+    'sessionPaymentReference',
+    'inventoryReservation'
+  ]) assert.equal(Boolean(final.state[key]), true, `${key} must exist after self-heal`);
 
-  console.log('RESTAURANT PAYMENT SCHEMA GATE SELF-HEAL OK');
+  console.log('RESTAURANT PAYMENT + INVENTORY RESERVATION SCHEMA GATE SELF-HEAL OK');
   console.log(JSON.stringify({ detectedMissingPaymentSchema:true, prismaDbPushRecovered:true, startupGateReady:true }, null, 2));
 }
 

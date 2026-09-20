@@ -32,6 +32,7 @@ async function readRestaurantSchemaState() {
         WHERE tgname = 'restaurant_qr_token_immutable_guard'
           AND NOT tgisinternal
       ) AS "qrTokenGuard",
+      to_regclass('public."InventoryReservation"')::text AS "inventoryReservation",
       to_regclass('public."RestaurantMenuItem"')::text AS "menuItem",
       EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -138,7 +139,8 @@ async function readRestaurantSchemaState() {
   `);
   const state = rows?.[0] || {};
   const required = [
-    'config', 'configPaymentMethods', 'zone', 'table', 'tableZoneId', 'qrTokenGuard', 'menuItem',
+    'config', 'configPaymentMethods', 'zone', 'table', 'tableZoneId', 'qrTokenGuard',
+    'inventoryReservation', 'menuItem',
     'menuCommercialCategoryId', 'commercialCategory', 'session',
     'sessionBillingMode', 'sessionAccountPreparedAt', 'sessionCashierRequestedAt', 'sessionQrVisitNonce',
     'sessionPaymentMethodId', 'sessionPaymentMethodLabel', 'sessionPaymentMethodKind',
