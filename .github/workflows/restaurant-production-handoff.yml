@@ -90,6 +90,24 @@ jobs:
           grep -q "VANTIX_RESTAURANT_V2_WAITER_FAST_MUTATIONS_V81" src/web/restaurant-v2-orders.js
           echo "RESTAURANT_PRODUCTION_HANDOFF_CONTRACT_OK"
 
+      - name: Read live demo charge schema drift on pull request
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://core.vantixgc.com/api/public/restaurante/demo-cash-readiness'
+          for attempt in $(seq 1 60); do
+            body="$(curl -fsSL --max-time 12 "$URL" 2>/dev/null || true)"
+            if echo "$body" | grep -q '"schemaDrift"'; then
+              echo "$body"
+              echo "DEMO_CASH_SCHEMA_DRIFT_READ"
+              exit 0
+            fi
+            echo "Waiting for live schema drift diagnostic... attempt=$attempt"
+            sleep 10
+          done
+          exit 1
+
       - name: Wait for exact commit in production
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: bash
