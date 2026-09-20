@@ -57,7 +57,7 @@ assert.match(v2ExpensesJs,/\/api\/v1\/restaurante\/reportes\/ventas-dia-v116\.xl
 assert.doesNotMatch(v2ExpensesJs,/\/api\/v1\/(?:tesoreria|contabilidad)\//,'la UI V2 no debe saltarse el contrato V116');
 assert.doesNotMatch(v2ExpensesJs,/MutationObserver|setInterval/,'la UI V2 de Gastos no debe introducir polling');
 assert.doesNotThrow(()=>new Function(v2ExpensesJs),'el runtime nativo V2 de Gastos debe compilar');
-assert.match(v2ControlSource,/DEMO_HIDDEN_MODULES = new Set\(\['mesas','division','caja','cierres'\]\)/,'demo-restaurante debe ocultar Mesas, División, Caja e Historial del lateral');
+assert.match(v2ControlSource,/DEMO_HIDDEN_MODULES = new Set\(\['mesas','division','caja','cierres','qrs'\]\)/,'demo-restaurante debe ocultar Mesas, División, Caja, Historial y QR del lateral');
 assert.match(v2ControlSource,/label:'Turno y gastos'/,'demo-restaurante debe renombrar Gastos a Turno y gastos');
 assert.match(v2ExpensesJs,/VANTIX_DEMO_RESTAURANTE_TURNO_GASTOS_V1/,'runtime combinado demo faltante');
 assert.match(v2ExpensesJs,/data-turn-tab="turno"/);
