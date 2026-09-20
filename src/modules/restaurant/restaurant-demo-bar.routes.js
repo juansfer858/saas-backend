@@ -22,6 +22,17 @@ const accountCreateSchema = z.object({
 const accountRenameSchema = z.object({
   name: z.string().trim().min(1).max(160)
 });
+const splitSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  lines: z.array(z.object({
+    detailId: z.string().uuid(),
+    quantity: z.coerce.number().positive().max(999)
+  })).min(1).max(100)
+});
+const mergeSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  sources: z.array(z.string().uuid()).min(1).max(100)
+});
 
 router.get('/v2/demo-bar/workspace', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
   try { res.json({ ok:true, data:await demoBar.workspace(req.tenantId) }); }
@@ -33,6 +44,26 @@ router.post('/v2/demo-bar/mesas/:tableId/cuentas', requirePermission('MESAS.CREA
     const input = parse(accountCreateSchema, req.body);
     res.status(201).json({ ok:true, data:await demoBar.createAccount(req.tenantId, req.user, req.params.tableId, input) });
   } catch (error) { next(error); }
+});
+
+router.get('/v2/demo-bar/cuentas/:sessionId/detalle', requirePermission('PEDIDOS.VER'), async (req, res, next) => {
+  try { res.json({ ok:true, data:await demoBar.accountDetail(req.tenantId, req.params.sessionId) }); }
+  catch (error) { next(error); }
+});
+
+router.post('/v2/demo-bar/cuentas/:sessionId/reabrir', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
+  try { res.json({ ok:true, data:await demoBar.reopenAccount(req.tenantId, req.params.sessionId) }); }
+  catch (error) { next(error); }
+});
+
+router.post('/v2/demo-bar/cuentas/:sessionId/separar', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
+  try { res.json({ ok:true, data:await demoBar.splitAccount(req.tenantId, req.user, req.params.sessionId, parse(splitSchema, req.body)) }); }
+  catch (error) { next(error); }
+});
+
+router.post('/v2/demo-bar/cuentas/:sessionId/unir', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
+  try { res.json({ ok:true, data:await demoBar.mergeAccounts(req.tenantId, req.user, req.params.sessionId, parse(mergeSchema, req.body)) }); }
+  catch (error) { next(error); }
 });
 
 router.patch('/v2/demo-bar/cuentas/:sessionId', requirePermission('PEDIDOS.CREAR'), async (req, res, next) => {
@@ -52,4 +83,4 @@ router.delete('/v2/demo-bar/cuentas/:sessionId/vacia', requirePermission('MESAS.
   catch (error) { next(error); }
 });
 
-module.exports = { restaurantDemoBarRouter:router, accountCreateSchema, accountRenameSchema };
+module.exports = { restaurantDemoBarRouter:router, accountCreateSchema, accountRenameSchema, splitSchema, mergeSchema };
