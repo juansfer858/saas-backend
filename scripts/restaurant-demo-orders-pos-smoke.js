@@ -37,17 +37,26 @@ expect(runtime.includes('/demo-bar/cuentas/'+""), 'demo account route constructi
 expect(runtime.includes('/caja'), 'embedded cash behavior missing');
 expect(runtime.includes('/cobrar'), 'exact-account charge missing');
 expect(runtime.includes('/recibo/imprimir'), 'print decision missing');
-expect(runtime.includes('async function splitSelectedDraft()'), 'split behavior missing');
-expect(runtime.includes('async function mergeDraftAccount()'), 'merge behavior missing');
+expect(runtime.includes('function openSplitDialog()'), 'split UI behavior missing');
+expect(runtime.includes('/separar'), 'transactional split endpoint missing');
+expect(runtime.includes('function openMergeDialog()'), 'merge UI behavior missing');
+expect(runtime.includes('/unir'), 'transactional merge endpoint missing');
+expect(runtime.includes('/detalle'), 'account detail endpoint missing');
 expect(runtime.includes('data-demo-rename'), 'rename action missing');
 expect(runtime.includes('data-demo-close-account'), 'close account action missing');
 expect(demoRoutes.includes("/v2/demo-bar/workspace"), 'demo workspace route missing');
 expect(demoRoutes.includes("/v2/demo-bar/mesas/:tableId/cuentas"), 'demo account create route missing');
+expect(demoRoutes.includes("/v2/demo-bar/cuentas/:sessionId/detalle"), 'demo account detail route missing');
+expect(demoRoutes.includes("/v2/demo-bar/cuentas/:sessionId/separar"), 'demo split route missing');
+expect(demoRoutes.includes("/v2/demo-bar/cuentas/:sessionId/unir"), 'demo merge route missing');
 expect(coreRoutes.includes('restaurantDemoBarRouter'), 'isolated demo router must be mounted');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/caja"), 'exact account cash detail route missing');
 expect(cashRoutes.includes("/v2/demo-bar/cuentas/:sessionId/cobrar"), 'exact account charge route missing');
 expect(demoService.includes("const DEMO_TENANT = 'demo-restaurante';"), 'service tenant guard missing');
 expect(demoService.includes('restaurantTableSession.create'), 'accounts must be real restaurant sessions');
+expect(demoService.includes('async function splitAccount('), 'server split behavior missing');
+expect(demoService.includes('async function mergeAccounts('), 'server merge behavior missing');
+expect(demoService.includes('operationalState(order,item)'), 'moved sent lines must preserve production state');
 expect(html.includes('/app/restaurant-v2-orders-demo-pos-v1.js?v=v1'), 'demo runtime not loaded');
 expect(html.includes('/app/restaurant-v2-orders-demo-pos-v1.css?v=v1'), 'demo style not loaded');
 
