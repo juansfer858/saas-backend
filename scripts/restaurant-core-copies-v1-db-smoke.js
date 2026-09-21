@@ -30,6 +30,8 @@ async function main() {
   const accountingHtml = fs.readFileSync('src/web/restaurant-v2-accounting-core-v1.html', 'utf8');
   const configHtml = fs.readFileSync('src/web/restaurant-v2-advanced-config-core-v1.html', 'utf8');
   const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant-core-copies-v1.public.routes.js', 'utf8');
+  const accountingGuard = fs.readFileSync('src/web/restaurant-v2-accounting-runtime-guard-v1.js', 'utf8');
+  const notificationsCopy = fs.readFileSync('src/web/restaurant-v2-notifications-config-v1.js', 'utf8');
   const publicAggregator = fs.readFileSync('src/modules/restaurant/restaurant.public.routes.js', 'utf8');
   const nav = fs.readFileSync('src/web/restaurant-v2-native-control-p11.js', 'utf8');
 
@@ -37,7 +39,7 @@ async function main() {
   assert.match(accountingHtml, /\/api\/v1\/contabilidad\/cuentas/);
   assert.match(accountingHtml, /\/api\/v1\/contabilidad\/asientos/);
   assert.match(accountingHtml, /\/api\/v1\/contabilidad\/reportes/);
-  assert.match(accountingHtml, /accounting-runtime-guard\.js\?v=restaurant-copy-v1/);
+  assert.match(accountingHtml, /restaurant-v2-accounting-runtime-guard-v1\.js\?v=v1/);
   assert.match(accountingHtml, /\.sidebar,\.topbar\{display:none!important\}/);
   assert.match(accountingHtml, /demo-restaurante/);
 
@@ -47,7 +49,7 @@ async function main() {
   assert.match(configHtml, /data-tab="roles"/);
   assert.match(configHtml, /data-tab="print"/);
   assert.match(configHtml, /data-tab="payroll"/);
-  assert.match(configHtml, /notifications-config\.js\?v=restaurant-copy-v1/);
+  assert.match(configHtml, /restaurant-v2-notifications-config-v1\.js\?v=v1/);
   assert.match(configHtml, /restaurant-company-admin-advanced\.js\?v=2/);
   assert.match(configHtml, /restaurant-audit-log-c84\.js\?v=84/);
   assert.match(configHtml, /\.side,\.top\{display:none!important\}/);
@@ -61,6 +63,12 @@ async function main() {
 
   assert.match(publicRoutes, /\/app\/restaurante-v2\/contabilidad/);
   assert.match(publicRoutes, /\/app\/restaurante-v2\/configuracion-avanzada/);
+  assert.match(publicRoutes, /restaurant-v2-accounting-runtime-guard-v1\.js/);
+  assert.match(publicRoutes, /restaurant-v2-notifications-config-v1\.js/);
+  assert.match(accountingGuard, /VANTIX_RESTAURANT_ACCOUNTING_RUNTIME_GUARD_COPY_V1/);
+  assert.match(notificationsCopy, /VANTIX_RESTAURANT_NOTIFICATIONS_CONFIG_COPY_V1/);
+  assert.doesNotThrow(() => new Function(accountingGuard), 'El guard contable copiado debe compilar');
+  assert.doesNotThrow(() => new Function(notificationsCopy), 'La UI de notificaciones copiada debe compilar');
   assert.match(publicAggregator, /restaurantCoreCopiesV1PublicRouter/);
 
   assert.match(nav, /contabilidad:\{ label:'Contabilidad'/);
