@@ -76,7 +76,8 @@
       if (!allowed(module)) return [];
       if (key === 'inventario' && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (key === 'gestion' && session.subdomain !== DEMO_RESTAURANTE) return [];
-      if (['contabilidad','configuracionAvanzada','auditoria'].includes(key) && session.subdomain !== DEMO_RESTAURANTE) return [];
+      if (['contabilidad','configuracionAvanzada'].includes(key) && session.subdomain !== DEMO_RESTAURANTE) return [];
+      if (key === 'auditoria' && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)) return [];
       if (session.subdomain === DEMO_RESTAURANTE && key === 'gastos') {
         return [[key, { ...module, label:'Turno y gastos', hint:'Cierre de turno · gastos · historial' }]];
