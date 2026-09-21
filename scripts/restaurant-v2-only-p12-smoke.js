@@ -62,18 +62,23 @@ must(nativeControl.includes("const DEMO_HIDDEN_MODULES = new Set(['mesas','divis
 must(nativeControl.includes("session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)"), 'demo-restaurante must hide only the configured sidebar modules');
 must(nativeControl.includes("label:'Turno y gastos'"), 'demo-restaurante must expose Turno y gastos in the sidebar');
 must(nativeControl.includes('VANTIX_RESTAURANT_EMBEDDED_SURFACE_V1'), 'embedded uniform surface marker missing');
+must(nativeControl.includes("const IS_DEMO_RESTAURANTE = session.subdomain === DEMO_RESTAURANTE;"), 'demo-restaurante exact shell scope missing');
+must(nativeControl.includes('installDemoModuleShell();'), 'demo-restaurante shell installer missing');
+must(nativeControl.includes("document.documentElement.dataset.demoRestaurante = 'true';"), 'demo-restaurante root scope marker missing');
+must(nativeControl.includes("if (!workspace || !frame || !IS_DEMO_RESTAURANTE) return;"), 'module loading must no-op outside demo-restaurante');
+must(nativeControl.includes("if (!frame || !expectedFrameRoute || !IS_DEMO_RESTAURANTE) return;"), 'iframe settle guard must no-op outside demo-restaurante');
 must(nativeControl.includes('setFrameLoading(true, key)'), 'module switch must hide the previous iframe before navigation');
 must(nativeControl.includes('settleFrameNavigation()'), 'iframe navigation settle guard missing');
 must(nativeControl.includes("Never allow the shell to render inside its own iframe"), 'nested control-center protection missing');
 must(nativeControl.includes('installUniformEmbeddedSurface(frame)'), 'embedded module width normalization missing');
 must(nativeControl.includes('VANTIX_RESTAURANT_EMBEDDED_NAV_BRIDGE_V1'), 'embedded module navigation bridge missing');
 must(nativeControl.includes('A previous iframe navigation must never reactivate an older module.'), 'stale iframe navigation guard missing');
-must(nativeControl.includes("session.subdomain !== DEMO_RESTAURANTE"), 'uniform embedded content must remain scoped to demo-restaurante');
-must(nativeControlHtml.includes('id="p11ModuleLoading"'), 'module loading overlay missing');
+must(!nativeControlHtml.includes('id="p11ModuleLoading"'), 'demo loading overlay must not exist in shared tenant markup');
+must(nativeControlHtml.includes('html[data-demo-restaurante="true"] .p11-main.module-open'), 'fixed module viewport must be scoped to demo-restaurante');
 must(nativeControlHtml.includes('grid-template-rows:44px minmax(0,1fr)'), 'module shell must use one fixed viewport grid');
-must(nativeControlHtml.includes('p11-uniform-modules-v1'), 'module shell cache-bust missing');
-must(nativeControlCss.includes('.p11-workspace.is-module-loading iframe'), 'old iframe must be hidden while the next module loads');
-must(nativeControlCss.includes('.p11-module-loading'), 'module loading surface style missing');
+must(nativeControlHtml.includes('p11-demo-uniform-modules-v2'), 'demo-only module shell cache-bust missing');
+must(nativeControlCss.includes('html[data-demo-restaurante="true"] .p11-workspace.is-module-loading iframe'), 'old iframe hiding must be scoped to demo-restaurante');
+must(nativeControlCss.includes('html[data-demo-restaurante="true"] .p11-module-loading'), 'module loading surface must be scoped to demo-restaurante');
 
 must(devicePwa.includes("legacyScope:'/app/centro-de-control'"), 'Waiter legacy worker scope cleanup missing');
 must(devicePwa.includes("legacyScope:'/app/produccion'"), 'Production legacy worker scope cleanup missing');
