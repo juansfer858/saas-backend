@@ -57,8 +57,12 @@ async function tenantVerticalCodes(tenantId, client = prisma) {
   if (!tenant) throw new AppError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
 
   const result = new Set();
-  const legacy = verticalRegistry.normalizeVerticalCode(tenant.nicho);
+  const rawNicho = String(tenant.nicho || '').trim().toUpperCase();
+  const legacy = verticalRegistry.normalizeVerticalCode(rawNicho);
   if (legacy) result.add(legacy);
+  // Compatibilidad con tenants QA/legacy nombrados RESTAURANTE_QA, RESTAURANT_TEST, BIKE_QA, etc.
+  if (!legacy && /^RESTAURANT(?:E)?(?:_|$)/.test(rawNicho)) result.add('RESTAURANT');
+  if (!legacy && /^BIKE(?:_|$)/.test(rawNicho)) result.add('BIKE');
 
   if (client.tenantVerticalEntitlement?.findMany) {
     const rows = await client.tenantVerticalEntitlement.findMany({
