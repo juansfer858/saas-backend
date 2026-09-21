@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Verify exact purple sidebar V15 in production
+      - name: Verify historical Purple V15 is retained but not active under V16/V17
         run: |
           set -euo pipefail
           BASE='https://core.vantixgc.com'
@@ -47,12 +47,18 @@ jobs:
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
             if [[ "$INFO" == *"$GITHUB_SHA"* ]]; then
               SHELL="$(curl -fsS "$BASE/app/centro-de-control-v2")"
-              CSS="$(curl -fsS "$BASE/app/restaurant-v2-sidebar-purple-v15.css")"
-              [[ "$SHELL" == *'restaurant-v2-sidebar-purple-v15.css?v=v15'* ]]
-              [[ "$CSS" == *'VANTIX_RESTAURANT_SIDEBAR_PURPLE_V15'* ]]
-              [[ "$CSS" == *'#8B5CF6'* ]]
-              [[ "$CSS" == *'#6D28D9'* ]]
-              echo "Restaurant V2 Sidebar Purple V15 live at $GITHUB_SHA"
+              V15="$(curl -fsS "$BASE/app/restaurant-v2-sidebar-purple-v15.css")"
+              V16="$(curl -fsS "$BASE/app/restaurant-v2-sidebar-super-core-v16.css")"
+              V17="$(curl -fsS "$BASE/app/restaurant-v2-sidebar-graphite-v17.css")"
+              [[ "$SHELL" == *'restaurant-v2-sidebar-super-core-v16.css?v=v16'* ]]
+              [[ "$SHELL" == *'restaurant-v2-sidebar-graphite-v17.css?v=v17'* ]]
+              [[ "$SHELL" != *'restaurant-v2-sidebar-purple-v15.css?v=v15'* ]]
+              [[ "$V15" == *'VANTIX_RESTAURANT_SIDEBAR_PURPLE_V15'* ]]
+              [[ "$V15" == *'#8B5CF6'* ]]
+              [[ "$V15" == *'#6D28D9'* ]]
+              [[ "$V16" == *'VANTIX_RESTAURANT_SIDEBAR_SUPER_CORE_V16'* ]]
+              [[ "$V17" == *'VANTIX_RESTAURANT_SIDEBAR_GRAPHITE_V17'* ]]
+              echo "Restaurant Sidebar V15 historical rescue retained; V16/V17 active at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
