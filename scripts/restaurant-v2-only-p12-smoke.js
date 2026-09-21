@@ -66,6 +66,8 @@ must(nativeControl.includes('setFrameLoading(true, key)'), 'module switch must h
 must(nativeControl.includes('settleFrameNavigation()'), 'iframe navigation settle guard missing');
 must(nativeControl.includes("Never allow the shell to render inside its own iframe"), 'nested control-center protection missing');
 must(nativeControl.includes('installUniformEmbeddedSurface(frame)'), 'embedded module width normalization missing');
+must(nativeControl.includes('VANTIX_RESTAURANT_EMBEDDED_NAV_BRIDGE_V1'), 'embedded module navigation bridge missing');
+must(nativeControl.includes('A previous iframe navigation must never reactivate an older module.'), 'stale iframe navigation guard missing');
 must(nativeControl.includes("session.subdomain !== DEMO_RESTAURANTE"), 'uniform embedded content must remain scoped to demo-restaurante');
 must(nativeControlHtml.includes('id="p11ModuleLoading"'), 'module loading overlay missing');
 must(nativeControlHtml.includes('grid-template-rows:44px minmax(0,1fr)'), 'module shell must use one fixed viewport grid');
