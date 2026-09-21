@@ -43,7 +43,7 @@ function openPeriod(emps){const eo=emps.map(e=>`<option value="${e.id}">${esc(e.
 async function render(){state.tab=$$('.tab.active')[0]?.dataset.tab||state.tab;try{if(state.tab==='dian')await loadDian(state.dianMetric);else if(state.tab==='roles')await loadRoles();else if(state.tab==='print')await loadPrint();else await loadPayroll()}catch(e){$('#view').innerHTML=`<div class="error">${esc(e.message)}</div>`}}
 $('#root').innerHTML=shell();$('#logout').onclick=()=>{localStorage.removeItem(key);location.href='/app'};$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');state.tab=b.dataset.tab;if(state.tab!=='dian')state.dianMetric=null;render()});render();
 </script>
-<script src="/app/notifications-config.js?v=restaurant-copy-v1"></script>
+<script src="/app/restaurant-v2-notifications-config-v1.js?v=v1"></script>
 <script src="/app/restaurant-company-admin-advanced.js?v=2"></script>
 <script src="/app/restaurant-audit-log-c84.js?v=84"></script>
 </body></html>
