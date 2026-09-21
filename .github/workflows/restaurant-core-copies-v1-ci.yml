@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'src/web/restaurant-v2-accounting-core-v1.html'
+      - 'src/modules/accounting/accounting-reporting.service.js'
+      - 'src/modules/accounting/accounting-export.service.js'
+      - 'src/modules/accounting/accounting.controller.js'
       - 'src/web/restaurant-v2-advanced-config-core-v1.html'
       - 'src/modules/restaurant/restaurant-core-copies-v1.public.routes.js'
       - 'src/modules/restaurant/restaurant.public.routes.js'
@@ -49,3 +52,5 @@ jobs:
           node --check src/web/restaurant-v2-notifications-config-v1.js
       - name: Verify copied modules and canonical connections
         run: node scripts/restaurant-core-copies-v1-db-smoke.js
+      - name: Verify accounting hierarchy regression
+        run: node scripts/accounting-core-v2-smoke.js

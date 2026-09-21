@@ -24,6 +24,15 @@ function sum(list, selector) {
   return (list || []).reduce((acc, item) => acc + numberValue(selector(item)), 0);
 }
 
+function hierarchyLabel(row) {
+  return `${'   '.repeat(Math.max(0, Number(row?.depth || 0)))}${row?.cuenta?.nombre || ''}`;
+}
+
+function hierarchyStyle(row) {
+  if (!row?.hasChildren) return 'data';
+  return Number(row.depth || 0) === 0 ? 'section' : 'subtotal';
+}
+
 function makeSpec(title, columns, rows, rowStyles = []) {
   const headers = columns.map((column) => column.label);
   const normalizedStyles = rows.map((_, index) => rowStyles[index] || 'data');
@@ -98,6 +107,27 @@ function reportRows(type, data) {
 
   if (type === 'balance-prueba') {
     const cuentas = data.cuentas || [];
+    if (data.jerarquia) {
+      const rows = cuentas.map((x) => [
+        x.cuenta.nivel || '',
+        x.cuenta.codigo,
+        hierarchyLabel(x),
+        x.saldoAnterior,
+        x.debito,
+        x.credito,
+        x.saldoFinal
+      ]);
+      rows.push(['', '', 'TOTALES DEL PERÍODO', '', data.totalDebito, data.totalCredito, data.diferencia]);
+      return makeSpec('Balance de Prueba Jerárquico', [
+        COL.text('Nivel', 0.10),
+        COL.text('Código', 0.12),
+        COL.text('Cuenta', 0.30),
+        COL.number('Saldo anterior', 0.12),
+        COL.number('Débito', 0.12),
+        COL.number('Crédito', 0.12),
+        COL.number('Saldo final', 0.12)
+      ], rows, [...cuentas.map(hierarchyStyle), 'grand-total']);
+    }
     const rows = cuentas.map((x) => [x.cuenta.codigo, x.cuenta.nombre, x.debito, x.credito, x.saldo]);
     rows.push(['', 'TOTALES', data.totalDebito, data.totalCredito, data.diferencia]);
     return makeSpec('Balance de Prueba', [
@@ -116,8 +146,8 @@ function reportRows(type, data) {
       rows.push([label, '', '', '']);
       styles.push('section');
       for (const x of list || []) {
-        rows.push(['', x.cuenta.codigo, x.cuenta.nombre, x.valor]);
-        styles.push('data');
+        rows.push([x.cuenta.nivel || '', x.cuenta.codigo, data.jerarquia ? hierarchyLabel(x) : x.cuenta.nombre, x.valor]);
+        styles.push(data.jerarquia ? hierarchyStyle(x) : 'data');
       }
       rows.push(['Subtotal', '', totalLabel, totalValue]);
       styles.push('subtotal');
@@ -136,7 +166,7 @@ function reportRows(type, data) {
     rows.push(['Resultado', '', 'UTILIDAD NETA', data.utilidadNeta]); styles.push('grand-total');
 
     return makeSpec('Estado de Resultados', [
-      COL.text('Sección', 0.20),
+      COL.text(data.jerarquia ? 'Nivel / Sección' : 'Sección', 0.20),
       COL.text('Código', 0.13),
       COL.text('Cuenta / Concepto', 0.45),
       COL.number('Valor', 0.22)
@@ -159,8 +189,8 @@ function reportRows(type, data) {
       rows.push([label, '', '', '']);
       styles.push('section');
       for (const x of list) {
-        rows.push(['', x.cuenta.codigo, x.cuenta.nombre, x.saldo]);
-        styles.push('data');
+        rows.push([x.cuenta.nivel || '', x.cuenta.codigo, data.jerarquia ? hierarchyLabel(x) : x.cuenta.nombre, x.saldo]);
+        styles.push(data.jerarquia ? hierarchyStyle(x) : 'data');
       }
       rows.push(['Subtotal', '', `Total ${label}`, sum(list, (x) => x.saldo)]);
       styles.push('subtotal');
@@ -187,7 +217,7 @@ function reportRows(type, data) {
     }
 
     return makeSpec('Estado de Situación Financiera', [
-      COL.text('Sección', 0.20),
+      COL.text(data.jerarquia ? 'Nivel / Sección' : 'Sección', 0.20),
       COL.text('Código', 0.13),
       COL.text('Cuenta / Concepto', 0.45),
       COL.number('Saldo', 0.22)

@@ -29,6 +29,11 @@ async function main() {
   assert.ok(integration && typeof integration === 'object', 'Estado de integración contable no disponible');
   assert.equal(company.nombreEmpresa, tenant.nombreEmpresa, 'Configuración avanzada debe leer la empresa del mismo tenant');
 
+  const hierarchicalTrial = await accounting.getTrialBalance(demo.tenantId, { jerarquia:true, incluirCeros:true });
+  assert.equal(hierarchicalTrial.jerarquia, true, 'Copia Restaurante debe poder pedir Balance de Prueba jerárquico');
+  assert.ok(hierarchicalTrial.cuentas.some((row)=>row.hasChildren), 'Balance jerárquico debe incluir cuentas padre');
+  assert.ok(hierarchicalTrial.cuentas.some((row)=>Number(row.depth||0)>0), 'Balance jerárquico debe incluir cuentas hijas');
+
   const accountingHtml = fs.readFileSync('src/web/restaurant-v2-accounting-core-v1.html', 'utf8');
   const configHtml = fs.readFileSync('src/web/restaurant-v2-advanced-config-core-v1.html', 'utf8');
   const publicRoutes = fs.readFileSync('src/modules/restaurant/restaurant-core-copies-v1.public.routes.js', 'utf8');
@@ -44,6 +49,14 @@ async function main() {
   assert.match(accountingHtml, /restaurant-v2-accounting-runtime-guard-v1\.js\?v=v1/);
   assert.match(accountingHtml, /\.sidebar,\.topbar\{display:none!important\}/);
   assert.match(accountingHtml, /demo-restaurante/);
+
+  assert.match(accountingHtml, /Mostrar jerarquía completa/);
+  assert.match(accountingHtml, /Incluir cuentas sin movimiento/);
+  assert.match(accountingHtml, /Saldo anterior/);
+  assert.match(accountingHtml, /Saldo final/);
+  assert.match(accountingHtml, /jerarquia:\$\('#hierarchy'\)/);
+  assert.match(accountingHtml, /incluirCeros:\$\('#includeZeros'\)/);
+  assert.match(accountingHtml, /reportAccountCell/);
 
   assert.match(configHtml, /VANTIX_RESTAURANT_ADVANCED_CONFIG_CORE_COPY_V1/);
   assert.match(configHtml, /Configuración avanzada/);
@@ -81,6 +94,7 @@ async function main() {
 
   console.log('RESTAURANT_CORE_COPIES_V1=PASS');
   console.log('ACCOUNTING_ENGINE_CONNECTION=PASS');
+  console.log('ACCOUNTING_HIERARCHY_PARENT_CHILD=PASS');
   console.log('ADVANCED_CONFIG_CONNECTION=PASS');
   console.log('ACCOUNTING_ACCOUNTS=' + accounts.length);
   console.log('ACCOUNTING_JOURNALS=' + journals.items.length);

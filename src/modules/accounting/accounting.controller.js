@@ -19,6 +19,10 @@ function compareFlag(req) {
   return req.query.comparar === 'true' || req.query.comparar === '1';
 }
 
+function reportFlag(req, key) {
+  return req.query[key] === 'true' || req.query[key] === '1';
+}
+
 async function createAccount(req, res, next) {
   try { res.status(201).json({ ok: true, data: await service.createAccount(req.tenantId, parse(schemas.accountSchema, req.body), req.userId) }); }
   catch (error) { next(error); }
@@ -89,17 +93,17 @@ async function getLedger(req, res, next) {
 }
 
 async function getTrialBalance(req, res, next) {
-  try { res.json({ ok: true, data: await service.getTrialBalance(req.tenantId, { desde: req.query.desde, hasta: req.query.hasta, comparar: compareFlag(req) }) }); }
+  try { res.json({ ok: true, data: await service.getTrialBalance(req.tenantId, { desde: req.query.desde, hasta: req.query.hasta, comparar: compareFlag(req), jerarquia: reportFlag(req, 'jerarquia'), incluirCeros: reportFlag(req, 'incluirCeros') }) }); }
   catch (error) { next(error); }
 }
 
 async function getProfitAndLoss(req, res, next) {
-  try { res.json({ ok: true, data: await service.getProfitAndLoss(req.tenantId, { desde: req.query.desde, hasta: req.query.hasta, comparar: compareFlag(req) }) }); }
+  try { res.json({ ok: true, data: await service.getProfitAndLoss(req.tenantId, { desde: req.query.desde, hasta: req.query.hasta, comparar: compareFlag(req), jerarquia: reportFlag(req, 'jerarquia'), incluirCeros: reportFlag(req, 'incluirCeros') }) }); }
   catch (error) { next(error); }
 }
 
 async function getBalanceSheet(req, res, next) {
-  try { res.json({ ok: true, data: await service.getBalanceSheet(req.tenantId, { corte: req.query.corte, comparar: compareFlag(req) }) }); }
+  try { res.json({ ok: true, data: await service.getBalanceSheet(req.tenantId, { corte: req.query.corte, comparar: compareFlag(req), jerarquia: reportFlag(req, 'jerarquia'), incluirCeros: reportFlag(req, 'incluirCeros') }) }); }
   catch (error) { next(error); }
 }
 
@@ -244,7 +248,9 @@ async function exportReport(req, res, next) {
       hasta: req.query.hasta,
       corte: req.query.corte,
       cuentaId: req.query.cuentaId,
-      q: req.query.q
+      q: req.query.q,
+      jerarquia: reportFlag(req, 'jerarquia'),
+      incluirCeros: reportFlag(req, 'incluirCeros')
     });
     const safe = result.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_');
     res.setHeader('Content-Type', result.mime);

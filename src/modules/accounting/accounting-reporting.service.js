@@ -61,6 +61,134 @@ function compareValue(actual, previous) {
   return { actual: a, anterior: p, variacion, variacionPct: p === 0 ? null : (variacion / Math.abs(p)) * 100 };
 }
 
+function truthyFlag(value) {
+  return value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true';
+}
+
+async function loadAccountCatalog(tenantId) {
+  return prisma.cuentaPUC.findMany({
+    where: { tenantId, activa: true },
+    select: {
+      id: true,
+      codigo: true,
+      nombre: true,
+      nivel: true,
+      naturaleza: true,
+      clasificacionESF: true,
+      categoriaResultado: true,
+      parentId: true,
+      permiteMovimiento: true,
+      requiereTercero: true,
+      activa: true
+    },
+    orderBy: { codigo: 'asc' }
+  });
+}
+
+function metricDecimal(value) {
+  return decimal(value || 0);
+}
+
+function metricNonZero(value) {
+  return Math.abs(Number(value || 0)) >= 0.005;
+}
+
+function ancestorClosure(catalog, eligibleIds = null) {
+  const byId = new Map(catalog.map((account) => [account.id, account]));
+  if (!eligibleIds) return new Set(byId.keys());
+  const result = new Set();
+  for (const id of eligibleIds) {
+    let current = byId.get(id);
+    while (current) {
+      if (result.has(current.id)) break;
+      result.add(current.id);
+      current = current.parentId ? byId.get(current.parentId) : null;
+    }
+  }
+  return result;
+}
+
+function buildAccountHierarchy(catalog, directRows, metricKeys, options = {}) {
+  const allowedIds = ancestorClosure(catalog, options.eligibleIds || null);
+  const directById = new Map();
+
+  for (const row of directRows || []) {
+    const account = row.cuenta || row.account;
+    if (!account?.id || !allowedIds.has(account.id)) continue;
+    const metrics = {};
+    for (const key of metricKeys) metrics[key] = metricDecimal(row[key]);
+    directById.set(account.id, { account, metrics });
+  }
+
+  const byId = new Map(catalog.filter((account) => allowedIds.has(account.id)).map((account) => [account.id, account]));
+  const children = new Map();
+  for (const account of byId.values()) {
+    const parentId = account.parentId && byId.has(account.parentId) ? account.parentId : null;
+    if (!children.has(parentId)) children.set(parentId, []);
+    children.get(parentId).push(account);
+  }
+  for (const list of children.values()) list.sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }));
+
+  const cache = new Map();
+  function aggregate(account) {
+    if (cache.has(account.id)) return cache.get(account.id);
+    const own = directById.get(account.id)?.metrics || {};
+    const metrics = {};
+    for (const key of metricKeys) metrics[key] = metricDecimal(own[key]);
+    const childRows = children.get(account.id) || [];
+    for (const child of childRows) {
+      const childAgg = aggregate(child);
+      for (const key of metricKeys) metrics[key] = metrics[key].plus(childAgg.metrics[key]);
+    }
+    const hasActivity = metricKeys.some((key) => metricNonZero(metrics[key]));
+    const value = { metrics, hasActivity, hasChildren: childRows.length > 0 };
+    cache.set(account.id, value);
+    return value;
+  }
+
+  const rows = [];
+  function visit(account, depth) {
+    const agg = aggregate(account);
+    if (!options.includeZeros && !agg.hasActivity) return;
+    rows.push({
+      cuenta: account,
+      depth,
+      parentId: account.parentId || null,
+      hasChildren: agg.hasChildren,
+      rollup: agg.hasChildren,
+      permiteMovimiento: account.permiteMovimiento,
+      ...Object.fromEntries(metricKeys.map((key) => [key, money(agg.metrics[key])]))
+    });
+    for (const child of children.get(account.id) || []) visit(child, depth + 1);
+  }
+
+  for (const root of children.get(null) || []) visit(root, 0);
+  return rows;
+}
+
+function hierarchyEligibleBy(catalog, predicate) {
+  return new Set(catalog.filter(predicate).map((account) => account.id));
+}
+
+function hierarchyEligibleBranch(catalog, predicate) {
+  const children = new Map();
+  for (const account of catalog) {
+    if (!children.has(account.parentId || null)) children.set(account.parentId || null, []);
+    children.get(account.parentId || null).push(account);
+  }
+  const eligible = hierarchyEligibleBy(catalog, predicate);
+  const queue = [...eligible];
+  while (queue.length) {
+    const id = queue.shift();
+    for (const child of children.get(id) || []) {
+      if (eligible.has(child.id)) continue;
+      eligible.add(child.id);
+      queue.push(child.id);
+    }
+  }
+  return eligible;
+}
+
 async function loadDetailRows(tenantId, { desde, hasta, corte, excludeClosing = false, accountWhere = {} } = {}) {
   const fecha = corte ? { lte: parseDate(corte, true) } : rangeWhere(desde, hasta);
   const asiento = postedJournalFilter({});
@@ -155,26 +283,41 @@ async function trialBalance(tenantId, filters = {}) {
     openingAccounts = aggregateByAccount(openingRows);
   }
 
-  const cuentas = mergeTrialAccounts(periodAccounts, openingAccounts);
+  const directAccounts = mergeTrialAccounts(periodAccounts, openingAccounts);
+  const hierarchical = truthyFlag(filters.jerarquia);
+  const includeZeros = hierarchical && truthyFlag(filters.incluirCeros);
+  const cuentas = hierarchical
+    ? buildAccountHierarchy(
+        await loadAccountCatalog(tenantId),
+        directAccounts,
+        ['saldoAnterior', 'debito', 'credito', 'saldo', 'saldoFinal'],
+        { includeZeros }
+      )
+    : directAccounts;
+
   let totalDebito = decimal(0);
   let totalCredito = decimal(0);
   for (const row of rows) {
     totalDebito = totalDebito.plus(row.debito);
     totalCredito = totalCredito.plus(row.credito);
   }
+
   const result = {
     desde: filters.desde || null,
     hasta: filters.hasta || null,
     saldoAnteriorCorte,
+    jerarquia: hierarchical,
+    incluirCeros: includeZeros,
     cuentas,
     totalDebito: money(totalDebito),
     totalCredito: money(totalCredito),
     diferencia: money(totalDebito.minus(totalCredito)),
     cuadra: money(totalDebito).eq(money(totalCredito))
   };
+
   if (filters.comparar && filters.desde && filters.hasta) {
     const prevRange = previousEquivalent(filters.desde, filters.hasta);
-    const prev = await trialBalance(tenantId, { ...prevRange, comparar: false });
+    const prev = await trialBalance(tenantId, { ...prevRange, comparar: false, jerarquia: false });
     result.comparativo = {
       periodoAnterior: prevRange,
       totalDebito: compareValue(result.totalDebito, prev.totalDebito),
@@ -192,15 +335,16 @@ async function profitAndLoss(tenantId, filters = {}) {
     accountWhere: { categoriaResultado: { not: null } }
   });
   const accounts = aggregateByAccount(rows);
-  const buckets = {
+  const directBuckets = {
     INGRESO_OPERACIONAL: [], COSTO_VENTAS: [], GASTO_ADMINISTRACION: [], GASTO_VENTAS: [],
     INGRESO_NO_OPERACIONAL: [], GASTO_NO_OPERACIONAL: [], IMPUESTO_RENTA: []
   };
   for (const row of accounts) {
     const key = row.cuenta.categoriaResultado;
-    if (key && buckets[key]) buckets[key].push({ ...row, valor: money(row.saldo) });
+    if (key && directBuckets[key]) directBuckets[key].push({ ...row, valor: money(row.saldo) });
   }
-  const sum = (key) => money(buckets[key].reduce((acc, x) => acc.plus(x.valor), decimal(0)));
+
+  const sum = (key) => money(directBuckets[key].reduce((acc, x) => acc.plus(x.valor), decimal(0)));
   const ingresosOperacionales = sum('INGRESO_OPERACIONAL');
   const costoVentas = sum('COSTO_VENTAS');
   const utilidadBruta = money(ingresosOperacionales.minus(costoVentas));
@@ -218,9 +362,30 @@ async function profitAndLoss(tenantId, filters = {}) {
   const impuestoRenta = usarEstimado ? money(utilidadAntesImpuestos.mul(tasa).div(100)) : impuestoContabilizado;
   const utilidadNeta = money(utilidadAntesImpuestos.minus(impuestoRenta));
 
+  const hierarchical = truthyFlag(filters.jerarquia);
+  const includeZeros = hierarchical && truthyFlag(filters.incluirCeros);
+  let buckets = directBuckets;
+  if (hierarchical) {
+    const catalog = await loadAccountCatalog(tenantId);
+    buckets = {};
+    for (const key of Object.keys(directBuckets)) {
+      buckets[key] = buildAccountHierarchy(
+        catalog,
+        directBuckets[key],
+        ['valor'],
+        {
+          includeZeros,
+          eligibleIds: hierarchyEligibleBranch(catalog, (account) => account.categoriaResultado === key)
+        }
+      );
+    }
+  }
+
   const result = {
     desde: filters.desde || null,
     hasta: filters.hasta || null,
+    jerarquia: hierarchical,
+    incluirCeros: includeZeros,
     cuentas: buckets,
     ingresosOperacionales,
     costoVentas,
@@ -239,7 +404,7 @@ async function profitAndLoss(tenantId, filters = {}) {
 
   if (filters.comparar && filters.desde && filters.hasta) {
     const prevRange = previousEquivalent(filters.desde, filters.hasta);
-    const prev = await profitAndLoss(tenantId, { ...prevRange, comparar: false });
+    const prev = await profitAndLoss(tenantId, { ...prevRange, comparar: false, jerarquia: false });
     result.comparativo = {
       periodoAnterior: prevRange,
       ingresosOperacionales: compareValue(ingresosOperacionales, prev.ingresosOperacionales),
@@ -273,18 +438,17 @@ async function balanceSheet(tenantId, filters = {}) {
     accountWhere: { clasificacionESF: { in: ['ACTIVO_CORRIENTE', 'ACTIVO_NO_CORRIENTE', 'PASIVO_CORRIENTE', 'PASIVO_NO_CORRIENTE', 'PATRIMONIO'] } }
   });
   const baseAccounts = aggregateByAccount(rows);
-  // Para ESF el signo lo define el lado del estado, no la naturaleza de la
-  // cuenta individual. Esto presenta correctamente contra-activos y cuentas
-  // puente con naturaleza contraria (depreciación acumulada, IVA descontable).
   const accounts = baseAccounts.map((x) => ({
     ...x,
     saldo: statementBalance(x.cuenta, x.debito, x.credito)
   }));
-  const groups = {
+
+  const directGroups = {
     ACTIVO_CORRIENTE: [], ACTIVO_NO_CORRIENTE: [], PASIVO_CORRIENTE: [], PASIVO_NO_CORRIENTE: [], PATRIMONIO: []
   };
-  for (const x of accounts) if (groups[x.cuenta.clasificacionESF]) groups[x.cuenta.clasificacionESF].push(x);
-  const sum = (key) => money(groups[key].reduce((acc, x) => acc.plus(x.saldo), decimal(0)));
+  for (const x of accounts) if (directGroups[x.cuenta.clasificacionESF]) directGroups[x.cuenta.clasificacionESF].push(x);
+
+  const sum = (key) => money(directGroups[key].reduce((acc, x) => acc.plus(x.saldo), decimal(0)));
   const activoCorriente = sum('ACTIVO_CORRIENTE');
   const activoNoCorriente = sum('ACTIVO_NO_CORRIENTE');
   const pasivoCorriente = sum('PASIVO_CORRIENTE');
@@ -295,7 +459,7 @@ async function balanceSheet(tenantId, filters = {}) {
 
   const open = await openResultStart(tenantId, filters.corte);
   if (!open.closed && open.start) {
-    const pnl = await profitAndLoss(tenantId, { desde: open.start.toISOString(), hasta: filters.corte, comparar: false });
+    const pnl = await profitAndLoss(tenantId, { desde: open.start.toISOString(), hasta: filters.corte, comparar: false, jerarquia: false });
     utilidadEjercicioNoCerrada = money(pnl.utilidadNeta);
     if (pnl.impuestoEstimado) impuestoEstimadoNoContabilizado = money(pnl.impuestoRenta);
   }
@@ -305,8 +469,29 @@ async function balanceSheet(tenantId, filters = {}) {
   const totalPasivoPatrimonio = money(totalPasivo.plus(patrimonio));
   const diferencia = money(totalActivo.minus(totalPasivoPatrimonio));
 
+  const hierarchical = truthyFlag(filters.jerarquia);
+  const includeZeros = hierarchical && truthyFlag(filters.incluirCeros);
+  let groups = directGroups;
+  if (hierarchical) {
+    const catalog = await loadAccountCatalog(tenantId);
+    groups = {};
+    for (const key of Object.keys(directGroups)) {
+      groups[key] = buildAccountHierarchy(
+        catalog,
+        directGroups[key],
+        ['saldo'],
+        {
+          includeZeros,
+          eligibleIds: hierarchyEligibleBranch(catalog, (account) => account.clasificacionESF === key)
+        }
+      );
+    }
+  }
+
   const result = {
     corte: filters.corte,
+    jerarquia: hierarchical,
+    incluirCeros: includeZeros,
     grupos: groups,
     activoCorriente,
     activoNoCorriente,
@@ -326,7 +511,7 @@ async function balanceSheet(tenantId, filters = {}) {
     const currentCutoff = parseDate(filters.corte, true);
     const prevCutoff = new Date(currentCutoff);
     prevCutoff.setUTCMonth(prevCutoff.getUTCMonth() - 1);
-    const prev = await balanceSheet(tenantId, { corte: prevCutoff.toISOString(), comparar: false });
+    const prev = await balanceSheet(tenantId, { corte: prevCutoff.toISOString(), comparar: false, jerarquia: false });
     result.comparativo = {
       corteAnterior: prevCutoff.toISOString(),
       totalActivo: compareValue(totalActivo, prev.totalActivo),
@@ -336,6 +521,7 @@ async function balanceSheet(tenantId, filters = {}) {
   }
   return result;
 }
+
 
 module.exports = {
   parseDate,
@@ -350,5 +536,10 @@ module.exports = {
   profitAndLoss,
   balanceSheet,
   previousEquivalent,
-  compareValue
+  compareValue,
+  truthyFlag,
+  loadAccountCatalog,
+  buildAccountHierarchy,
+  hierarchyEligibleBy,
+  hierarchyEligibleBranch
 };

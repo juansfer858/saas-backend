@@ -174,6 +174,34 @@ async function main() {
   assert.equal(trial.cuadra, true);
   assert.equal(n(trial.diferencia), 0);
 
+  const hierarchicalTrial = await accounting.getTrialBalance(tenant.id, {
+    desde:'2026-08-01', hasta:CUTOFF, jerarquia:true, incluirCeros:true
+  });
+  assert.equal(hierarchicalTrial.jerarquia, true);
+  assert.equal(hierarchicalTrial.incluirCeros, true);
+  assert.ok(hierarchicalTrial.cuentas.length > trial.cuentas.length, 'Jerarquía completa debe incluir padres y cuentas sin movimiento');
+  const cashLeaf = hierarchicalTrial.cuentas.find((row) => row.cuenta.codigo === '110505');
+  assert.ok(cashLeaf, 'Balance jerárquico debe incluir Caja General');
+  assert.ok(cashLeaf.depth >= 2, 'Caja General debe aparecer debajo de sus padres PUC');
+  const cashParent = hierarchicalTrial.cuentas.find((row) => row.cuenta.id === cashLeaf.parentId);
+  assert.ok(cashParent && cashParent.hasChildren, 'Debe incluir el padre inmediato de Caja General');
+  assert.ok(hierarchicalTrial.cuentas.indexOf(cashParent) < hierarchicalTrial.cuentas.indexOf(cashLeaf), 'Padre debe aparecer antes que hijo');
+  assert.ok(n(cashParent.debito) >= n(cashLeaf.debito), 'El padre debe acumular débitos de sus hijos');
+  assert.ok(n(cashParent.credito) >= n(cashLeaf.credito), 'El padre debe acumular créditos de sus hijos');
+  assert.ok(hierarchicalTrial.cuentas.some((row) => !row.permiteMovimiento && row.hasChildren), 'Debe mostrar cuentas estructurales no imputables');
+
+  const hierarchicalPnl = await accounting.getProfitAndLoss(tenant.id, {
+    desde:'2026-08-01', hasta:CUTOFF, jerarquia:true, incluirCeros:true
+  });
+  assert.equal(hierarchicalPnl.jerarquia, true);
+  assert.ok(Object.values(hierarchicalPnl.cuentas).flat().some((row) => row.hasChildren), 'P&G debe conservar estructura padre-hijo');
+
+  const hierarchicalBs = await accounting.getBalanceSheet(tenant.id, {
+    corte:CUTOFF, jerarquia:true, incluirCeros:true
+  });
+  assert.equal(hierarchicalBs.jerarquia, true);
+  assert.ok(Object.values(hierarchicalBs.grupos).flat().some((row) => row.hasChildren), 'Balance General debe conservar estructura padre-hijo');
+
   const asset = await fixedAssets.createAsset(tenant.id, user.id, {
     codigo: `AF-${Date.now()}`, nombre: 'Equipo oficina V2', terceroId: third.id, valorAdquisicion: 120000, valorResidual: 0,
     fechaCompra: new Date('2026-08-01T00:00:00.000Z'), fechaInicioDepreciacion: new Date('2026-08-01T00:00:00.000Z'), vidaUtilMeses: 12,
@@ -250,6 +278,13 @@ async function main() {
 
   const xls = await exporter.exportReport(tenant.id, 'balance-prueba', 'xls', { desde: '2026-08-01', hasta: CUTOFF });
   assert.ok(xls.buffer.length > 100 && xls.buffer.toString('utf8').includes('Balance de Prueba'));
+  const hierarchicalXls = await exporter.exportReport(tenant.id, 'balance-prueba', 'xls', {
+    desde:'2026-08-01', hasta:CUTOFF, jerarquia:true, incluirCeros:true
+  });
+  const hierarchicalXlsText = hierarchicalXls.buffer.toString('utf8');
+  assert.match(hierarchicalXlsText, /Balance de Prueba Jerárquico/);
+  assert.match(hierarchicalXlsText, /Saldo anterior/);
+  assert.match(hierarchicalXlsText, /Saldo final/);
   const pdf = await exporter.exportReport(tenant.id, 'estado-resultados', 'pdf', { desde: '2026-08-01', hasta: CUTOFF });
   assert.ok(pdf.buffer.subarray(0, 8).toString('binary').startsWith('%PDF-1.4'));
 
@@ -268,7 +303,8 @@ async function main() {
     depreciacion: true,
     conciliacion: true,
     soportes: true,
-    exportaciones: true
+    exportaciones: true,
+    reportesJerarquicos: true
   }));
 }
 
