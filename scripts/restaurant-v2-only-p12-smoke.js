@@ -64,7 +64,8 @@ must(nativeControl.includes("session.subdomain === DEMO_RESTAURANTE && DEMO_HIDD
 must(nativeControl.includes("label:'Turno y gastos'"), 'demo-restaurante must expose Turno y gastos in the sidebar');
 must(nativeControl.includes("auditoria:{ label:'Auditoría'"), 'demo-restaurante must expose Auditoría as a visible module');
 must(nativeControl.includes("route:'/app/restaurante-v2/configuracion-avanzada?tab=auditoria'"), 'Auditoría module route missing');
-must(nativeControl.includes("['contabilidad','configuracionAvanzada','auditoria']"), 'finance/system modules must remain demo-restaurante scoped');
+must(nativeControl.includes("['contabilidad','configuracionAvanzada']"), 'existing finance modules must remain demo-restaurante scoped');
+must(nativeControl.includes("key === 'auditoria' && session.subdomain !== DEMO_RESTAURANTE"), 'Auditoría module must remain demo-restaurante scoped');
 must(nativeControl.includes('VANTIX_RESTAURANT_EMBEDDED_SURFACE_V1'), 'embedded uniform surface marker missing');
 must(nativeControl.includes('height:86px!important;min-height:86px!important'), 'embedded module headers must share the same desktop height');
 must(nativeControl.includes('body>.app>:where(.sidebar,.side)'), 'embedded duplicate sidebars must be removed in demo-restaurante');
