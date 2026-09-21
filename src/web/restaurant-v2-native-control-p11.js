@@ -24,7 +24,7 @@
     qrs:{ label:'QR de mesas', hint:'Ver e imprimir QR físicos', route:'/app/restaurante-v2/qrs', roles:['ADMIN','SUPER_ADMIN'] },
     devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] },
     contabilidad:{ label:'Contabilidad', hint:'PUC · asientos · libros · reportes', route:'/app/restaurante-v2/contabilidad', roles:['ADMIN','SUPER_ADMIN'], group:'finance' },
-    configuracionAvanzada:{ label:'Configuración', hint:'DIAN · permisos · impresión · empresa', route:'/app/restaurante-v2/configuracion-avanzada', roles:['ADMIN','SUPER_ADMIN'], group:'finance' },
+    configuracionAvanzada:{ label:'Configuración avanzada', hint:'DIAN · permisos · impresión · empresa', route:'/app/restaurante-v2/configuracion-avanzada', roles:['ADMIN','SUPER_ADMIN'], group:'finance' },
     auditoria:{ label:'Auditoría', hint:'Registro de actividad y cambios', route:'/app/restaurante-v2/configuracion-avanzada?tab=auditoria', roles:['ADMIN','SUPER_ADMIN'], group:'finance' }
   });
   const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos' });
