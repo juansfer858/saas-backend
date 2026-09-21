@@ -243,8 +243,12 @@ async function hasPermission(tenantId, user, code) {
 
 async function listRoles(tenantId) {
   await ensureTenantRoles(tenantId);
-  const verticals = await tenantVerticalCodes(tenantId);
-  return prisma.rbacRole.findMany({
+  const [verticals, allowedModules] = await Promise.all([
+    tenantVerticalCodes(tenantId),
+    allowedModulesForTenant(tenantId)
+  ]);
+  const allowedModuleSet = new Set(allowedModules);
+  const roles = await prisma.rbacRole.findMany({
     where: {
       tenantId,
       active: true,
@@ -256,6 +260,10 @@ async function listRoles(tenantId) {
     include: { permissions: { include: { permission: true } }, _count: { select: { assignments: true } } },
     orderBy: [{ system: 'desc' }, { name: 'asc' }]
   });
+  return roles.map((role) => ({
+    ...role,
+    permissions: (role.permissions || []).filter((rp) => allowedModuleSet.has(rp.permission.module))
+  }));
 }
 
 async function createRole(tenantId, actorUserId, input) {
