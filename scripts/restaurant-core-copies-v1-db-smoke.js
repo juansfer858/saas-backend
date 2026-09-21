@@ -14,6 +14,8 @@ function inlineScripts(source) {
 
 async function main() {
   const demo = await ensureRestaurantDemoTenant();
+  const tenant = await prisma.tenant.findUnique({ where:{ id:demo.tenantId }, select:{ nombreEmpresa:true, subdomain:true } });
+  assert.ok(tenant, 'demo-restaurante tenant missing');
 
   const [accounts, journals, integration, company] = await Promise.all([
     accounting.listAccounts(demo.tenantId, { limit: 3000 }),
@@ -25,7 +27,7 @@ async function main() {
   assert.ok(Array.isArray(accounts), 'Contabilidad debe leer el PUC del tenant');
   assert.ok(Array.isArray(journals.items), 'Contabilidad debe leer el Libro Diario');
   assert.ok(integration && typeof integration === 'object', 'Estado de integración contable no disponible');
-  assert.equal(company.nombreEmpresa, demo.tenant.nombreEmpresa, 'Configuración avanzada debe leer la empresa del mismo tenant');
+  assert.equal(company.nombreEmpresa, tenant.nombreEmpresa, 'Configuración avanzada debe leer la empresa del mismo tenant');
 
   const accountingHtml = fs.readFileSync('src/web/restaurant-v2-accounting-core-v1.html', 'utf8');
   const configHtml = fs.readFileSync('src/web/restaurant-v2-advanced-config-core-v1.html', 'utf8');
