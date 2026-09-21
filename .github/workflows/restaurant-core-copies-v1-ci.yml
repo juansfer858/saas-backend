@@ -1,0 +1,51 @@
+name: Restaurant Core Copies V1 CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/web/restaurant-v2-accounting-core-v1.html'
+      - 'src/web/restaurant-v2-advanced-config-core-v1.html'
+      - 'src/modules/restaurant/restaurant-core-copies-v1.public.routes.js'
+      - 'src/modules/restaurant/restaurant.public.routes.js'
+      - 'src/web/restaurant-v2-native-control-p11.js'
+      - 'scripts/restaurant-core-copies-v1-db-smoke.js'
+      - '.github/workflows/restaurant-core-copies-v1-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+      JWT_SECRET: restaurant-core-copies-ci-secret
+      RESTAURANT_DEVICE_SECRET: restaurant-core-copies-device-ci
+      RESTAURANT_QR_VISIT_SECRET: restaurant-core-copies-qr-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Syntax
+        run: |
+          node --check src/modules/restaurant/restaurant-core-copies-v1.public.routes.js
+          node --check src/web/restaurant-v2-native-control-p11.js
+          node --check src/web/restaurant-v2-accounting-runtime-guard-v1.js
+          node --check src/web/restaurant-v2-notifications-config-v1.js
+      - name: Verify copied modules and canonical connections
+        run: node scripts/restaurant-core-copies-v1-db-smoke.js
