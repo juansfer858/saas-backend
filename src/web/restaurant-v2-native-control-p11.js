@@ -28,6 +28,11 @@
   });
   const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos' });
 
+  const EMBEDDED_SURFACE_MARKER = 'VANTIX_RESTAURANT_EMBEDDED_SURFACE_V1';
+  let expectedFrameRoute = '';
+  let expectedFrameKey = '';
+  let frameNavigationSeq = 0;
+
   document.documentElement.dataset.restaurantV2NativeControl = MARKER;
   document.documentElement.dataset.restaurantV2OnlyControl = P12_MARKER;
   document.documentElement.dataset.restaurantV2ModuleChrome = MODULE_CHROME_MARKER;
@@ -80,6 +85,95 @@
     return String(value || '').trim() === HYBRID_SECTION ? HYBRID_SECTION : '';
   }
 
+  function routeIdentity(value) {
+    try {
+      const url = new URL(String(value || ''), location.origin);
+      const path = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
+      return `${path}${url.search}`;
+    } catch {
+      return String(value || '').split('#')[0];
+    }
+  }
+
+  function setFrameLoading(loading, key = expectedFrameKey) {
+    const workspace = $('#p11Workspace');
+    const loader = $('#p11ModuleLoading');
+    const title = $('#p11ModuleLoadingTitle');
+    const frame = $('#p11Frame');
+    if (!workspace || !frame) return;
+    workspace.classList.toggle('is-module-loading', Boolean(loading));
+    workspace.classList.toggle('is-module-ready', !loading);
+    if (loader) loader.hidden = !loading;
+    if (title && loading) title.textContent = `Cargando ${MODULES[key]?.label || 'módulo'}…`;
+    frame.setAttribute('aria-busy', loading ? 'true' : 'false');
+  }
+
+  function installUniformEmbeddedSurface(frame) {
+    if (session.subdomain !== DEMO_RESTAURANTE) return;
+    let doc;
+    try { doc = frame.contentDocument; } catch { return; }
+    if (!doc?.documentElement || !doc.body) return;
+    doc.documentElement.dataset.vantixRestaurantEmbeddedSurface = EMBEDDED_SURFACE_MARKER;
+    if (doc.getElementById('vantixRestaurantEmbeddedSurfaceV1')) return;
+    const style = doc.createElement('style');
+    style.id = 'vantixRestaurantEmbeddedSurfaceV1';
+    style.textContent = `
+      html[data-vantix-restaurant-embedded-surface]{
+        width:100%!important;max-width:100%!important;min-width:0!important;min-height:100%!important;overflow-x:hidden!important
+      }
+      html[data-vantix-restaurant-embedded-surface] body{
+        width:100%!important;max-width:100%!important;min-width:0!important;min-height:100%!important;
+        margin-left:0!important;margin-right:0!important;overflow-x:hidden!important
+      }
+      html[data-vantix-restaurant-embedded-surface] body>main,
+      html[data-vantix-restaurant-embedded-surface] body>.mg-main,
+      html[data-vantix-restaurant-embedded-surface] body>.inv-main,
+      html[data-vantix-restaurant-embedded-surface] body>.menu-main,
+      html[data-vantix-restaurant-embedded-surface] body>.employees-main,
+      html[data-vantix-restaurant-embedded-surface] body>.admin-main,
+      html[data-vantix-restaurant-embedded-surface] body>.delivery-main,
+      html[data-vantix-restaurant-embedded-surface] body>.kds-main,
+      html[data-vantix-restaurant-embedded-surface] #root>.app>.main>.content,
+      html[data-vantix-restaurant-embedded-surface] .app>.main>.content{
+        width:100%!important;max-width:none!important;min-width:0!important;margin-left:0!important;margin-right:0!important
+      }
+    `;
+    doc.head?.appendChild(style);
+  }
+
+  function settleFrameNavigation() {
+    const frame = $('#p11Frame');
+    if (!frame || !expectedFrameRoute) return;
+    let actual = '';
+    try { actual = frame.contentWindow?.location?.href || frame.src || ''; }
+    catch { actual = frame.src || ''; }
+
+    let actualUrl = null;
+    try { actualUrl = new URL(actual, location.origin); } catch {}
+    if (actualUrl && /^\/app\/centro-de-control(?:-v2|-p10)?\/?$/.test(actualUrl.pathname)) {
+      // Never allow the shell to render inside its own iframe.
+      frame.setAttribute('src', expectedFrameRoute);
+      return;
+    }
+    if (actualUrl && ['/app','/app/login'].includes(actualUrl.pathname)) {
+      location.assign(actualUrl.pathname);
+      return;
+    }
+
+    const expectedIdentity = routeIdentity(expectedFrameRoute);
+    const actualIdentity = routeIdentity(actual);
+    if (actualIdentity && expectedIdentity && actualIdentity !== expectedIdentity) {
+      const actualModule = Object.entries(MODULES).find(([, module]) => routeIdentity(module.route) === actualIdentity)?.[0];
+      if (actualModule && actualModule !== expectedFrameKey && allowed(MODULES[actualModule])) {
+        openModule(actualModule, true);
+        return;
+      }
+    }
+
+    installUniformEmbeddedSurface(frame);
+    setFrameLoading(false, expectedFrameKey);
+  }
+
   function renderIdentity() {
     const tenant = session.tenant?.nombreEmpresa || session.tenant?.nombre || session.subdomain || 'Restaurante';
     $('#p11Tenant').textContent = tenant;
@@ -117,8 +211,20 @@
     $('#p11Main').classList.add('module-open');
     $('#p11Workspace').hidden = false;
     const frame = $('#p11Frame');
-    if (frame.getAttribute('src') !== targetRoute) frame.setAttribute('src', targetRoute);
+    const targetChanged = routeIdentity(frame.getAttribute('src') || '') !== routeIdentity(targetRoute);
+    expectedFrameRoute = targetRoute;
+    expectedFrameKey = key;
+    frameNavigationSeq += 1;
     setActive(key);
+    if (targetChanged) {
+      // Hide the previous module before navigation so it never flashes below the next one.
+      setFrameLoading(true, key);
+      frame.dataset.navigationSeq = String(frameNavigationSeq);
+      frame.setAttribute('src', targetRoute);
+    } else {
+      installUniformEmbeddedSurface(frame);
+      setFrameLoading(false, key);
+    }
     if (updateHistory) {
       const url = new URL('/app/centro-de-control-v2', location.origin);
       url.searchParams.set('module', key);
@@ -204,7 +310,10 @@
 
   function bindStatic() {
     $('#p11HybridStatus')?.addEventListener('click', openHybridDevices);
-    $('#p11Frame')?.addEventListener('load', refreshHybridStatus);
+    $('#p11Frame')?.addEventListener('load', () => {
+      settleFrameNavigation();
+      refreshHybridStatus();
+    });
     window.addEventListener('focus', refreshHybridStatus);
     window.addEventListener('popstate', () => {
       const params = new URLSearchParams(location.search);
