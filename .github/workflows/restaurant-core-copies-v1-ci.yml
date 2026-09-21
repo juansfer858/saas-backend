@@ -45,5 +45,7 @@ jobs:
         run: |
           node --check src/modules/restaurant/restaurant-core-copies-v1.public.routes.js
           node --check src/web/restaurant-v2-native-control-p11.js
+          node --check src/web/restaurant-v2-accounting-runtime-guard-v1.js
+          node --check src/web/restaurant-v2-notifications-config-v1.js
       - name: Verify copied modules and canonical connections
         run: node scripts/restaurant-core-copies-v1-db-smoke.js
