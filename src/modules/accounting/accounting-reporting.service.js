@@ -61,6 +61,115 @@ function compareValue(actual, previous) {
   return { actual: a, anterior: p, variacion, variacionPct: p === 0 ? null : (variacion / Math.abs(p)) * 100 };
 }
 
+function truthyFlag(value) {
+  return value === true || value === 1 || value === '1' || String(value || '').toLowerCase() === 'true';
+}
+
+async function loadAccountCatalog(tenantId) {
+  return prisma.cuentaPUC.findMany({
+    where: { tenantId, activa: true },
+    select: {
+      id: true,
+      codigo: true,
+      nombre: true,
+      nivel: true,
+      naturaleza: true,
+      clasificacionESF: true,
+      categoriaResultado: true,
+      parentId: true,
+      permiteMovimiento: true,
+      requiereTercero: true,
+      activa: true
+    },
+    orderBy: { codigo: 'asc' }
+  });
+}
+
+function metricDecimal(value) {
+  return decimal(value || 0);
+}
+
+function metricNonZero(value) {
+  return Math.abs(Number(value || 0)) >= 0.005;
+}
+
+function ancestorClosure(catalog, eligibleIds = null) {
+  const byId = new Map(catalog.map((account) => [account.id, account]));
+  if (!eligibleIds) return new Set(byId.keys());
+  const result = new Set();
+  for (const id of eligibleIds) {
+    let current = byId.get(id);
+    while (current) {
+      if (result.has(current.id)) break;
+      result.add(current.id);
+      current = current.parentId ? byId.get(current.parentId) : null;
+    }
+  }
+  return result;
+}
+
+function buildAccountHierarchy(catalog, directRows, metricKeys, options = {}) {
+  const allowedIds = ancestorClosure(catalog, options.eligibleIds || null);
+  const directById = new Map();
+
+  for (const row of directRows || []) {
+    const account = row.cuenta || row.account;
+    if (!account?.id || !allowedIds.has(account.id)) continue;
+    const metrics = {};
+    for (const key of metricKeys) metrics[key] = metricDecimal(row[key]);
+    directById.set(account.id, { account, metrics });
+  }
+
+  const byId = new Map(catalog.filter((account) => allowedIds.has(account.id)).map((account) => [account.id, account]));
+  const children = new Map();
+  for (const account of byId.values()) {
+    const parentId = account.parentId && byId.has(account.parentId) ? account.parentId : null;
+    if (!children.has(parentId)) children.set(parentId, []);
+    children.get(parentId).push(account);
+  }
+  for (const list of children.values()) list.sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }));
+
+  const cache = new Map();
+  function aggregate(account) {
+    if (cache.has(account.id)) return cache.get(account.id);
+    const own = directById.get(account.id)?.metrics || {};
+    const metrics = {};
+    for (const key of metricKeys) metrics[key] = metricDecimal(own[key]);
+    const childRows = children.get(account.id) || [];
+    for (const child of childRows) {
+      const childAgg = aggregate(child);
+      for (const key of metricKeys) metrics[key] = metrics[key].plus(childAgg.metrics[key]);
+    }
+    const hasActivity = metricKeys.some((key) => metricNonZero(metrics[key]));
+    const value = { metrics, hasActivity, hasChildren: childRows.length > 0 };
+    cache.set(account.id, value);
+    return value;
+  }
+
+  const rows = [];
+  function visit(account, depth) {
+    const agg = aggregate(account);
+    if (!options.includeZeros && !agg.hasActivity) return;
+    rows.push({
+      cuenta: account,
+      depth,
+      parentId: account.parentId || null,
+      hasChildren: agg.hasChildren,
+      rollup: agg.hasChildren,
+      permiteMovimiento: account.permiteMovimiento,
+      ...Object.fromEntries(metricKeys.map((key) => [key, money(agg.metrics[key])]))
+    });
+    for (const child of children.get(account.id) || []) visit(child, depth + 1);
+  }
+
+  for (const root of children.get(null) || []) visit(root, 0);
+  return rows;
+}
+
+function hierarchyEligibleBy(catalog, predicate) {
+  return new Set(catalog.filter(predicate).map((account) => account.id));
+}
+
 async function loadDetailRows(tenantId, { desde, hasta, corte, excludeClosing = false, accountWhere = {} } = {}) {
   const fecha = corte ? { lte: parseDate(corte, true) } : rangeWhere(desde, hasta);
   const asiento = postedJournalFilter({});
