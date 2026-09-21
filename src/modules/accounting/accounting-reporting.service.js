@@ -170,6 +170,25 @@ function hierarchyEligibleBy(catalog, predicate) {
   return new Set(catalog.filter(predicate).map((account) => account.id));
 }
 
+function hierarchyEligibleBranch(catalog, predicate) {
+  const children = new Map();
+  for (const account of catalog) {
+    if (!children.has(account.parentId || null)) children.set(account.parentId || null, []);
+    children.get(account.parentId || null).push(account);
+  }
+  const eligible = hierarchyEligibleBy(catalog, predicate);
+  const queue = [...eligible];
+  while (queue.length) {
+    const id = queue.shift();
+    for (const child of children.get(id) || []) {
+      if (eligible.has(child.id)) continue;
+      eligible.add(child.id);
+      queue.push(child.id);
+    }
+  }
+  return eligible;
+}
+
 async function loadDetailRows(tenantId, { desde, hasta, corte, excludeClosing = false, accountWhere = {} } = {}) {
   const fecha = corte ? { lte: parseDate(corte, true) } : rangeWhere(desde, hasta);
   const asiento = postedJournalFilter({});
@@ -356,7 +375,7 @@ async function profitAndLoss(tenantId, filters = {}) {
         ['valor'],
         {
           includeZeros,
-          eligibleIds: hierarchyEligibleBy(catalog, (account) => account.categoriaResultado === key)
+          eligibleIds: hierarchyEligibleBranch(catalog, (account) => account.categoriaResultado === key)
         }
       );
     }
@@ -463,7 +482,7 @@ async function balanceSheet(tenantId, filters = {}) {
         ['saldo'],
         {
           includeZeros,
-          eligibleIds: hierarchyEligibleBy(catalog, (account) => account.clasificacionESF === key)
+          eligibleIds: hierarchyEligibleBranch(catalog, (account) => account.clasificacionESF === key)
         }
       );
     }
@@ -521,5 +540,6 @@ module.exports = {
   truthyFlag,
   loadAccountCatalog,
   buildAccountHierarchy,
-  hierarchyEligibleBy
+  hierarchyEligibleBy,
+  hierarchyEligibleBranch
 };
