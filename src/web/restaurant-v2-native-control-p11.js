@@ -211,7 +211,7 @@
     $('#p11Main').classList.add('module-open');
     $('#p11Workspace').hidden = false;
     const frame = $('#p11Frame');
-    const targetChanged = routeIdentity(frame.getAttribute('src') || '') !== routeIdentity(targetRoute);
+    const targetChanged = String(frame.getAttribute('src') || '') !== targetRoute;
     expectedFrameRoute = targetRoute;
     expectedFrameKey = key;
     frameNavigationSeq += 1;
