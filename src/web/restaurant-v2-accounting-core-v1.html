@@ -94,5 +94,5 @@ async function openRecDetail(rec){try{const mv=(await api(`/api/v1/contabilidad/
 
 document.querySelector('#root').innerHTML=shell();bindShell();loadBase().then(renderTab).catch(e=>{$('#view').innerHTML=`<div class="error">${esc(e.message)}</div>`});
 </script>
-</body>
+<script src="/app/restaurant-v2-accounting-runtime-guard-v1.js?v=v1"></script>\n</body>
 </html>
