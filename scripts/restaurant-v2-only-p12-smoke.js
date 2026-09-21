@@ -14,6 +14,7 @@ const devicePwa = read('src/web/restaurant-v2-device-pwa-p8.js');
 const nativeControl = read('src/web/restaurant-v2-native-control-p11.js');
 const nativeControlHtml = read('src/web/restaurant-v2-native-control-p11.html');
 const nativeControlCss = read('src/web/restaurant-v2-native-control-p11.css');
+const restaurantAudit = read('src/web/restaurant-audit-log-c84.js');
 
 must(p12.includes("HEADER_VALUE = 'p12-v2-only-runtime'"), 'P12 runtime marker missing');
 must(p12.includes("controlCenter: '/app/centro-de-control-v2'"), 'Native V2 Control Center target missing');
@@ -61,7 +62,19 @@ must(nativeControl.includes("const DEMO_RESTAURANTE = 'demo-restaurante';"), 'de
 must(nativeControl.includes("const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres','qrs']);"), 'demo hidden module set missing');
 must(nativeControl.includes("session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)"), 'demo-restaurante must hide only the configured sidebar modules');
 must(nativeControl.includes("label:'Turno y gastos'"), 'demo-restaurante must expose Turno y gastos in the sidebar');
+must(nativeControl.includes("auditoria:{ label:'Auditoría'"), 'demo-restaurante must expose Auditoría as a visible module');
+must(nativeControl.includes("route:'/app/restaurante-v2/configuracion-avanzada?tab=auditoria'"), 'Auditoría module route missing');
+must(nativeControl.includes("['contabilidad','configuracionAvanzada','auditoria']"), 'finance/system modules must remain demo-restaurante scoped');
 must(nativeControl.includes('VANTIX_RESTAURANT_EMBEDDED_SURFACE_V1'), 'embedded uniform surface marker missing');
+must(nativeControl.includes('height:86px!important;min-height:86px!important'), 'embedded module headers must share the same desktop height');
+must(nativeControl.includes('body>.app>:where(.sidebar,.side)'), 'embedded duplicate sidebars must be removed in demo-restaurante');
+must(nativeControl.includes('font-family:Inter,ui-sans-serif,system-ui'), 'embedded typography normalization missing');
+must(nativeControl.includes('>header.rv2-module-top>div:first-child>span{display:none!important}'), 'redundant embedded eyebrow labels must be hidden');
+must(restaurantAudit.includes("DEMO_V2_PAGE_PATH = '/app/restaurante-v2/configuracion-avanzada'"), 'V2 audit surface path missing');
+must(restaurantAudit.includes("bootSession?.subdomain === 'demo-restaurante'"), 'V2 audit surface must remain demo-restaurante scoped');
+must(restaurantAudit.includes("get('tab') === 'auditoria'"), 'standalone audit route activation missing');
+must(restaurantAudit.includes("title.textContent = 'Auditoría'"), 'standalone audit heading missing');
+must(restaurantAudit.includes('tabs.hidden = true'), 'standalone audit must remove redundant advanced-config tabs');
 must(nativeControl.includes("const IS_DEMO_RESTAURANTE = session.subdomain === DEMO_RESTAURANTE;"), 'demo-restaurante exact shell scope missing');
 must(nativeControl.includes('installDemoModuleShell();'), 'demo-restaurante shell installer missing');
 must(nativeControl.includes("document.documentElement.dataset.demoRestaurante = 'true';"), 'demo-restaurante root scope marker missing');
