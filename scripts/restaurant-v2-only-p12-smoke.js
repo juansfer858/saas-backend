@@ -12,6 +12,8 @@ const aggregator = read('src/modules/restaurant/restaurant-operational-v2-previe
 const retirementRoutes = read('src/modules/restaurant/restaurant-v1-retirement-p11.routes.js');
 const devicePwa = read('src/web/restaurant-v2-device-pwa-p8.js');
 const nativeControl = read('src/web/restaurant-v2-native-control-p11.js');
+const nativeControlHtml = read('src/web/restaurant-v2-native-control-p11.html');
+const nativeControlCss = read('src/web/restaurant-v2-native-control-p11.css');
 
 must(p12.includes("HEADER_VALUE = 'p12-v2-only-runtime'"), 'P12 runtime marker missing');
 must(p12.includes("controlCenter: '/app/centro-de-control-v2'"), 'Native V2 Control Center target missing');
@@ -59,6 +61,17 @@ must(nativeControl.includes("const DEMO_RESTAURANTE = 'demo-restaurante';"), 'de
 must(nativeControl.includes("const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres','qrs']);"), 'demo hidden module set missing');
 must(nativeControl.includes("session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)"), 'demo-restaurante must hide only the configured sidebar modules');
 must(nativeControl.includes("label:'Turno y gastos'"), 'demo-restaurante must expose Turno y gastos in the sidebar');
+must(nativeControl.includes('VANTIX_RESTAURANT_EMBEDDED_SURFACE_V1'), 'embedded uniform surface marker missing');
+must(nativeControl.includes('setFrameLoading(true, key)'), 'module switch must hide the previous iframe before navigation');
+must(nativeControl.includes('settleFrameNavigation()'), 'iframe navigation settle guard missing');
+must(nativeControl.includes("Never allow the shell to render inside its own iframe"), 'nested control-center protection missing');
+must(nativeControl.includes('installUniformEmbeddedSurface(frame)'), 'embedded module width normalization missing');
+must(nativeControl.includes("session.subdomain !== DEMO_RESTAURANTE"), 'uniform embedded content must remain scoped to demo-restaurante');
+must(nativeControlHtml.includes('id="p11ModuleLoading"'), 'module loading overlay missing');
+must(nativeControlHtml.includes('grid-template-rows:44px minmax(0,1fr)'), 'module shell must use one fixed viewport grid');
+must(nativeControlHtml.includes('p11-uniform-modules-v1'), 'module shell cache-bust missing');
+must(nativeControlCss.includes('.p11-workspace.is-module-loading iframe'), 'old iframe must be hidden while the next module loads');
+must(nativeControlCss.includes('.p11-module-loading'), 'module loading surface style missing');
 
 must(devicePwa.includes("legacyScope:'/app/centro-de-control'"), 'Waiter legacy worker scope cleanup missing');
 must(devicePwa.includes("legacyScope:'/app/produccion'"), 'Production legacy worker scope cleanup missing');
