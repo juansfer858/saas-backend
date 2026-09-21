@@ -47,18 +47,26 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://core.vantixgc.com'
+
+          assert_redirect() {
+            local path="$1"
+            local expected="$2"
+            local status location
+            status="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE$path")"
+            location="$(curl -sS -o /dev/null -w '%{redirect_url}' "$BASE$path")"
+            [[ "$status" == '307' ]]
+            [[ "$location" == "$BASE$expected"* ]]
+          }
+
           for i in $(seq 1 60); do
             INFO="$(curl -fsS "$BASE/api/public/runtime-info" 2>/dev/null || true)"
             if echo "$INFO" | grep -Fq "$GITHUB_SHA"; then
-              H="$(mktemp)"; P="$(mktemp)"; HN="$(mktemp)"; N="$(mktemp)"; J="$(mktemp)"; NJ="$(mktemp)"
-              curl -fsS -D "$H" "$BASE/app/centro-de-control?v=$GITHUB_SHA" -o "$P"
-              curl -fsS -D "$HN" "$BASE/app/centro-de-control-v2?v=$GITHUB_SHA" -o "$N"
+              N="$(mktemp)"; J="$(mktemp)"; NJ="$(mktemp)"
+              assert_redirect '/app/centro-de-control' '/app/centro-de-control-v2'
+              assert_redirect '/app/centro-de-control-p10' '/app/centro-de-control-v2'
+              curl -fsS "$BASE/app/centro-de-control-v2?v=$GITHUB_SHA" -o "$N"
               curl -fsS "$BASE/app/restaurant-v2-control-center-bridge.js?v=$GITHUB_SHA" -o "$J"
               curl -fsS "$BASE/app/restaurant-v2-native-control-p11.js?v=$GITHUB_SHA" -o "$NJ"
-              grep -Fqi 'X-VantixGC-Restaurant-V1-Retirement: p11-v1-retirement' "$H"
-              grep -Fq 'data-p11-launch="true"' "$P"
-              if grep -Eq 'restaurant-ui\.js|restaurant-control-center\.js|MutationObserver' "$P"; then exit 1; fi
-              grep -Fqi 'X-VantixGC-Restaurant-V1-Retirement: p11-v1-retirement' "$HN"
               grep -Fq 'data-v2-native-control="p11"' "$N"
               if grep -Eq 'restaurant-ui\.js|restaurant-control-center\.js|restaurant\.html|MutationObserver' "$N"; then exit 1; fi
               grep -Fq 'VANTIX_RESTAURANT_V2_NATIVE_CONTROL_P11' "$NJ"
@@ -68,7 +76,7 @@ jobs:
               grep -Fq '/app/restaurante-v2/caja' "$NJ"
               grep -Fq '/app/restaurante-v2/division' "$NJ"
               grep -Fq 'VANTIX_RESTAURANT_V2_CONTROL_CENTER_BRIDGE_P6_5' "$J"
-              echo "Restaurant V2 Control Center P11 live at $GITHUB_SHA"
+              echo "Restaurant V2 Control Center P12 live at $GITHUB_SHA"
               exit 0
             fi
             sleep 10
