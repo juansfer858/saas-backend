@@ -80,6 +80,12 @@ async function main() {
       data:{ nombreEmpresa:'Bike RBAC '+suffix, subdomain:'bike-rbac-'+suffix, nicho:'BIKE', pais:'CO', moneda:'COP', activo:true }
     });
     bikeTenantId = bikeTenant.id;
+    const ui = require('node:fs').readFileSync('src/web/restaurant-v2-advanced-config-core-v1.html','utf8');
+    assert.match(ui, /data-delete-role/, 'Restaurant Roles UI must expose delete button for custom roles');
+    assert.match(ui, /RBAC aislado por vertical/, 'Restaurant Roles UI must explain vertical isolation');
+    assert.match(ui, /<option value="RESTAURANT">Restaurante<\/option>/, 'Role creation must constrain vertical to Restaurant/Core');
+    assert.doesNotMatch(ui, /placeholder="RESTAURANTE"/, 'Free-form vertical input must not return');
+
     const bikePermissions = await rbac.listPermissions(bikeTenant.id);
     const bikeRoles = await rbac.listRoles(bikeTenant.id);
     assert.ok(bikePermissions.some((p)=>p.module === 'BIKE'), 'Bike tenant must keep Bike permissions');
