@@ -253,21 +253,16 @@ async function listRoles(tenantId) {
   ]);
   const allowedModuleSet = new Set(allowedModules);
   const roles = await prisma.rbacRole.findMany({
-    where: {
-      tenantId,
-      active: true,
-      OR: [
-        { vertical: null },
-        { vertical: { in: [...verticals] } }
-      ]
-    },
+    where: { tenantId, active: true },
     include: { permissions: { include: { permission: true } }, _count: { select: { assignments: true } } },
     orderBy: [{ system: 'desc' }, { name: 'asc' }]
   });
-  return roles.map((role) => ({
-    ...role,
-    permissions: (role.permissions || []).filter((rp) => allowedModuleSet.has(rp.permission.module))
-  }));
+  return roles
+    .filter((role) => !role.vertical || verticals.has(normalizeVertical(role.vertical)))
+    .map((role) => ({
+      ...role,
+      permissions: (role.permissions || []).filter((rp) => allowedModuleSet.has(rp.permission.module))
+    }));
 }
 
 async function createRole(tenantId, actorUserId, input) {
@@ -350,14 +345,10 @@ async function setUserRoles(tenantId, actorUserId, userId, roleIds) {
     const user = await tx.user.findFirst({ where: { id: userId, tenantId } });
     if (!user) throw new AppError(404, 'Usuario no encontrado', 'RBAC_USER_NOT_FOUND');
     const verticals = await tenantVerticalCodes(tenantId, tx);
-    const roles = await tx.rbacRole.findMany({
-      where: {
-        tenantId,
-        id: { in: roleIds },
-        active: true,
-        OR: [{ vertical: null }, { vertical: { in: [...verticals] } }]
-      }
+    const foundRoles = await tx.rbacRole.findMany({
+      where: { tenantId, id: { in: roleIds }, active: true }
     });
+    const roles = foundRoles.filter((role) => !role.vertical || verticals.has(normalizeVertical(role.vertical)));
     if (roles.length !== new Set(roleIds).size) throw new AppError(400, 'Uno o más roles no pertenecen a la empresa o a sus verticales activos', 'RBAC_ROLE_INVALID');
     await tx.rbacUserRole.deleteMany({ where: { tenantId, userId } });
     if (roles.length) await tx.rbacUserRole.createMany({ data: roles.map((r) => ({ tenantId, userId, roleId: r.id })) });
