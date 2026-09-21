@@ -1,0 +1,51 @@
+name: RBAC Vertical Isolation CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/platform/rbac/rbac.service.js'
+      - 'src/modules/platform/rbac/rbac.routes.js'
+      - 'src/modules/restaurant/restaurant.rbac.js'
+      - 'src/modules/bike/bike.rbac.js'
+      - 'src/web/restaurant-v2-advanced-config-core-v1.html'
+      - 'scripts/rbac-vertical-isolation-smoke.js'
+      - '.github/workflows/rbac-vertical-isolation-ci.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      TENANT_BASE_DOMAIN: vantixgc.com
+      JWT_SECRET: rbac-vertical-isolation-ci
+      RESTAURANT_DEVICE_SECRET: rbac-vertical-device-ci
+      RESTAURANT_QR_VISIT_SECRET: rbac-vertical-qr-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Syntax
+        run: |
+          node --check src/modules/platform/rbac/rbac.service.js
+          node --check src/modules/platform/rbac/rbac.routes.js
+          node --check src/modules/restaurant/restaurant.rbac.js
+          node --check src/modules/bike/bike.rbac.js
+      - name: Vertical isolation + delete roles
+        run: node scripts/rbac-vertical-isolation-smoke.js

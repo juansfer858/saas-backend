@@ -106,8 +106,12 @@ async function main() {
   let perms = await rbac.effectivePermissions(tenant.id, vendor);
   assert.equal(perms.has('VENTAS.EMITIR'), true);
   assert.equal(perms.has('CONTABILIDAD.REABRIR'), false);
-  const verticalRole = await rbac.createRole(tenant.id, user.id, { code: `MESERO_${String(stamp).slice(-6)}`, name: 'Mesero QA', vertical: 'RESTAURANTE' });
-  assert.equal(verticalRole.vertical, 'RESTAURANTE');
+  const customRole = await rbac.createRole(tenant.id, user.id, { code: `AUX_QA_${String(stamp).slice(-6)}`, name: 'Auxiliar QA', vertical: null });
+  assert.equal(customRole.vertical, null);
+  await assert.rejects(
+    () => rbac.createRole(tenant.id, user.id, { code: `MESERO_${String(stamp).slice(-6)}`, name: 'Mesero QA', vertical: 'RESTAURANTE' }),
+    (error) => error.code === 'RBAC_ROLE_VERTICAL_NOT_ENTITLED'
+  );
   await rbac.setUserOverride(tenant.id, user.id, vendor.id, { permissionCode: 'CARTERA.VER', effect: 'ALLOW', reason: 'QA permiso puntual' });
   perms = await rbac.effectivePermissions(tenant.id, vendor);
   assert.equal(perms.has('CARTERA.VER'), true);

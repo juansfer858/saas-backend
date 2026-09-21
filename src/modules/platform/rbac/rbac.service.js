@@ -1,8 +1,15 @@
 const { prisma } = require('../../../config/prisma');
 const { AppError } = require('../../../utils/app-error');
+const verticalRegistry = require('../verticals/vertical-registry');
 
-const MODULES = ['DASHBOARD','VENTAS','COMPRAS','INVENTARIO','TESORERIA','CARTERA','CONTABILIDAD','TERCEROS','CONFIGURACION','DIAN','NOMINA','USUARIOS','REPORTES','IMPUESTOS'];
+const CORE_MODULES = ['DASHBOARD','VENTAS','COMPRAS','INVENTARIO','TESORERIA','CARTERA','CONTABILIDAD','TERCEROS','CONFIGURACION','DIAN','NOMINA','USUARIOS','REPORTES','IMPUESTOS'];
 const ACTIONS = ['VER','CREAR','EDITAR','ANULAR','EMITIR','PAGAR','AJUSTAR','CERRAR','REABRIR','ADMINISTRAR'];
+
+// Se mantienen mutables por compatibilidad con instaladores de verticales,
+// pero el catálogo visible/efectivo se filtra por los verticales activos de cada tenant.
+const MODULES = [...CORE_MODULES];
+const MODULE_VERTICAL = new Map();
+const ROLE_VERTICAL = new Map();
 
 const BASE_ROLES = {
   ADMIN: ['*'],
@@ -22,6 +29,68 @@ function permissionCode(module, action) {
   return `${String(module).toUpperCase()}.${String(action).toUpperCase()}`;
 }
 
+function normalizeVertical(value) {
+  if (!value) return null;
+  return verticalRegistry.normalizeVerticalCode(value) || String(value).trim().toUpperCase();
+}
+
+function registerVerticalRbac(verticalValue, modules = [], roles = {}) {
+  const vertical = normalizeVertical(verticalValue);
+  if (!vertical) throw new Error('Vertical RBAC inválido');
+  for (const raw of modules) {
+    const module = String(raw || '').trim().toUpperCase();
+    if (!module) continue;
+    if (!MODULES.includes(module)) MODULES.push(module);
+    MODULE_VERTICAL.set(module, vertical);
+  }
+  for (const [rawCode, grants] of Object.entries(roles || {})) {
+    const code = String(rawCode || '').trim().toUpperCase();
+    if (!code) continue;
+    BASE_ROLES[code] = [...(grants || [])];
+    ROLE_VERTICAL.set(code, vertical);
+  }
+  BASE_ROLES.ADMIN = ['*'];
+}
+
+async function tenantVerticalCodes(tenantId, client = prisma) {
+  const tenant = await client.tenant.findUnique({ where: { id: tenantId }, select: { id: true, nicho: true } });
+  if (!tenant) throw new AppError(404, 'Tenant no encontrado', 'TENANT_NOT_FOUND');
+
+  const result = new Set();
+  const rawNicho = String(tenant.nicho || '').trim().toUpperCase();
+  const legacy = verticalRegistry.normalizeVerticalCode(rawNicho);
+  if (legacy) result.add(legacy);
+  // Compatibilidad con tenants QA/legacy nombrados RESTAURANTE_QA, RESTAURANT_TEST, BIKE_QA, etc.
+  if (!legacy && /^RESTAURANT(?:E)?(?:_|$)/.test(rawNicho)) result.add('RESTAURANT');
+  if (!legacy && /^BIKE(?:_|$)/.test(rawNicho)) result.add('BIKE');
+
+  if (client.tenantVerticalEntitlement?.findMany) {
+    const rows = await client.tenantVerticalEntitlement.findMany({
+      where: { tenantId, state: 'ACTIVE' },
+      select: { verticalCode: true }
+    });
+    for (const row of rows) {
+      const code = verticalRegistry.normalizeVerticalCode(row.verticalCode);
+      if (code) result.add(code);
+    }
+  }
+
+  // Compatibilidad para restaurantes creados antes del registry de verticales.
+  if (!result.has('RESTAURANT') && client.restaurantConfig?.findUnique) {
+    const restaurant = await client.restaurantConfig.findUnique({ where: { tenantId }, select: { tenantId: true } });
+    if (restaurant) result.add('RESTAURANT');
+  }
+  return result;
+}
+
+async function allowedModulesForTenant(tenantId, client = prisma) {
+  const verticals = await tenantVerticalCodes(tenantId, client);
+  return MODULES.filter((module) => {
+    const owner = MODULE_VERTICAL.get(module);
+    return !owner || verticals.has(owner);
+  });
+}
+
 async function ensurePermissions(client = prisma) {
   const all = [];
   for (const module of MODULES) {
@@ -38,23 +107,56 @@ async function ensurePermissions(client = prisma) {
   return all;
 }
 
+async function listPermissions(tenantId, client = prisma) {
+  await ensurePermissions(client);
+  const allowed = await allowedModulesForTenant(tenantId, client);
+  return client.rbacPermission.findMany({
+    where: { module: { in: allowed } },
+    orderBy: [{ module: 'asc' }, { action: 'asc' }]
+  });
+}
+
 async function ensureTenantRoles(tenantId, client = prisma) {
-  const permissions = await ensurePermissions(client);
-  const byCode = new Map(permissions.map((p) => [p.code, p]));
+  const [permissions, verticals, allowedModules] = await Promise.all([
+    ensurePermissions(client),
+    tenantVerticalCodes(tenantId, client),
+    allowedModulesForTenant(tenantId, client)
+  ]);
+  const allowedModuleSet = new Set(allowedModules);
+  const allowedPermissions = permissions.filter((p) => allowedModuleSet.has(p.module));
+  const byCode = new Map(allowedPermissions.map((p) => [p.code, p]));
   const roles = {};
+
   for (const [code, grants] of Object.entries(BASE_ROLES)) {
+    const owner = ROLE_VERTICAL.get(code) || null;
+    if (owner && !verticals.has(owner)) {
+      // Limpia roles de otros proyectos que fueron sembrados cuando el catálogo era global.
+      await client.rbacRole.updateMany({
+        where: { tenantId, code },
+        data: { active: false, vertical: owner, system: true }
+      });
+      continue;
+    }
+
     const role = await client.rbacRole.upsert({
       where: { tenantId_code: { tenantId, code } },
-      create: { tenantId, code, name: code === 'ADMIN' ? 'Administrador' : code[0] + code.slice(1).toLowerCase(), system: true, active: true },
-      update: { system: true, active: true }
+      create: {
+        tenantId,
+        code,
+        name: code === 'ADMIN' ? 'Administrador' : code[0] + code.slice(1).toLowerCase(),
+        vertical: owner,
+        system: true,
+        active: true
+      },
+      update: { system: true, active: true, vertical: owner }
     });
     roles[code] = role;
-    const desired = grants.includes('*') ? permissions : grants.map((x) => byCode.get(x)).filter(Boolean);
+
+    const desired = grants.includes('*')
+      ? allowedPermissions
+      : grants.map((x) => byCode.get(x)).filter(Boolean);
     const desiredIds = desired.map((permission) => permission.id);
 
-    // Never remove valid grants before restoring them. effectivePermissions() can run
-    // concurrently for several API requests from the same PWA; the old delete-all then
-    // create-all sequence exposed a brief empty-role window and produced random 403s.
     if (desired.length) {
       await client.rbacRolePermission.createMany({
         data: desired.map((p) => ({ roleId: role.id, permissionId: p.id })),
@@ -84,6 +186,19 @@ async function audit(client, { tenantId, actorUserId, targetUserId = null, actio
   });
 }
 
+async function roleAllowedForTenant(role, tenantId, client = prisma) {
+  if (!role?.vertical) return true;
+  const verticals = await tenantVerticalCodes(tenantId, client);
+  const normalized = normalizeVertical(role.vertical);
+  return !normalized || verticals.has(normalized);
+}
+
+async function permissionAllowedForTenant(permission, tenantId, client = prisma) {
+  if (!permission) return false;
+  const allowed = new Set(await allowedModulesForTenant(tenantId, client));
+  return allowed.has(permission.module);
+}
+
 async function effectivePermissions(tenantId, user) {
   if (!user) return new Set();
   if (['ADMIN', 'SUPER_ADMIN'].includes(user.rol)) return new Set(['*']);
@@ -96,14 +211,21 @@ async function effectivePermissions(tenantId, user) {
 
   let roleAssignments = assignments;
   if (!roleAssignments.length) {
-    const legacyRole = await prisma.rbacRole.findFirst({ where: { tenantId, code: user.rol, active: true }, include: { permissions: { include: { permission: true } } } });
+    const legacyRole = await prisma.rbacRole.findFirst({
+      where: { tenantId, code: user.rol, active: true },
+      include: { permissions: { include: { permission: true } } }
+    });
     if (legacyRole) roleAssignments = [{ role: legacyRole }];
   }
 
+  const allowedModules = new Set(await allowedModulesForTenant(tenantId));
   const result = new Set();
   for (const assignment of roleAssignments) {
     if (!assignment.role?.active) continue;
-    for (const rp of assignment.role.permissions || []) result.add(rp.permission.code);
+    if (!(await roleAllowedForTenant(assignment.role, tenantId))) continue;
+    for (const rp of assignment.role.permissions || []) {
+      if (allowedModules.has(rp.permission.module)) result.add(rp.permission.code);
+    }
   }
 
   const overrides = await prisma.rbacUserPermissionOverride.findMany({
@@ -111,6 +233,7 @@ async function effectivePermissions(tenantId, user) {
     include: { permission: true }
   });
   for (const override of overrides) {
+    if (!allowedModules.has(override.permission.module)) continue;
     if (override.effect === 'DENY') result.delete(override.permission.code);
     else result.add(override.permission.code);
   }
@@ -124,14 +247,36 @@ async function hasPermission(tenantId, user, code) {
 
 async function listRoles(tenantId) {
   await ensureTenantRoles(tenantId);
-  return prisma.rbacRole.findMany({
+  const [verticals, allowedModules] = await Promise.all([
+    tenantVerticalCodes(tenantId),
+    allowedModulesForTenant(tenantId)
+  ]);
+  const allowedModuleSet = new Set(allowedModules);
+  const roles = await prisma.rbacRole.findMany({
     where: { tenantId, active: true },
     include: { permissions: { include: { permission: true } }, _count: { select: { assignments: true } } },
     orderBy: [{ system: 'desc' }, { name: 'asc' }]
   });
+  return roles
+    .filter((role) => !role.vertical || verticals.has(normalizeVertical(role.vertical)))
+    .map((role) => ({
+      ...role,
+      permissions: (role.permissions || []).filter((rp) => allowedModuleSet.has(rp.permission.module))
+    }));
 }
 
 async function createRole(tenantId, actorUserId, input) {
+  const requestedVertical = input.vertical ? normalizeVertical(input.vertical) : null;
+  if (input.vertical && !verticalRegistry.getVertical(requestedVertical)) {
+    throw new AppError(400, 'Vertical inválido para este rol', 'RBAC_ROLE_VERTICAL_INVALID');
+  }
+  if (requestedVertical) {
+    const verticals = await tenantVerticalCodes(tenantId);
+    if (!verticals.has(requestedVertical)) {
+      throw new AppError(409, 'Ese vertical no está activo para esta empresa', 'RBAC_ROLE_VERTICAL_NOT_ENTITLED');
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
     const role = await tx.rbacRole.create({
       data: {
@@ -139,7 +284,7 @@ async function createRole(tenantId, actorUserId, input) {
         code: input.code.toUpperCase(),
         name: input.name,
         description: input.description || null,
-        vertical: input.vertical || null,
+        vertical: requestedVertical,
         system: false,
         active: true
       }
@@ -151,10 +296,17 @@ async function createRole(tenantId, actorUserId, input) {
 
 async function setRolePermissions(tenantId, actorUserId, roleId, permissionCodes) {
   return prisma.$transaction(async (tx) => {
-    const role = await tx.rbacRole.findFirst({ where: { id: roleId, tenantId } });
+    const role = await tx.rbacRole.findFirst({ where: { id: roleId, tenantId, active: true } });
     if (!role) throw new AppError(404, 'Rol no encontrado', 'RBAC_ROLE_NOT_FOUND');
+    if (!(await roleAllowedForTenant(role, tenantId, tx))) throw new AppError(403, 'El rol pertenece a otro vertical', 'RBAC_ROLE_VERTICAL_FORBIDDEN');
+
+    const allowedModules = new Set(await allowedModulesForTenant(tenantId, tx));
     const permissions = await tx.rbacPermission.findMany({ where: { code: { in: permissionCodes } } });
     if (permissions.length !== new Set(permissionCodes).size) throw new AppError(400, 'Uno o más permisos no existen', 'RBAC_PERMISSION_INVALID');
+    if (permissions.some((permission) => !allowedModules.has(permission.module))) {
+      throw new AppError(403, 'Uno o más permisos pertenecen a otro vertical', 'RBAC_PERMISSION_VERTICAL_FORBIDDEN');
+    }
+
     await tx.rbacRolePermission.deleteMany({ where: { roleId } });
     if (permissions.length) await tx.rbacRolePermission.createMany({ data: permissions.map((p) => ({ roleId, permissionId: p.id })) });
     await audit(tx, { tenantId, actorUserId, action: 'ROLE_PERMISSIONS_SET', metadata: { roleId, permissionCodes } });
@@ -162,12 +314,42 @@ async function setRolePermissions(tenantId, actorUserId, roleId, permissionCodes
   });
 }
 
+async function deleteRole(tenantId, actorUserId, roleId) {
+  return prisma.$transaction(async (tx) => {
+    const role = await tx.rbacRole.findFirst({
+      where: { id: roleId, tenantId },
+      include: { _count: { select: { assignments: true } } }
+    });
+    if (!role) throw new AppError(404, 'Rol no encontrado', 'RBAC_ROLE_NOT_FOUND');
+    if (role.system) throw new AppError(409, 'Los roles del sistema no se pueden eliminar', 'RBAC_SYSTEM_ROLE_DELETE_FORBIDDEN');
+    if (role._count.assignments > 0) {
+      throw new AppError(409, 'Este rol está asignado a usuarios. Retira esas asignaciones antes de eliminarlo.', 'RBAC_ROLE_ASSIGNED');
+    }
+    const legacyUsers = await tx.user.count({ where: { tenantId, rol: role.code } });
+    if (legacyUsers > 0) {
+      throw new AppError(409, 'Este rol todavía está usado como rol principal por uno o más usuarios.', 'RBAC_ROLE_LEGACY_ASSIGNED');
+    }
+    await audit(tx, {
+      tenantId,
+      actorUserId,
+      action: 'ROLE_DELETE',
+      metadata: { roleId: role.id, code: role.code, name: role.name, vertical: role.vertical }
+    });
+    await tx.rbacRole.delete({ where: { id: role.id } });
+    return { id: role.id, code: role.code, deleted: true };
+  });
+}
+
 async function setUserRoles(tenantId, actorUserId, userId, roleIds) {
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.findFirst({ where: { id: userId, tenantId } });
     if (!user) throw new AppError(404, 'Usuario no encontrado', 'RBAC_USER_NOT_FOUND');
-    const roles = await tx.rbacRole.findMany({ where: { tenantId, id: { in: roleIds }, active: true } });
-    if (roles.length !== new Set(roleIds).size) throw new AppError(400, 'Uno o más roles no pertenecen a la empresa', 'RBAC_ROLE_INVALID');
+    const verticals = await tenantVerticalCodes(tenantId, tx);
+    const foundRoles = await tx.rbacRole.findMany({
+      where: { tenantId, id: { in: roleIds }, active: true }
+    });
+    const roles = foundRoles.filter((role) => !role.vertical || verticals.has(normalizeVertical(role.vertical)));
+    if (roles.length !== new Set(roleIds).size) throw new AppError(400, 'Uno o más roles no pertenecen a la empresa o a sus verticales activos', 'RBAC_ROLE_INVALID');
     await tx.rbacUserRole.deleteMany({ where: { tenantId, userId } });
     if (roles.length) await tx.rbacUserRole.createMany({ data: roles.map((r) => ({ tenantId, userId, roleId: r.id })) });
     await audit(tx, { tenantId, actorUserId, targetUserId: userId, action: 'USER_ROLES_SET', metadata: { roleIds } });
@@ -181,6 +363,9 @@ async function setUserOverride(tenantId, actorUserId, userId, input) {
     if (!user) throw new AppError(404, 'Usuario no encontrado', 'RBAC_USER_NOT_FOUND');
     const permission = await tx.rbacPermission.findUnique({ where: { code: input.permissionCode } });
     if (!permission) throw new AppError(400, 'Permiso no encontrado', 'RBAC_PERMISSION_INVALID');
+    if (!(await permissionAllowedForTenant(permission, tenantId, tx))) {
+      throw new AppError(403, 'Ese permiso pertenece a otro vertical', 'RBAC_PERMISSION_VERTICAL_FORBIDDEN');
+    }
     const row = await tx.rbacUserPermissionOverride.upsert({
       where: { tenantId_userId_permissionId: { tenantId, userId, permissionId: permission.id } },
       create: { tenantId, userId, permissionId: permission.id, effect: input.effect, grantedByUserId: actorUserId, reason: input.reason || null },
@@ -192,17 +377,25 @@ async function setUserOverride(tenantId, actorUserId, userId, input) {
 }
 
 module.exports = {
+  CORE_MODULES,
   MODULES,
   ACTIONS,
   BASE_ROLES,
+  MODULE_VERTICAL,
+  ROLE_VERTICAL,
   permissionCode,
+  registerVerticalRbac,
+  tenantVerticalCodes,
+  allowedModulesForTenant,
   ensurePermissions,
+  listPermissions,
   ensureTenantRoles,
   effectivePermissions,
   hasPermission,
   listRoles,
   createRole,
   setRolePermissions,
+  deleteRole,
   setUserRoles,
   setUserOverride
 };

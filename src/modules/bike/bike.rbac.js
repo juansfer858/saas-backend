@@ -36,9 +36,7 @@ let installed = false;
 
 function installBikeRbac() {
   if (installed) return;
-  for (const module of BIKE_MODULES) if (!rbac.MODULES.includes(module)) rbac.MODULES.push(module);
-  rbac.BASE_ROLES.ADMIN = ['*'];
-  for (const [role, grants] of Object.entries(BIKE_ROLES)) rbac.BASE_ROLES[role] = [...grants];
+  rbac.registerVerticalRbac('BIKE', BIKE_MODULES, BIKE_ROLES);
   installed = true;
 }
 

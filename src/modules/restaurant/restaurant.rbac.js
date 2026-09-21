@@ -28,18 +28,7 @@ let installed = false;
 
 function installRestaurantRbac() {
   if (installed) return;
-  for (const module of RESTAURANT_MODULES) {
-    if (!rbac.MODULES.includes(module)) rbac.MODULES.push(module);
-  }
-
-  // ADMIN is intentionally represented as wildcard after vertical modules are registered.
-  // ensureTenantRoles() expands '*' to the current permission catalog, so existing tenants
-  // receive the new Restaurant permissions during the normal platform bootstrap as well.
-  rbac.BASE_ROLES.ADMIN = ['*'];
-
-  for (const [role, grants] of Object.entries(RESTAURANT_ROLES)) {
-    rbac.BASE_ROLES[role] = [...grants];
-  }
+  rbac.registerVerticalRbac('RESTAURANT', RESTAURANT_MODULES, RESTAURANT_ROLES);
   installed = true;
 }
 
