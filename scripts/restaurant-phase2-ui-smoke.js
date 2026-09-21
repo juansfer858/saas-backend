@@ -158,7 +158,7 @@ assert.match(rbac, /MESERO:/);
 assert.match(rbac, /COCINA:/);
 assert.match(rbac, /BARRA:/);
 assert.match(rbac, /CAJERO:/);
-assert.match(rbac, /BASE_ROLES\.ADMIN = \['\*'\]/);
+assert.match(rbac, /registerVerticalRbac\('RESTAURANT', RESTAURANT_MODULES, RESTAURANT_ROLES\)/);
 assert.doesNotMatch(rbac, /MESERO:[\s\S]*CONTABILIDAD\.VER[\s\S]*COCINA:/);
 
 assert.match(phase2, /RESTAURANT_PRODUCTION_READY = physicalPrinterFieldPass && metaBusinessManagementReviewPass && \(dianRealEnabled \|\| simulatedFiscalOperationExplicitlyAccepted\)/);
