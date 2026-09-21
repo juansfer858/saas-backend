@@ -26,9 +26,9 @@ const overrideSchema = z.object({
   reason: z.string().trim().max(300).optional().nullable()
 });
 
-router.get('/permisos', requirePermission('CONFIGURACION.ADMINISTRAR'), async (_req, res, next) => {
+router.get('/permisos', requirePermission('CONFIGURACION.ADMINISTRAR'), async (req, res, next) => {
   try {
-    const data = await service.ensurePermissions();
+    const data = await service.listPermissions(req.tenantId);
     res.json({ ok: true, data });
   } catch (error) { next(error); }
 });
@@ -47,6 +47,12 @@ router.put('/roles/:id/permisos', requirePermission('CONFIGURACION.ADMINISTRAR')
   try {
     const input = parse(rolePermissionsSchema, req.body);
     res.json({ ok: true, data: await service.setRolePermissions(req.tenantId, req.userId, req.params.id, input.permissionCodes) });
+  } catch (error) { next(error); }
+});
+
+router.delete('/roles/:id', requirePermission('CONFIGURACION.ADMINISTRAR'), async (req, res, next) => {
+  try {
+    res.json({ ok: true, data: await service.deleteRole(req.tenantId, req.userId, req.params.id) });
   } catch (error) { next(error); }
 });
 
