@@ -186,7 +186,8 @@ async function main() {
   const cashParent = hierarchicalTrial.cuentas.find((row) => row.cuenta.id === cashLeaf.parentId);
   assert.ok(cashParent && cashParent.hasChildren, 'Debe incluir el padre inmediato de Caja General');
   assert.ok(hierarchicalTrial.cuentas.indexOf(cashParent) < hierarchicalTrial.cuentas.indexOf(cashLeaf), 'Padre debe aparecer antes que hijo');
-  assert.equal(n(cashParent.saldoFinal) >= n(cashLeaf.saldoFinal), true, 'El padre debe acumular los saldos de sus hijos');
+  assert.ok(n(cashParent.debito) >= n(cashLeaf.debito), 'El padre debe acumular débitos de sus hijos');
+  assert.ok(n(cashParent.credito) >= n(cashLeaf.credito), 'El padre debe acumular créditos de sus hijos');
   assert.ok(hierarchicalTrial.cuentas.some((row) => !row.permiteMovimiento && row.hasChildren), 'Debe mostrar cuentas estructurales no imputables');
 
   const hierarchicalPnl = await accounting.getProfitAndLoss(tenant.id, {
