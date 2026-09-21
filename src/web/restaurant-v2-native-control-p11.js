@@ -139,6 +139,23 @@
       }
     `;
     doc.head?.appendChild(style);
+
+    if (!doc.documentElement.dataset.vantixRestaurantEmbeddedNavBridge) {
+      doc.documentElement.dataset.vantixRestaurantEmbeddedNavBridge = 'VANTIX_RESTAURANT_EMBEDDED_NAV_BRIDGE_V1';
+      doc.addEventListener('click', (event) => {
+        const anchor = event.target?.closest?.('a[href]');
+        if (!anchor || event.defaultPrevented || event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        if (anchor.target && anchor.target !== '_self') return;
+        let nextUrl;
+        try { nextUrl = new URL(anchor.href, frame.contentWindow?.location?.href || location.origin); } catch { return; }
+        if (nextUrl.origin !== location.origin) return;
+        const nextIdentity = routeIdentity(nextUrl.href);
+        const nextModule = Object.entries(MODULES).find(([, module]) => routeIdentity(module.route) === nextIdentity)?.[0];
+        if (!nextModule || nextModule === expectedFrameKey || !allowed(MODULES[nextModule])) return;
+        event.preventDefault();
+        openModule(nextModule, true);
+      }, true);
+    }
   }
 
   function settleFrameNavigation() {
@@ -165,7 +182,10 @@
     if (actualIdentity && expectedIdentity && actualIdentity !== expectedIdentity) {
       const actualModule = Object.entries(MODULES).find(([, module]) => routeIdentity(module.route) === actualIdentity)?.[0];
       if (actualModule && actualModule !== expectedFrameKey && allowed(MODULES[actualModule])) {
-        openModule(actualModule, true);
+        // A previous iframe navigation must never reactivate an older module.
+        // Legitimate module-to-module links are intercepted by the embedded bridge below.
+        setFrameLoading(true, expectedFrameKey);
+        if (String(frame.getAttribute('src') || '') !== expectedFrameRoute) frame.setAttribute('src', expectedFrameRoute);
         return;
       }
     }
