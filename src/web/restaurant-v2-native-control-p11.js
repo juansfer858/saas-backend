@@ -24,7 +24,8 @@
     qrs:{ label:'QR de mesas', hint:'Ver e imprimir QR físicos', route:'/app/restaurante-v2/qrs', roles:['ADMIN','SUPER_ADMIN'] },
     devices:{ label:'Dispositivos', hint:'Meseros y producción', route:'/app/restaurante-v2/dispositivos', roles:['ADMIN','SUPER_ADMIN'] },
     contabilidad:{ label:'Contabilidad', hint:'PUC · asientos · libros · reportes', route:'/app/restaurante-v2/contabilidad', roles:['ADMIN','SUPER_ADMIN'], group:'finance' },
-    configuracionAvanzada:{ label:'Configuración avanzada', hint:'DIAN · permisos · impresión · empresa', route:'/app/restaurante-v2/configuracion-avanzada', roles:['ADMIN','SUPER_ADMIN'], group:'finance' }
+    configuracionAvanzada:{ label:'Configuración', hint:'DIAN · permisos · impresión · empresa', route:'/app/restaurante-v2/configuracion-avanzada', roles:['ADMIN','SUPER_ADMIN'], group:'finance' },
+    auditoria:{ label:'Auditoría', hint:'Registro de actividad y cambios', route:'/app/restaurante-v2/configuracion-avanzada?tab=auditoria', roles:['ADMIN','SUPER_ADMIN'], group:'finance' }
   });
   const ALIASES = Object.freeze({ salon:'mesas', mesero:'pedidos' });
 
@@ -75,7 +76,7 @@
       if (!allowed(module)) return [];
       if (key === 'inventario' && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (key === 'gestion' && session.subdomain !== DEMO_RESTAURANTE) return [];
-      if (['contabilidad','configuracionAvanzada'].includes(key) && session.subdomain !== DEMO_RESTAURANTE) return [];
+      if (['contabilidad','configuracionAvanzada','auditoria'].includes(key) && session.subdomain !== DEMO_RESTAURANTE) return [];
       if (session.subdomain === DEMO_RESTAURANTE && DEMO_HIDDEN_MODULES.has(key)) return [];
       if (session.subdomain === DEMO_RESTAURANTE && key === 'gastos') {
         return [[key, { ...module, label:'Turno y gastos', hint:'Cierre de turno · gastos · historial' }]];
@@ -153,7 +154,44 @@
       html[data-vantix-restaurant-embedded-surface] body>.kds-main,
       html[data-vantix-restaurant-embedded-surface] #root>.app>.main>.content,
       html[data-vantix-restaurant-embedded-surface] .app>.main>.content{
-        width:100%!important;max-width:none!important;min-width:0!important;margin-left:0!important;margin-right:0!important
+        width:100%!important;max-width:none!important;min-width:0!important;margin:0!important;padding:0!important
+      }
+      html[data-vantix-restaurant-embedded-surface] body,
+      html[data-vantix-restaurant-embedded-surface] button,
+      html[data-vantix-restaurant-embedded-surface] input,
+      html[data-vantix-restaurant-embedded-surface] select,
+      html[data-vantix-restaurant-embedded-surface] textarea{
+        font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important
+      }
+      html[data-vantix-restaurant-embedded-surface] body{font-size:13px!important;line-height:1.4!important}
+      html[data-vantix-restaurant-embedded-surface] h1{font-size:24px!important;line-height:1.15!important}
+      html[data-vantix-restaurant-embedded-surface] h2{font-size:17px!important;line-height:1.2!important}
+      html[data-vantix-restaurant-embedded-surface] h3{font-size:14px!important;line-height:1.25!important}
+      html[data-vantix-restaurant-embedded-surface] :where(p,label,td,th,button,input,select,textarea,.btn,.rv2-btn,.tab){font-size:12px!important}
+      html[data-vantix-restaurant-embedded-surface] small{font-size:10px!important}
+      html[data-vantix-restaurant-embedded-surface] body>.app{display:block!important;min-height:100%!important}
+      html[data-vantix-restaurant-embedded-surface] body>.app>:where(.sidebar,.side),
+      html[data-vantix-restaurant-embedded-surface] body>.app>.main>:where(.topbar,.top){display:none!important}
+      html[data-vantix-restaurant-embedded-surface] body>.app>.main{width:100%!important;min-height:100%!important}
+      html[data-vantix-restaurant-embedded-surface] body[data-rv2-module-header="true"]>header.rv2-module-top,
+      html[data-vantix-restaurant-embedded-surface] .content>.pagehead,
+      html[data-vantix-restaurant-embedded-surface] .content>.head{
+        width:100%!important;height:86px!important;min-height:86px!important;margin:0!important;padding:14px 18px!important;
+        display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;
+        border:0!important;border-bottom:1px solid #cbd5e1!important;border-radius:0!important;background:#f8fafc!important;box-shadow:none!important
+      }
+      html[data-vantix-restaurant-embedded-surface] body[data-rv2-module-header="true"]>header.rv2-module-top>div:first-child>span{display:none!important}
+      html[data-vantix-restaurant-embedded-surface] :where(.mg-main,.inv-main,.menu-main,.employees-main,.admin-main,.delivery-main,.kds-main,#ccCustomView){
+        width:100%!important;max-width:none!important;min-width:0!important;margin:0!important;padding:14px!important
+      }
+      html[data-vantix-restaurant-embedded-surface] .content>.tabs{margin:14px!important}
+      html[data-vantix-restaurant-embedded-surface] .content>#flash{margin-left:14px!important;margin-right:14px!important}
+      html[data-vantix-restaurant-embedded-surface] .content>#view{padding:0 14px 14px!important}
+      html[data-vantix-restaurant-embedded-surface] :where(.rv2-panel,.panel,.ri-card){border-radius:14px!important}
+      @media(max-width:760px){
+        html[data-vantix-restaurant-embedded-surface] body[data-rv2-module-header="true"]>header.rv2-module-top,
+        html[data-vantix-restaurant-embedded-surface] .content>.pagehead,
+        html[data-vantix-restaurant-embedded-surface] .content>.head{height:auto!important;min-height:76px!important;padding:12px 14px!important}
       }
     `;
     doc.head?.appendChild(style);
