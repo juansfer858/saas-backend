@@ -22,6 +22,14 @@ router.get('/app/restaurante-v2/configuracion-avanzada', (_req, res) => {
   return send(res, 'restaurant-v2-advanced-config-core-v1.html', 'html');
 });
 
+router.get('/app/restaurant-v2-accounting-runtime-guard-v1.js', (_req, res) => {
+  return send(res, 'restaurant-v2-accounting-runtime-guard-v1.js', 'application/javascript; charset=utf-8');
+});
+
+router.get('/app/restaurant-v2-notifications-config-v1.js', (_req, res) => {
+  return send(res, 'restaurant-v2-notifications-config-v1.js', 'application/javascript; charset=utf-8');
+});
+
 module.exports = {
   HEADER,
   restaurantCoreCopiesV1PublicRouter: router
