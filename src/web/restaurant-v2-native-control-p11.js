@@ -50,7 +50,25 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
 
   const DEMO_RESTAURANTE = 'demo-restaurante';
+  const IS_DEMO_RESTAURANTE = session.subdomain === DEMO_RESTAURANTE;
   const DEMO_HIDDEN_MODULES = new Set(['mesas','division','caja','cierres','qrs']);
+
+  function installDemoModuleShell() {
+    if (!IS_DEMO_RESTAURANTE) return;
+    document.documentElement.dataset.demoRestaurante = 'true';
+    const workspace = $('#p11Workspace');
+    const frame = $('#p11Frame');
+    if (!workspace || !frame) return;
+    workspace.setAttribute('aria-live', 'polite');
+    frame.referrerPolicy = 'same-origin';
+    if ($('#p11ModuleLoading')) return;
+    const loader = document.createElement('div');
+    loader.id = 'p11ModuleLoading';
+    loader.className = 'p11-module-loading';
+    loader.hidden = true;
+    loader.innerHTML = '<span class="p11-module-spinner" aria-hidden="true"></span><div><strong id="p11ModuleLoadingTitle">Cargando módulo…</strong><small>Preparando la misma ventana de trabajo</small></div>';
+    workspace.prepend(loader);
+  }
   function allowed(module) { return module.roles.includes(role); }
   function visibleModules() {
     return Object.entries(MODULES).flatMap(([key, module]) => {
@@ -100,7 +118,7 @@
     const loader = $('#p11ModuleLoading');
     const title = $('#p11ModuleLoadingTitle');
     const frame = $('#p11Frame');
-    if (!workspace || !frame) return;
+    if (!workspace || !frame || !IS_DEMO_RESTAURANTE) return;
     workspace.classList.toggle('is-module-loading', Boolean(loading));
     workspace.classList.toggle('is-module-ready', !loading);
     if (loader) loader.hidden = !loading;
@@ -109,7 +127,7 @@
   }
 
   function installUniformEmbeddedSurface(frame) {
-    if (session.subdomain !== DEMO_RESTAURANTE) return;
+    if (!IS_DEMO_RESTAURANTE) return;
     let doc;
     try { doc = frame.contentDocument; } catch { return; }
     if (!doc?.documentElement || !doc.body) return;
@@ -160,7 +178,7 @@
 
   function settleFrameNavigation() {
     const frame = $('#p11Frame');
-    if (!frame || !expectedFrameRoute) return;
+    if (!frame || !expectedFrameRoute || !IS_DEMO_RESTAURANTE) return;
     let actual = '';
     try { actual = frame.contentWindow?.location?.href || frame.src || ''; }
     catch { actual = frame.src || ''; }
@@ -351,6 +369,7 @@
     try {
       // P12 is global V2 ONLY. Do not consult the old per-tenant P11 retirement gate:
       // tenants that never toggled P11 individually must still enter V2 directly.
+      installDemoModuleShell();
       renderIdentity();
       renderNav();
       bindStatic();
