@@ -7,8 +7,12 @@
   const BUSINESS_MARKER = 'VANTIX_RESTAURANT_BUSINESS_AUDIT_C85';
   const SESSION_KEY = 'vantixgc_core_session_v1';
   const PAGE_PATH = '/app/configuracion-avanzada';
+  const DEMO_V2_PAGE_PATH = '/app/restaurante-v2/configuracion-avanzada';
   const ENDPOINT = '/api/v1/restaurante/auditoria/v84';
-  if (window[MARKER] || location.pathname !== PAGE_PATH) return;
+  let bootSession = null;
+  try { bootSession = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch {}
+  const demoV2AuditSurface = location.pathname === DEMO_V2_PAGE_PATH && bootSession?.subdomain === 'demo-restaurante';
+  if (window[MARKER] || (location.pathname !== PAGE_PATH && !demoV2AuditSurface)) return;
   window[MARKER] = Object.freeze({ version:'87.0.0', surface:'ADMIN_ADVANCED', recovery:'VIEW_DOWNLOAD_THEN_RESTORE', display:'BUSINESS_FIRST' });
   window[RECOVERY_MARKER] = Object.freeze({ version:'86.0.0', safeRecovery:true, edgeIndependent:true });
   window[READABLE_MARKER] = Object.freeze({ version:'87.0.0', readableBusinessData:true, historicalDecimalCleanup:true });
@@ -298,6 +302,16 @@
     button.addEventListener('click', () => activateAuditTab(button));
     const cleanup = tabs.querySelector('[data-restaurant-test-reset-tab]');
     if (cleanup) cleanup.insertAdjacentElement('afterend', button); else tabs.appendChild(button);
+    const standalone = demoV2AuditSurface && new URLSearchParams(location.search).get('tab') === 'auditoria';
+    if (standalone) {
+      document.documentElement.dataset.restaurantAuditStandalone = 'true';
+      const title = document.querySelector('.head h1, .pagehead h1');
+      if (title) title.textContent = 'Auditoría';
+      const subtitle = document.querySelector('.head .muted, .pagehead p');
+      if (subtitle) subtitle.textContent = 'Registro de actividad, cambios y trazabilidad del sistema.';
+      tabs.hidden = true;
+      activateAuditTab(button);
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => install(), { once:true });
