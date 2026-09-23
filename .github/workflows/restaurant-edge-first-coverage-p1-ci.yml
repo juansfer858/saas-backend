@@ -1,0 +1,19 @@
+name: Restaurant Edge First Coverage P1 CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  restaurant-edge-first-coverage-p1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Edge-first coverage matrix
+        run: node scripts/restaurant-edge-first-coverage-p1-smoke.js
