@@ -65,7 +65,7 @@ for (const token of [
   '@media(max-width:600px)',
   'border-radius:3px;box-shadow:none'
 ]) assert.ok(platformUi.includes(token), `SaaS admin debe conservar el diseño adaptable: ${token}`);
-const platformScript = platformUi.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+const platformScript = platformUi.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert.ok(platformScript, 'El panel de plataforma debe conservar su controlador');
 new Function(platformScript);
 
