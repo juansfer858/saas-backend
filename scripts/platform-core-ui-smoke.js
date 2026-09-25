@@ -58,6 +58,17 @@ for (const token of [
   'Auditoría plataforma'
 ]) assert.ok(platformUi.includes(token), `Platform UI debe contener ${token}`);
 
+for (const token of [
+  'Vanti SaaS · sistema visual sobrio, cuadrado y adaptable',
+  '.app{grid-template-columns:232px minmax(0,1fr)',
+  '.modal .grid{grid-template-columns:repeat(3,minmax(0,1fr))',
+  '@media(max-width:600px)',
+  'border-radius:3px;box-shadow:none'
+]) assert.ok(platformUi.includes(token), `SaaS admin debe conservar el diseño adaptable: ${token}`);
+const platformScript = platformUi.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1];
+assert.ok(platformScript, 'El panel de plataforma debe conservar su controlador');
+new Function(platformScript);
+
 // La configuración administrativa normal debe exponer el Printing Core existente
 // para restaurantes, sin crear un backend paralelo ni depender de endpoints DIAN.
 for (const token of [
