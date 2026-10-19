@@ -97,7 +97,11 @@
               <div class="toolbar"><button class="btn danger" id="nDisconnect">Desconectar</button><button class="btn" id="nReconnect">Conectar otro número</button></div>
             ` : `
               <div class="muted" style="margin-bottom:12px">El administrador completa el popup oficial de Meta. VantixGC no solicita ni muestra tokens manuales.</div>
-              <button class="btn primary" id="nConnect" ${signup.ready ? '' : 'disabled'}>Conectar mi WhatsApp Business</button>
+              <div class="toolbar">
+                <button class="btn primary" id="nConnect" ${signup.ready ? '' : 'disabled'}>Conectar mi WhatsApp Business actual</button>
+                <button class="btn" id="nConnectNew" ${signup.ready ? '' : 'disabled'}>Conectar un número nuevo</button>
+              </div>
+              <small class="muted">Si ya usas este número en WhatsApp Business del celular, elige la primera opción para solicitar coexistencia. No elimines la cuenta del teléfono.</small>
               ${signup.ready ? '' : '<div class="notice">Faltan variables de servidor META_APP_ID, META_APP_SECRET, META_EMBEDDED_SIGNUP_CONFIG_ID y META_GRAPH_VERSION. No se permite pegar credenciales en esta pantalla.</div>'}
             `}
             <div class="grid" style="margin-top:16px">
@@ -149,7 +153,7 @@
         } catch (e) { flash(e.message, true); }
       };
 
-      async function launchSignup() {
+      async function launchSignup({ coexistence = false } = {}) {
         try {
           if (!signup.ready) throw new Error('Embedded Signup aún no está configurado en el servidor.');
           const FB = await loadFacebookSdk();
@@ -157,10 +161,19 @@
           let code = null;
           let completed = false;
           const maybeComplete = async () => {
-            if (completed || !embedded?.wabaId || !embedded?.phoneNumberId || !code) return;
+            // Coexistence may return WABA ID without a Phone Number ID.
+            if (completed || !embedded?.wabaId || !code || (!coexistence && !embedded?.phoneNumberId)) return;
             completed = true;
-            await api('/api/v1/notificaciones/embedded-signup/complete', { method: 'POST', body: JSON.stringify({ code, wabaId: embedded.wabaId, phoneNumberId: embedded.phoneNumberId }) });
-            flash('Tu WhatsApp Business ya está conectado.');
+            await api('/api/v1/notificaciones/embedded-signup/complete', {
+              method: 'POST',
+              body: JSON.stringify({
+                code,
+                wabaId: embedded.wabaId,
+                phoneNumberId: embedded.phoneNumberId || null,
+                onboardingMode: coexistence ? 'COEXISTENCE' : 'STANDARD'
+              })
+            });
+            flash('Meta confirmó la conexión de WhatsApp Business.');
             window.removeEventListener('message', onMessage);
             await renderNotifications();
           };
@@ -169,9 +182,11 @@
             let data = event.data;
             try { if (typeof data === 'string') data = JSON.parse(data); } catch { return; }
             if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
-            if (data.event === 'FINISH') {
+            if (data.event === 'FINISH' || (coexistence && data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING')) {
               embedded = { wabaId: data.data?.waba_id, phoneNumberId: data.data?.phone_number_id };
               maybeComplete().catch((e) => flash(e.message, true));
+            } else if (data.event === 'ERROR') {
+              flash('Meta informó un error de registro. El número no fue conectado.', true);
             }
           };
           window.addEventListener('message', onMessage);
@@ -184,13 +199,25 @@
               return;
             }
             maybeComplete().catch((e) => flash(e.message, true));
-          }, { config_id: signup.configId, response_type: 'code', override_default_response_type: true, extras: { feature: 'whatsapp_embedded_signup' } });
+          }, {
+            config_id: signup.configId,
+            response_type: 'code',
+            override_default_response_type: true,
+            extras: coexistence
+              ? { setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' }
+              : { setup: {} }
+          });
         } catch (e) { flash(e.message, true); }
       }
 
-      const connect = document.querySelector('#nConnect'); if (connect) connect.onclick = launchSignup;
-      const disconnect = document.querySelector('#nDisconnect'); if (disconnect) disconnect.onclick = async () => { try { await api('/api/v1/notificaciones/disconnect', { method: 'POST', body: '{}' }); flash('WhatsApp Business desconectado.'); await renderNotifications(); } catch (e) { flash(e.message, true); } };
-      const reconnect = document.querySelector('#nReconnect'); if (reconnect) reconnect.onclick = async () => { try { await api('/api/v1/notificaciones/disconnect', { method: 'POST', body: '{}' }); await launchSignup(); } catch (e) { flash(e.message, true); } };
+      const connect = document.querySelector('#nConnect');
+      if (connect) connect.onclick = () => launchSignup({ coexistence: true });
+      const connectNew = document.querySelector('#nConnectNew');
+      if (connectNew) connectNew.onclick = () => launchSignup({ coexistence: false });
+      const disconnect = document.querySelector('#nDisconnect');
+      if (disconnect) disconnect.onclick = async () => { try { await api('/api/v1/notificaciones/disconnect', { method: 'POST', body: '{}' }); flash('WhatsApp Business desconectado.'); await renderNotifications(); } catch (e) { flash(e.message, true); } };
+      const reconnect = document.querySelector('#nReconnect');
+      if (reconnect) reconnect.onclick = async () => { try { await api('/api/v1/notificaciones/disconnect', { method: 'POST', body: '{}' }); await launchSignup({ coexistence: true }); } catch (e) { flash(e.message, true); } };
 
       document.querySelector('#nCreateTpl').onclick = async () => {
         try {
