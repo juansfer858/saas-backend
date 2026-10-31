@@ -1,0 +1,22 @@
+services:
+  postgres-p13:
+    image: postgres:16-alpine
+    container_name: vantix-p13-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vantix_p13_lab
+      POSTGRES_USER: vantix_p13
+      POSTGRES_PASSWORD: ${P13_POSTGRES_PASSWORD:?P13_POSTGRES_PASSWORD es obligatorio}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - vantix_p13_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vantix_p13 -d vantix_p13_lab"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  vantix_p13_postgres_data:
+    name: vantix_p13_postgres_data

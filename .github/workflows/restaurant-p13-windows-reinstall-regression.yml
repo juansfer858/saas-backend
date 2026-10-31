@@ -1,0 +1,199 @@
+name: Restaurant P13 Windows Reinstall Regression
+
+on:
+  pull_request:
+    paths:
+      - 'lab/restaurant-p13/windows/**'
+      - 'scripts/restaurant-p13-build-windows-package.ps1'
+      - '.github/workflows/restaurant-p13-windows-reinstall-regression.yml'
+  workflow_dispatch:
+
+jobs:
+  reinstall-running-postgres:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://vantix_p13:p13-build-only@127.0.0.1:55432/vantix_p13_lab
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Build P13 Windows package
+        shell: pwsh
+        run: ./scripts/restaurant-p13-build-windows-package.ps1
+
+      - name: Reinstall over running PostgreSQL, repair ACL, and isolate watchdog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Resolve-Path 'artifacts/p13-windows/vantixgc-restaurant-p13-windows-pilot.zip'
+          $source = Join-Path $env:RUNNER_TEMP 'p13-reinstall-source'
+          $install = 'C:\P13-CI-Reinstall'
+          Remove-Item $source -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $install -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $zip -DestinationPath $source -Force
+          $installer = Join-Path $source 'lab/restaurant-p13/windows/install-p13-windows.ps1'
+          $password = 'P13-CI-Reinstall-Regression-Only'
+          $pgready = Join-Path $install 'postgres/bin/pg_isready.exe'
+          $pgctl = Join-Path $install 'postgres/bin/pg_ctl.exe'
+          $pgdata = Join-Path $install 'data/postgres'
+
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          & $pgready -h 127.0.0.1 -p 55432 -q
+          if ($LASTEXITCODE -ne 0) { throw 'Primera instalación no dejó PostgreSQL P13 activo.' }
+
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          & $pgready -h 127.0.0.1 -p 55432 -q
+          if ($LASTEXITCODE -ne 0) { throw 'Reinstalación sobre PostgreSQL activo no recuperó 55432.' }
+          Write-Host 'P13_WINDOWS_REINSTALL_RUNNING_POSTGRES_OK'
+
+          & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo detener PostgreSQL antes de simular ACL dañada.' }
+          $global:LASTEXITCODE = 0
+
+          $checkpoint = Join-Path $pgdata 'pg_logical/replorigin_checkpoint'
+          if (-not (Test-Path -LiteralPath $checkpoint)) { throw 'No existe replorigin_checkpoint para prueba ACL.' }
+          & icacls.exe $checkpoint /inheritance:r /grant:r '*S-1-5-18:(F)' | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo simular ACL restringida del checkpoint.' }
+          $global:LASTEXITCODE = 0
+          Write-Host 'P13_WINDOWS_CHECKPOINT_ACL_RESTRICTED'
+
+          & $installer -InstallDir $install -AdminPassword $password -NoStartupTasks -NoShortcut
+          & $pgready -h 127.0.0.1 -p 55432 -q
+          if ($LASTEXITCODE -ne 0) { throw 'Reparación ACL no recuperó PostgreSQL 55432.' }
+          $aclText = (& icacls.exe $checkpoint) -join "`n"
+          if ($aclText -notmatch 'S-1-5-32-544|BUILTIN\\Administrators') { throw 'El checkpoint no recuperó acceso de Administrators.' }
+          Write-Host 'P13_WINDOWS_POSTGRES_ACL_REPAIR_OK'
+
+          $starter = Join-Path $install 'ops/start-p13-windows.ps1'
+          $watchdog = Join-Path $install 'ops/watchdog-p13-windows.ps1'
+          $watchdogLog = Join-Path $install 'logs/watchdog.log'
+          if (-not (Test-Path -LiteralPath $watchdog)) { throw 'Watchdog P13 no quedó incluido en el paquete.' }
+          Remove-Item -LiteralPath $watchdogLog -Force -ErrorAction SilentlyContinue
+
+          # Deterministic precondition: 8790 must really be down before starting the
+          # watchdog regression. Stop only the exact P13 Node runtime owned by this
+          # isolated install path; never touch PostgreSQL or unrelated node.exe.
+          $runtimeNodePath = [System.IO.Path]::GetFullPath((Join-Path $install 'runtime/node.exe'))
+          $runtimeScriptPath = [System.IO.Path]::GetFullPath((Join-Path $install 'app/lab/restaurant-p13/runtime.js'))
+          $existingRuntimes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.ExecutablePath -and
+            [System.IO.Path]::GetFullPath([string]$_.ExecutablePath).Equals($runtimeNodePath, [System.StringComparison]::OrdinalIgnoreCase) -and
+            $_.CommandLine -and
+            ([string]$_.CommandLine).IndexOf($runtimeScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+          })
+          foreach ($existingRuntime in $existingRuntimes) {
+            Stop-Process -Id $existingRuntime.ProcessId -Force -ErrorAction SilentlyContinue
+          }
+          Start-Sleep -Milliseconds 500
+
+          $unexpectedHealth = $null
+          try {
+            $unexpectedHealth = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p13/status' -TimeoutSec 2
+          } catch {}
+          if ($unexpectedHealth -and $unexpectedHealth.ok -and [string]$unexpectedHealth.marker -eq 'VANTIX_RESTAURANT_FULL_LOCAL_P13_A') {
+            $listeners = @(Get-NetTCPConnection -LocalPort 8790 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+            throw "Precondición inválida: 8790 ya tenía un runtime P13 respondiendo antes de la prueba. PID(s): $($listeners -join ',')."
+          }
+          Write-Host 'P13_WINDOWS_WATCHDOG_PRECONDITION_8790_DOWN'
+
+          # Regression for the physical field failure. First prove the watchdog has
+          # observed 8790 unavailable and entered its grace window; only then start
+          # the runtime. A healthy boot inside that window must not trigger restart.
+          $watchdogProc = Start-Process powershell.exe -ArgumentList @(
+            '-NoProfile','-ExecutionPolicy','Bypass','-File',$watchdog,
+            '-InstallDir',$install,
+            '-TaskName','P13-CI-Task-That-Must-Not-Be-Needed',
+            '-HealthRetryAttempts','8',
+            '-HealthRetryDelaySeconds','2'
+          ) -PassThru -WindowStyle Hidden
+
+          $graceObserved = $false
+          for ($i=0; $i -lt 50; $i++) {
+            if (Test-Path -LiteralPath $watchdogLog) {
+              $probeText = Get-Content -LiteralPath $watchdogLog -Raw -ErrorAction SilentlyContinue
+              if ($probeText -match 'Health inicial falló; esperando período de gracia') {
+                $graceObserved = $true
+                break
+              }
+            }
+            if ($watchdogProc.HasExited) { break }
+            Start-Sleep -Milliseconds 200
+          }
+          if (-not $graceObserved) {
+            try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            throw 'La regresión no logró colocar al watchdog dentro del período de gracia antes de arrancar Node.'
+          }
+          Write-Host 'P13_WINDOWS_WATCHDOG_GRACE_ENTERED'
+
+          $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$starter,'-InstallDir',$install) -PassThru -WindowStyle Hidden
+          try {
+            if (-not $watchdogProc.WaitForExit(40000)) {
+              try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+              throw 'Watchdog no terminó dentro de la ventana de gracia de arranque.'
+            }
+            if ($watchdogProc.ExitCode -ne 0) { throw "Watchdog trató el arranque normal como fallo. Exit=$($watchdogProc.ExitCode)" }
+            $watchdogText = if (Test-Path -LiteralPath $watchdogLog) { (Get-Content -LiteralPath $watchdogLog -Raw) } else { '' }
+            if ($watchdogText -notmatch 'Runtime P13 respondió durante el período de gracia') {
+              throw 'La regresión no comprobó recuperación del runtime dentro de la gracia del watchdog.'
+            }
+            if ($watchdogText -match 'Health local siguió fallando tras la gracia') {
+              throw 'REGRESIÓN: watchdog intentó reiniciar Node durante un arranque normal.'
+            }
+            Write-Host 'P13_WINDOWS_WATCHDOG_STARTUP_GRACE_OK'
+
+            $status = $null
+            for ($i=0; $i -lt 60; $i++) {
+              try {
+                $status = Invoke-RestMethod -UseBasicParsing -Uri 'http://127.0.0.1:8790/__p13/status' -TimeoutSec 2
+                if ($status.ok) { break }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $status -or -not $status.ok) { throw 'Runtime no respondió tras reparación ACL.' }
+            $page = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8790/app' -TimeoutSec 5
+            if ($page.Content -notmatch 'VANTIX_RESTAURANT_P13_LOCAL_LOGIN_V1') { throw 'Login local no quedó disponible tras reparación ACL.' }
+            $body = @{ email='admin@demo-restaurante.vantixgc.com'; password=$password } | ConvertTo-Json -Compress
+            $login = Invoke-RestMethod -UseBasicParsing -Method Post -Uri 'http://127.0.0.1:8790/api/v1/auth/login' -Headers @{ 'x-tenant-subdomain'='demo-restaurante' } -ContentType 'application/json' -Body $body -TimeoutSec 8
+            if (-not $login.ok -or -not $login.data.token) { throw 'Credencial ADMIN no se conservó tras reparación ACL.' }
+            Write-Host 'P13_WINDOWS_ACL_RUNTIME_LOGIN_OK'
+
+            $pgPid = [int]([string](Get-Content -LiteralPath (Join-Path $pgdata 'postmaster.pid') -TotalCount 1)).Trim()
+            if ($pgPid -le 0) { throw 'No se pudo resolver PID de PostgreSQL P13.' }
+            $runtimeProcess = Get-CimInstance Win32_Process | Where-Object {
+              $_.ExecutablePath -and
+              [System.IO.Path]::GetFullPath([string]$_.ExecutablePath).Equals($runtimeNodePath, [System.StringComparison]::OrdinalIgnoreCase) -and
+              $_.CommandLine -and
+              ([string]$_.CommandLine).IndexOf($runtimeScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+            } | Select-Object -First 1
+            if (-not $runtimeProcess) { throw 'No se encontró el node.exe exacto del runtime P13.' }
+
+            $managedJson = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $watchdog -InstallDir $install -ListManagedRuntimeProcessIds) -join ''
+            if ($LASTEXITCODE -ne 0) { throw 'Sondeo del conjunto administrado por watchdog falló.' }
+            $managedIds = @()
+            if ($managedJson.Trim()) { $managedIds = @($managedJson | ConvertFrom-Json) }
+            $managedIds = @($managedIds | ForEach-Object { [int]$_ })
+            if ($managedIds -contains $pgPid) { throw 'REGRESIÓN: watchdog incluyó PostgreSQL entre procesos terminables.' }
+            if (-not ($managedIds -contains [int]$runtimeProcess.ProcessId)) { throw 'Watchdog no identificó su runtime Node P13.' }
+            & $pgready -h 127.0.0.1 -p 55432 -U vantix_p13 -d vantix_p13_lab -q
+            if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL dejó de responder durante validación de aislamiento watchdog.' }
+            $global:LASTEXITCODE = 0
+            if (-not (Get-Process -Id $pgPid -ErrorAction SilentlyContinue)) { throw 'PostgreSQL P13 terminó durante validación del watchdog.' }
+            Write-Host 'P13_WINDOWS_WATCHDOG_POSTGRES_ISOLATION_OK'
+          } finally {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            try { Stop-Process -Id $watchdogProc.Id -Force -ErrorAction SilentlyContinue } catch {}
+            if (Test-Path $pgctl) {
+              try { & $pgctl -D $pgdata -m fast -w -t 15 stop | Out-Null } catch {}
+              $global:LASTEXITCODE = 0
+            }
+          }
