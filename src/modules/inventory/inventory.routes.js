@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get('/productos', controller.listProducts);
 router.post('/productos', controller.createProduct);
+router.get('/productos/siguiente-sku', controller.getNextProductSku);
 router.get('/productos/:id/disponibilidad', controller.getProductAvailability);
 router.get('/productos/:id', controller.getProduct);
 router.patch('/productos/:id', controller.updateProduct);
