@@ -17,6 +17,12 @@ async function createProduct(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function getNextProductSku(req, res, next) {
+  try {
+    res.json({ ok: true, data: { sku: await service.nextProductSku(req.tenantId) } });
+  } catch (error) { next(error); }
+}
+
 async function listProducts(req, res, next) {
   try {
     const data = await service.listProducts(req.tenantId, {
@@ -96,6 +102,7 @@ async function listMovements(req, res, next) {
 
 module.exports = {
   createProduct,
+  getNextProductSku,
   listProducts,
   getProduct,
   getProductAvailability,

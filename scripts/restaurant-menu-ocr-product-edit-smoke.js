@@ -31,7 +31,7 @@ assert.match(editService, /precio1: price/);
 assert.match(editService, /VANTIX_RESTAURANT_CARTA_EDIT_V27/);
 assert.match(editService, /async function updateCartaItem/);
 assert.match(editService, /commercialCategoryId: commercialCategory\.id/);
-assert.match(editService, /controlaInventario: mode === 'DIRECT'/);
+assert.match(editService, /controlaInventario: localInventoryPilot \? false : mode === 'DIRECT'/);
 assert.match(editService, /requiresRecipe: mode === 'RECIPE'/);
 
 assert.match(publicRoutes, /restaurant-menu-ocr-product-edit-v6\.js/);
@@ -60,7 +60,7 @@ assert.doesNotMatch(cartaEditUi, /\bdescription\b/);
 assert.doesNotThrow(() => new vm.Script(cartaEditUi), 'Carta V27 browser runtime must remain valid JavaScript');
 
 assert.match(v2PublicRoutes, /restaurant-v2-menu-edit-v27\.js/);
-assert.match(cartaHtml, /restaurant-v2-menu\.js\?v=v27/);
+assert.match(cartaHtml, /restaurant-v2-menu\.js\?v=v28-auto-sku/);
 assert.match(cartaHtml, /restaurant-v2-menu-edit-v27\.js\?v=v27/);
 
 console.log('RESTAURANT MENU OCR PRODUCT EDIT CONTRACT OK', JSON.stringify({ cartaEditV27:true, staleRuntimeBypassed:true }));

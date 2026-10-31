@@ -3,17 +3,45 @@ const { AppError } = require('../../utils/app-error');
 const { decimal, money, qty } = require('../../utils/decimal');
 const { getEdgeSyncContext } = require('../edge/edge-sync-context');
 const { lockProductRow } = require('./inventory-concurrency.service');
+const { AUTO_SKU_PREFIX, nextAutoSku } = require('./inventory-auto-sku');
 
 const ENTRY_TYPES = new Set(['COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_VENTA']);
 const EXIT_TYPES = new Set(['VENTA', 'AJUSTE_SALIDA', 'MERMA', 'DEVOLUCION_COMPRA']);
 
+async function nextProductSku(tenantId, client = prisma) {
+  const [totalProducts, automaticRows] = await Promise.all([
+    client.producto.count({ where: { tenantId } }),
+    client.producto.findMany({
+      where: { tenantId, sku: { startsWith: AUTO_SKU_PREFIX, mode: 'insensitive' } },
+      select: { sku: true }
+    })
+  ]);
+  return nextAutoSku(automaticRows.map((row) => row.sku), totalProducts);
+}
+
 async function createProduct(tenantId, input) {
-  try {
-    return await prisma.producto.create({ data: { tenantId, ...input } });
-  } catch (error) {
-    if (error?.code === 'P2002') throw new AppError(409, 'El SKU ya existe en esta empresa', 'PRODUCT_SKU_EXISTS');
-    throw error;
+  const requestedSku = String(input?.sku || '').trim();
+  if (requestedSku) {
+    try {
+      return await prisma.producto.create({ data: { tenantId, ...input, sku: requestedSku } });
+    } catch (error) {
+      if (error?.code === 'P2002') throw new AppError(409, 'El SKU ya existe en esta empresa', 'PRODUCT_SKU_EXISTS');
+      throw error;
+    }
   }
+
+  const data = { ...input };
+  delete data.sku;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const sku = await nextProductSku(tenantId);
+    try {
+      return await prisma.producto.create({ data: { tenantId, ...data, sku } });
+    } catch (error) {
+      if (error?.code === 'P2002') continue;
+      throw error;
+    }
+  }
+  throw new AppError(409, 'No fue posible reservar el siguiente código automático', 'PRODUCT_AUTO_SKU_RETRY_EXHAUSTED');
 }
 
 async function listProducts(tenantId, filters = {}) {
@@ -189,6 +217,7 @@ async function listMovements(tenantId, filters = {}) {
 }
 
 module.exports = {
+  nextProductSku,
   createProduct,
   listProducts,
   getProduct,
