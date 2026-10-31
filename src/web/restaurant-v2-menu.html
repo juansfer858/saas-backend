@@ -85,7 +85,7 @@
           <label>Categoría visible<select id="preparedCommercialCategory" class="menu-select" required aria-label="Categoría visible de la Carta"><option value="">Cargando categorías…</option></select></label>
           <label>Categoría operativa<select id="preparedCategory" class="menu-select"><option value="FUERTES">Fuertes</option><option value="ENTRADAS">Entradas</option><option value="BEBIDAS">Bebidas</option><option value="POSTRES">Postres</option></select></label>
           <label>Estación<select id="preparedStation" class="menu-select"><option value="COCINA">Cocina</option><option value="BARRA">Barra</option><option value="POSTRES">Postres</option></select></label>
-          <label>SKU<input id="preparedSku" class="menu-input" maxlength="80" placeholder="Se genera si lo dejas vacío"></label>
+          <label>Código automático<input id="preparedSku" class="menu-input" value="Calculando…" readonly aria-readonly="true" tabindex="-1"><small>Se asigna al guardar y no se repite dentro de esta empresa.</small></label>
         </div>
         <div class="menu-info"><b>Por defecto no descuenta inventario.</b><span>El producto puede venderse inmediatamente. Si después el restaurante quiere controlar receta, se configura desde la misma Carta.</span></div>
         <div id="preparedError" class="menu-error" hidden></div>
@@ -149,7 +149,7 @@
   </dialog>
 
   <script src="/app/restaurant-v2-sdk.js"></script>
-  <script src="/app/restaurant-v2-menu.js?v=v27"></script>
+  <script src="/app/restaurant-v2-menu.js?v=v28-auto-sku"></script>
   <script src="/app/restaurant-v2-menu-export-v130.js?v=v130"></script>
   <script src="/app/restaurant-v2-menu-category-selector-v14.js?v=v26"></script>
   <script src="/app/restaurant-v2-menu-edit-v27.js?v=v27"></script>
