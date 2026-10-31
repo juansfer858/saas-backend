@@ -3,7 +3,7 @@
 (() => {
   const MARKER = 'VANTIX_INVENTORY_PRODUCT_CREATE_V70';
   if (window[MARKER]) return;
-  window[MARKER] = Object.freeze({ version:'70.0.0', inventoryOnly:true, endpoint:'/api/v1/inventario/productos' });
+  window[MARKER] = Object.freeze({ version:'71.0.0', inventoryOnly:true, endpoint:'/api/v1/inventario/productos' });
 
   function htmlEscape(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -40,12 +40,25 @@
   }
 
   function modalMarkup() {
-    return `<div class="modal-back" id="inventoryProductModal"><form class="modal" id="inventoryProductForm" style="width:min(680px,100%);max-height:92vh;overflow:auto"><h2>Agregar producto</h2><div class="grid2"><div class="field"><label>Tipo</label><select class="select" id="invProductType"><option value="PRODUCTO">Producto</option><option value="SERVICIO">Servicio</option></select></div><div class="field"><label>SKU</label><input class="input" id="invProductSku" maxlength="80" required autocomplete="off"></div></div><div class="field"><label>Nombre</label><input class="input" id="invProductName" maxlength="180" required autocomplete="off"></div><div class="grid2"><div class="field"><label>Código de barras</label><input class="input" id="invProductBarcode" maxlength="120" autocomplete="off"></div><div class="field"><label>Unidad de medida</label><input class="input" id="invProductUnit" maxlength="20" value="UND" required autocomplete="off"></div></div><div class="field"><label>Descripción</label><textarea class="input" id="invProductDescription" rows="2" maxlength="1000"></textarea></div><div class="grid3"><div class="field"><label>Precio de venta</label><input class="input" id="invProductPrice" type="number" min="0" step="0.01" value="0" required></div><div class="field"><label>IVA %</label><input class="input" id="invProductVat" type="number" min="0" max="100" step="0.01" value="0"></div><div class="field"><label>Impoconsumo %</label><input class="input" id="invProductConsumptionTax" type="number" min="0" max="100" step="0.01" value="0"></div></div><div class="field"><label><input type="checkbox" id="invProductTrackStock" checked> Controla inventario</label><div class="muted" style="font-size:12px;margin-top:5px">El producto se crea con existencia 0. Las existencias entran por Compras o Ajuste de inventario para conservar Kardex y contabilidad.</div></div><div id="inventoryProductError"></div><div class="actions" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="button" id="inventoryProductCancel">Cancelar</button><button class="btn primary" type="submit">Guardar producto</button></div></form></div>`;
+    return `<div class="modal-back" id="inventoryProductModal"><form class="modal" id="inventoryProductForm" style="width:min(680px,100%);max-height:92vh;overflow:auto"><h2>Agregar producto</h2><div class="grid2"><div class="field"><label>Tipo</label><select class="select" id="invProductType"><option value="PRODUCTO">Producto</option><option value="SERVICIO">Servicio</option></select></div><div class="field"><label>Código automático</label><input class="input" id="invProductSku" value="Calculando…" readonly aria-readonly="true" tabindex="-1"><div class="muted" style="font-size:11px;margin-top:4px">Se asigna al guardar y no se repite dentro de esta empresa.</div></div></div><div class="field"><label>Nombre</label><input class="input" id="invProductName" maxlength="180" required autocomplete="off"></div><div class="grid2"><div class="field"><label>Código de barras</label><input class="input" id="invProductBarcode" maxlength="120" autocomplete="off"></div><div class="field"><label>Unidad de medida</label><input class="input" id="invProductUnit" maxlength="20" value="UND" required autocomplete="off"></div></div><div class="field"><label>Descripción</label><textarea class="input" id="invProductDescription" rows="2" maxlength="1000"></textarea></div><div class="grid3"><div class="field"><label>Precio de venta</label><input class="input" id="invProductPrice" type="number" min="0" step="0.01" value="0" required></div><div class="field"><label>IVA %</label><input class="input" id="invProductVat" type="number" min="0" max="100" step="0.01" value="0"></div><div class="field"><label>Impoconsumo %</label><input class="input" id="invProductConsumptionTax" type="number" min="0" max="100" step="0.01" value="0"></div></div><div class="field"><label><input type="checkbox" id="invProductTrackStock" checked> Controla inventario</label><div class="muted" style="font-size:12px;margin-top:5px">El producto se crea con existencia 0. Las existencias entran por Compras o Ajuste de inventario para conservar Kardex y contabilidad.</div></div><div id="inventoryProductError"></div><div class="actions" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="button" id="inventoryProductCancel">Cancelar</button><button class="btn primary" type="submit">Guardar producto</button></div></form></div>`;
+  }
+
+  async function loadNextSkuPreview() {
+    const input = document.querySelector('#invProductSku');
+    if (!input) return;
+    input.value = 'Calculando…';
+    try {
+      const response = await window.api('/api/v1/inventario/productos/siguiente-sku');
+      input.value = response?.data?.sku || response?.sku || 'Se asignará al guardar';
+    } catch {
+      input.value = 'Se asignará al guardar';
+    }
   }
 
   window.openInventoryProductForm = function openInventoryProductForm() {
     document.querySelector('#inventoryProductModal')?.remove();
     document.body.insertAdjacentHTML('beforeend', modalMarkup());
+    loadNextSkuPreview();
 
     const type = document.querySelector('#invProductType');
     const track = document.querySelector('#invProductTrackStock');
@@ -80,7 +93,6 @@
           method:'POST',
           body:JSON.stringify({
             tipo:productType,
-            sku:document.querySelector('#invProductSku').value.trim(),
             codigoBarras:document.querySelector('#invProductBarcode').value.trim() || null,
             nombre:document.querySelector('#invProductName').value.trim(),
             descripcion:document.querySelector('#invProductDescription').value.trim() || null,
