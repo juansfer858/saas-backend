@@ -2,7 +2,7 @@ const { z } = require('zod');
 
 const productSchema = z.object({
   tipo: z.enum(['PRODUCTO', 'SERVICIO']).default('PRODUCTO'),
-  sku: z.string().trim().min(1).max(80),
+  sku: z.string().trim().min(1).max(80).optional(),
   codigoBarras: z.string().trim().max(120).optional().nullable(),
   nombre: z.string().trim().min(2).max(180),
   descripcion: z.string().trim().max(1000).optional().nullable(),
