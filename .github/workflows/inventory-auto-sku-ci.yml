@@ -1,0 +1,66 @@
+name: Inventory Automatic SKU CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/inventory/**'
+      - 'src/web/inventory-product-create-v70.js'
+      - 'src/web/restaurant-v2-menu.js'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'scripts/inventory-auto-sku-smoke.js'
+      - 'scripts/verify-inventory-auto-sku-ui.js'
+      - '.github/workflows/inventory-auto-sku-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/modules/inventory/**'
+      - 'src/web/inventory-product-create-v70.js'
+      - 'src/web/restaurant-v2-menu.js'
+      - 'src/web/restaurant-v2-menu.html'
+      - 'scripts/inventory-auto-sku-smoke.js'
+      - 'scripts/verify-inventory-auto-sku-ui.js'
+      - '.github/workflows/inventory-auto-sku-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      JWT_SECRET: inventory-auto-sku-ci-secret
+      TENANT_BASE_DOMAIN: vantixgc.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx prisma db push
+      - name: Syntax
+        run: |
+          node --check src/modules/inventory/inventory-auto-sku.js
+          node --check src/modules/inventory/inventory.service.js
+          node --check src/modules/inventory/inventory.controller.js
+          node --check src/modules/inventory/inventory.routes.js
+          node --check src/web/inventory-product-create-v70.js
+          node --check src/web/restaurant-v2-menu.js
+      - name: Verify UI contracts
+        run: node scripts/verify-inventory-auto-sku-ui.js
+      - name: Verify database allocation and concurrency
+        run: node scripts/inventory-auto-sku-smoke.js
