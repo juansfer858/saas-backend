@@ -172,9 +172,16 @@
     renderMenu();
   }
 
-  function generateSku(name) {
-    const slug = String(name || 'PLATO').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 46) || 'PLATO';
-    return `CARTA-${slug}-${Date.now().toString(36).slice(-5).toUpperCase()}`.slice(0, 80);
+  async function loadPreparedSkuPreview() {
+    const input = $('#preparedSku');
+    if (!input) return;
+    input.value = 'Calculando…';
+    try {
+      const data = await R.api('/api/v1/inventario/productos/siguiente-sku');
+      input.value = data?.sku || 'Se asignará al guardar';
+    } catch {
+      input.value = 'Se asignará al guardar';
+    }
   }
 
   async function createPrepared(event) {
@@ -188,7 +195,7 @@
       product = await R.api('/api/v1/inventario/productos', {
         method: 'POST',
         body: JSON.stringify({
-          tipo: 'PRODUCTO', sku: $('#preparedSku').value.trim() || generateSku(name), nombre: name,
+          tipo: 'PRODUCTO', nombre: name,
           descripcion: `${PREFIX}${commercial}`, unidadMedida: 'UND', controlaInventario: false,
           costoPromedio: 0, stockActual: 0, precio1: price, ivaPct: 0, impoconsumoPct: 0, activo: true
         })
@@ -457,7 +464,7 @@
 
   function bind() {
     $('#refresh').addEventListener('click', loadData);
-    $('#newPrepared').addEventListener('click', () => { $('#preparedForm').reset(); $('#preparedCategory').value='FUERTES'; $('#preparedStation').value='COCINA'; setError('#preparedError'); $('#preparedDialog').showModal(); });
+    $('#newPrepared').addEventListener('click', async () => { $('#preparedForm').reset(); $('#preparedCategory').value='FUERTES'; $('#preparedStation').value='COCINA'; setError('#preparedError'); $('#preparedDialog').showModal(); await loadPreparedSkuPreview(); });
     $('#addInventory').addEventListener('click', openInventoryDialog);
     $('#preparedForm').addEventListener('submit', createPrepared);
     $('#inventoryForm').addEventListener('submit', addInventoryProduct);
