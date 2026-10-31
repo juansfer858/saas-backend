@@ -60,7 +60,7 @@ assert.doesNotMatch(cartaEditUi, /\bdescription\b/);
 assert.doesNotThrow(() => new vm.Script(cartaEditUi), 'Carta V27 browser runtime must remain valid JavaScript');
 
 assert.match(v2PublicRoutes, /restaurant-v2-menu-edit-v27\.js/);
-assert.match(cartaHtml, /restaurant-v2-menu\.js\?v=v27/);
+assert.match(cartaHtml, /restaurant-v2-menu\.js\?v=v28-auto-sku/);
 assert.match(cartaHtml, /restaurant-v2-menu-edit-v27\.js\?v=v27/);
 
 console.log('RESTAURANT MENU OCR PRODUCT EDIT CONTRACT OK', JSON.stringify({ cartaEditV27:true, staleRuntimeBypassed:true }));
