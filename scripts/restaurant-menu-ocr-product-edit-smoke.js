@@ -31,7 +31,7 @@ assert.match(editService, /precio1: price/);
 assert.match(editService, /VANTIX_RESTAURANT_CARTA_EDIT_V27/);
 assert.match(editService, /async function updateCartaItem/);
 assert.match(editService, /commercialCategoryId: commercialCategory\.id/);
-assert.match(editService, /controlaInventario: mode === 'DIRECT'/);
+assert.match(editService, /controlaInventario: localInventoryPilot \? false : mode === 'DIRECT'/);
 assert.match(editService, /requiresRecipe: mode === 'RECIPE'/);
 
 assert.match(publicRoutes, /restaurant-menu-ocr-product-edit-v6\.js/);
