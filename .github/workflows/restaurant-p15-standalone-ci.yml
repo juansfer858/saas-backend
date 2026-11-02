@@ -1,0 +1,59 @@
+name: Restaurant P15 Standalone Lab
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'lab/restaurant-p15/**'
+      - 'scripts/restaurant-p15-**'
+      - '.github/workflows/restaurant-p15-standalone-ci.yml'
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p15-standalone-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  p15-windows-end-to-end:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: postgresql://vantix_p15:ci@127.0.0.1:55435/vantix_restaurant_p15_lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install and generate
+        shell: pwsh
+        run: |
+          npm ci
+          node node_modules/prisma/build/index.js generate
+      - name: Prepare hardened Windows source
+        shell: pwsh
+        run: ./scripts/restaurant-p15-prepare-windows-source.ps1
+      - name: Fix persistent backup service loop
+        shell: pwsh
+        run: ./scripts/restaurant-p15-backup-service-fix.ps1
+      - name: Prepare complete package source
+        shell: pwsh
+        run: ./scripts/restaurant-p15-prepare-package-source.ps1
+      - name: Validate local printing bridge
+        shell: pwsh
+        run: node scripts/restaurant-p15-local-print-smoke.js
+      - name: Run P15 Windows end-to-end
+        shell: pwsh
+        run: ./scripts/restaurant-p15-ci-windows.ps1
+      - name: Upload P15 lab package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vantixgc-restaurant-p15-standalone-lab
+          path: artifacts/p15-windows/vantixgc-restaurant-p15-standalone-lab.zip
+          if-no-files-found: error
+          retention-days: 7
