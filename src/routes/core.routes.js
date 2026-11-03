@@ -56,6 +56,7 @@ const { restaurantRecipesCostsV1Router } = require('../modules/restaurant/restau
 const { restaurantManagementV1Router } = require('../modules/restaurant/restaurant-management-v1.routes');
 const { restaurantSelfServiceTenantRouter } = require('../modules/self-service/restaurant-self-service.routes');
 const { installRestaurantRbac } = require('../modules/restaurant/restaurant.rbac');
+const { propertyHorizontalRouter } = require('../modules/property-horizontal/property-horizontal.routes');
 
 installRestaurantRbac();
 installBikeRbac();
@@ -72,6 +73,7 @@ router.use('/realtime', tenantRealtimeRouter);
 
 router.use('/autoservicio', restaurantSelfServiceTenantRouter);
 router.use('/usuarios', userRouter);
+router.use('/propiedad-horizontal', propertyHorizontalRouter);
 router.use('/terceros', thirdPartyRouter);
 router.use('/inventario', inventoryRouter);
 router.use('/tesoreria/recaudos-recientes', treasuryRecentReceiptsRouter);
