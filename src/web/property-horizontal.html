@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VANTIX Propiedad Horizontal</title>
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--line:#e2e7eb;--text:#17212b;--muted:#66727d;--brand:#1f5f50;--brand2:#16483d;--ok:#197a55;--warn:#9a6a11;--bad:#a43b3b;--shadow:0 10px 30px rgba(23,33,43,.07)}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit}.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#eef3f2,#f7f8f9)}
+.login-card{width:min(420px,100%);background:#fff;border:1px solid var(--line);border-radius:18px;padding:30px;box-shadow:var(--shadow)}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800}.mark{width:38px;height:38px;border-radius:10px;background:var(--brand);color:#fff;display:grid;place-items:center}
+.login h1{font-size:24px;margin:26px 0 8px}.muted{color:var(--muted)}.field{display:grid;gap:6px;margin-top:15px}.field input,.field select,.field textarea{border:1px solid #ccd4da;border-radius:10px;padding:11px 12px;background:#fff}
+.btn{border:0;border-radius:10px;padding:11px 14px;cursor:pointer;font-weight:700}.btn-primary{background:var(--brand);color:#fff}.btn-ghost{background:#eef2f3;color:#26323a}.btn-danger{background:#fbeaea;color:var(--bad)}
+.login .btn{width:100%;margin-top:20px}.error{margin-top:12px;color:var(--bad);font-size:14px}
+.app{display:grid;grid-template-columns:238px 1fr;min-height:100vh}.sidebar{background:#26323a;color:#eef2f3;padding:18px 13px;position:sticky;top:0;height:100vh}.sidebar .brand{padding:3px 6px 18px}.tenant{font-size:12px;color:#bac4ca;padding:0 7px 14px}.nav{display:grid;gap:5px}.nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;color:#dbe2e6;padding:10px 11px;border-radius:9px;cursor:pointer}.nav button.active,.nav button:hover{background:#38464f;color:#fff}.main{min-width:0}.topbar{height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:3}.content{padding:24px;max-width:1380px}.title-row{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:18px}.title-row h2{margin:0;font-size:22px}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px;box-shadow:0 2px 10px rgba(0,0,0,.025)}.metric .label{color:var(--muted);font-size:13px}.metric .value{font-size:25px;font-weight:800;margin-top:7px}.metric .sub{font-size:12px;color:var(--muted);margin-top:5px}
+.grid2{display:grid;grid-template-columns:1.2fr .8fr;gap:14px;margin-top:14px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:11px 10px;border-bottom:1px solid #edf0f2;text-align:left;font-size:14px;white-space:nowrap}.table th{font-size:12px;color:var(--muted);font-weight:700;background:#fafbfc}.pill{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}.pill.ok{background:#e7f4ee;color:var(--ok)}.pill.warn{background:#f8f0dc;color:var(--warn)}.pill.bad{background:#f8e7e7;color:var(--bad)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}.modal-back{position:fixed;inset:0;background:rgba(8,16,21,.42);display:grid;place-items:center;padding:18px;z-index:20}.modal{width:min(620px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 22px 60px rgba(0,0,0,.2)}.modal h3{margin:0 0 14px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-grid .full{grid-column:1/-1}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.section{display:none}.section.active{display:block}.empty{padding:28px;text-align:center;color:var(--muted)}
+@media(max-width:980px){.app{grid-template-columns:76px 1fr}.sidebar .brand span,.tenant,.nav button span{display:none}.sidebar .brand{justify-content:center}.nav button{justify-content:center}.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
+@media(max-width:620px){.app{display:block}.sidebar{height:auto;position:fixed;z-index:10;bottom:0;top:auto;left:0;right:0;padding:7px}.sidebar .brand,.tenant{display:none}.nav{display:flex;overflow:auto}.nav button{min-width:62px;padding:9px 6px}.main{padding-bottom:72px}.topbar{padding:0 14px}.content{padding:16px}.cards{grid-template-columns:1fr 1fr;gap:9px}.card{padding:13px}.metric .value{font-size:20px}.form-grid{grid-template-columns:1fr}.form-grid .full{grid-column:auto}.title-row{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div id="loginView" class="login">
+  <div class="login-card">
+    <div class="brand"><div class="mark">V</div><div>VANTIX<br><span class="muted" style="font-size:12px;font-weight:600">Propiedad Horizontal</span></div></div>
+    <h1>Ingresar</h1>
+    <div class="muted">Administración interna de la propiedad.</div>
+    <form id="loginForm">
+      <label class="field"><span>Correo</span><input id="loginEmail" type="email" autocomplete="username" required></label>
+      <label class="field"><span>Contraseña</span><input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <button class="btn btn-primary" type="submit">Entrar</button>
+      <div id="loginError" class="error"></div>
+    </form>
+  </div>
+</div>
+
+<div id="appView" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand"><div class="mark">V</div><span>VANTIX<br><small>Propiedad Horizontal</small></span></div>
+    <div id="tenantName" class="tenant">—</div>
+    <nav class="nav" id="nav">
+      <button data-section="inicio" class="active">⌂ <span>Inicio</span></button>
+      <button data-section="apartamentos">▦ <span>Apartamentos</span></button>
+      <button data-section="cuotas">▤ <span>Cuotas</span></button>
+      <button data-section="ingresos">＋ <span>Ingresos</span></button>
+      <button data-section="gastos">− <span>Gastos</span></button>
+      <button data-section="movimientos">↕ <span>Movimientos</span></button>
+      <button data-section="reportes">▥ <span>Reportes</span></button>
+      <button data-section="configuracion">⚙ <span>Configuración</span></button>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="topbar"><strong id="pageTitle">Inicio</strong><div><span id="userName" class="muted"></span> <button id="logoutBtn" class="btn btn-ghost">Salir</button></div></header>
+    <div class="content">
+
+      <section id="inicio" class="section active">
+        <div class="title-row"><div><h2>Resumen</h2><div class="muted">Estado general del periodo actual.</div></div></div>
+        <div class="cards">
+          <div class="card metric"><div class="label">Ingresos del mes</div><div id="mIngresos" class="value">$0</div></div>
+          <div class="card metric"><div class="label">Gastos del mes</div><div id="mGastos" class="value">$0</div></div>
+          <div class="card metric"><div class="label">Balance del periodo</div><div id="mBalance" class="value">$0</div></div>
+          <div class="card metric"><div class="label">Cuotas pendientes</div><div id="mPendiente" class="value">$0</div><div class="sub">Solo visible para usuarios autorizados</div></div>
+        </div>
+        <div class="grid2">
+          <div class="card"><h3>Últimos movimientos</h3><div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Valor</th><th>Usuario</th></tr></thead><tbody id="latestBody"></tbody></table></div></div>
+          <div class="card"><h3>Estado de unidades</h3><div id="unitSummary" class="empty">Sin información</div></div>
+        </div>
+      </section>
+
+      <section id="apartamentos" class="section">
+        <div class="title-row"><div><h2>Apartamentos y unidades</h2><div class="muted">Registro interno de las unidades de la propiedad.</div></div><button class="btn btn-primary" data-open="unitModal">Nueva unidad</button></div>
+        <div class="card table-wrap"><table class="table"><thead><tr><th>Unidad</th><th>Torre</th><th>Responsable</th><th>Cuota base</th><th>Estado</th></tr></thead><tbody id="unitsBody"></tbody></table></div>
+      </section>
+
+      <section id="cuotas" class="section">
+        <div class="title-row"><div><h2>Cuotas</h2><div class="muted">Generación y seguimiento de cuotas de administración.</div></div><button class="btn btn-primary" data-open="feeModal">Generar cuotas</button></div>
+        <div class="card table-wrap"><table class="table"><thead><tr><th>Periodo</th><th>Unidad</th><th>Concepto</th><th>Valor</th><th>Saldo</th><th>Estado</th></tr></thead><tbody id="feesBody"></tbody></table></div>
+      </section>
+
+      <section id="ingresos" class="section">
+        <div class="title-row"><div><h2>Ingresos</h2><div class="muted">Pagos y otros ingresos registrados.</div></div><button class="btn btn-primary" data-open="incomeModal">Registrar ingreso</button></div>
+        <div class="card table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Unidad</th><th>Concepto</th><th>Referencia</th><th>Valor</th><th>Registró</th></tr></thead><tbody id="incomeBody"></tbody></table></div>
+      </section>
+
+      <section id="gastos" class="section">
+        <div class="title-row"><div><h2>Gastos</h2><div class="muted">Egresos internos con responsable y soporte.</div></div><button class="btn btn-primary" data-open="expenseModal">Registrar gasto</button></div>
+        <div class="card table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Proveedor</th><th>Categoría</th><th>Valor</th><th>Registró</th></tr></thead><tbody id="expenseBody"></tbody></table></div>
+      </section>
+
+      <section id="movimientos" class="section">
+        <div class="title-row"><div><h2>Movimientos</h2><div class="muted">Trazabilidad cronológica de ingresos y gastos.</div></div></div>
+        <div class="card table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Valor</th><th>Usuario</th></tr></thead><tbody id="movementBody"></tbody></table></div>
+      </section>
+
+      <section id="reportes" class="section">
+        <div class="title-row"><div><h2>Reportes</h2><div class="muted">La V1 consolida la información desde los mismos movimientos operativos.</div></div></div>
+        <div class="cards">
+          <div class="card"><strong>Ingresos vs gastos</strong><p class="muted">Resumen del periodo seleccionado.</p><button class="btn btn-ghost" onclick="window.print()">Imprimir / PDF</button></div>
+          <div class="card"><strong>Estado de cuotas</strong><p class="muted">Consulta interna de cuotas pendientes, parciales y pagadas.</p><button class="btn btn-ghost" data-goto="cuotas">Abrir</button></div>
+          <div class="card"><strong>Movimientos</strong><p class="muted">Historial completo con usuario y fecha.</p><button class="btn btn-ghost" data-goto="movimientos">Abrir</button></div>
+        </div>
+      </section>
+
+      <section id="configuracion" class="section">
+        <div class="title-row"><div><h2>Configuración</h2><div class="muted">Datos de la propiedad, usuarios y categorías.</div></div></div>
+        <div class="grid2">
+          <div class="card"><h3>Datos de la propiedad</h3><form id="propertyForm"><div class="form-grid">
+            <label class="field full"><span>Nombre</span><input id="pNombre" required></label>
+            <label class="field"><span>NIT</span><input id="pNit"></label>
+            <label class="field"><span>Ciudad</span><input id="pCiudad"></label>
+            <label class="field full"><span>Dirección</span><input id="pDireccion"></label>
+          </div><button class="btn btn-primary" style="margin-top:15px">Guardar</button></form></div>
+          <div class="card"><div class="title-row"><h3>Usuarios</h3><button class="btn btn-primary" data-open="userModal">Crear usuario</button></div><div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th></tr></thead><tbody id="usersBody"></tbody></table></div></div>
+        </div>
+        <div class="card" style="margin-top:14px"><div class="title-row"><h3>Categorías de gasto</h3><button class="btn btn-ghost" data-open="categoryModal">Nueva categoría</button></div><div id="categoriesList" class="muted">—</div></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="unitModal" class="modal-back hidden"><div class="modal"><h3>Nueva unidad</h3><form id="unitForm"><div class="form-grid">
+<label class="field"><span>Código *</span><input name="codigo" required placeholder="101"></label><label class="field"><span>Torre</span><input name="torre"></label>
+<label class="field"><span>Piso</span><input name="piso"></label><label class="field"><span>Tipo</span><select name="tipo"><option>APARTAMENTO</option><option>LOCAL</option><option>PARQUEADERO</option><option>DEPOSITO</option><option>OTRO</option></select></label>
+<label class="field full"><span>Responsable</span><input name="responsableNombre"></label><label class="field"><span>Cuota base</span><input name="cuotaBase" type="number" min="0" step="0.01" value="0"></label><label class="field"><span>Coeficiente</span><input name="coeficiente" type="number" min="0" step="0.000001"></label>
+</div><div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Guardar</button></div></form></div></div>
+
+<div id="feeModal" class="modal-back hidden"><div class="modal"><h3>Generar cuotas</h3><form id="feeForm"><div class="form-grid">
+<label class="field"><span>Periodo *</span><input name="periodo" type="month" required></label><label class="field"><span>Tipo</span><select name="tipo"><option value="ORDINARIA">Ordinaria</option><option value="EXTRAORDINARIA">Extraordinaria</option></select></label>
+<label class="field full"><span>Concepto</span><input name="concepto" placeholder="Administración del mes"></label><label class="field"><span>Valor fijo opcional</span><input name="valorFijo" type="number" min="0" step="0.01" placeholder="Usar cuota base"></label><label class="field"><span>Vencimiento</span><input name="fechaVencimiento" type="date"></label>
+</div><div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Generar</button></div></form></div></div>
+
+<div id="incomeModal" class="modal-back hidden"><div class="modal"><h3>Registrar ingreso</h3><form id="incomeForm"><div class="form-grid">
+<label class="field"><span>Unidad</span><select name="unidadId" id="incomeUnit"><option value="">Sin unidad</option></select></label><label class="field"><span>Valor *</span><input name="valor" type="number" min="0.01" step="0.01" required></label>
+<label class="field full"><span>Concepto *</span><input name="concepto" required></label><label class="field"><span>Referencia</span><input name="referencia"></label><label class="field"><span>Fecha</span><input name="fecha" type="date"></label>
+<div class="full muted" style="font-size:13px">La aplicación automática a cuotas específicas se incorporará desde la ficha de la unidad; este registro conserva desde ya el movimiento y la trazabilidad.</div>
+</div><div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Registrar</button></div></form></div></div>
+
+<div id="expenseModal" class="modal-back hidden"><div class="modal"><h3>Registrar gasto</h3><form id="expenseForm"><div class="form-grid">
+<label class="field full"><span>Concepto *</span><input name="concepto" required></label><label class="field"><span>Valor *</span><input name="valor" type="number" min="0.01" step="0.01" required></label><label class="field"><span>Categoría</span><select name="categoriaId" id="expenseCategory"><option value="">Sin categoría</option></select></label>
+<label class="field"><span>Proveedor</span><input name="proveedor"></label><label class="field"><span>Referencia</span><input name="referencia"></label><label class="field"><span>Fecha</span><input name="fecha" type="date"></label>
+</div><div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Registrar</button></div></form></div></div>
+
+<div id="userModal" class="modal-back hidden"><div class="modal"><h3>Crear usuario</h3><form id="userForm"><div class="form-grid">
+<label class="field full"><span>Nombre *</span><input name="nombre" required></label><label class="field full"><span>Correo *</span><input name="email" type="email" required></label><label class="field"><span>Contraseña inicial *</span><input name="password" type="password" minlength="6" required></label><label class="field"><span>Rol</span><select name="rol"><option value="ADMIN">Administrador</option><option value="AUXILIAR">Auxiliar</option><option value="CONSULTA">Consulta</option></select></label>
+</div><div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Crear</button></div></form></div></div>
+
+<div id="categoryModal" class="modal-back hidden"><div class="modal"><h3>Nueva categoría</h3><form id="categoryForm"><label class="field"><span>Nombre *</span><input name="nombre" required placeholder="Mantenimiento"></label><div class="modal-actions"><button type="button" class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary">Crear</button></div></form></div></div>
+
+<script>
+const state={token:localStorage.getItem('ph_token')||'',session:null,units:[],fees:[],categories:[]};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const money=v=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(v||0));
+const fmtDate=v=>v?new Date(v).toLocaleDateString('es-CO'):'—';
+async function api(path,options={}){
+  const headers={'Content-Type':'application/json',...(options.headers||{})};
+  if(state.token) headers.Authorization='Bearer '+state.token;
+  const r=await fetch('/api/v1'+path,{...options,headers});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(data?.error?.message||data?.message||'No fue posible completar la operación');
+  return data;
+}
+function formData(form){return Object.fromEntries(new FormData(form).entries())}
+function openModal(id){$('#'+id).classList.remove('hidden')} function closeModals(){$$('.modal-back').forEach(x=>x.classList.add('hidden'))}
+function pill(status){const s=String(status||''); const cls=s==='PAGADA'||s==='ACTIVO'?'ok':s==='PARCIAL'?'warn':s==='PENDIENTE'?'bad':'warn';return '<span class="pill '+cls+'">'+s.replaceAll('_',' ')+'</span>'}
+function switchSection(id){
+  $$('.section').forEach(x=>x.classList.toggle('active',x.id===id));
+  $$('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.section===id));
+  $('#pageTitle').textContent=$('#nav button[data-section="'+id+'"] span')?.textContent||id;
+  if(id==='apartamentos')loadUnits(); if(id==='cuotas')loadFees(); if(id==='ingresos')loadIncomes(); if(id==='gastos')loadExpenses(); if(id==='movimientos')loadMovements(); if(id==='configuracion')loadConfig();
+}
+async function boot(){
+  if(!state.token)return;
+  try{
+    const s=await api('/auth/session'); state.session=s; $('#userName').textContent=s.user?.nombre||s.usuario?.nombre||''; $('#tenantName').textContent=s.tenant?.nombreEmpresa||s.empresa?.nombreEmpresa||'Propiedad Horizontal';
+    $('#loginView').classList.add('hidden');$('#appView').classList.remove('hidden'); await Promise.all([loadSummary(),loadUnits(),loadCategories()]);
+  }catch(e){localStorage.removeItem('ph_token');state.token=''}
+}
+$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();$('#loginError').textContent='';try{const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:$('#loginEmail').value,password:$('#loginPassword').value})});state.token=d.accessToken||d.token||d.access_token; if(!state.token)throw new Error('La sesión no devolvió un token');localStorage.setItem('ph_token',state.token);await boot()}catch(err){$('#loginError').textContent=err.message}});
+$('#logoutBtn').onclick=()=>{localStorage.removeItem('ph_token');location.reload()};
+$('#nav').onclick=e=>{const b=e.target.closest('button[data-section]');if(b)switchSection(b.dataset.section)};
+document.addEventListener('click',e=>{const o=e.target.closest('[data-open]');if(o)openModal(o.dataset.open);if(e.target.closest('[data-close]'))closeModals();const g=e.target.closest('[data-goto]');if(g)switchSection(g.dataset.goto)});
+async function loadSummary(){const d=await api('/propiedad-horizontal/resumen');const i=d.indicadores;$('#mIngresos').textContent=money(i.ingresos);$('#mGastos').textContent=money(i.gastos);$('#mBalance').textContent=money(i.balancePeriodo);$('#mPendiente').textContent=money(i.cuotasPendientes);$('#unitSummary').innerHTML='<div style="font-size:30px;font-weight:800">'+i.unidades+'</div><div class="muted">Unidades activas</div><div style="margin-top:14px">'+i.unidadesAlDia+' al día · '+i.unidadesPendientes+' con pendientes</div>';$('#latestBody').innerHTML=(d.ultimosMovimientos||[]).map(x=>'<tr><td>'+fmtDate(x.fecha)+'</td><td>'+x.tipo+'</td><td>'+x.concepto+'</td><td>'+money(x.valor)+'</td><td>'+(x.creadoPor?.nombre||'—')+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">Sin movimientos</td></tr>'}
+async function loadUnits(){try{const d=await api('/propiedad-horizontal/unidades');state.units=d.items||[];$('#unitsBody').innerHTML=state.units.map(x=>'<tr><td><strong>'+x.codigo+'</strong></td><td>'+(x.torre||'—')+'</td><td>'+(x.responsableNombre||'—')+'</td><td>'+money(x.cuotaBase)+'</td><td>'+pill(x.activo?'ACTIVO':'INACTIVO')+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">No hay unidades registradas</td></tr>';$('#incomeUnit').innerHTML='<option value="">Sin unidad</option>'+state.units.map(x=>'<option value="'+x.id+'">'+(x.torre?x.torre+' - ':'')+x.codigo+'</option>').join('')}catch(e){}}
+async function loadFees(){const d=await api('/propiedad-horizontal/cuotas');state.fees=d.items||[];$('#feesBody').innerHTML=state.fees.map(x=>'<tr><td>'+x.periodo+'</td><td>'+((x.unidad?.torre?x.unidad.torre+' - ':'')+(x.unidad?.codigo||''))+'</td><td>'+x.concepto+'</td><td>'+money(x.valor)+'</td><td>'+money(x.saldo)+'</td><td>'+pill(x.estado)+'</td></tr>').join('')||'<tr><td colspan="6" class="empty">No hay cuotas</td></tr>'}
+async function loadIncomes(){const d=await api('/propiedad-horizontal/ingresos');$('#incomeBody').innerHTML=(d.items||[]).map(x=>'<tr><td>'+fmtDate(x.fecha)+'</td><td>'+(x.unidad?.codigo||'—')+'</td><td>'+x.concepto+'</td><td>'+(x.referencia||'—')+'</td><td>'+money(x.valor)+'</td><td>'+(x.creadoPor?.nombre||'—')+'</td></tr>').join('')||'<tr><td colspan="6" class="empty">Sin ingresos</td></tr>'}
+async function loadExpenses(){const d=await api('/propiedad-horizontal/gastos');$('#expenseBody').innerHTML=(d.items||[]).map(x=>'<tr><td>'+fmtDate(x.fecha)+'</td><td>'+x.concepto+'</td><td>'+(x.proveedor||'—')+'</td><td>'+(x.categoria?.nombre||'—')+'</td><td>'+money(x.valor)+'</td><td>'+(x.creadoPor?.nombre||'—')+'</td></tr>').join('')||'<tr><td colspan="6" class="empty">Sin gastos</td></tr>'}
+async function loadMovements(){const d=await api('/propiedad-horizontal/movimientos');$('#movementBody').innerHTML=(d.items||[]).map(x=>'<tr><td>'+fmtDate(x.fecha)+'</td><td>'+x.tipo+'</td><td>'+x.concepto+'</td><td>'+money(x.valor)+'</td><td>'+(x.creadoPor?.nombre||'—')+'</td></tr>').join('')||'<tr><td colspan="5" class="empty">Sin movimientos</td></tr>'}
+async function loadCategories(){try{const d=await api('/propiedad-horizontal/categorias-gasto');state.categories=d.items||[];$('#expenseCategory').innerHTML='<option value="">Sin categoría</option>'+state.categories.map(x=>'<option value="'+x.id+'">'+x.nombre+'</option>').join('');$('#categoriesList').textContent=state.categories.map(x=>x.nombre).join(' · ')||'No hay categorías'}catch(e){}}
+async function loadConfig(){const [p,u]=await Promise.all([api('/propiedad-horizontal/configuracion'),api('/usuarios')]);const x=p.propiedad||{};$('#pNombre').value=x.nombre||'';$('#pNit').value=x.nit||'';$('#pCiudad').value=x.ciudad||'';$('#pDireccion').value=x.direccion||'';const users=u.items||u.users||u.usuarios||u.data||[];$('#usersBody').innerHTML=users.map(x=>'<tr><td>'+x.nombre+'</td><td>'+x.email+'</td><td>'+x.rol+'</td><td>'+pill(x.activo?'ACTIVO':'INACTIVO')+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">Sin usuarios</td></tr>';await loadCategories()}
+async function submitJson(form,path,transform){const raw=formData(form);const body=transform?transform(raw):raw;await api(path,{method:'POST',body:JSON.stringify(body)});form.reset();closeModals();await Promise.all([loadSummary(),loadUnits(),loadFees(),loadIncomes(),loadExpenses(),loadMovements(),loadCategories()])}
+$('#unitForm').onsubmit=async e=>{e.preventDefault();try{await submitJson(e.target,'/propiedad-horizontal/unidades',x=>({...x,cuotaBase:Number(x.cuotaBase||0),coeficiente:x.coeficiente?Number(x.coeficiente):null}))}catch(err){alert(err.message)}};
+$('#feeForm').onsubmit=async e=>{e.preventDefault();try{await submitJson(e.target,'/propiedad-horizontal/cuotas/generar',x=>({...x,valorFijo:x.valorFijo?Number(x.valorFijo):undefined,fechaVencimiento:x.fechaVencimiento||undefined}))}catch(err){alert(err.message)}};
+$('#incomeForm').onsubmit=async e=>{e.preventDefault();try{await submitJson(e.target,'/propiedad-horizontal/ingresos',x=>({...x,valor:Number(x.valor),unidadId:x.unidadId||null,fecha:x.fecha||undefined}))}catch(err){alert(err.message)}};
+$('#expenseForm').onsubmit=async e=>{e.preventDefault();try{await submitJson(e.target,'/propiedad-horizontal/gastos',x=>({...x,valor:Number(x.valor),categoriaId:x.categoriaId||null,fecha:x.fecha||undefined}))}catch(err){alert(err.message)}};
+$('#userForm').onsubmit=async e=>{e.preventDefault();try{await submitJson(e.target,'/usuarios');await loadConfig()}catch(err){alert(err.message)}};
+$('#categoryForm').onsubmit=async e=>{e.preventDefault();try{await submitJson(e.target,'/propiedad-horizontal/categorias-gasto');await loadCategories()}catch(err){alert(err.message)}};
+$('#propertyForm').onsubmit=async e=>{e.preventDefault();try{await api('/propiedad-horizontal/configuracion',{method:'PUT',body:JSON.stringify({nombre:$('#pNombre').value,nit:$('#pNit').value,ciudad:$('#pCiudad').value,direccion:$('#pDireccion').value})});await loadSummary();alert('Configuración guardada')}catch(err){alert(err.message)}};
+boot();
+</script>
+</body>
+</html>
