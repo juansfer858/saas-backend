@@ -33,6 +33,17 @@ const restaurantThemeJsPath = path.join(__dirname, 'web', 'restaurant-theme.js')
 const restaurantUiPath = path.join(__dirname, 'web', 'restaurant-ui.js');
 const restaurantControlCenterCssPath = path.join(__dirname, 'web', 'restaurant-control-center.css');
 const restaurantControlCenterJsPath = path.join(__dirname, 'web', 'restaurant-control-center.js');
+const propertyHorizontalHtmlPath = path.join(__dirname, 'web', 'property-horizontal.html');
+
+app.get(['/propiedad-horizontal', '/ph'], (_req, res) => res.sendFile(propertyHorizontalHtmlPath));
+app.use((req, res, next) => {
+  const host = String(req.hostname || req.headers.host || '').split(':')[0].toLowerCase();
+  if (req.method === 'GET' && req.path === '/' && host === 'danielconta.vantixgc.com') {
+    res.setHeader('X-Vantix-App', 'propiedad-horizontal');
+    return res.sendFile(propertyHorizontalHtmlPath);
+  }
+  next();
+}); // data-property-horizontal-entry
 
 const TENANT_NAV_VERSION = 'core-nav-v7';
 const TENANT_SIDEBAR_VERSION = 'core-sidebar-server-v1';
