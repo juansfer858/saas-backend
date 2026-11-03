@@ -10,6 +10,9 @@ const { edgePublicRouter } = require('./modules/edge/edge.routes');
 const { notificationsPublicRouter } = require('./modules/notifications/notifications.public.routes');
 const { restaurantPublicRouter } = require('./modules/restaurant/restaurant.public.routes');
 const { errorHandler } = require('./middleware/error-handler');
+const bcrypt = require('bcryptjs');
+const { seedTenantDefaults } = require('./services/tenant-seed.service');
+const { seedPlatformDefaults } = require('./services/platform-seed.service');
 
 const app = express();
 const accountingHtmlPath = path.join(__dirname, 'web', 'accounting.html');
@@ -413,6 +416,55 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f4f4f5;color:#18
 <div class="grid"><span>Panel Super-Administración SaaS</span><span class="ok">V1</span></div>
 <a class="link" href="/app/dashboard">Panel tenant</a><a class="link" href="/app/centro-de-control">Restaurante</a><a class="link" href="/app/ventas">Ventas</a><a class="link" href="/app/compras">Compras</a><a class="link" href="/app/configuracion-avanzada">Configuración avanzada</a><a class="link" href="/app/edge">Edge Agents</a><a class="link" href="/platform">Panel SaaS</a></div>
 <div class="muted">La excepción de Fase 2 destraba desarrollo funcional, no la promesa de “listo para vender de verdad”. Ver RESTAURANT_PHASE2_SIMULATED_V1.md y EDGE_FIELD_TEST_GATE_V1.md.</div></div></body></html>`);
+});
+
+
+function propertyHorizontalBootstrapRouterMarker() {}
+function requestSubdomain(req) {
+  const host = String(req.hostname || req.headers.host || '').split(':')[0].toLowerCase();
+  const base = String(process.env.TENANT_BASE_DOMAIN || 'vantixgc.com').toLowerCase();
+  if (host.endsWith('.' + base)) return host.slice(0, -(base.length + 1));
+  return String(req.headers['x-tenant-subdomain'] || '').trim().toLowerCase() || null;
+}
+
+app.get('/api/public/property-horizontal/setup-status', async (req, res, next) => {
+  try {
+    const subdomain = requestSubdomain(req);
+    if (!subdomain) return res.status(400).json({ ok:false, error:{ code:'PH_SETUP_SUBDOMAIN_REQUIRED', message:'No fue posible determinar el subdominio' } });
+    const tenant = await prisma.tenant.findUnique({ where:{ subdomain }, select:{ id:true, nombreEmpresa:true, subdomain:true, nicho:true } });
+    res.json({ ok:true, data:{ configured:Boolean(tenant), tenant:tenant || null } });
+  } catch (error) { next(error); }
+});
+
+app.post('/api/public/property-horizontal/bootstrap', async (req, res, next) => {
+  try {
+    const subdomain = requestSubdomain(req);
+    if (!subdomain) return res.status(400).json({ ok:false, error:{ code:'PH_SETUP_SUBDOMAIN_REQUIRED', message:'No fue posible determinar el subdominio' } });
+    const existing = await prisma.tenant.findUnique({ where:{ subdomain }, select:{ id:true } });
+    if (existing) return res.status(409).json({ ok:false, error:{ code:'PH_SETUP_ALREADY_CONFIGURED', message:'El sistema ya fue configurado' } });
+
+    const nombreEmpresa = String(req.body?.nombreEmpresa || '').trim();
+    const adminNombre = String(req.body?.adminNombre || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    if (nombreEmpresa.length < 2 || adminNombre.length < 2 || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) {
+      return res.status(400).json({ ok:false, error:{ code:'PH_SETUP_INVALID', message:'Completa nombre, administrador, correo válido y contraseña de mínimo 8 caracteres' } });
+    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const result = await prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.create({
+        data:{ nombreEmpresa, subdomain, nicho:'PROPIEDAD_HORIZONTAL', pais:'CO', moneda:'COP' }
+      });
+      const admin = await tx.user.create({
+        data:{ tenantId:tenant.id, nombre:adminNombre, email, password:passwordHash, rol:'ADMIN' }
+      });
+      await seedTenantDefaults(tx, tenant);
+      await seedPlatformDefaults(tx, tenant, admin);
+      await tx.propiedadHorizontal.create({ data:{ tenantId:tenant.id, nombre:nombreEmpresa } });
+      return { tenant:{ id:tenant.id, nombreEmpresa:tenant.nombreEmpresa, subdomain:tenant.subdomain }, admin:{ id:admin.id, nombre:admin.nombre, email:admin.email, rol:admin.rol } };
+    });
+    res.status(201).json({ ok:true, data:result });
+  } catch (error) { next(error); }
 });
 
 app.use('/api/v1/auth', authRouter);
