@@ -249,10 +249,6 @@ model Tenant {
   conceptosRetencion    ConceptoRetencion[]
   activosFijos          ActivoFijo[]
   depreciaciones        DepreciacionActivo[]
-  cuotasCreadasPH       CuotaPH[]             @relation("CuotaPHCreadaPor")
-  ingresosCreadosPH     IngresoPH[]           @relation("IngresoPHCreadoPor")
-  gastosCreadosPH       GastoPH[]             @relation("GastoPHCreadoPor")
-  movimientosCreadosPH  MovimientoPH[]        @relation("MovimientoPHCreadoPor")
   conciliaciones        ConciliacionBancaria[]
   partidasExtracto      PartidaExtractoBancario[]
   soportesAsiento       SoporteAsiento[]
@@ -288,6 +284,10 @@ model User {
   soportesAsiento       SoporteAsiento[]
   auditoriaContable     AuditoriaContable[]
   depreciaciones        DepreciacionActivo[]
+  cuotasCreadasPH       CuotaPH[]             @relation("CuotaPHCreadaPor")
+  ingresosCreadosPH     IngresoPH[]           @relation("IngresoPHCreadoPor")
+  gastosCreadosPH       GastoPH[]             @relation("GastoPHCreadoPor")
+  movimientosCreadosPH  MovimientoPH[]        @relation("MovimientoPHCreadoPor")
 
   @@unique([tenantId, email])
   @@unique([tenantId, id])
