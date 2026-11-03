@@ -2,7 +2,7 @@ const { z } = require('zod');
 
 const USER_ROLES = [
   'SUPER_ADMIN', 'ADMIN', 'CAJERO', 'CONTADOR',
-  'AUXILIAR', 'VENDEDOR', 'BODEGUERO',
+  'AUXILIAR', 'CONSULTA', 'VENDEDOR', 'BODEGUERO',
   'MESERO', 'COCINA', 'BARRA', 'POSTRES'
 ];
 const userRoleSchema = z.enum(USER_ROLES);

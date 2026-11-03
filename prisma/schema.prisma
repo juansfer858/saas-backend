@@ -191,6 +191,28 @@ enum TipoPartidaExtracto {
   CREDITO
 }
 
+
+enum TipoUnidadPH {
+  APARTAMENTO
+  LOCAL
+  PARQUEADERO
+  DEPOSITO
+  OTRO
+}
+
+enum EstadoCuotaPH {
+  PENDIENTE
+  PARCIAL
+  PAGADA
+  ANULADA
+}
+
+enum TipoMovimientoPH {
+  INGRESO
+  GASTO
+  AJUSTE
+}
+
 model Tenant {
   id            String   @id @default(uuid())
   nit           String?
@@ -231,6 +253,14 @@ model Tenant {
   partidasExtracto      PartidaExtractoBancario[]
   soportesAsiento       SoporteAsiento[]
   auditoriaContable     AuditoriaContable[]
+  propiedadHorizontal   PropiedadHorizontal?
+  unidadesPH            UnidadPH[]
+  categoriasGastoPH     CategoriaGastoPH[]
+  cuotasPH              CuotaPH[]
+  ingresosPH            IngresoPH[]
+  aplicacionesPagoPH    AplicacionPagoPH[]
+  gastosPH              GastoPH[]
+  movimientosPH         MovimientoPH[]
 }
 
 model User {
@@ -254,6 +284,10 @@ model User {
   soportesAsiento       SoporteAsiento[]
   auditoriaContable     AuditoriaContable[]
   depreciaciones        DepreciacionActivo[]
+  cuotasCreadasPH       CuotaPH[]             @relation("CuotaPHCreadaPor")
+  ingresosCreadosPH     IngresoPH[]           @relation("IngresoPHCreadoPor")
+  gastosCreadosPH       GastoPH[]             @relation("GastoPHCreadoPor")
+  movimientosCreadosPH  MovimientoPH[]        @relation("MovimientoPHCreadoPor")
 
   @@unique([tenantId, email])
   @@unique([tenantId, id])
@@ -946,4 +980,189 @@ model AuditoriaContable {
   @@unique([tenantId, id])
   @@index([tenantId, entidad, entidadId, creadoEn])
   @@index([tenantId, userId, creadoEn])
+}
+
+model PropiedadHorizontal {
+  id          String   @id @default(uuid())
+  tenantId    String   @unique
+  nombre      String
+  nit         String?
+  direccion   String?
+  ciudad      String?
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  unidades     UnidadPH[]
+  categorias   CategoriaGastoPH[]
+  cuotas       CuotaPH[]
+  ingresos     IngresoPH[]
+  gastos       GastoPH[]
+  movimientos MovimientoPH[]
+
+  @@index([tenantId, activo])
+}
+
+model UnidadPH {
+  id                 String       @id @default(uuid())
+  tenantId           String
+  propiedadId        String
+  codigo             String
+  torre              String?
+  piso               String?
+  tipo               TipoUnidadPH @default(APARTAMENTO)
+  responsableNombre  String?
+  responsableEmail   String?
+  responsableTelefono String?
+  coeficiente        Decimal?     @db.Decimal(10, 6)
+  cuotaBase          Decimal      @default(0) @db.Decimal(18, 2)
+  activo             Boolean      @default(true)
+  creadoEn           DateTime     @default(now())
+  actualizadoEn      DateTime     @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propiedad   PropiedadHorizontal @relation(fields: [propiedadId], references: [id], onDelete: Restrict)
+  cuotas      CuotaPH[]
+  ingresos    IngresoPH[]
+
+  @@unique([tenantId, codigo])
+  @@unique([tenantId, id])
+  @@index([tenantId, propiedadId, activo])
+}
+
+model CategoriaGastoPH {
+  id          String   @id @default(uuid())
+  tenantId    String
+  propiedadId String
+  nombre      String
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propiedad PropiedadHorizontal @relation(fields: [propiedadId], references: [id], onDelete: Restrict)
+  gastos    GastoPH[]
+
+  @@unique([tenantId, nombre])
+  @@unique([tenantId, id])
+  @@index([tenantId, propiedadId, activo])
+}
+
+model CuotaPH {
+  id               String        @id @default(uuid())
+  tenantId         String
+  propiedadId      String
+  unidadId         String
+  periodo          String
+  tipo             String        @default("ORDINARIA")
+  concepto         String
+  valor            Decimal       @db.Decimal(18, 2)
+  saldo            Decimal       @db.Decimal(18, 2)
+  estado           EstadoCuotaPH @default(PENDIENTE)
+  fechaEmision     DateTime      @default(now())
+  fechaVencimiento DateTime?
+  creadoPorId      String
+  creadoEn         DateTime      @default(now())
+  actualizadoEn    DateTime      @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propiedad    PropiedadHorizontal @relation(fields: [propiedadId], references: [id], onDelete: Restrict)
+  unidad       UnidadPH            @relation(fields: [unidadId], references: [id], onDelete: Restrict)
+  creadoPor    User                @relation("CuotaPHCreadaPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  aplicaciones AplicacionPagoPH[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, unidadId, estado])
+  @@index([tenantId, periodo, estado])
+}
+
+model IngresoPH {
+  id          String   @id @default(uuid())
+  tenantId    String
+  propiedadId String
+  unidadId    String?
+  concepto    String
+  valor       Decimal  @db.Decimal(18, 2)
+  referencia  String?
+  soporteUrl  String?
+  fecha       DateTime @default(now())
+  creadoPorId String
+  creadoEn    DateTime @default(now())
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propiedad    PropiedadHorizontal @relation(fields: [propiedadId], references: [id], onDelete: Restrict)
+  unidad       UnidadPH?           @relation(fields: [unidadId], references: [id], onDelete: Restrict)
+  creadoPor    User                @relation("IngresoPHCreadoPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  aplicaciones AplicacionPagoPH[]
+  movimiento   MovimientoPH?       @relation("IngresoMovimientoPH")
+
+  @@unique([tenantId, id])
+  @@index([tenantId, propiedadId, fecha])
+  @@index([tenantId, unidadId, fecha])
+}
+
+model AplicacionPagoPH {
+  id        String   @id @default(uuid())
+  tenantId  String
+  ingresoId String
+  cuotaId   String
+  valor     Decimal  @db.Decimal(18, 2)
+  creadoEn  DateTime @default(now())
+
+  tenant  Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ingreso IngresoPH @relation(fields: [ingresoId], references: [id], onDelete: Restrict)
+  cuota   CuotaPH   @relation(fields: [cuotaId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, ingresoId, cuotaId])
+  @@unique([tenantId, id])
+  @@index([tenantId, cuotaId])
+}
+
+model GastoPH {
+  id          String   @id @default(uuid())
+  tenantId    String
+  propiedadId String
+  categoriaId String?
+  concepto    String
+  proveedor   String?
+  valor       Decimal  @db.Decimal(18, 2)
+  referencia  String?
+  soporteUrl  String?
+  fecha       DateTime @default(now())
+  creadoPorId String
+  creadoEn    DateTime @default(now())
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propiedad  PropiedadHorizontal @relation(fields: [propiedadId], references: [id], onDelete: Restrict)
+  categoria  CategoriaGastoPH?   @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  creadoPor  User                @relation("GastoPHCreadoPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  movimiento MovimientoPH?       @relation("GastoMovimientoPH")
+
+  @@unique([tenantId, id])
+  @@index([tenantId, propiedadId, fecha])
+  @@index([tenantId, categoriaId, fecha])
+}
+
+model MovimientoPH {
+  id          String           @id @default(uuid())
+  tenantId    String
+  propiedadId String
+  tipo        TipoMovimientoPH
+  concepto    String
+  valor       Decimal          @db.Decimal(18, 2)
+  fecha       DateTime         @default(now())
+  ingresoId   String?          @unique
+  gastoId     String?          @unique
+  creadoPorId String
+  creadoEn    DateTime         @default(now())
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  propiedad PropiedadHorizontal @relation(fields: [propiedadId], references: [id], onDelete: Restrict)
+  ingreso   IngresoPH?          @relation("IngresoMovimientoPH", fields: [ingresoId], references: [id], onDelete: Restrict)
+  gasto     GastoPH?            @relation("GastoMovimientoPH", fields: [gastoId], references: [id], onDelete: Restrict)
+  creadoPor User                @relation("MovimientoPHCreadoPor", fields: [creadoPorId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, propiedadId, fecha])
+  @@index([tenantId, tipo, fecha])
 }
