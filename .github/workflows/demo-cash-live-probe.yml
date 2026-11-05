@@ -1,0 +1,26 @@
+name: Demo Cash Live Probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/demo-cash-live-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read sanitized demo cash readiness
+        run: |
+          set -euo pipefail
+          echo '--- runtime-info ---'
+          curl -fsS --retry 3 --retry-delay 2 https://core.vantixgc.com/api/public/runtime-info | tee runtime.json
+          echo
+          echo '--- readiness ---'
+          curl -fsS --retry 3 --retry-delay 2 https://core.vantixgc.com/api/public/restaurante/demo-cash-readiness | tee readiness.json
+          echo
+          echo '--- lastChargeError ---'
+          node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('readiness.json','utf8'));console.log(JSON.stringify(j?.data?.lastChargeError||null,null,2));"
