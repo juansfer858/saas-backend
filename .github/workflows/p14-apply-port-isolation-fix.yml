@@ -1,0 +1,74 @@
+name: Apply P14 Real Port Isolation Fix
+
+on:
+  push:
+    branches:
+      - pilot/restaurant-local-first-p14
+    paths:
+      - 'scripts/p14-fix-port-isolation.py'
+      - '.github/workflows/p14-apply-port-isolation-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-port-isolation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout pilot branch
+        uses: actions/checkout@v4
+        with:
+          ref: pilot/restaurant-local-first-p14
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply deterministic port isolation migration
+        run: python scripts/p14-fix-port-isolation.py
+
+      - name: Validate JavaScript contracts
+        run: |
+          node scripts/restaurant-local-first-p14-gate-smoke.js
+          node scripts/restaurant-local-first-p14-runtime-config-smoke.js
+          node scripts/restaurant-local-first-p14-runtime-shell-smoke.js
+
+      - name: Validate generated diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -Fq "httpPort: 8791" lab/restaurant-p14/runtime-config.js
+          grep -Fq "postgresPort: 55433" lab/restaurant-p14/runtime-config.js
+          grep -Fq "Assert-PortFree 8791" lab/restaurant-p14/windows/install-p14-windows.ps1
+          grep -Fq "Assert-PortFree 55433" lab/restaurant-p14/windows/install-p14-windows.ps1
+          grep -Fq "P14_P13_PORT_COEXISTENCE_OK" .github/workflows/restaurant-p14-windows-package.yml
+          grep -Fq "p14-win-home-pilot.2-port-isolated" scripts/restaurant-p14-build-windows-package.ps1
+
+      - name: Export generated workflow files
+        uses: actions/upload-artifact@v4
+        with:
+          name: p14-port-isolated-workflows
+          path: |
+            .github/workflows/restaurant-local-first-p14-ci.yml
+            .github/workflows/restaurant-p14-windows-package.yml
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Commit non-workflow P14 isolation changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/RESTAURANT_LOCAL_FIRST_P14_PILOT.md \
+                  lab/restaurant-p14 \
+                  scripts/restaurant-local-first-p14-runtime-config-smoke.js \
+                  scripts/restaurant-local-first-p14-runtime-shell-smoke.js \
+                  scripts/restaurant-p14-build-windows-package.ps1
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(restaurant): isolate P14 from P13 on 8791 and 55433"
+          git push origin HEAD:pilot/restaurant-local-first-p14

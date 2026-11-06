@@ -1,0 +1,145 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const {
+  P14_RUNTIME_CONTRACT,
+  isPrivateIpv4,
+  parsePrivateCidr,
+  cidrContains,
+  normalizeRemoteAddress,
+  isAllowedClientAddress,
+  assertRestaurantP14RuntimeConfig
+} = require('../lab/restaurant-p14/runtime-config');
+
+const baseEnv = Object.freeze({
+  RESTAURANT_LOCAL_FIRST_P14_ENABLED: 'true',
+  P14_RUNTIME_ENABLED: 'true',
+  P14_TENANT_SUBDOMAIN: 'demo-restaurante',
+  P14_INSTALLATION_ID: 'HOME-PILOT-01',
+  P14_RELEASE_CHANNEL: 'PILOT',
+  P14_OPERATIONAL_MODE: 'LOCAL_FIRST',
+  P14_HTTP_PORT: '8791',
+  P14_LAN_ENABLED: 'false',
+  P14_BIND_HOST: '127.0.0.1',
+  P14_ADVERTISE_HOST: '127.0.0.1',
+  P14_LAN_CIDR: '',
+  DATABASE_URL: 'postgresql://vantix_p14:test-only@127.0.0.1:55433/vantix_p14_home_pilot',
+  P14_JWT_SECRET: 'p14-test-only-jwt-secret-longer-than-32-characters',
+  P14_CORE_URL: 'https://core.vantixgc.com',
+  P14_SYNC_ENABLED: 'false'
+});
+
+function env(overrides = {}) {
+  return { ...baseEnv, ...overrides };
+}
+
+function mustFail(overrides, expectedMessage) {
+  assert.throws(
+    () => assertRestaurantP14RuntimeConfig(env(overrides)),
+    (error) => error instanceof Error && error.message.includes(expectedMessage)
+  );
+}
+
+function main() {
+  assert.equal(Object.isFrozen(P14_RUNTIME_CONTRACT), true);
+  assert.equal(P14_RUNTIME_CONTRACT.httpPort, 8791);
+  assert.equal(P14_RUNTIME_CONTRACT.productionEdgePort, 8788);
+  assert.equal(P14_RUNTIME_CONTRACT.postgresPort, 55433);
+  assert.equal(P14_RUNTIME_CONTRACT.postgresDatabase, 'vantix_p14_home_pilot');
+
+  assert.equal(isPrivateIpv4('10.0.0.10'), true);
+  assert.equal(isPrivateIpv4('172.16.1.10'), true);
+  assert.equal(isPrivateIpv4('172.31.255.10'), true);
+  assert.equal(isPrivateIpv4('192.168.1.50'), true);
+  assert.equal(isPrivateIpv4('172.32.0.1'), false);
+  assert.equal(isPrivateIpv4('8.8.8.8'), false);
+
+  const cidr = parsePrivateCidr('192.168.1.0/24');
+  assert.ok(cidr);
+  assert.equal(cidrContains(cidr, '192.168.1.50'), true);
+  assert.equal(cidrContains(cidr, '192.168.2.50'), false);
+  assert.equal(parsePrivateCidr('8.8.8.0/24'), null);
+  assert.equal(parsePrivateCidr('192.168.1.0/99'), null);
+
+  assert.equal(normalizeRemoteAddress('::1'), '127.0.0.1');
+  assert.equal(normalizeRemoteAddress('::ffff:192.168.1.80'), '192.168.1.80');
+
+  const loopback = assertRestaurantP14RuntimeConfig(env());
+  assert.equal(loopback.marker, 'VANTIX_RESTAURANT_LOCAL_FIRST_P14_HOME_PILOT');
+  assert.equal(loopback.pilot.enabled, true);
+  assert.equal(loopback.http.lanEnabled, false);
+  assert.equal(loopback.http.bindHost, '127.0.0.1');
+  assert.equal(loopback.http.localUrl, 'http://127.0.0.1:8791');
+  assert.deepEqual(loopback.database, {
+    host: '127.0.0.1',
+    port: 55433,
+    database: 'vantix_p14_home_pilot'
+  });
+  assert.deepEqual(loopback.security, { jwtSecretConfigured: true });
+  assert.equal('jwtSecret' in loopback.security, false);
+  assert.equal('adminPassword' in loopback.security, false);
+  assert.equal('adminPasswordConfigured' in loopback.security, false);
+  assert.equal(loopback.core.syncEnabled, false);
+  assert.equal(loopback.productionEdgePortUntouched, 8788);
+  assert.equal(isAllowedClientAddress(loopback, '127.0.0.1'), true);
+  assert.equal(isAllowedClientAddress(loopback, '::1'), true);
+  assert.equal(isAllowedClientAddress(loopback, '192.168.1.80'), false);
+
+  const lan = assertRestaurantP14RuntimeConfig(env({
+    P14_LAN_ENABLED: 'true',
+    P14_BIND_HOST: '0.0.0.0',
+    P14_ADVERTISE_HOST: '192.168.1.50',
+    P14_LAN_CIDR: '192.168.1.0/24'
+  }));
+  assert.equal(lan.http.lanEnabled, true);
+  assert.equal(lan.http.bindHost, '0.0.0.0');
+  assert.equal(lan.http.advertiseHost, '192.168.1.50');
+  assert.equal(lan.http.localUrl, 'http://192.168.1.50:8791');
+  assert.equal(lan.http.lanCidr.raw, '192.168.1.0/24');
+  assert.equal(isAllowedClientAddress(lan, '::ffff:192.168.1.80'), true);
+  assert.equal(isAllowedClientAddress(lan, '192.168.2.80'), false);
+  assert.equal(isAllowedClientAddress(lan, '8.8.8.8'), false);
+
+  // La contraseña inicial sólo pertenece al bootstrap. El runtime no debe
+  // necesitarla ni conservarla para poder arrancar después.
+  assert.equal(assertRestaurantP14RuntimeConfig(env({ P14_ADMIN_PASSWORD: '' })).pilot.enabled, true);
+
+  mustFail({ RESTAURANT_LOCAL_FIRST_P14_ENABLED: 'false' }, 'FEATURE_FLAG_DISABLED');
+  mustFail({ P14_RUNTIME_ENABLED: 'false' }, 'P14_RUNTIME_ENABLED=true');
+  mustFail({ P14_TENANT_SUBDOMAIN: 'demo-core' }, 'TENANT_NOT_ALLOWED');
+  mustFail({ P14_TENANT_SUBDOMAIN: 'restaurante-real' }, 'TENANT_NOT_ALLOWED');
+  mustFail({ P14_INSTALLATION_ID: 'RESTAURANTE-PROD-01' }, 'INSTALLATION_NOT_ALLOWED');
+  mustFail({ P14_RELEASE_CHANNEL: 'STABLE' }, 'CHANNEL_NOT_ALLOWED');
+  mustFail({ P14_OPERATIONAL_MODE: 'CLOUD_FIRST' }, 'MODE_NOT_ALLOWED');
+  mustFail({ P14_HTTP_PORT: '8788' }, 'usa exclusivamente el puerto 8791');
+  mustFail({ P14_HTTP_PORT: '3000' }, 'usa exclusivamente el puerto 8791');
+  mustFail({ DATABASE_URL: 'postgresql://vantix:secret@10.0.0.5:55433/vantix_p14_home_pilot' }, 'PostgreSQL debe permanecer local');
+  mustFail({ DATABASE_URL: 'postgresql://vantix:secret@127.0.0.1:5432/vantix_p14_home_pilot' }, 'PostgreSQL debe usar 55433');
+  mustFail({ DATABASE_URL: 'postgresql://vantix:secret@127.0.0.1:55433/postgres' }, 'la base debe llamarse vantix_p14_home_pilot');
+  mustFail({ P14_SYNC_ENABLED: 'true' }, 'debe permanecer false');
+  mustFail({ P14_CORE_URL: 'https://otro-core.example.com' }, 'Core debe ser https://core.vantixgc.com');
+  mustFail({ P14_JWT_SECRET: 'short' }, 'P14_JWT_SECRET debe tener al menos 32 caracteres');
+  mustFail({ P14_LAN_ENABLED: 'true', P14_BIND_HOST: '127.0.0.1' }, 'P14_BIND_HOST debe ser 0.0.0.0');
+  mustFail({
+    P14_LAN_ENABLED: 'true',
+    P14_BIND_HOST: '0.0.0.0',
+    P14_ADVERTISE_HOST: '8.8.8.8',
+    P14_LAN_CIDR: '192.168.1.0/24'
+  }, 'P14_ADVERTISE_HOST debe ser una IPv4 privada');
+  mustFail({
+    P14_LAN_ENABLED: 'true',
+    P14_BIND_HOST: '0.0.0.0',
+    P14_ADVERTISE_HOST: '192.168.2.50',
+    P14_LAN_CIDR: '192.168.1.0/24'
+  }, 'no pertenece a la subred permitida');
+  mustFail({
+    P14_LAN_ENABLED: 'true',
+    P14_BIND_HOST: '0.0.0.0',
+    P14_ADVERTISE_HOST: '192.168.1.50',
+    P14_LAN_CIDR: '8.8.8.0/24'
+  }, 'P14_LAN_CIDR debe ser una subred IPv4 privada válida');
+
+  console.log('P14_LOCAL_RUNTIME_CONFIG_OK');
+}
+
+main();

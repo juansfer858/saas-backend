@@ -1,0 +1,205 @@
+name: Restaurant P14 Local-First Pilot CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/modules/restaurant/restaurant-local-first-p14-gate.js'
+      - 'lab/restaurant-p14/**'
+      - 'scripts/restaurant-local-first-p14-*.js'
+      - 'scripts/ensure-restaurant-demo-tenant.js'
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'prisma.config.ts'
+      - 'docs/RESTAURANT_LOCAL_FIRST_P14_PILOT.md'
+      - '.github/workflows/restaurant-local-first-p14-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: restaurant-p14-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pilot-isolation-and-runtime-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate fail-closed pilot contract
+        run: node scripts/restaurant-local-first-p14-gate-smoke.js
+
+      - name: Validate loopback and private LAN runtime contract
+        run: node scripts/restaurant-local-first-p14-runtime-config-smoke.js
+
+      - name: Validate canonical read-only runtime shell
+        run: node scripts/restaurant-local-first-p14-runtime-shell-smoke.js
+
+      - name: Assert production remains opt-in and isolated
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "tenantSubdomain: 'demo-restaurante'" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "installationId: 'HOME-PILOT-01'" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "releaseChannel: 'PILOT'" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "RESTAURANT_LOCAL_FIRST_P14_ENABLED" src/modules/restaurant/restaurant-local-first-p14-gate.js
+          grep -Fq "productionEdgePort: 8788" lab/restaurant-p14/runtime-config.js
+          grep -Fq "httpPort: 8791" lab/restaurant-p14/runtime-config.js
+          grep -Fq "postgresPort: 55433" lab/restaurant-p14/runtime-config.js
+          grep -Fq "P14_SYNC_ENABLED debe permanecer false" lab/restaurant-p14/runtime-config.js
+          grep -Fq "allOperationalMutations: 'LOCKED_UNTIL_P14_1A_PASSES'" lab/restaurant-p14/runtime.js
+          grep -Fq "publicQrPolicy: 'CORE_CLOUD_ONLY'" lab/restaurant-p14/runtime.js
+          grep -Fq "P14_LAN_CLIENT_DENIED" lab/restaurant-p14/runtime.js
+          if grep -R "require(.*restaurant-local-first-p14-gate" src/app.js src/routes src/modules/restaurant/*.routes.js 2>/dev/null; then
+            echo 'El gate P14 no puede estar conectado todavía al runtime productivo.' >&2
+            exit 1
+          fi
+          if grep -R "restaurant-p14" src/app.js src/routes src/modules/restaurant/*.routes.js 2>/dev/null; then
+            echo 'El laboratorio P14 no puede estar montado todavía en producción.' >&2
+            exit 1
+          fi
+          echo 'P14_PILOT_ISOLATION_OK'
+
+  local-postgres-runtime-smoke:
+    needs: pilot-isolation-and-runtime-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: vantix_p14
+          POSTGRES_PASSWORD: p14-ci-db-password
+          POSTGRES_DB: vantix_p14_home_pilot
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd="pg_isready -U vantix_p14 -d vantix_p14_home_pilot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      NODE_ENV: test
+      RESTAURANT_LOCAL_FIRST_P14_ENABLED: 'true'
+      P14_RUNTIME_ENABLED: 'true'
+      P14_TENANT_SUBDOMAIN: demo-restaurante
+      P14_INSTALLATION_ID: HOME-PILOT-01
+      P14_RELEASE_CHANNEL: PILOT
+      P14_OPERATIONAL_MODE: LOCAL_FIRST
+      P14_HTTP_PORT: '8791'
+      P14_LAN_ENABLED: 'false'
+      P14_BIND_HOST: 127.0.0.1
+      P14_ADVERTISE_HOST: 127.0.0.1
+      P14_LAN_CIDR: ''
+      P14_CORE_URL: https://core.vantixgc.com
+      P14_SYNC_ENABLED: 'false'
+      P14_JWT_SECRET: p14-ci-jwt-secret-that-is-longer-than-thirty-two-characters
+      P14_ADMIN_PASSWORD: P14-CI-Admin-Password-Only
+      DATABASE_URL: postgresql://vantix_p14:p14-ci-db-password@127.0.0.1:55433/vantix_p14_home_pilot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Prepare isolated P14 database
+        run: npx prisma db push
+
+      - name: Bootstrap only demo-restaurante
+        run: node lab/restaurant-p14/bootstrap-demo.js
+
+      - name: Boot canonical P14 runtime and validate local login
+        shell: bash
+        run: |
+          set -euo pipefail
+          node lab/restaurant-p14/runtime.js > /tmp/p14-runtime.log 2>&1 &
+          runtime_pid=$!
+          cleanup() {
+            cat /tmp/p14-runtime.log || true
+            kill "$runtime_pid" 2>/dev/null || true
+            wait "$runtime_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..60}; do
+            if curl -fsS http://127.0.0.1:8791/__p14/status > /tmp/p14-status.json 2>/dev/null; then
+              break
+            fi
+            if ! kill -0 "$runtime_pid" 2>/dev/null; then
+              echo 'El runtime P14 terminó antes de responder.' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          test -s /tmp/p14-status.json
+
+          node - <<'NODE'
+          const status = require('/tmp/p14-status.json');
+          if (!status.ok) throw new Error('P14 status no está OK');
+          if (status.phase !== 'P14-1A') throw new Error(`Fase inesperada: ${status.phase}`);
+          if (status.tenantSubdomain !== 'demo-restaurante') throw new Error('Tenant local incorrecto');
+          if (status.installationId !== 'HOME-PILOT-01') throw new Error('Instalación local incorrecta');
+          if (status.localSurface !== 'RESTAURANT_V2_CANONICAL_READ_ONLY') throw new Error('Superficie local incorrecta');
+          if (status.core?.syncEnabled !== false) throw new Error('La sincronización debe permanecer apagada');
+          if (status.productionEdgePortUntouched !== 8788) throw new Error('Edge 8788 no quedó protegido');
+          if ('jwtSecret' in (status.security || {}) || 'adminPassword' in (status.security || {})) throw new Error('Se filtraron secretos en status');
+          NODE
+
+          login_code=$(curl -sS -o /tmp/p14-login.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8791/api/v1/auth/login \
+            -H 'Accept: application/json' \
+            -H 'Content-Type: application/json' \
+            -H 'x-tenant-subdomain: demo-restaurante' \
+            --data "{\"email\":\"admin@demo-restaurante.vantixgc.com\",\"password\":\"${P14_ADMIN_PASSWORD}\"}")
+          test "$login_code" = '200'
+          token=$(node -e "const login=require('/tmp/p14-login.json');process.stdout.write(login.data?.token||'')")
+          test -n "$token"
+
+          curl -fsS http://127.0.0.1:8791/api/v1/auth/session \
+            -H 'Accept: application/json' \
+            -H 'x-tenant-subdomain: demo-restaurante' \
+            -H "Authorization: Bearer $token" > /tmp/p14-session.json
+          node - <<'NODE'
+          const session = require('/tmp/p14-session.json');
+          if (session.data?.tenant?.subdomain !== 'demo-restaurante') throw new Error('La sesión no pertenece a demo-restaurante');
+          if (session.data?.user?.rol !== 'ADMIN') throw new Error('El usuario local no es ADMIN');
+          NODE
+
+          wrong_tenant_code=$(curl -sS -o /tmp/p14-wrong-tenant.json -w '%{http_code}' \
+            http://127.0.0.1:8791/app/restaurante-v2/mesas \
+            -H 'x-tenant-subdomain: demo-core')
+          test "$wrong_tenant_code" = '403'
+          grep -Fq 'P14_TENANT_LOCK_MISMATCH' /tmp/p14-wrong-tenant.json
+
+          blocked_code=$(curl -sS -o /tmp/p14-blocked.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8791/api/v1/restaurante/v2/caja/turno/abrir \
+            -H 'Content-Type: application/json' \
+            -H 'x-tenant-subdomain: demo-restaurante' \
+            -H "Authorization: Bearer $token" \
+            --data '{}')
+          test "$blocked_code" = '423'
+          grep -Fq 'P14_OPERATIONAL_MUTATIONS_LOCKED' /tmp/p14-blocked.json
+
+          qr_code=$(curl -sS -o /tmp/p14-qr.json -w '%{http_code}' \
+            http://127.0.0.1:8791/r/demo-restaurante/mesa-1)
+          test "$qr_code" = '409'
+          grep -Fq 'P14_PUBLIC_QR_CORE_ONLY' /tmp/p14-qr.json
+
+          echo 'P14_LOCAL_POSTGRES_RUNTIME_OK'
